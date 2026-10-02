@@ -1,0 +1,272 @@
+/* Страница входа */
+
+.helix-login-page {
+  min-height: 100vh;
+  width: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: var(--bg-secondary);
+  position: relative;
+  overflow: hidden;
+}
+
+.helix-glow {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  width: 600px;
+  height: 600px;
+  background: radial-gradient(circle, rgba(21, 101, 192, 0.15) 0%, transparent 70%);
+  filter: blur(100px);
+  pointer-events: none;
+  animation: pulse-glow 4s ease-in-out infinite;
+}
+
+@keyframes pulse-glow {
+  0%, 100% {
+    opacity: 0.5;
+    transform: translate(-50%, -50%) scale(1);
+  }
+  50% {
+    opacity: 0.8;
+    transform: translate(-50%, -50%) scale(1.1);
+  }
+}
+
+.helix-login-container {
+  max-width: 28rem;
+  width: 100%;
+  padding: 2rem;
+  background: var(--bg-card);
+  backdrop-filter: blur(24px);
+  border: 1px solid var(--border-color);
+  border-radius: 1rem;
+  box-shadow: var(--shadow-card);
+  position: relative;
+  z-index: 10;
+  transition: all 0.3s ease;
+}
+
+.helix-login-container.fade-out {
+  opacity: 0;
+  transform: translateY(-20px) scale(0.98);
+}
+
+.helix-branding {
+  text-align: center;
+  margin-bottom: 2rem;
+}
+
+.helix-logo-wrapper {
+  width: 100px;
+  height: 140px;
+  margin: 0 auto;
+  position: relative;
+}
+
+.helix-title {
+  font-size: 2rem;
+  font-weight: 700;
+  color: var(--text-primary);
+  margin-top: 1rem;
+  margin-bottom: 0.5rem;
+  letter-spacing: -0.025em;
+  background: linear-gradient(135deg, var(--color-primary) 0%, var(--color-secondary) 100%);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+}
+
+.helix-subtitle {
+  font-size: 0.875rem;
+  color: var(--text-secondary);
+  margin: 0;
+}
+
+.helix-form {
+  margin-top: 2rem;
+}
+
+.helix-error {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  padding: 0.75rem 1rem;
+  background: var(--alert-error-bg);
+  border: 1px solid var(--alert-error-border);
+  border-radius: 0.5rem;
+  color: var(--alert-error-text);
+  font-size: 0.875rem;
+  margin-bottom: 1.25rem;
+}
+
+.helix-error-icon {
+  width: 20px;
+  height: 20px;
+  flex-shrink: 0;
+}
+
+.helix-field {
+  margin-bottom: 1.25rem;
+}
+
+.helix-label {
+  display: block;
+  font-size: 0.875rem;
+  font-weight: 500;
+  color: var(--text-primary);
+  margin-bottom: 0.375rem;
+}
+
+.helix-input-wrapper {
+  position: relative;
+  display: flex;
+  align-items: center;
+}
+
+.helix-input-icon {
+  position: absolute;
+  left: 0.75rem;
+  width: 20px;
+  height: 20px;
+  color: var(--text-muted);
+  pointer-events: none;
+}
+
+.helix-input {
+  width: 100%;
+  padding: 0.625rem 0.75rem 0.625rem 2.5rem;
+  background: var(--bg-primary);
+  border: 1px solid var(--border-input);
+  border-radius: 0.5rem;
+  color: var(--text-primary);
+  font-size: 0.875rem;
+  outline: none;
+  transition: all 0.2s ease;
+}
+
+.helix-input::placeholder {
+  color: var(--text-muted);
+}
+
+.helix-input:focus {
+  border-color: var(--color-primary);
+  box-shadow: 0 0 0 1px var(--color-primary);
+}
+
+.helix-input:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.helix-password-toggle {
+  position: absolute;
+  right: 0.75rem;
+  width: 20px;
+  height: 20px;
+  background: none;
+  border: none;
+  color: var(--text-muted);
+  cursor: pointer;
+  padding: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: color 0.2s ease;
+}
+
+.helix-password-toggle:hover {
+  color: var(--text-primary);
+}
+
+.helix-password-toggle svg {
+  width: 100%;
+  height: 100%;
+}
+
+.helix-submit {
+  width: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.5rem;
+  padding: 0.75rem 1rem;
+  background: var(--color-primary);
+  color: white;
+  border: none;
+  border-radius: 0.5rem;
+  font-size: 0.875rem;
+  font-weight: 600;
+  cursor: pointer;
+  margin-top: 0.5rem;
+  transition: all 0.2s ease;
+}
+
+.helix-submit:hover:not(:disabled) {
+  background: var(--color-primary-hover);
+  transform: translateY(-1px);
+  box-shadow: 0 4px 12px rgba(21, 101, 192, 0.4);
+}
+
+.helix-submit:active:not(:disabled) {
+  transform: translateY(0);
+}
+
+.helix-submit:disabled {
+  opacity: 0.7;
+  cursor: not-allowed;
+}
+
+.helix-submit-icon {
+  width: 18px;
+  height: 18px;
+}
+
+.helix-test-data {
+  margin-top: 1.5rem;
+  padding: 1rem;
+  background: var(--bg-tertiary);
+  border: 1px solid var(--border-color);
+  border-radius: 0.5rem;
+  font-size: 0.875rem;
+}
+
+.helix-test-title {
+  font-weight: 500;
+  color: var(--color-primary);
+  margin: 0 0 0.5rem 0;
+}
+
+.helix-test-line {
+  color: var(--text-primary);
+  margin: 0.25rem 0;
+}
+
+.helix-code {
+  display: inline-block;
+  padding: 0.125rem 0.375rem;
+  background: var(--bg-primary);
+  color: var(--color-primary);
+  border-radius: 0.25rem;
+  font-family: 'Courier New', monospace;
+  font-size: 0.8125rem;
+  border: 1px solid var(--border-input);
+}
+
+@media (max-width: 640px) {
+  .helix-login-container {
+    margin: 1rem;
+    padding: 1.5rem;
+  }
+
+  .helix-logo-wrapper {
+    width: 80px;
+    height: 80px;
+  }
+
+  .helix-title {
+    font-size: 1.5rem;
+  }
+}

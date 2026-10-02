@@ -1,0 +1,141 @@
+/* Global styles for DNA Analysis Application */
+
+/* Import page transitions */
+@import './components/Common/PageTransition.css';
+@import './components/Auth/LoginTransition.css';
+
+/* Плавная анимация смены темы */
+body,
+body > *:not(.transition-overlay):not(.helix-login-page) {
+  transition: background-color 0.3s ease, color 0.3s ease, border-color 0.3s ease, box-shadow 0.3s ease;
+}
+
+/* Исключения для элементов, которые не должны анимироваться */
+*:focus,
+*:active,
+button:hover,
+a:hover,
+.theme-switcher,
+.theme-switcher *,
+.modal-overlay,
+.loading-spinner {
+  transition: all 0.2s ease;
+}
+
+/* Сохраняем анимации для специальных элементов */
+[class*="animation"],
+[class*="transition"],
+.fade-out,
+.fade-in,
+.helix-glow,
+.dna,
+.dna-dot {
+  /* Не перезаписываем их transition/animation */
+}
+
+* {
+  box-sizing: border-box;
+}
+
+html {
+  transition: background-color 0.3s ease;
+  overflow-x: hidden;
+}
+
+body {
+  margin: 0;
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Roboto', 'Oxygen',
+    'Ubuntu', 'Cantarell', 'Fira Sans', 'Droid Sans', 'Helvetica Neue',
+    sans-serif;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  transition: background-color 0.3s ease, color 0.3s ease;
+  background-color: var(--bg-secondary);
+  color: var(--text-primary);
+  overflow-x: hidden;
+}
+
+/* Специфичный стиль для профилей сотрудников */
+.staff-profiles-page .modal-content {
+  width: calc(100vw - 40px) !important;
+  max-width: none !important;
+  border-radius: 16px;
+  margin: 20px;
+  box-shadow: 0 20px 60px rgba(0, 0, 0, 0.3);
+}
+
+/* Градиенты для карточек локусов в темной теме */
+.staff-profiles-page.dark .loci-card-amel,
+[data-theme="dark"] .loci-card-amel {
+  background: linear-gradient(135deg, #1a2b4a 0%, #253a60 100%);
+  border-color: #3a5a8a;
+  color: #a0c0ff;
+}
+
+.staff-profiles-page.dark .loci-card-y,
+[data-theme="dark"] .loci-card-y {
+  background: linear-gradient(135deg, #1a3a2a 0%, #254a35 100%);
+  border-color: #3a6a50;
+  color: #a0e0a0;
+}
+
+.staff-profiles-page.dark .loci-card-x,
+[data-theme="dark"] .loci-card-x {
+  background: linear-gradient(135deg, #2a1a3a 0%, #3a2550 100%);
+  border-color: #5a3a7a;
+  color: #c0a0e0;
+}
+
+.staff-profiles-page.dark .loci-card-snp,
+[data-theme="dark"] .loci-card-snp {
+  background: linear-gradient(135deg, #3a2a1a 0%, #4a3525 100%);
+  border-color: #6a503a;
+  color: #e0c080;
+}
+
+.staff-profiles-page.dark .loci-card-penta,
+[data-theme="dark"] .loci-card-penta {
+  background: linear-gradient(135deg, #3a251a 0%, #4a3025 100%);
+  border-color: #6a453a;
+  color: #e0a080;
+}
+
+.staff-profiles-page.dark .loci-card-str,
+[data-theme="dark"] .loci-card-str {
+  background: linear-gradient(135deg, #252525 0%, #303030 100%);
+  border-color: #4a4a4a;
+  color: #c0c0c0;
+}
+
+/* Критичные данные (**, *) - красный на темном фоне */
+[data-theme="dark"] .critical-data {
+  background: #2a1a1a;
+  color: #ef9a9a;
+  font-weight: 600;
+  padding: 2px 4px;
+  border-radius: 3px;
+}
+
+[data-theme="dark"] .critical-data::before {
+  content: "⚠️";
+  margin-right: 4px;
+}
+
+/* Dark mode scrollbar styling */
+[data-theme="dark"] ::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+
+[data-theme="dark"] ::-webkit-scrollbar-track {
+  background: var(--bg-secondary);
+}
+
+[data-theme="dark"] ::-webkit-scrollbar-thumb {
+  background: var(--border-color);
+  border-radius: 4px;
+}
+
+[data-theme="dark"] ::-webkit-scrollbar-thumb:hover {
+  background: var(--text-secondary);
+}

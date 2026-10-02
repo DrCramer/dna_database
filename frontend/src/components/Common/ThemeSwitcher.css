@@ -1,0 +1,112 @@
+.theme-switcher {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  padding: 2px;
+  margin: 0;
+  border: 1px solid var(--border-subtle);
+  border-radius: 999px;
+  background: var(--surface-muted);
+  box-shadow: var(--shadow-sm);
+}
+
+.theme-switcher-title {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+  border: 0;
+}
+
+.theme-switcher input {
+  display: none;
+}
+
+.theme-switcher label {
+  position: relative;
+  z-index: 1;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 34px;
+  height: 34px;
+  border-radius: 999px;
+  color: var(--text-secondary);
+  cursor: pointer;
+  transition: color var(--motion-fast), opacity var(--motion-fast);
+}
+
+.theme-switcher label:hover {
+  color: var(--text-primary);
+}
+
+.theme-switcher input:checked + label {
+  color: var(--brand-primary);
+}
+
+.theme-switcher input:focus-visible + label {
+  box-shadow: var(--shadow-focus);
+}
+
+.theme-switcher-slider {
+  position: absolute;
+  top: 2px;
+  left: 2px;
+  width: 34px;
+  height: 34px;
+  border-radius: 999px;
+  background: var(--surface-card);
+  border: 1px solid var(--border-subtle);
+  box-shadow: var(--shadow-sm);
+  transition: transform var(--motion-fast), background-color var(--motion-fast);
+}
+
+#theme-light:checked ~ .theme-switcher-slider {
+  transform: translateX(0);
+}
+
+#theme-auto:checked ~ .theme-switcher-slider {
+  transform: translateX(34px);
+}
+
+#theme-dark:checked ~ .theme-switcher-slider {
+  transform: translateX(68px);
+}
+
+.theme-toggle {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-2);
+  padding: 8px 10px;
+  border: 1px solid transparent;
+  border-radius: var(--radius-md);
+  background: transparent;
+  color: var(--text-secondary);
+  cursor: pointer;
+  font-size: var(--font-size-md);
+  transition:
+    background-color var(--motion-fast),
+    border-color var(--motion-fast),
+    color var(--motion-fast),
+    box-shadow var(--motion-fast);
+}
+
+.theme-toggle:hover {
+  background: var(--bg-hover);
+  color: var(--text-primary);
+  border-color: var(--border-subtle);
+}
+
+.theme-toggle:focus-visible {
+  outline: none;
+  box-shadow: var(--shadow-focus);
+}
+
+.theme-toggle .theme-label {
+  font-size: var(--font-size-sm);
+  font-weight: var(--font-weight-medium);
+}

@@ -1,0 +1,205 @@
+/**
+ * Кнопки - единые стили действий для всего приложения
+ */
+
+.btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: var(--space-2);
+  min-height: 40px;
+  padding: 0 18px;
+  border: 1px solid transparent;
+  border-radius: var(--radius-md);
+  background: var(--surface-card);
+  color: var(--text-primary);
+  font-family: var(--font-family-base);
+  font-size: var(--font-size-md);
+  font-weight: var(--font-weight-semibold);
+  line-height: 1;
+  text-decoration: none;
+  white-space: nowrap;
+  cursor: pointer;
+  transition:
+    background-color var(--motion-fast),
+    border-color var(--motion-fast),
+    color var(--motion-fast),
+    box-shadow var(--motion-fast),
+    transform var(--motion-fast);
+}
+
+.btn:hover:not(:disabled) {
+  transform: translateY(-1px);
+  box-shadow: var(--shadow-sm);
+}
+
+.btn:active:not(:disabled) {
+  transform: translateY(0);
+}
+
+.btn:focus-visible {
+  outline: none;
+  box-shadow: var(--shadow-focus);
+}
+
+.btn:disabled {
+  opacity: 0.55;
+  cursor: not-allowed;
+  pointer-events: none;
+}
+
+.btn-primary {
+  background: var(--brand-primary);
+  border-color: var(--brand-primary);
+  color: var(--text-inverse);
+}
+
+.btn-primary:hover:not(:disabled) {
+  background: var(--brand-primary-hover);
+  border-color: var(--brand-primary-hover);
+}
+
+.btn-secondary {
+  background: var(--surface-elevated);
+  border-color: var(--border-default);
+  color: var(--text-primary);
+}
+
+.btn-secondary:hover:not(:disabled) {
+  background: var(--surface-card-hover);
+  border-color: var(--border-strong);
+}
+
+.btn-tertiary {
+  background: transparent;
+  border-color: var(--border-default);
+  color: var(--text-secondary);
+}
+
+.btn-tertiary:hover:not(:disabled) {
+  background: var(--bg-hover);
+  color: var(--text-primary);
+  border-color: var(--brand-primary);
+}
+
+.btn-success {
+  background: var(--status-success);
+  border-color: var(--status-success);
+  color: var(--text-inverse);
+}
+
+.btn-success:hover:not(:disabled) {
+  filter: brightness(1.04);
+}
+
+.btn-danger {
+  background: var(--status-danger);
+  border-color: var(--status-danger);
+  color: var(--text-inverse);
+}
+
+.btn-danger:hover:not(:disabled) {
+  filter: brightness(1.03);
+}
+
+.btn-warning {
+  background: var(--status-warning);
+  border-color: var(--status-warning);
+  color: #1d1d1d;
+}
+
+.btn-warning:hover:not(:disabled) {
+  filter: brightness(1.03);
+}
+
+.btn-info {
+  background: var(--status-info);
+  border-color: var(--status-info);
+  color: var(--text-inverse);
+}
+
+.btn-info:hover:not(:disabled) {
+  filter: brightness(1.04);
+}
+
+.btn-ghost {
+  background: transparent;
+  border-color: transparent;
+  color: var(--text-secondary);
+}
+
+.btn-ghost:hover:not(:disabled) {
+  background: var(--bg-hover);
+  color: var(--text-primary);
+  box-shadow: none;
+}
+
+.btn-sm {
+  min-height: 34px;
+  padding: 0 14px;
+  font-size: var(--font-size-sm);
+}
+
+.btn-lg {
+  min-height: 46px;
+  padding: 0 22px;
+  font-size: var(--font-size-lg);
+}
+
+.btn-block {
+  width: 100%;
+  display: inline-flex;
+}
+
+.btn-icon-only {
+  min-width: 40px;
+  padding: 0;
+}
+
+.btn-collapse {
+  font-weight: var(--font-weight-bold);
+}
+
+.button-with-badge {
+  position: relative;
+  display: inline-block;
+}
+
+.button-with-badge > .btn,
+.button-with-badge > .quick-action-card {
+  width: 100%;
+  height: 100%;
+}
+
+.nav-button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 34px;
+  padding: 0 14px;
+  background: var(--surface-muted);
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-md);
+  color: var(--text-primary);
+  font-size: var(--font-size-sm);
+  font-weight: var(--font-weight-medium);
+  white-space: nowrap;
+  cursor: pointer;
+  transition: all var(--motion-fast);
+}
+
+.nav-button:hover:not(:disabled) {
+  background: var(--surface-card);
+  border-color: var(--border-default);
+  box-shadow: var(--shadow-sm);
+}
+
+.nav-button:focus-visible {
+  outline: none;
+  box-shadow: var(--shadow-focus);
+}
+
+.nav-button:disabled {
+  opacity: 0.55;
+  cursor: not-allowed;
+}

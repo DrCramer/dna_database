@@ -1,0 +1,185 @@
+/* Базовые переменные (Светлая тема по умолчанию) */
+:root {
+  --cp-bg: #ffffff;
+  --cp-border: #e0e0e0;
+  --cp-text: #333333;
+  --cp-hover: #f5f5f5;
+  --cp-shadow: rgba(0, 0, 0, 0.1);
+  --cp-primary: #1565C0;
+}
+
+/* Темная тема */
+[data-theme="dark"] {
+  --cp-bg: #1e1e1e;
+  --cp-border: #424242;
+  --cp-text: #e0e0e0;
+  --cp-hover: #2d2d2d;
+  --cp-shadow: rgba(0, 0, 0, 0.5);
+  --cp-primary: #5E81F4;
+}
+
+/* --- Стили компонента --- */
+.cp-wrapper {
+  position: relative;
+  display: inline-block;
+  font-family: system-ui, -apple-system, sans-serif;
+}
+
+.cp-button {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  padding: 0;
+  width: 60px;
+  height: 35px;
+  border: 2px solid var(--cp-border);
+  border-radius: 6px;
+  background-color: var(--cp-bg);
+  color: var(--cp-text);
+  cursor: pointer;
+  font-size: 14px;
+  transition: all 0.2s ease;
+  box-shadow: 0 2px 4px var(--cp-shadow);
+}
+
+.cp-button:hover {
+  background-color: var(--cp-hover);
+  border-color: var(--cp-primary);
+  box-shadow: 0 4px 8px var(--cp-shadow);
+  transform: translateY(-1px);
+}
+
+.cp-button:active {
+  transform: translateY(0);
+}
+
+.cp-color-preview {
+  width: 100%;
+  height: 100%;
+  border-radius: 4px;
+  border: 1px solid rgba(128, 128, 128, 0.2);
+  background: var(--cp-current-color, var(--cp-primary));
+}
+
+.cp-popover {
+  position: absolute;
+  top: calc(100% + 8px);
+  right: 0;
+  z-index: 1000;
+  padding: 12px;
+  background-color: var(--cp-bg);
+  border: 2px solid var(--cp-border);
+  border-radius: 8px;
+  box-shadow: 0 4px 16px var(--cp-shadow);
+  width: max-content;
+  animation: popoverSlideIn 0.2s ease;
+}
+
+@keyframes popoverSlideIn {
+  from {
+    opacity: 0;
+    transform: translateY(-10px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.cp-palette {
+  display: grid;
+  grid-template-columns: repeat(5, 1fr);
+  gap: 8px;
+  margin-bottom: 12px;
+}
+
+.cp-swatch {
+  width: 32px;
+  height: 32px;
+  border-radius: 6px;
+  border: 2px solid var(--cp-border);
+  cursor: pointer;
+  transition: all 0.15s ease;
+  position: relative;
+  background: var(--cp-swatch-color, var(--cp-primary));
+}
+
+.cp-swatch:hover {
+  transform: scale(1.15);
+  border-color: var(--cp-primary);
+  box-shadow: 0 2px 8px var(--cp-shadow);
+  z-index: 1;
+}
+
+.cp-swatch.selected {
+  border-color: var(--cp-primary);
+  border-width: 3px;
+  box-shadow: 0 0 0 2px var(--cp-bg), 0 0 0 4px var(--cp-primary);
+}
+
+.cp-swatch.selected::after {
+  content: '✓';
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  color: white;
+  font-size: 18px;
+  font-weight: bold;
+  text-shadow: 0 0 3px rgba(0, 0, 0, 0.8), 
+               0 0 6px rgba(0, 0, 0, 0.6);
+}
+
+.cp-hex-input-group {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  border-top: 1px solid var(--cp-border);
+  padding-top: 12px;
+}
+
+.cp-hex-label {
+  font-size: 13px;
+  color: var(--cp-text);
+}
+
+.cp-hex-input {
+  flex: 1;
+  padding: 6px 8px;
+  border: 1px solid var(--cp-border);
+  border-radius: 4px;
+  background-color: var(--cp-bg);
+  color: var(--cp-text);
+  font-family: monospace;
+  font-size: 13px;
+  transition: border-color 0.2s ease;
+}
+
+.cp-hex-input:focus {
+  outline: none;
+  border-color: var(--cp-primary);
+  box-shadow: 0 0 0 2px rgba(21, 101, 192, 0.1);
+}
+
+.cp-hex-input::placeholder {
+  color: var(--cp-text);
+  opacity: 0.5;
+}
+
+/* Темная тема - дополнительные стили */
+[data-theme="dark"] .cp-button {
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.3);
+}
+
+[data-theme="dark"] .cp-button:hover {
+  box-shadow: 0 4px 8px rgba(0, 0, 0, 0.5);
+}
+
+[data-theme="dark"] .cp-popover {
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.6);
+}
+
+[data-theme="dark"] .cp-hex-input:focus {
+  box-shadow: 0 0 0 2px rgba(94, 129, 244, 0.2);
+}

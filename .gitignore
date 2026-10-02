@@ -1,0 +1,54 @@
+# Runtime data and credentials
+.env
+.env.*
+!.env.example
+config/encryption.key
+config/ssl/
+runtime/
+logs/
+db-backup/
+release/
+backups/
+uploads/
+exports/
+
+# Generated output and local tools
+node_modules/
+public/
+frontend/src/consolidated/
+coverage/
+.nyc_output/
+.cache/
+.codex/
+.playwright-mcp/
+*.log
+*.rar
+*.zip
+*.tar
+*.tar.gz
+*.dump
+*.bak
+*.sqlite
+*.sqlite3
+*.xlsx
+*.csv
+.DS_Store
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# SQL dumps are private; keep only the reviewed schema and migrations.
+*.sql
+!database/init.sql
+!database/schema.sql
+!database/seed_loci.sql
+!database/migrations/*.sql
+
+# Old generated or local scratch files
+*.sync-conflict-*
+*-backup.js
+*.backup.js
+temp_*
+test-*.html

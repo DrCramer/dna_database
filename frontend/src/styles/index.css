@@ -1,0 +1,34 @@
+/* 
+ * Главный файл стилей
+ * Импортирует все стили в правильном порядке
+ */
+
+/* 1. Базовые стили (переменные, сброс, типографика) */
+@import './base/variables.css';
+@import './base/reset.css';
+@import './base/typography.css';
+
+/* 2. Компоненты (кнопки, формы, таблицы, модалки, карточки, уведомления) */
+@import './components/buttons.css';
+@import './components/forms.css';
+@import './components/tables.css';
+@import './components/modals.css';
+@import './components/cards.css';
+@import './components/notifications.css';
+@import './components/alerts.css';
+@import './components/animations.css';
+
+/* 3. Лейаут (шапка, сетка) */
+@import './layout/header.css';
+@import './layout/grid.css';
+
+/* 4. Страницы (специфичные стили для каждой страницы) */
+@import './pages/login.css';
+@import './pages/dashboard.css';
+@import './pages/analysis.css';
+@import './pages/tasks.css';
+@import './pages/staff-profiles.css';
+@import './pages/upload.css';
+@import './pages/organization.css';
+@import './pages/population.css';
+@import './pages/profiles.css';

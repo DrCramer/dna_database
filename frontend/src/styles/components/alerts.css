@@ -1,0 +1,175 @@
+/**
+ * Alerts - Централизованные стили алертов и уведомлений
+ * Используется во всех компонентах приложения
+ */
+
+/* Базовый алерт */
+.alert {
+  padding: 1rem 1.25rem;
+  border-radius: 0.5rem;
+  margin-bottom: 1rem;
+  border: 1px solid transparent;
+  display: flex;
+  align-items: flex-start;
+  gap: 0.75rem;
+  font-size: 0.875rem;
+  line-height: 1.5;
+}
+
+.alert-icon {
+  flex-shrink: 0;
+  font-size: 1.25rem;
+}
+
+.alert-content {
+  flex: 1;
+}
+
+.alert-title {
+  font-weight: 600;
+  margin-bottom: 0.25rem;
+}
+
+.alert-message {
+  margin: 0;
+}
+
+/* Success Alert */
+.alert-success {
+  background-color: rgba(107, 189, 125, 0.1);
+  border-color: var(--color-success);
+  color: var(--color-success);
+}
+
+.alert-success .alert-title {
+  color: var(--color-success);
+}
+
+/* Error Alert */
+.alert-error,
+.alert-danger {
+  background-color: rgba(239, 83, 80, 0.1);
+  border-color: var(--color-danger);
+  color: var(--color-danger);
+}
+
+.alert-error .alert-title,
+.alert-danger .alert-title {
+  color: var(--color-danger);
+}
+
+/* Warning Alert */
+.alert-warning {
+  background-color: rgba(255, 193, 7, 0.1);
+  border-color: var(--color-warning);
+  color: #856404;
+}
+
+.alert-warning .alert-title {
+  color: #856404;
+}
+
+/* Info Alert */
+.alert-info {
+  background-color: rgba(23, 162, 184, 0.1);
+  border-color: #17a2b8;
+  color: #0c5460;
+}
+
+.alert-info .alert-title {
+  color: #0c5460;
+}
+
+/* Dismissible Alert */
+.alert-dismissible {
+  padding-right: 3rem;
+  position: relative;
+}
+
+.alert-close {
+  position: absolute;
+  top: 0.75rem;
+  right: 0.75rem;
+  background: none;
+  border: none;
+  font-size: 1.25rem;
+  cursor: pointer;
+  color: inherit;
+  opacity: 0.6;
+  padding: 0;
+  width: 24px;
+  height: 24px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 4px;
+  transition: all 0.2s;
+}
+
+.alert-close:hover {
+  opacity: 1;
+  background-color: rgba(0, 0, 0, 0.05);
+}
+
+/* Compact Alert */
+.alert-sm {
+  padding: 0.625rem 1rem;
+  font-size: 0.8125rem;
+}
+
+/* Toast Notifications */
+.toast-container {
+  position: fixed;
+  top: 1rem;
+  right: 1rem;
+  z-index: 9999;
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+  max-width: 400px;
+}
+
+.toast {
+  background: var(--bg-card);
+  border-radius: 0.5rem;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+  padding: 1rem;
+  border-left: 4px solid;
+  animation: slideInRight 0.3s ease;
+}
+
+@keyframes slideInRight {
+  from {
+    opacity: 0;
+    transform: translateX(100%);
+  }
+  to {
+    opacity: 1;
+    transform: translateX(0);
+  }
+}
+
+.toast.toast-success {
+  border-left-color: var(--color-success);
+}
+
+.toast.toast-error {
+  border-left-color: var(--color-danger);
+}
+
+.toast.toast-warning {
+  border-left-color: var(--color-warning);
+}
+
+.toast.toast-info {
+  border-left-color: #17a2b8;
+}
+
+/* Responsive */
+@media (max-width: 768px) {
+  .toast-container {
+    left: 1rem;
+    right: 1rem;
+    max-width: none;
+  }
+}

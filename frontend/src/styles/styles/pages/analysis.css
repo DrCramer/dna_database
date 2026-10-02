@@ -1,0 +1,1032 @@
+/* Страница анализа генотипов */
+
+.genotype-analysis-page {
+  display: flex;
+  flex-direction: column;
+  flex: 1;
+  height: 100%;
+  min-height: 0;
+  background-color: var(--bg-primary);
+  color: var(--text-primary);
+  overflow: hidden;
+}
+
+/* Шапка */
+.analysis-header {
+  background: var(--bg-card);
+  border-bottom: 1px solid var(--border-color);
+  padding: 20px;
+  display: flex;
+  flex-shrink: 0;
+  justify-content: space-between;
+  align-items: center;
+  box-shadow: var(--shadow-card);
+}
+
+.header-content h1 {
+  margin: 0;
+  color: var(--text-primary);
+  font-size: 24px;
+}
+
+.header-subtitle {
+  margin: 5px 0 0 0;
+  color: var(--text-muted);
+  font-size: 14px;
+}
+
+.header-actions {
+  display: flex;
+  gap: 10px;
+  align-items: center;
+}
+
+/* Панель ввода */
+.input-panel {
+  background: var(--bg-card);
+  border-bottom: 1px solid var(--border-color);
+  padding: 0;
+  flex-shrink: 0;
+  overflow: hidden;
+  transition: all 0.5s cubic-bezier(0.4, 0, 0.2, 1);
+  position: relative;
+}
+
+.input-panel.collapsed {
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+}
+
+@keyframes panel-collapse-pulse {
+  0% {
+    box-shadow: 0 0 0 0 rgba(94, 129, 244, 0.4);
+  }
+  50% {
+    box-shadow: 0 0 0 8px rgba(94, 129, 244, 0);
+  }
+  100% {
+    box-shadow: 0 0 0 0 rgba(94, 129, 244, 0);
+  }
+}
+
+.input-panel.auto-collapsing {
+  animation: panel-collapse-pulse 0.6s ease-out;
+}
+
+.panel-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 16px 20px;
+  margin: 0;
+  transition: all 0.3s ease;
+}
+
+.panel-header.clickable {
+  cursor: pointer;
+  user-select: none;
+}
+
+.panel-header.clickable:hover {
+  background: var(--bg-hover, rgba(94, 129, 244, 0.05));
+}
+
+.panel-title {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.collapse-icon {
+  font-size: 14px;
+  color: var(--text-secondary);
+  transition: transform 0.4s cubic-bezier(0.4, 0, 0.2, 1), color 0.3s ease;
+  display: inline-block;
+  will-change: transform;
+}
+
+.collapse-icon.collapsed {
+  transform: rotate(-90deg);
+  color: var(--primary-color, #5E81F4);
+}
+
+.panel-header h3 {
+  margin: 0;
+  color: var(--text-primary);
+  font-size: 18px;
+  transition: color 0.3s ease;
+}
+
+.panel-header.clickable:hover h3 {
+  color: var(--primary-color, #5E81F4);
+}
+
+.panel-actions {
+  display: flex;
+  gap: 8px;
+}
+
+.btn-collapse {
+  font-weight: 600;
+  transition: all 0.2s ease;
+}
+
+.btn-collapse:hover {
+  transform: scale(1.05);
+}
+
+.panel-content {
+  max-height: 2000px;
+  opacity: 1;
+  padding: 0 20px 16px 20px;
+  overflow: hidden;
+  transition: max-height 0.5s cubic-bezier(0.4, 0, 0.2, 1),
+              opacity 0.4s ease 0.05s,
+              padding 0.4s ease,
+              transform 0.5s cubic-bezier(0.4, 0, 0.2, 1);
+  transform: translateY(0);
+  transform-origin: top;
+}
+
+.panel-content.collapsed {
+  max-height: 0;
+  opacity: 0;
+  padding: 0 20px;
+  transform: translateY(-10px);
+}
+
+/* Информация о профиле */
+.reference-info {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 16px;
+  margin-bottom: 16px;
+  transition: opacity 0.3s ease, transform 0.4s cubic-bezier(0.4, 0, 0.2, 1);
+  transform: translateY(0);
+}
+
+.panel-content.collapsed .reference-info {
+  opacity: 0;
+  transform: translateY(-5px);
+}
+
+.info-field {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.info-field label {
+  font-size: 12px;
+  font-weight: 500;
+  color: var(--text-secondary);
+}
+
+.info-field input {
+  padding: 8px;
+  border: 1px solid var(--border-input);
+  border-radius: 4px;
+  background: var(--bg-primary);
+  color: var(--text-primary);
+  font-size: 14px;
+}
+
+.info-field input:read-only {
+  background: var(--bg-tertiary);
+  cursor: not-allowed;
+}
+
+/* Сетка локусов */
+.loci-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(94px, 1fr));
+  gap: 7px;
+  min-width: 1200px;
+  transition: opacity 0.3s ease 0.1s;
+}
+
+.panel-content.collapsed .loci-grid {
+  opacity: 0;
+  transition: opacity 0.2s ease;
+}
+
+.locus-cell {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 6px;
+}
+
+.locus-checkbox {
+  display: none;
+}
+
+.locus-header {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0;
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--text-secondary);
+  cursor: pointer;
+  user-select: none;
+  transition: all 0.2s;
+  padding: 4px 8px;
+  border-radius: 4px;
+  border: 1px solid transparent;
+  min-width: 60px;
+  background: #c5c5c5;
+}
+
+.locus-header:hover {
+  background: #6A8DF5;
+  color: white;
+}
+
+.locus-header:has(.locus-checkbox:checked) {
+  background: #8fbd91;
+  color: white;
+  border-color: #5E81F4;
+}
+
+.locus-name {
+  cursor: pointer;
+  margin-bottom: 0px !important;
+}
+
+.locus-cell input[type="text"] {
+  width: 30%;
+  min-width: 60px;
+  padding: 6px;
+  font-size: 13px;
+  text-align: center;
+  border: 1px solid var(--border-input);
+  border-radius: 4px;
+  background: var(--bg-primary);
+  color: var(--text-primary);
+  transition: border-color 0.2s;
+}
+
+.locus-cell input[type="text"]:focus {
+  outline: none;
+  border-color: var(--color-primary);
+}
+
+.locus-cell input[type="text"].disabled {
+  background: var(--bg-tertiary);
+  color: var(--text-muted);
+  cursor: not-allowed;
+}
+
+.checkbox-label input[type="checkbox"] {
+  cursor: pointer;
+  accent-color: var(--color-primary);
+}
+
+/* Кнопки действий */
+.action-buttons {
+  display: flex;
+  justify-content: center;
+  gap: 16px;
+  padding: 16px 20px;
+  background: var(--bg-card);
+  border-bottom: 1px solid var(--border-color);
+}
+
+/* Вкладки */
+.tabs {
+  display: flex;
+  gap: 8px;
+  padding: 16px 20px 0;
+  flex-shrink: 0;
+  background: var(--bg-primary);
+}
+
+.tab {
+  padding: 10px 20px;
+  border: none;
+  border-radius: 8px 8px 0 0;
+  background: var(--bg-card);
+  color: var(--text-secondary);
+  font-size: 14px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all 0.2s;
+  border: 1px solid var(--border-color);
+  border-bottom: none;
+}
+
+.tab:hover {
+  background: var(--bg-tertiary);
+}
+
+.tab.active {
+  background: var(--bg-card);
+  color: var(--color-primary);
+  border-color: var(--color-primary);
+  border-bottom: 2px solid var(--bg-card);
+  position: relative;
+  z-index: 1;
+}
+
+/* Контент вкладок */
+.tab-content {
+  flex: 1;
+  overflow: hidden;
+  background: var(--bg-card);
+  border-radius: 0 8px 8px 8px;
+  margin: 0 20px 20px;
+  padding: 16px;
+  box-shadow: var(--shadow-card);
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+}
+
+/* Таблица данных */
+.virtualized-wrapper {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+}
+
+.table-header-fixed {
+  position: sticky;
+  top: 0;
+  z-index: 10;
+  background: var(--bg-card);
+  border-bottom: 2px solid var(--border-color);
+  overflow: hidden;
+  padding-right: 6px;
+}
+
+.table-header-fixed .data-table {
+  margin-bottom: 0;
+  border-bottom: none;
+}
+
+.data-table-container {
+  overflow: auto;
+  position: relative;
+  flex: 1;
+}
+
+.data-table {
+  width: 100%;
+  border-collapse: collapse;
+  min-width: 1400px;
+  font-size: 10px;
+  table-layout: fixed;
+}
+
+.data-table th,
+.data-table td {
+  border: 1px solid var(--border-color);
+  padding: 0rem;
+  text-align: center;
+  color: var(--text-primary);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.data-table th[data-column="year"],
+.data-table td[data-column="year"] {
+  width: 60px !important;
+  min-width: 60px;
+  max-width: 60px;
+}
+
+.data-table th[data-column="sample_name"],
+.data-table td[data-column="sample_name"] {
+  width: 80px !important;
+  min-width: 50px;
+}
+
+.data-table th[data-column="internal_number"],
+.data-table td[data-column="internal_number"] {
+  width: 80px !important;
+  min-width: 80px;
+}
+
+.data-table th[data-column="import_number"],
+.data-table td[data-column="import_number"] {
+  width: 80px !important;
+  min-width: 80px;
+  max-width: 80px;
+}
+
+.data-table th:not([data-column]),
+.data-table td:not([data-column]) {
+  width: 80px;
+  min-width: 80px;
+}
+
+.data-table th {
+  background: var(--bg-tertiary);
+  font-weight: 600;
+  color: var(--text-secondary);
+  cursor: pointer;
+  font-size: 12px;
+}
+
+.data-table tbody tr {
+  cursor: pointer;
+  transition: background 0.2s;
+}
+
+.data-table tbody tr:hover {
+  background: var(--bg-tertiary);
+}
+
+.data-table tbody tr.selected {
+  background: #95b9e9;
+}
+
+.data-table tbody tr.previous {
+  background: #8dbd8d;
+}
+
+.data-table tbody tr.deactivated {
+  opacity: 0.5;
+  background-color: var(--bg-secondary);
+  position: relative;
+}
+
+.data-table tbody tr.deactivated:hover {
+  opacity: 0.7;
+}
+
+/* Таблица результатов */
+.results-container {
+  display: flex;
+  flex-direction: column;
+  flex: 1;
+  min-height: 0;
+  gap: 16px;
+  overflow: auto;
+}
+
+.results-header {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.results-header h3 {
+  margin: 0;
+  color: var(--text-primary);
+}
+
+.reference-row {
+  display: flex;
+  gap: 12px;
+  padding: 12px;
+  background: var(--bg-tertiary);
+  border-radius: 4px;
+  font-size: 14px;
+  color: var(--text-primary);
+}
+
+.reference-row strong {
+  color: var(--color-primary);
+}
+
+.results-table {
+  width: 100%;
+  border-collapse: collapse;
+  table-layout: fixed;
+  min-width: 1400px;
+  font-size: 16px;
+}
+
+.results-table th,
+.results-table td {
+  border: 1px solid var(--border-color);
+  padding: 8px;
+  text-align: center;
+  color: var(--text-primary);
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.results-table th {
+  background: var(--bg-tertiary);
+  position: sticky;
+  top: 0;
+  z-index: 10;
+  font-weight: 600;
+  color: var(--text-secondary);
+  text-align: center;
+}
+
+.results-table .match-count-header {
+  width: 110px;
+  min-width: 110px;
+  max-width: 110px;
+  font-weight: bold;
+  font-size: 16px;
+  white-space: nowrap;
+  text-align: center;
+  color: var(--text-secondary);
+}
+
+.results-table .match-count {
+  width: 110px;
+  min-width: 110px;
+  max-width: 110px;
+  font-weight: bold;
+  font-size: 16px;
+  white-space: nowrap;
+  text-align: center;
+  color: var(--color-primary);
+}
+
+.results-table td.matched,
+.data-table td.matched {
+  font-weight: 600;
+  color: var(--text-primary);
+}
+
+.results-table td.matched-contamination,
+.data-table td.matched-contamination {
+  background: #9d8311;
+  font-weight: 600;
+  color: var(--text-primary);
+}
+
+/* История */
+.history-container {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.history-container h3 {
+  color: var(--text-primary);
+  margin: 0 0 1rem 0;
+  font-size: 1.2rem;
+  font-weight: 600;
+  border-bottom: 2px solid var(--border-color);
+  padding-bottom: 0.5rem;
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.history-container h3::before {
+  content: "📜";
+}
+
+.history-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(325px, 1fr));
+  gap: 20px;
+  margin-top: 1rem;
+}
+
+.history-grid.department-search {
+  grid-template-columns: repeat(auto-fill, minmax(500px, 1fr));
+}
+
+.history-card {
+  background: var(--bg-card);
+  border-radius: 12px;
+  border: 2px solid var(--border-color);
+  padding: 20px;
+  cursor: pointer;
+  transition: all 0.3s ease;
+  min-height: 180px;
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+}
+
+.history-card:hover {
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+  transform: translateY(-2px);
+  border-color: var(--color-primary);
+}
+
+.history-card-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  margin-bottom: 16px;
+  padding-bottom: 12px;
+  border-bottom: 2px solid var(--border-color);
+}
+
+.history-card-header strong {
+  color: var(--text-primary);
+  font-size: 18px;
+  font-weight: 600;
+  flex: 1;
+  line-height: 1.3;
+}
+
+.match-badge {
+  background: var(--color-primary);
+  color: white;
+  width: 48px;
+  height: 48px;
+  border-radius: 50%;
+  font-size: 20px;
+  font-weight: bold;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  box-shadow: inset 0 2px 4px rgba(0, 0, 0, 0.2);
+}
+
+.match-badge::before {
+  content: none;
+}
+
+.history-card.no-matches .match-badge {
+  background: var(--color-danger);
+}
+
+.match-badge.in-progress {
+  background: var(--color-warning);
+}
+
+.history-card-body {
+  margin-bottom: 12px;
+}
+
+.history-data-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 14px;
+  border: 1px solid var(--border-color);
+}
+
+.history-data-table th {
+  text-align: center;
+  padding: 10px 8px;
+  font-weight: 600;
+  color: var(--text-secondary);
+  font-size: 14px;
+  border: 1px solid var(--border-color);
+  background: var(--bg-tertiary);
+}
+
+.history-data-table td {
+  padding: 10px 8px;
+  color: var(--text-primary);
+  font-weight: 500;
+  text-align: center;
+  border: 1px solid var(--border-color);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  max-width: 150px;
+}
+
+.department-search .history-data-table {
+  font-size: 12px;
+}
+
+.department-search .history-data-table th,
+.department-search .history-data-table td {
+  padding: 8px 6px;
+  font-size: 12px;
+}
+
+.timestamp {
+  margin-top: 12px;
+  padding-top: 12px;
+  border-top: 2px solid var(--border-color);
+  font-size: 12px;
+  color: var(--text-muted);
+  font-style: italic;
+  text-align: center;
+}
+
+/* Состояния */
+.loading {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  padding: 40px;
+  color: var(--text-muted);
+  font-size: 16px;
+}
+
+.no-results {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  padding: 40px;
+  color: var(--text-muted);
+  font-size: 16px;
+}
+
+/* Кнопка полного поиска */
+.btn-full-search {
+  background: linear-gradient(135deg, var(--color-primary), var(--color-success)) !important;
+  color: white !important;
+  border: none;
+  padding: 10px 20px;
+  border-radius: 6px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.3s ease;
+  box-shadow: 0 2px 8px rgba(0, 123, 255, 0.2);
+}
+
+.btn-full-search:hover:not(:disabled) {
+  transform: translateY(-2px);
+  box-shadow: 0 4px 12px rgba(0, 123, 255, 0.3);
+}
+
+.btn-full-search:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+  transform: none;
+}
+
+/* Группы истории */
+.history-group {
+  margin-bottom: 30px;
+}
+
+.history-group-title {
+  font-size: 18px;
+  font-weight: 600;
+  color: var(--text-primary);
+  margin-bottom: 10px;
+}
+
+.history-group-divider {
+  height: 2px;
+  background: linear-gradient(to right, var(--color-primary), transparent);
+  margin-bottom: 20px;
+}
+
+/* Плитка контаминации сотрудников */
+.staff-contamination-card {
+  border-left: 4px solid var(--color-warning) !important;
+  background: var(--bg-card);
+  color: var(--text-primary);
+  cursor: pointer;
+  transition: all 0.3s ease;
+}
+
+.staff-contamination-card:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+}
+
+.staff-contamination-card .history-card-header {
+  background: var(--bg-secondary);
+  color: var(--text-primary);
+  border-bottom: 1px solid var(--border-color);
+  padding: 15px;
+}
+
+.staff-contamination-card .history-card-body {
+  padding: 15px;
+}
+
+.staff-contamination-card .history-card-body p {
+  color: var(--text-primary);
+  margin: 8px 0;
+}
+
+.staff-contamination-card .history-card-body strong {
+  color: var(--text-secondary);
+}
+
+/* Цветовая подсветка для алгоритма v5.0 */
+.locus-match {
+  background: linear-gradient(135deg, #28a745 0%, #20c997 100%) !important;
+  color: white !important;
+  font-weight: 600;
+  border: 2px solid #1e7e34 !important;
+}
+
+[data-theme="dark"] .locus-match {
+  background: linear-gradient(135deg, #2ecc71 0%, #27ae60 100%) !important;
+  color: #1a1a1a !important;
+  font-weight: 700;
+}
+
+.locus-contamination {
+  background: linear-gradient(135deg, #fd7e14 0%, #ff922b 100%) !important;
+  color: white !important;
+  font-weight: 600;
+  border: 2px solid #e8590c !important;
+}
+
+[data-theme="dark"] .locus-contamination {
+  background: linear-gradient(135deg, #ff922b 0%, #fd7e14 100%) !important;
+  color: #1a1a1a !important;
+  font-weight: 700;
+}
+
+.locus-dropout {
+  background: linear-gradient(135deg, #ffc107 0%, #ffca2c 100%) !important;
+  color: #1a1a1a !important;
+  font-weight: 600;
+  border: 2px solid #e0a800 !important;
+}
+
+[data-theme="dark"] .locus-dropout {
+  background: linear-gradient(135deg, #ffd966 0%, #ffcc33 100%) !important;
+  color: #1a1a1a !important;
+  font-weight: 700;
+}
+
+.locus-partial {
+  background: linear-gradient(135deg, #6c757d 0%, #868e96 100%) !important;
+  color: white !important;
+  font-weight: 600;
+  border: 2px solid #545b62 !important;
+}
+
+[data-theme="dark"] .locus-partial {
+  background: linear-gradient(135deg, #868e96 0%, #6c757d 100%) !important;
+  color: #e0e0e0 !important;
+  font-weight: 700;
+}
+
+.locus-mismatch {
+  background: linear-gradient(135deg, #dc3545 0%, #e4606d 100%) !important;
+  color: white !important;
+  font-weight: 600;
+  border: 2px solid #bd2130 !important;
+}
+
+[data-theme="dark"] .locus-mismatch {
+  background: linear-gradient(135deg, #ff6b6b 0%, #ff5252 100%) !important;
+  color: #1a1a1a !important;
+  font-weight: 700;
+}
+
+.locus-no-call {
+  background: #e9ecef !important;
+  color: #6c757d !important;
+  font-weight: 500;
+  border: 2px solid #dee2e6 !important;
+}
+
+[data-theme="dark"] .locus-no-call {
+  background: #3a3a3a !important;
+  color: #999 !important;
+  font-weight: 500;
+  border: 2px solid #4a4a4a !important;
+}
+
+/* Комментарии */
+.history-card-comment {
+  margin-top: 12px;
+  padding-top: 12px;
+  border-top: 1px solid var(--border-color);
+  display: flex;
+  gap: 8px;
+  font-size: 0.9em;
+}
+
+.comment-icon {
+  font-size: 1.2em;
+  flex-shrink: 0;
+}
+
+.comment-text {
+  flex: 1;
+  color: var(--text-secondary);
+  line-height: 1.4;
+}
+
+.comment-item {
+  margin-bottom: 6px;
+}
+
+.comment-item:last-child {
+  margin-bottom: 0;
+}
+
+.comment-item strong {
+  color: var(--text-primary);
+  font-weight: 600;
+}
+
+.has-comment-indicator {
+  margin-left: 8px;
+  font-size: 0.9em;
+  opacity: 0.7;
+  cursor: help;
+}
+
+.comment-row {
+  background: var(--bg-secondary) !important;
+}
+
+.comment-row:hover {
+  background: var(--bg-secondary) !important;
+}
+
+.comment-cell {
+  padding: 0 !important;
+  border-top: none !important;
+  text-align: left !important;
+}
+
+.result-comment-block {
+  display: flex;
+  align-items: flex-start;
+  gap: 12px;
+  padding: 12px 16px;
+  background: var(--bg-tertiary);
+  border-left: 3px solid var(--accent-color);
+  margin: 0;
+  text-align: left;
+}
+
+.result-comment-block .comment-icon {
+  font-size: 20px;
+  flex-shrink: 0;
+  margin-top: 2px;
+}
+
+.result-comment-block .comment-content {
+  flex: 1;
+  min-width: 0;
+  text-align: left;
+}
+
+.result-comment-block .comment-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 6px;
+  gap: 12px;
+  text-align: left;
+}
+
+.result-comment-block .comment-header strong {
+  color: var(--text-primary);
+  font-size: 14px;
+}
+
+.result-comment-block .comment-meta {
+  color: var(--text-muted);
+  font-size: 12px;
+  white-space: nowrap;
+}
+
+.result-comment-block .comment-text {
+  color: var(--text-secondary);
+  font-size: 14px;
+  line-height: 1.5;
+  word-wrap: break-word;
+  text-align: left;
+}
+
+.results-table tbody tr.deactivated-row {
+  opacity: 0.5;
+  background-color: var(--bg-muted);
+}
+
+.results-table tbody tr.deactivated-row:hover {
+  background-color: var(--bg-hover);
+  opacity: 0.6;
+}
+
+/* Адаптивность */
+@media (max-width: 768px) {
+  .history-container {
+    padding: 1rem;
+  }
+
+  .history-grid {
+    grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+    gap: 16px;
+  }
+
+  .history-card {
+    padding: 16px;
+    min-height: 160px;
+  }
+  
+  .history-card-header strong {
+    font-size: 16px;
+  }
+
+  .match-badge {
+    width: 40px;
+    height: 40px;
+    font-size: 18px;
+  }
+  
+  .history-data-table {
+    font-size: 13px;
+  }
+}
+
+@media (max-width: 480px) {
+  .history-grid {
+    grid-template-columns: 1fr;
+  }
+}

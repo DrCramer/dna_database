@@ -1,0 +1,179 @@
+/**
+ * Tables - Централизованные стили таблиц
+ * Используется во всех компонентах приложения
+ */
+
+/* Контейнер таблицы */
+.table-container {
+  width: 100%;
+  overflow-x: auto;
+  border-radius: 0.5rem;
+  border: 1px solid var(--border-color);
+}
+
+/* Базовая таблица */
+.table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 0.875rem;
+  background: var(--bg-card);
+}
+
+.table thead {
+  background: var(--bg-tertiary);
+  position: sticky;
+  top: 0;
+  z-index: 10;
+}
+
+.table th {
+  padding: 0.875rem 1rem;
+  text-align: left;
+  font-weight: 600;
+  color: var(--text-secondary);
+  border-bottom: 2px solid var(--border-color);
+  white-space: nowrap;
+}
+
+.table td {
+  padding: 0.875rem 1rem;
+  color: var(--text-primary);
+  border-bottom: 1px solid var(--border-color);
+}
+
+.table tbody tr {
+  transition: background-color 0.15s ease;
+}
+
+.table tbody tr:hover {
+  background-color: var(--bg-hover);
+}
+
+.table tbody tr:last-child td {
+  border-bottom: none;
+}
+
+/* Выравнивание */
+.table th.text-center,
+.table td.text-center {
+  text-align: center;
+}
+
+.table th.text-right,
+.table td.text-right {
+  text-align: right;
+}
+
+/* Сортируемые заголовки */
+.table th.sortable {
+  cursor: pointer;
+  user-select: none;
+}
+
+.table th.sortable:hover {
+  background-color: var(--bg-hover);
+}
+
+.table th.sortable::after {
+  content: " ↕";
+  opacity: 0.3;
+  font-size: 0.75rem;
+}
+
+.table th.sortable.asc::after {
+  content: " ↑";
+  opacity: 1;
+}
+
+.table th.sortable.desc::after {
+  content: " ↓";
+  opacity: 1;
+}
+
+/* Выделенные строки */
+.table tbody tr.selected {
+  background-color: rgba(94, 129, 244, 0.1);
+}
+
+.table tbody tr.highlighted {
+  background-color: rgba(255, 193, 7, 0.1);
+}
+
+/* Компактная таблица */
+.table-sm th,
+.table-sm td {
+  padding: 0.5rem 0.75rem;
+  font-size: 0.8125rem;
+}
+
+/* Таблица с границами */
+.table-bordered th,
+.table-bordered td {
+  border: 1px solid var(--border-color);
+}
+
+/* Таблица без границ */
+.table-borderless th,
+.table-borderless td {
+  border: none;
+}
+
+/* Полосатая таблица */
+.table-striped tbody tr:nth-child(even) {
+  background-color: var(--bg-tertiary);
+}
+
+/* Действия в ячейках */
+.table-actions {
+  display: flex;
+  gap: 0.5rem;
+  justify-content: center;
+  align-items: center;
+}
+
+/* Пустое состояние */
+.table-empty {
+  padding: 3rem 1rem;
+  text-align: center;
+  color: var(--text-muted);
+}
+
+.table-empty-icon {
+  font-size: 3rem;
+  margin-bottom: 1rem;
+  opacity: 0.5;
+}
+
+/* Загрузка */
+.table-loading {
+  padding: 3rem 1rem;
+  text-align: center;
+  color: var(--text-muted);
+}
+
+/* Responsive */
+@media (max-width: 768px) {
+  .table {
+    font-size: 0.8125rem;
+  }
+
+  .table th,
+  .table td {
+    padding: 0.625rem 0.75rem;
+  }
+
+  /* Скрываем менее важные колонки на мобильных */
+  .table th.hide-mobile,
+  .table td.hide-mobile {
+    display: none;
+  }
+}
+
+/* Специфичные таблицы (сохраняем для обратной совместимости) */
+.data-table {
+  composes: table;
+}
+
+.results-table {
+  composes: table;
+}

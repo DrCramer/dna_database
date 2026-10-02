@@ -1,0 +1,153 @@
+/* ============================================================================
+   CSS ПЕРЕМЕННЫЕ - Единая система дизайна
+   ============================================================================ */
+
+:root {
+  /* === ЦВЕТА === */
+  
+  /* Основные цвета */
+  --color-primary: #5E81F4;
+  --color-primary-hover: #4A6FE3;
+  --color-primary-light: rgba(94, 129, 244, 0.1);
+  
+  --color-secondary: #6C757D;
+  --color-secondary-hover: #5A6268;
+  
+  --color-success: #28A745;
+  --color-success-hover: #218838;
+  --color-success-light: rgba(40, 167, 69, 0.1);
+  
+  --color-danger: #DC3545;
+  --color-danger-hover: #C82333;
+  --color-danger-light: rgba(220, 53, 69, 0.1);
+  
+  --color-warning: #FFC107;
+  --color-warning-hover: #E0A800;
+  --color-warning-light: rgba(255, 193, 7, 0.1);
+  
+  --color-info: #17A2B8;
+  --color-info-hover: #138496;
+  --color-info-light: rgba(23, 162, 184, 0.1);
+  
+  --accent: #5E81F4;
+  --accent-color: #5E81F4;
+  --primary-color: #5E81F4;
+  
+  /* === СВЕТЛАЯ ТЕМА === */
+  --bg-primary: #FFFFFF;
+  --bg-secondary: #F8F9FA;
+  --bg-tertiary: #E9ECEF;
+  --bg-card: #FFFFFF;
+  --bg-hover: rgba(0, 0, 0, 0.05);
+  --bg-modal-overlay: rgba(0, 0, 0, 0.5);
+  --bg-switcher: #E9ECEF;
+  --bg-item-active: #FFFFFF;
+  --bg-muted: #F1F3F5;
+  
+  --text-primary: #212529;
+  --text-secondary: #6C757D;
+  --text-muted: #ADB5BD;
+  --text-tertiary: #868E96;
+  --text-main: #212529;
+  
+  --border-color: #DEE2E6;
+  --border-input: #CED4DA;
+  
+  /* === ТЕНИ === */
+  --shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.05);
+  --shadow-md: 0 4px 6px rgba(0, 0, 0, 0.1);
+  --shadow-lg: 0 10px 15px rgba(0, 0, 0, 0.1);
+  --shadow-xl: 0 20px 25px rgba(0, 0, 0, 0.15);
+  --shadow-card: 0 2px 8px rgba(0, 0, 0, 0.08);
+  
+  /* === АЛЕРТЫ === */
+  --alert-error-bg: #F8D7DA;
+  --alert-error-text: #721C24;
+  --alert-error-border: #F5C6CB;
+  
+  --alert-success-bg: #D4EDDA;
+  --alert-success-text: #155724;
+  --alert-success-border: #C3E6CB;
+  
+  --alert-warning-bg: #FFF3CD;
+  --alert-warning-text: #856404;
+  --alert-warning-border: #FFEAA7;
+  
+  --alert-info-bg: #D1ECF1;
+  --alert-info-text: #0C5460;
+  --alert-info-border: #BEE5EB;
+  
+  /* === РАЗМЕРЫ === */
+  --spacing-xs: 4px;
+  --spacing-sm: 8px;
+  --spacing-md: 16px;
+  --spacing-lg: 24px;
+  --spacing-xl: 32px;
+  
+  --border-radius-sm: 4px;
+  --border-radius-md: 8px;
+  --border-radius-lg: 12px;
+  --border-radius-xl: 16px;
+  
+  /* === ШРИФТЫ === */
+  --font-size-xs: 11px;
+  --font-size-sm: 12px;
+  --font-size-base: 14px;
+  --font-size-lg: 16px;
+  --font-size-xl: 18px;
+  --font-size-2xl: 24px;
+  
+  --font-weight-normal: 400;
+  --font-weight-medium: 500;
+  --font-weight-semibold: 600;
+  --font-weight-bold: 700;
+  
+  /* === ПЕРЕХОДЫ === */
+  --transition-fast: 0.15s ease;
+  --transition-base: 0.2s ease;
+  --transition-slow: 0.3s ease;
+}
+
+/* === ТЕМНАЯ ТЕМА === */
+[data-theme="dark"] {
+  --bg-primary: #1A1A1A;
+  --bg-secondary: #2D2D2D;
+  --bg-tertiary: #3A3A3A;
+  --bg-card: #242424;
+  --bg-hover: rgba(255, 255, 255, 0.05);
+  --bg-modal-overlay: rgba(0, 0, 0, 0.7);
+  --bg-switcher: #3A3A3A;
+  --bg-item-active: #2D2D2D;
+  --bg-muted: #333333;
+  
+  --text-primary: #E9ECEF;
+  --text-secondary: #ADB5BD;
+  --text-muted: #6C757D;
+  --text-tertiary: #868E96;
+  --text-main: #E9ECEF;
+  
+  --border-color: #3A3A3A;
+  --border-input: #495057;
+  
+  --shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.3);
+  --shadow-md: 0 4px 6px rgba(0, 0, 0, 0.4);
+  --shadow-lg: 0 10px 15px rgba(0, 0, 0, 0.5);
+  --shadow-xl: 0 20px 25px rgba(0, 0, 0, 0.6);
+  --shadow-card: 0 2px 8px rgba(0, 0, 0, 0.4);
+  
+  --alert-error-bg: rgba(220, 53, 69, 0.2);
+  --alert-error-text: #F8D7DA;
+  --alert-error-border: rgba(220, 53, 69, 0.4);
+  
+  --alert-success-bg: rgba(40, 167, 69, 0.2);
+  --alert-success-text: #D4EDDA;
+  --alert-success-border: rgba(40, 167, 69, 0.4);
+  
+  --alert-warning-bg: rgba(255, 193, 7, 0.2);
+  --alert-warning-text: #FFF3CD;
+  --alert-warning-border: rgba(255, 193, 7, 0.4);
+  
+  --alert-info-bg: rgba(23, 162, 184, 0.2);
+  --alert-info-text: #D1ECF1;
+  --alert-info-border: rgba(23, 162, 184, 0.4);
+}
