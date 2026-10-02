@@ -8,6 +8,15 @@ node_modules
 /.codex/
 /public/
 /frontend/src/consolidated/
+/.github/
+/docs/
+/deploy-simple.sh
+/config/
+/scripts/*
+!/scripts/install.sh
+!/scripts/update_server.sh
+!/scripts/bootstrap-admin.js
+*.backup*.js
 npm-debug.log
 .git
 .gitignore
