@@ -18,17 +18,17 @@ export const ThemeProvider = ({ children }) => {
   // Определяем системную тему
   useEffect(() => {
     const mediaQuery = window.matchMedia('(prefers-color-scheme: dark)');
-    
+
     const handleChange = (e) => {
       setSystemTheme(e.matches ? 'dark' : 'light');
     };
 
     // Устанавливаем начальное значение
     setSystemTheme(mediaQuery.matches ? 'dark' : 'light');
-    
+
     // Слушаем изменения системной темы
     mediaQuery.addEventListener('change', handleChange);
-    
+
     return () => mediaQuery.removeEventListener('change', handleChange);
   }, []);
 
@@ -44,10 +44,11 @@ export const ThemeProvider = ({ children }) => {
   useEffect(() => {
     const newEffectiveTheme = theme === 'auto' ? systemTheme : theme;
     setEffectiveTheme(newEffectiveTheme);
-    
+
     // Применяем тему к документу
     document.documentElement.setAttribute('data-theme', newEffectiveTheme);
-    document.body.className = `theme-${newEffectiveTheme}`;
+    document.body.classList.remove('theme-light', 'theme-dark');
+    document.body.classList.add(`theme-${newEffectiveTheme}`);
   }, [theme, systemTheme]);
 
   const setThemePreference = (newTheme) => {

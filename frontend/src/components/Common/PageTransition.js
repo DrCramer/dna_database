@@ -1,5 +1,4 @@
 import React, { useEffect, useState } from 'react';
-import './PageTransition.css';
 
 /**
  * Компонент для плавных переходов между страницами
@@ -11,7 +10,7 @@ const PageTransition = ({ children, className = '', fast = false }) => {
   useEffect(() => {
     // Принудительно запускаем анимацию
     setIsVisible(false);
-    
+
     // Небольшая задержка для плавного появления
     const timer = setTimeout(() => {
       setIsVisible(true);

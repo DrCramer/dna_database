@@ -1,5 +1,4 @@
 import React, { useState, useEffect, useRef } from 'react';
-import './GenotypeAnalysisPage.css';
 import ColorPicker from './ColorPicker';
 import ProfileActionButtons from './ProfileActionButtons';
 import ProfileCommentModal from './ProfileCommentModal';
@@ -28,7 +27,7 @@ const GenotypeAnalysisPage = ({ onNavigate, selectedActiveTask }) => {
     const saved = localStorage.getItem('minMatches');
     return saved ? parseInt(saved) : 15;
   });
-  
+
   // Сохраняем minMatches
   useEffect(() => {
     localStorage.setItem('minMatches', minMatches.toString());
@@ -39,21 +38,21 @@ const GenotypeAnalysisPage = ({ onNavigate, selectedActiveTask }) => {
   const [searchProgress, setSearchProgress] = useState({ stage: '', current: 0, total: 0 });
   const [selectedProfile, setSelectedProfile] = useState(null);
   const [previousProfile, setPreviousProfile] = useState(null);
-  
+
   // Режим поиска: 'task' или 'master_array'
   const [searchMode, setSearchMode] = useState('task');
-  
+
   // Алгоритм сравнения: 'standard', 'contamination', 'duplicate_v5'
   const [comparisonAlgorithm, setComparisonAlgorithm] = useState(() => {
     const saved = localStorage.getItem('comparisonAlgorithm');
     return saved || 'standard';
   });
-  
+
   // Сохраняем comparisonAlgorithm
   useEffect(() => {
     localStorage.setItem('comparisonAlgorithm', comparisonAlgorithm);
   }, [comparisonAlgorithm]);
-  
+
   // Настройки алгоритма поиска дублей v5.0
   const [duplicateSettings, setDuplicateSettings] = useState(() => {
     const saved = localStorage.getItem('duplicateSettings');
@@ -71,19 +70,19 @@ const GenotypeAnalysisPage = ({ onNavigate, selectedActiveTask }) => {
       locusWeights: {}
     };
   });
-  
+
   // Сохраняем duplicateSettings
   useEffect(() => {
     localStorage.setItem('duplicateSettings', JSON.stringify(duplicateSettings));
   }, [duplicateSettings]);
-  
+
   // Виртуализация
   const [scrollTop, setScrollTop] = useState(0);
   const tableContainerRef = useRef(null);
   const tableHeaderRef = useRef(null);
   const ROW_HEIGHT = 40;
   const BUFFER_SIZE = 5;
-  
+
   // Эталонные значения для поиска
   const [referenceValues, setReferenceValues] = useState({
     sample_name: '',
@@ -91,7 +90,7 @@ const GenotypeAnalysisPage = ({ onNavigate, selectedActiveTask }) => {
     import_number: '',
     loci: {}
   });
-  
+
   // Чекбоксы игнорирования локусов (по умолчанию все включены)
   const [ignoredLoci, setIgnoredLoci] = useState(() => {
     const saved = localStorage.getItem('ignoredLoci');
@@ -107,7 +106,7 @@ const GenotypeAnalysisPage = ({ onNavigate, selectedActiveTask }) => {
       return acc;
     }, {});
   });
-  
+
   // Сохраняем ignoredLoci
   useEffect(() => {
     localStorage.setItem('ignoredLoci', JSON.stringify(ignoredLoci));
@@ -116,44 +115,44 @@ const GenotypeAnalysisPage = ({ onNavigate, selectedActiveTask }) => {
   // Отслеживание изменений локусов после последнего поиска
   const [lastSearchLociState, setLastSearchLociState] = useState(null);
   const [lociChanged, setLociChanged] = useState(false);
-  
+
   // Состояние сворачивания панели эталонного профиля
   const [isReferencePanelCollapsed, setIsReferencePanelCollapsed] = useState(true);
-  
+
   // Модальные окна для полного поиска
   const [showFullSearchConfirm, setShowFullSearchConfirm] = useState(false);
   const [showFullSearchResults, setShowFullSearchResults] = useState(false);
   const [fullSearchStats, setFullSearchStats] = useState(null);
   const [isModalClosing, setIsModalClosing] = useState(false);
-  
+
   // Модальные окна для поиска внутри задачи
   const [showTaskSearchConfirm, setShowTaskSearchConfirm] = useState(false);
   const [showTaskSearchResults, setShowTaskSearchResults] = useState(false);
   const [taskSearchStats, setTaskSearchStats] = useState(null);
   const [taskSearchMode, setTaskSearchMode] = useState('task'); // 'task' или 'master_array'
-  
+
   // Модальные окна для поиска в задачах отдела
   const [showDepartmentSearchConfirm, setShowDepartmentSearchConfirm] = useState(false);
   const [showDepartmentSearchResults, setShowDepartmentSearchResults] = useState(false);
   const [departmentSearchStats, setDepartmentSearchStats] = useState(null);
-  
+
   // Модальное окно результатов контаминации
   const [showContaminationResults, setShowContaminationResults] = useState(false);
   const [contaminationStats, setContaminationStats] = useState(null);
-  
+
   // Вкладка контаминации
   const [contaminationDetails, setContaminationDetails] = useState(null);
-  
+
   // Модальное окно комментариев
   const [commentModalOpen, setCommentModalOpen] = useState(false);
   const [commentModalProfile, setCommentModalProfile] = useState(null);
-  
+
   // Модальное окно деактивации профиля
   const [deactivateModalOpen, setDeactivateModalOpen] = useState(false);
   const [deactivateModalProfile, setDeactivateModalProfile] = useState(null);
   const [deactivateReason, setDeactivateReason] = useState('');
   const [deactivateLoading, setDeactivateLoading] = useState(false);
-  
+
   // Настройки алгоритма контаминации
   const [contaminationSettings, setContaminationSettings] = useState(() => {
     // Загружаем настройки из localStorage при инициализации
@@ -191,7 +190,7 @@ const GenotypeAnalysisPage = ({ onNavigate, selectedActiveTask }) => {
         console.error('Error loading settings from localStorage:', e);
       }
     }
-    
+
     // Дефолтные настройки если ничего не сохранено
     return {
       threshold: 5.5,
@@ -219,13 +218,13 @@ const GenotypeAnalysisPage = ({ onNavigate, selectedActiveTask }) => {
       }
     };
   });
-  
+
   // Сохраняем настройки в localStorage при изменении
   useEffect(() => {
     localStorage.setItem('genotypeAnalysisSettings', JSON.stringify(contaminationSettings));
   }, [contaminationSettings]);
   const [showContaminationSettings, setShowContaminationSettings] = useState(false);
-  
+
   // Загрузка дефолтных параметров контаминации (только если нет сохранённых)
   useEffect(() => {
     const loadDefaultContaminationSettings = async () => {
@@ -235,7 +234,7 @@ const GenotypeAnalysisPage = ({ onNavigate, selectedActiveTask }) => {
         // Если есть сохранённые настройки, не загружаем с сервера
         return;
       }
-      
+
       try {
         const token = localStorage.getItem('token');
         const response = await fetch('/api/staff-contamination/default-parameters', {
@@ -253,9 +252,9 @@ const GenotypeAnalysisPage = ({ onNavigate, selectedActiveTask }) => {
             useV4Algorithm: data.data.options.useV4Algorithm,
             useV5Algorithm: data.data.options.useV5Algorithm || false,
             locusWeights: data.data.locusWeights || {},
-            matchCoefficients: data.data.matchCoefficients || { 
-              fullMatch: 1.0, 
-              partialMatch: 0.4, 
+            matchCoefficients: data.data.matchCoefficients || {
+              fullMatch: 1.0,
+              partialMatch: 0.4,
               penalty: -1.0,
               inclusiveDropout: 0.85,
               overInclusiveMix: 0.7
@@ -268,7 +267,7 @@ const GenotypeAnalysisPage = ({ onNavigate, selectedActiveTask }) => {
     };
     loadDefaultContaminationSettings();
   }, []);
-  
+
   /**
    * Закрытие модального окна с анимацией
    */
@@ -282,7 +281,7 @@ const GenotypeAnalysisPage = ({ onNavigate, selectedActiveTask }) => {
 
   // Порядок колонок локусов (можно перетаскивать)
   const [lociOrder, setLociOrder] = useState([...ANALYSIS_LOCI]);
-  
+
   // Порядок базовых колонок (можно перетаскивать)
   const [baseColumnsOrder, setBaseColumnsOrder] = useState([
     { key: 'year', label: 'Год' },
@@ -290,29 +289,29 @@ const GenotypeAnalysisPage = ({ onNavigate, selectedActiveTask }) => {
     { key: 'sample_name', label: '№ в в\\ч' },
     { key: 'internal_number', label: '№' }
   ]);
-  
+
   // Фильтрация деактивированных профилей
   const [hideDeactivated, setHideDeactivated] = useState(() => {
     const saved = localStorage.getItem('hideDeactivatedProfiles');
     return saved === 'true';
   });
-  
+
   // Сохраняем hideDeactivated
   useEffect(() => {
     localStorage.setItem('hideDeactivatedProfiles', hideDeactivated.toString());
   }, [hideDeactivated]);
-  
+
   // Фильтрация профилей с комментариями
   const [showOnlyWithComments, setShowOnlyWithComments] = useState(() => {
     const saved = localStorage.getItem('showOnlyWithComments');
     return saved === 'true';
   });
-  
+
   // Сохраняем showOnlyWithComments
   useEffect(() => {
     localStorage.setItem('showOnlyWithComments', showOnlyWithComments.toString());
   }, [showOnlyWithComments]);
-  
+
   // Состояние для drag-and-drop
   const [draggedLocus, setDraggedLocus] = useState(null);
   const [dragOverLocus, setDragOverLocus] = useState(null);
@@ -341,7 +340,7 @@ const GenotypeAnalysisPage = ({ onNavigate, selectedActiveTask }) => {
       const numB = parseInt(b.internal_number) || 0;
       return numA - numB;
     });
-  
+
   const deactivatedCount = profiles.filter(p => p.is_active === false).length;
   const withCommentsCount = profiles.filter(p => p.expert_comment).length;
 
@@ -359,7 +358,7 @@ const GenotypeAnalysisPage = ({ onNavigate, selectedActiveTask }) => {
   // Обработчик скролла
   const handleScroll = (e) => {
     setScrollTop(e.target.scrollTop);
-    
+
     // Синхронизируем горизонтальный скролл заголовка
     if (tableHeaderRef.current) {
       tableHeaderRef.current.scrollLeft = e.target.scrollLeft;
@@ -387,28 +386,28 @@ const GenotypeAnalysisPage = ({ onNavigate, selectedActiveTask }) => {
     try {
       setLoading(true);
       setError(null);
-      
+
       const token = localStorage.getItem('token');
-      
+
       if (!token) {
         setError('Токен авторизации не найден. Пожалуйста, войдите в систему.');
         return;
       }
-      
+
       // Проверка наличия активной задачи
       if (!selectedActiveTask) {
         setError('Выберите активную задачу для загрузки профилей');
         setProfiles([]);
         return;
       }
-      
+
       // Загружаем только профили из текущей задачи
       const response = await fetch(`/api/tasks/${selectedActiveTask.id}/profiles`, {
         headers: {
           'Authorization': `Bearer ${token}`
         }
       });
-      
+
       // Проверка статуса ответа
       if (response.status === 401) {
         setError('❌ Unauthorized - Токен авторизации истек или недействителен. Пожалуйста, войдите в систему заново.');
@@ -420,13 +419,13 @@ const GenotypeAnalysisPage = ({ onNavigate, selectedActiveTask }) => {
         }, 2000);
         return;
       }
-      
+
       if (!response.ok) {
         throw new Error(`HTTP error! status: ${response.status}`);
       }
-      
+
       const data = await response.json();
-      
+
       if (data.success) {
         // Backend возвращает profiles в data.data.profiles с camelCase полями
         // Преобразуем в snake_case для совместимости с компонентом
@@ -441,7 +440,7 @@ const GenotypeAnalysisPage = ({ onNavigate, selectedActiveTask }) => {
               loci = {};
             }
           }
-          
+
           return {
             id: profile.id,
             sample_name: profile.sampleName || profile.sample_name,
@@ -463,7 +462,7 @@ const GenotypeAnalysisPage = ({ onNavigate, selectedActiveTask }) => {
             comment_updated_by: profile.comment_updated_by
           };
         });
-        
+
         setProfiles(taskProfiles);
       } else {
         setError(data.error || 'Ошибка загрузки профилей');
@@ -481,24 +480,24 @@ const GenotypeAnalysisPage = ({ onNavigate, selectedActiveTask }) => {
    */
   const formatDuplicateComment = (duplicates) => {
     if (!duplicates || duplicates.length === 0) return '';
-    
+
     // Используем фиксированную ширину для всех колонок для единообразия
     const INTERNAL_WIDTH = 10;  // Ширина для internal_number
     const SAMPLE_WIDTH = 12;    // Ширина для sample_name
-    
+
     const formatProfile = (profile) => {
       const internal = (profile.internal_number || 'N/A').padEnd(INTERNAL_WIDTH);
       const sample = (profile.sample_name || 'N/A').padEnd(SAMPLE_WIDTH);
       const importNum = profile.import_number ? `Привоз №${profile.import_number}` : 'Привоз N/A';
       const year = profile.year || 'N/A';
-      
+
       return `${internal} | ${sample} | ${importNum} | ${year}`;
     };
-    
+
     if (duplicates.length === 1) {
       return `Дубликат: ${formatProfile(duplicates[0])}`;
     }
-    
+
     const lines = duplicates.map(d => `• ${formatProfile(d)}`);
     return `Дубликаты:\n${lines.join('\n')}`;
   };
@@ -509,29 +508,29 @@ const GenotypeAnalysisPage = ({ onNavigate, selectedActiveTask }) => {
   const autoCommentDuplicates = async (referenceProfile, duplicates) => {
     if (!contaminationSettings.autoCommentDuplicates) return false;
     if (!duplicates || duplicates.length === 0) return false;
-    
+
     const token = localStorage.getItem('token');
     const commentedProfiles = [];
-    
+
     try {
       // Создаём полный список всех профилей в группе (эталон + дубликаты)
       const allProfilesInGroup = [referenceProfile, ...duplicates];
-      
+
       // Комментируем каждый профиль в группе
       for (const profile of allProfilesInGroup) {
         if (!profile.id) {
           console.warn('Profile without ID:', profile.internal_number, profile.sample_name);
           continue;
         }
-        
+
         // Для каждого профиля создаём список ВСЕХ остальных профилей (кроме него самого)
-        const otherProfiles = allProfilesInGroup.filter(p => 
-          p.internal_number !== profile.internal_number || 
+        const otherProfiles = allProfilesInGroup.filter(p =>
+          p.internal_number !== profile.internal_number ||
           p.sample_name !== profile.sample_name
         );
-        
+
         const comment = formatDuplicateComment(otherProfiles);
-        
+
         const response = await fetch(`/api/profiles/${profile.id}/comment`, {
           method: 'PUT',
           headers: {
@@ -540,12 +539,12 @@ const GenotypeAnalysisPage = ({ onNavigate, selectedActiveTask }) => {
           },
           body: JSON.stringify({ comment })
         });
-        
+
         if (response.ok) {
           commentedProfiles.push(profile.id);
         }
       }
-      
+
       // Возвращаем true если хотя бы один профиль был прокомментирован
       return commentedProfiles.length > 0;
     } catch (error) {
@@ -562,16 +561,16 @@ const GenotypeAnalysisPage = ({ onNavigate, selectedActiveTask }) => {
       alert('Введите эталонные значения для поиска');
       return;
     }
-    
+
     try {
       setSearching(true);
       setError(null);
-      
+
       const token = localStorage.getItem('token');
-      
+
       // Формируем список игнорируемых локусов
       const ignoredLociList = Object.keys(ignoredLoci).filter(locus => ignoredLoci[locus]);
-      
+
       const response = await fetch('/api/genotype-analysis/search', {
         method: 'POST',
         headers: {
@@ -585,12 +584,12 @@ const GenotypeAnalysisPage = ({ onNavigate, selectedActiveTask }) => {
           excludeProfileId: selectedProfile?.id
         })
       });
-      
+
       const data = await response.json();
-      
+
       if (data.success) {
         setSearchResults(data.matches);
-        
+
         // Автоматическое комментирование дубликатов
         if (data.matches && data.matches.length > 0) {
           await autoCommentDuplicates(
@@ -598,7 +597,7 @@ const GenotypeAnalysisPage = ({ onNavigate, selectedActiveTask }) => {
             data.matches
           );
         }
-        
+
         // Добавляем в историю
         setSearchHistory(prev => [...prev, {
           sample_name: referenceValues.sample_name,
@@ -608,10 +607,10 @@ const GenotypeAnalysisPage = ({ onNavigate, selectedActiveTask }) => {
           timestamp: new Date(),
           results: data.matches
         }]);
-        
+
         // Переключаемся на вкладку результатов
         setActiveTab('results');
-        
+
         if (data.count === 0) {
           alert('Совпадений не найдено');
         }
@@ -635,29 +634,29 @@ const GenotypeAnalysisPage = ({ onNavigate, selectedActiveTask }) => {
       setError('Выберите активную задачу на главной странице перед началом анализа');
       return;
     }
-    
+
     // Сохраняем режим и показываем модальное окно подтверждения
     setTaskSearchMode(mode);
     setShowTaskSearchConfirm(true);
   };
-  
+
   /**
    * Выполнение поиска после подтверждения
    */
   const executeTaskSearch = async () => {
     setShowTaskSearchConfirm(false);
-    
+
     // Очищаем историю перед началом нового поиска
     setSearchHistory([]);
-    
+
     try {
       setSearching(true);
       setShowDnaLoading(true);
       setError(null);
-      
+
       const token = localStorage.getItem('token');
       const ignoredLociList = Object.keys(ignoredLoci).filter(locus => ignoredLoci[locus]);
-      
+
       const response = await fetch('/api/genotype-analysis/task-search', {
         method: 'POST',
         headers: {
@@ -674,15 +673,15 @@ const GenotypeAnalysisPage = ({ onNavigate, selectedActiveTask }) => {
           duplicateSettings: comparisonAlgorithm === 'duplicate_v5' ? duplicateSettings : undefined
         })
       });
-      
+
       const data = await response.json();
-      
+
       // Обработка ошибки доступа (403)
       if (response.status === 403) {
         setError(data.message || data.error);
         return;
       }
-      
+
       if (data.success) {
         // Автоматическое комментирование дубликатов для каждого найденного совпадения
         let anyCommented = false;
@@ -694,12 +693,12 @@ const GenotypeAnalysisPage = ({ onNavigate, selectedActiveTask }) => {
             }
           }
         }
-        
+
         // Перезагружаем профили один раз после всех комментариев
         if (anyCommented) {
           await loadProfiles();
         }
-        
+
         // Добавляем все результаты в историю
         const newHistoryItems = data.results.map(result => ({
           sample_name: result.reference.sample_name,
@@ -712,11 +711,11 @@ const GenotypeAnalysisPage = ({ onNavigate, selectedActiveTask }) => {
           results: result.matches,
           searchMode: data.searchMode
         }));
-        
+
         setSearchHistory(prev => [...prev, ...newHistoryItems]);
-        
+
         const stats = data.statistics || {};
-        
+
         // Сохраняем статистику и показываем модальное окно результатов
         setTaskSearchStats({
           searchMode: data.searchMode,
@@ -726,10 +725,10 @@ const GenotypeAnalysisPage = ({ onNavigate, selectedActiveTask }) => {
           comparisons: stats.comparisons ? stats.comparisons.toLocaleString('ru-RU') : 'N/A'
         });
         setShowTaskSearchResults(true);
-        
+
         // Переключаемся на вкладку истории
         setActiveTab('history');
-        
+
         // Сохраняем текущее состояние локусов после успешного поиска
         setLastSearchLociState(JSON.parse(JSON.stringify(ignoredLoci)));
         setLociChanged(false);
@@ -768,32 +767,32 @@ const GenotypeAnalysisPage = ({ onNavigate, selectedActiveTask }) => {
       setError('Выберите активную задачу');
       return;
     }
-    
+
     // Показываем модальное окно подтверждения
     setShowDepartmentSearchConfirm(true);
   };
-  
+
   /**
    * Выполнение поиска в задачах отдела после подтверждения
    */
   const executeDepartmentTasksSearch = async () => {
     setShowDepartmentSearchConfirm(false);
-    
+
     // Очищаем историю перед началом нового поиска
     setSearchHistory([]);
-    
+
     try {
       setSearching(true);
       setShowDnaLoading(true);
       setError(null);
       setActiveTab('results');
-      
+
       const token = localStorage.getItem('token');
-      
+
       // Сохраняем состояние локусов для отслеживания изменений
       setLastSearchLociState(JSON.parse(JSON.stringify(ignoredLoci)));
       setLociChanged(false);
-      
+
       const response = await fetch('/api/genotype-analysis/department-tasks-search', {
         method: 'POST',
         headers: {
@@ -808,20 +807,20 @@ const GenotypeAnalysisPage = ({ onNavigate, selectedActiveTask }) => {
           duplicateSettings: comparisonAlgorithm === 'duplicate_v5' ? duplicateSettings : undefined
         })
       });
-      
+
       if (!response.ok) {
         const errorData = await response.json();
         throw new Error(errorData.error || 'Ошибка поиска в задачах отдела');
       }
-      
+
       const data = await response.json();
-      
+
       if (data.results.length === 0) {
         setError(data.message || 'Совпадений не найдено в активных задачах отдела');
         setSearchResults([]);
         return;
       }
-      
+
       // Автоматическое комментирование дубликатов для каждого найденного совпадения
       let anyCommented = false;
       if (data.results && data.results.length > 0) {
@@ -832,15 +831,15 @@ const GenotypeAnalysisPage = ({ onNavigate, selectedActiveTask }) => {
           }
         }
       }
-      
+
       // Перезагружаем профили один раз после всех комментариев
       if (anyCommented) {
         await loadProfiles();
       }
-      
+
       // Преобразуем результаты в формат для отображения
       const formattedResults = [];
-      
+
       data.results.forEach(result => {
         result.matches.forEach(match => {
           formattedResults.push({
@@ -850,16 +849,16 @@ const GenotypeAnalysisPage = ({ onNavigate, selectedActiveTask }) => {
           });
         });
       });
-      
+
       // Сортируем результаты по количеству совпадений (от большего к меньшему)
       formattedResults.sort((a, b) => {
         const matchCountA = a.matchedLoci ? a.matchedLoci.length : 0;
         const matchCountB = b.matchedLoci ? b.matchedLoci.length : 0;
         return matchCountB - matchCountA;
       });
-      
+
       setSearchResults(formattedResults);
-      
+
       // Добавляем в историю - каждый профиль отдельно с его совпадениями
       // Сохраняем информацию о задаче и эксперте для каждого совпадения
       const newHistoryItems = data.results.map(result => ({
@@ -877,9 +876,9 @@ const GenotypeAnalysisPage = ({ onNavigate, selectedActiveTask }) => {
         })),
         searchMode: 'department_tasks'
       }));
-      
+
       setSearchHistory(prev => [...newHistoryItems, ...prev]);
-      
+
       // Показываем модальное окно с результатами
       setDepartmentSearchStats({
         totalProfiles: data.results.length,
@@ -888,7 +887,7 @@ const GenotypeAnalysisPage = ({ onNavigate, selectedActiveTask }) => {
         durationSeconds: data.stats?.durationSeconds || 'N/A'
       });
       setShowDepartmentSearchResults(true);
-      
+
     } catch (err) {
       setError(err.message || 'Ошибка поиска в задачах отдела');
       console.error('Ошибка поиска в задачах отдела:', err);
@@ -907,15 +906,15 @@ const GenotypeAnalysisPage = ({ onNavigate, selectedActiveTask }) => {
       setError('Выберите активную задачу на главной странице перед началом анализа');
       return;
     }
-    
+
     try {
       setSearching(true);
       setShowDnaLoading(true);
       setError(null);
       setSearchProgress({ stage: 'Анализ контаминации сотрудников...', current: 1, total: 1 });
-      
+
       const token = localStorage.getItem('token');
-      
+
       // Анализ контаминации с алгоритмом v4.0
       const contaminationResponse = await fetch('/api/staff-contamination/analyze-task', {
         method: 'POST',
@@ -930,14 +929,14 @@ const GenotypeAnalysisPage = ({ onNavigate, selectedActiveTask }) => {
           }
         })
       });
-      
+
       const contaminationData = await contaminationResponse.json();
-      
+
       setSearchProgress({ stage: 'Поиск завершен!', current: 1, total: 1 });
-      
+
       // Формируем историю
       const newHistoryItems = [];
-      
+
       // Добавляем результаты контаминации
       if (contaminationData.success && contaminationData.data && contaminationData.data.length > 0) {
         contaminationData.data.forEach(contamination => {
@@ -960,18 +959,18 @@ const GenotypeAnalysisPage = ({ onNavigate, selectedActiveTask }) => {
           });
         });
       }
-      
+
       // Добавляем в историю
       setSearchHistory(prev => [...newHistoryItems, ...prev]);
-      
+
       // Показываем результаты в модальном окне
       const contaminationCases = newHistoryItems.length;
-      
+
       setContaminationStats({
         contaminationCases
       });
       setShowContaminationResults(true);
-      
+
     } catch (err) {
       console.error('Contamination search error:', err);
       setError(err.message || 'Ошибка при поиске контаминаций');
@@ -992,29 +991,29 @@ const GenotypeAnalysisPage = ({ onNavigate, selectedActiveTask }) => {
       alert('Выберите активную задачу на главной странице перед началом анализа');
       return;
     }
-    
+
     // Показываем модальное окно подтверждения
     setShowFullSearchConfirm(true);
   };
-  
+
   /**
    * Выполнение полного поиска после подтверждения
    */
   const executeFullSearch = async () => {
     setShowFullSearchConfirm(false);
-    
+
     // Очищаем историю перед началом нового поиска
     setSearchHistory([]);
-    
+
     try {
       setSearching(true);
       setShowDnaLoading(true);
       setError(null);
       setSearchProgress({ stage: 'Подготовка к поиску...', current: 0, total: 3 });
-      
+
       const token = localStorage.getItem('token');
       const ignoredLociList = Object.keys(ignoredLoci).filter(locus => ignoredLoci[locus]);
-      
+
       // 1. Поиск внутри задачи
       setSearchProgress({ stage: 'Поиск дубликатов в задаче...', current: 1, total: 3 });
       const taskSearchResponse = await fetch('/api/genotype-analysis/task-search', {
@@ -1033,9 +1032,9 @@ const GenotypeAnalysisPage = ({ onNavigate, selectedActiveTask }) => {
           duplicateSettings: comparisonAlgorithm === 'duplicate_v5' ? duplicateSettings : undefined
         })
       });
-      
+
       const taskSearchData = await taskSearchResponse.json();
-      
+
       // 2. Поиск в мастер массиве
       setSearchProgress({ stage: 'Поиск в мастер массиве...', current: 2, total: 3 });
       const masterSearchResponse = await fetch('/api/genotype-analysis/task-search', {
@@ -1054,9 +1053,9 @@ const GenotypeAnalysisPage = ({ onNavigate, selectedActiveTask }) => {
           duplicateSettings: comparisonAlgorithm === 'duplicate_v5' ? duplicateSettings : undefined
         })
       });
-      
+
       const masterSearchData = await masterSearchResponse.json();
-      
+
       // 3. Контаминация сотрудников
       setSearchProgress({ stage: 'Анализ контаминации сотрудников...', current: 3, total: 3 });
       const contaminationResponse = await fetch('/api/staff-contamination/analyze-task', {
@@ -1080,15 +1079,15 @@ const GenotypeAnalysisPage = ({ onNavigate, selectedActiveTask }) => {
           }
         })
       });
-      
+
       const contaminationData = await contaminationResponse.json();
-      
+
       // Завершение
       setSearchProgress({ stage: 'Поиск завершен!', current: 3, total: 3 });
-      
+
       // Формируем историю с группировкой
       const newHistoryItems = [];
-      
+
       // Добавляем результаты поиска внутри задачи
       if (taskSearchData.success && taskSearchData.results) {
         taskSearchData.results.forEach(result => {
@@ -1106,7 +1105,7 @@ const GenotypeAnalysisPage = ({ onNavigate, selectedActiveTask }) => {
           });
         });
       }
-      
+
       // Добавляем результаты поиска в мастер массиве
       if (masterSearchData.success && masterSearchData.results) {
         masterSearchData.results.forEach(result => {
@@ -1124,7 +1123,7 @@ const GenotypeAnalysisPage = ({ onNavigate, selectedActiveTask }) => {
           });
         });
       }
-      
+
       // Добавляем результаты контаминации
       if (contaminationData.success && contaminationData.data && contaminationData.data.length > 0) {
         contaminationData.data.forEach((contamination, idx) => {
@@ -1146,14 +1145,14 @@ const GenotypeAnalysisPage = ({ onNavigate, selectedActiveTask }) => {
           });
         });
       }
-      
+
       // Добавляем все результаты в историю
       setSearchHistory(prev => [...newHistoryItems, ...prev]);
-      
+
       // Сохраняем текущее состояние локусов
       setLastSearchLociState(JSON.parse(JSON.stringify(ignoredLoci)));
       setLociChanged(false);
-      
+
       // Статистика
       const taskMatches = taskSearchData.resultsWithMatches || 0;
       const masterMatches = masterSearchData.resultsWithMatches || 0;
@@ -1161,7 +1160,7 @@ const GenotypeAnalysisPage = ({ onNavigate, selectedActiveTask }) => {
       const taskTime = taskSearchData.statistics?.durationSeconds || 0;
       const masterTime = masterSearchData.statistics?.durationSeconds || 0;
       const totalTime = taskTime + masterTime;
-      
+
       // Сохраняем статистику для модального окна
       setFullSearchStats({
         taskMatches,
@@ -1171,13 +1170,13 @@ const GenotypeAnalysisPage = ({ onNavigate, selectedActiveTask }) => {
         profilesAnalyzed: profiles.length,
         totalTime: typeof totalTime === 'number' ? totalTime.toFixed(1) : '0.0'
       });
-      
+
       // Показываем модальное окно с результатами
       setShowFullSearchResults(true);
-      
+
       // Переключаемся на вкладку истории
       setActiveTab('history');
-      
+
     } catch (err) {
       setError('Ошибка полного поиска: ' + err.message);
       console.error('Ошибка полного поиска:', err);
@@ -1193,7 +1192,7 @@ const GenotypeAnalysisPage = ({ onNavigate, selectedActiveTask }) => {
   const selectProfile = (profile) => {
     setPreviousProfile(selectedProfile);
     setSelectedProfile(profile);
-    
+
     // Формируем значения локусов для эталона
     const lociValues = {};
     if (profile.loci) {
@@ -1205,7 +1204,7 @@ const GenotypeAnalysisPage = ({ onNavigate, selectedActiveTask }) => {
         }
       });
     }
-    
+
     setReferenceValues({
       sample_name: profile.sample_name,
       internal_number: profile.internal_number,
@@ -1269,7 +1268,7 @@ const GenotypeAnalysisPage = ({ onNavigate, selectedActiveTask }) => {
   const handleDragOver = (e, locus) => {
     e.preventDefault();
     e.dataTransfer.dropEffect = 'move';
-    
+
     if (draggedLocus && draggedLocus !== locus) {
       setDragOverLocus(locus);
     }
@@ -1285,21 +1284,21 @@ const GenotypeAnalysisPage = ({ onNavigate, selectedActiveTask }) => {
   const handleDrop = (e, targetLocus) => {
     e.preventDefault();
     e.stopPropagation();
-    
+
     if (!draggedLocus || draggedLocus === targetLocus) {
       return;
     }
-    
+
     // Создаем новый порядок колонок
     const newOrder = [...lociOrder];
     const draggedIndex = newOrder.indexOf(draggedLocus);
     const targetIndex = newOrder.indexOf(targetLocus);
-    
+
     // Удаляем перетаскиваемый элемент
     newOrder.splice(draggedIndex, 1);
     // Вставляем на новое место
     newOrder.splice(targetIndex, 0, draggedLocus);
-    
+
     setLociOrder(newOrder);
     setDraggedLocus(null);
     setDragOverLocus(null);
@@ -1330,7 +1329,7 @@ const GenotypeAnalysisPage = ({ onNavigate, selectedActiveTask }) => {
   const handleColumnDragOver = (e, columnKey) => {
     e.preventDefault();
     e.dataTransfer.dropEffect = 'move';
-    
+
     if (draggedColumn && draggedColumn !== columnKey) {
       setDragOverColumn(columnKey);
     }
@@ -1345,21 +1344,21 @@ const GenotypeAnalysisPage = ({ onNavigate, selectedActiveTask }) => {
   const handleColumnDrop = (e, targetColumnKey) => {
     e.preventDefault();
     e.stopPropagation();
-    
+
     if (!draggedColumn || draggedColumn === targetColumnKey) {
       return;
     }
-    
+
     // Создаем новый порядок колонок
     const newOrder = [...baseColumnsOrder];
     const draggedIndex = newOrder.findIndex(col => col.key === draggedColumn);
     const targetIndex = newOrder.findIndex(col => col.key === targetColumnKey);
-    
+
     // Удаляем перетаскиваемый элемент
     const [removed] = newOrder.splice(draggedIndex, 1);
     // Вставляем на новое место
     newOrder.splice(targetIndex, 0, removed);
-    
+
     setBaseColumnsOrder(newOrder);
     setDraggedColumn(null);
     setDragOverColumn(null);
@@ -1382,12 +1381,12 @@ const GenotypeAnalysisPage = ({ onNavigate, selectedActiveTask }) => {
    */
   const handleProfileDeactivate = (profileId, newStatus) => {
     // Обновляем профиль в списке
-    setProfiles(prev => prev.map(p => 
+    setProfiles(prev => prev.map(p =>
       p.id === profileId ? { ...p, is_active: newStatus } : p
     ));
-    
+
     // Обновляем в результатах поиска если есть
-    setSearchResults(prev => prev.map(r => 
+    setSearchResults(prev => prev.map(r =>
       r.profile.id === profileId ? { ...r, profile: { ...r.profile, is_active: newStatus } } : r
     ));
   };
@@ -1428,7 +1427,7 @@ const GenotypeAnalysisPage = ({ onNavigate, selectedActiveTask }) => {
   const performToggleActive = async (profile, newStatus, reason) => {
     try {
       const token = localStorage.getItem('token');
-      
+
       const response = await fetch(`/api/profiles/${profile.id}/toggle-active`, {
         method: 'PUT',
         headers: {
@@ -1446,12 +1445,12 @@ const GenotypeAnalysisPage = ({ onNavigate, selectedActiveTask }) => {
       }
 
       // Обновляем профиль в списке
-      setProfiles(prev => prev.map(p => 
+      setProfiles(prev => prev.map(p =>
         p.id === profile.id ? { ...p, is_active: newStatus } : p
       ));
-      
+
       // Обновляем в результатах поиска если есть
-      setSearchResults(prev => prev.map(r => 
+      setSearchResults(prev => prev.map(r =>
         r.id === profile.id ? { ...r, is_active: newStatus } : r
       ));
 
@@ -1470,7 +1469,7 @@ const GenotypeAnalysisPage = ({ onNavigate, selectedActiveTask }) => {
    */
   const handleConfirmDeactivate = async () => {
     if (!deactivateModalProfile) return;
-    
+
     setDeactivateLoading(true);
     try {
       await performToggleActive(deactivateModalProfile, false, deactivateReason);
@@ -1486,17 +1485,17 @@ const GenotypeAnalysisPage = ({ onNavigate, selectedActiveTask }) => {
     // Если это временный профиль (из результатов поиска), нужно найти реальный профиль в БД
     if (profile._isTemporary) {
       // Ищем в уже загруженных профилях
-      const realProfile = profiles.find(p => 
+      const realProfile = profiles.find(p =>
         (p.internal_number && p.internal_number === profile.internal_number) ||
         (p.sample_name && p.sample_name === profile.sample_name)
       );
-      
+
       if (realProfile) {
         setCommentModalProfile(realProfile);
         setCommentModalOpen(true);
         return;
       }
-      
+
       // Если не нашли в загруженных, пробуем загрузить из БД
       try {
         const token = localStorage.getItem('token');
@@ -1510,13 +1509,13 @@ const GenotypeAnalysisPage = ({ onNavigate, selectedActiveTask }) => {
         if (profile.year) {
           searchParams.append('year', profile.year);
         }
-        
+
         const response = await fetch(`/api/tasks/${selectedActiveTask.id}/profiles?${searchParams}`, {
           headers: {
             'Authorization': `Bearer ${token}`
           }
         });
-        
+
         if (response.ok) {
           const data = await response.json();
           if (data.profiles && data.profiles.length > 0) {
@@ -1528,12 +1527,12 @@ const GenotypeAnalysisPage = ({ onNavigate, selectedActiveTask }) => {
       } catch (error) {
         console.error('Error loading profile from database:', error);
       }
-      
+
       // Если не нашли, показываем ошибку
       alert('Не удалось найти профиль в базе данных. Возможно, он из другой задачи.');
       return;
     }
-    
+
     // Обычный профиль с ID
     setCommentModalProfile(profile);
     setCommentModalOpen(true);
@@ -1544,14 +1543,14 @@ const GenotypeAnalysisPage = ({ onNavigate, selectedActiveTask }) => {
    */
   const handleCommentSave = async (comment) => {
     if (!commentModalProfile) return;
-    
+
     try {
       const profileId = commentModalProfile.id;
       const sampleName = commentModalProfile.sample_name || commentModalProfile.sampleName;
       const internalNumber = commentModalProfile.internal_number || commentModalProfile.internalNumber;
-      
+
       const token = localStorage.getItem('token');
-      
+
       // СНАЧАЛА сохраняем комментарий через PUT
       const saveResponse = await fetch(`/api/profiles/${profileId}/comment`, {
         method: 'PUT',
@@ -1561,11 +1560,11 @@ const GenotypeAnalysisPage = ({ onNavigate, selectedActiveTask }) => {
         },
         body: JSON.stringify({ comment })
       });
-      
+
       if (!saveResponse.ok) {
         throw new Error('Failed to save comment');
       }
-      
+
       // ПОТОМ получаем обновлённые данные профиля с сервера
       const getResponse = await fetch(`/api/profiles/${profileId}/comment`, {
         method: 'GET',
@@ -1573,7 +1572,7 @@ const GenotypeAnalysisPage = ({ onNavigate, selectedActiveTask }) => {
           'Authorization': `Bearer ${token}`
         }
       });
-      
+
       let updatedCommentData = {
         expert_comment: comment,
         comment_updated_at: new Date().toLocaleString('ru-RU', {
@@ -1584,7 +1583,7 @@ const GenotypeAnalysisPage = ({ onNavigate, selectedActiveTask }) => {
           minute: '2-digit'
         })
       };
-      
+
       if (getResponse.ok) {
         const data = await getResponse.json();
         updatedCommentData = {
@@ -1593,7 +1592,7 @@ const GenotypeAnalysisPage = ({ onNavigate, selectedActiveTask }) => {
           comment_updated_by: data.updated_by || data.comment_updated_by
         };
       }
-      
+
       // Обновляем профиль в списке
       setProfiles(prev => {
         const profileExists = prev.some(p => p.id === profileId);
@@ -1602,22 +1601,22 @@ const GenotypeAnalysisPage = ({ onNavigate, selectedActiveTask }) => {
         }
         return prev;
       });
-      
+
       // Обновляем эталонный профиль если это он
       setReferenceProfile(prev => {
-        if (prev && (prev.id === profileId || 
-            prev.sample_name === sampleName || 
+        if (prev && (prev.id === profileId ||
+            prev.sample_name === sampleName ||
             prev.internal_number === internalNumber)) {
           return { ...prev, ...updatedCommentData };
         }
         return prev;
       });
-      
+
       // Обновляем в результатах поиска если есть
       setSearchResults(prev => {
         const updated = prev.map(r => {
-          if (r.id === profileId || 
-              r.sample_name === sampleName || 
+          if (r.id === profileId ||
+              r.sample_name === sampleName ||
               r.internal_number === internalNumber) {
             return { ...r, ...updatedCommentData };
           }
@@ -1625,15 +1624,15 @@ const GenotypeAnalysisPage = ({ onNavigate, selectedActiveTask }) => {
         });
         return [...updated]; // Создаём новый массив для принудительного ре-рендера
       });
-      
+
       // Обновляем в истории поиска
       setSearchHistory(prev => {
         const updated = prev.map(historyItem => {
           // Обновляем в allProfiles если есть
           if (historyItem.allProfiles) {
             const updatedProfiles = historyItem.allProfiles.map(p => {
-              if (p.id === profileId || 
-                  p.sample_name === sampleName || 
+              if (p.id === profileId ||
+                  p.sample_name === sampleName ||
                   p.internal_number === internalNumber) {
                 return { ...p, ...updatedCommentData };
               }
@@ -1641,19 +1640,19 @@ const GenotypeAnalysisPage = ({ onNavigate, selectedActiveTask }) => {
             });
             return { ...historyItem, allProfiles: updatedProfiles };
           }
-          
+
           // Обновляем если это сам профиль (для контаминации)
-          if (historyItem.sample_name === sampleName || 
+          if (historyItem.sample_name === sampleName ||
               historyItem.internal_number === internalNumber) {
             return { ...historyItem, ...updatedCommentData };
           }
-          
+
           return historyItem;
         });
-        
+
         return updated;
       });
-      
+
       // Закрываем модальное окно
       setCommentModalOpen(false);
       setCommentModalProfile(null);
@@ -1674,16 +1673,16 @@ const GenotypeAnalysisPage = ({ onNavigate, selectedActiveTask }) => {
    */
   const formatLocusValue = (locusData) => {
     if (!locusData) return '';
-    
+
     // Поддержка массивов (новый формат БД)
     if (Array.isArray(locusData)) {
       // Фильтруем пустые значения и специальные символы
-      const validAlleles = locusData.filter(a => 
+      const validAlleles = locusData.filter(a =>
         a && a !== '' && a !== '.' && a !== '*' && a !== '**' && a !== '?'
       );
       return validAlleles.join(',');
     }
-    
+
     // Поддержка объектов (старый формат)
     if (typeof locusData === 'object') {
       const alleles = [];
@@ -1695,7 +1694,7 @@ const GenotypeAnalysisPage = ({ onNavigate, selectedActiveTask }) => {
       }
       return alleles.join(',');
     }
-    
+
     // Поддержка строк
     return locusData.toString();
   };
@@ -1707,7 +1706,7 @@ const GenotypeAnalysisPage = ({ onNavigate, selectedActiveTask }) => {
   const formatLocusWithHighlight = (locusData, refLocusData) => {
     if (!locusData) return '';
     if (!refLocusData) return formatLocusValue(locusData);
-    
+
     // Получаем массивы аллелей
     const getAlleles = (data) => {
       if (!data) return [];
@@ -1726,17 +1725,17 @@ const GenotypeAnalysisPage = ({ onNavigate, selectedActiveTask }) => {
       }
       return [data.toString()];
     };
-    
+
     const refAlleles = getAlleles(refLocusData);
     const compAlleles = getAlleles(locusData);
-    
+
     if (refAlleles.length === 0 || compAlleles.length === 0) {
       return formatLocusValue(locusData);
     }
-    
+
     // Создаем Set для быстрой проверки
     const refSet = new Set(refAlleles);
-    
+
     // Подсвечиваем совпадающие аллели синим цветом
     return (
       <span className="locus-highlight-list">
@@ -1770,7 +1769,7 @@ const GenotypeAnalysisPage = ({ onNavigate, selectedActiveTask }) => {
     if (!history || history.length === 0) {
       return history;
     }
-    
+
     // Создаём карту комментариев из текущих профилей
     const commentsMap = new Map();
     profiles.forEach(profile => {
@@ -1783,7 +1782,7 @@ const GenotypeAnalysisPage = ({ onNavigate, selectedActiveTask }) => {
         });
       }
     });
-    
+
     // Обогащаем историю актуальными комментариями
     return history.map((historyItem) => {
       // Обновляем allProfiles если есть
@@ -1798,17 +1797,17 @@ const GenotypeAnalysisPage = ({ onNavigate, selectedActiveTask }) => {
         });
         return { ...historyItem, allProfiles: updatedProfiles };
       }
-      
+
       // Начинаем с копии элемента истории
       let enrichedItem = { ...historyItem };
-      
+
       // Добавляем комментарий к самому элементу если есть (для контаминации)
       const key = historyItem.internal_number || historyItem.sample_name;
       const comment = commentsMap.get(key);
       if (comment) {
         enrichedItem = { ...enrichedItem, ...comment };
       }
-      
+
       // Обновляем results если есть (для обычных поисков)
       if (historyItem.results && historyItem.results.length > 0) {
         const enrichedResults = historyItem.results.map(result => {
@@ -1821,7 +1820,7 @@ const GenotypeAnalysisPage = ({ onNavigate, selectedActiveTask }) => {
         });
         enrichedItem = { ...enrichedItem, results: enrichedResults };
       }
-      
+
       return enrichedItem;
     });
   };
@@ -1832,10 +1831,10 @@ const GenotypeAnalysisPage = ({ onNavigate, selectedActiveTask }) => {
    */
   const groupHistoryByGenotype = (history) => {
     if (!history || history.length === 0) return [];
-    
+
     // Создаем карту всех профилей
     const profileMap = new Map();
-    
+
     // Собираем все профили из истории
     history.forEach(item => {
       // Используем internal_number как ключ, если он есть, иначе sample_name
@@ -1856,13 +1855,13 @@ const GenotypeAnalysisPage = ({ onNavigate, selectedActiveTask }) => {
           comment_updated_by: item.comment_updated_by // Добавляем кто обновил комментарий
         });
       }
-      
+
       // Добавляем совпадения
       if (item.results && item.results.length > 0) {
         item.results.forEach(match => {
           const matchKey = match.internal_number || match.sample_name;
           profileMap.get(key).matches.push(matchKey);
-          
+
           // Добавляем совпавший профиль в карту, если его еще нет
           if (!profileMap.has(matchKey)) {
             profileMap.set(matchKey, {
@@ -1883,17 +1882,17 @@ const GenotypeAnalysisPage = ({ onNavigate, selectedActiveTask }) => {
         });
       }
     });
-    
+
     // Union-Find для объединения связанных профилей
     const parent = new Map();
     const rank = new Map();
-    
+
     // Инициализация
     profileMap.forEach((_, key) => {
       parent.set(key, key);
       rank.set(key, 0);
     });
-    
+
     // Функция поиска корня
     const find = (x) => {
       if (parent.get(x) !== x) {
@@ -1901,12 +1900,12 @@ const GenotypeAnalysisPage = ({ onNavigate, selectedActiveTask }) => {
       }
       return parent.get(x);
     };
-    
+
     // Функция объединения
     const union = (x, y) => {
       const rootX = find(x);
       const rootY = find(y);
-      
+
       if (rootX !== rootY) {
         if (rank.get(rootX) < rank.get(rootY)) {
           parent.set(rootX, rootY);
@@ -1918,7 +1917,7 @@ const GenotypeAnalysisPage = ({ onNavigate, selectedActiveTask }) => {
         }
       }
     };
-    
+
     // Объединяем все связанные профили
     profileMap.forEach((profile, key) => {
       profile.matches.forEach(matchKey => {
@@ -1927,7 +1926,7 @@ const GenotypeAnalysisPage = ({ onNavigate, selectedActiveTask }) => {
         }
       });
     });
-    
+
     // Группируем профили по корневому элементу
     const groups = new Map();
     profileMap.forEach((profile, key) => {
@@ -1937,22 +1936,22 @@ const GenotypeAnalysisPage = ({ onNavigate, selectedActiveTask }) => {
       }
       groups.get(root).push(profile);
     });
-    
+
     // Формируем результат
     const groupedHistory = [];
     groups.forEach((profiles, root) => {
       // Берем самый ранний timestamp из группы
       const timestamps = profiles.map(p => new Date(p.timestamp));
       const earliestTimestamp = new Date(Math.min(...timestamps));
-      
+
       // Собираем все уникальные номера
       const allInternalNumbers = [...new Set(profiles.map(p => p.internal_number).filter(Boolean))];
       const allImportNumbers = [...new Set(profiles.map(p => p.import_number).filter(Boolean))];
       const allSampleNames = profiles.map(p => p.sample_name);
-      
+
       // Берем первый профиль как основной
       const mainProfile = profiles[0];
-      
+
       groupedHistory.push({
         sample_name: allSampleNames.join(' | '),
         internal_number: mainProfile.internal_number,
@@ -1965,10 +1964,10 @@ const GenotypeAnalysisPage = ({ onNavigate, selectedActiveTask }) => {
         searchMode: mainProfile.searchMode
       });
     });
-    
+
     // Сортируем по времени (новые сверху)
     groupedHistory.sort((a, b) => new Date(b.timestamp) - new Date(a.timestamp));
-    
+
     return groupedHistory;
   };
 
@@ -1978,7 +1977,7 @@ const GenotypeAnalysisPage = ({ onNavigate, selectedActiveTask }) => {
   const restoreFromHistory = async (historyItem) => {
     // Получаем ссылку на панель для прокрутки
     const panelElement = document.querySelector('.input-panel');
-    
+
     // Добавляем класс анимации
     if (panelElement) {
       panelElement.classList.add('auto-collapsing');
@@ -1986,44 +1985,44 @@ const GenotypeAnalysisPage = ({ onNavigate, selectedActiveTask }) => {
         panelElement.classList.remove('auto-collapsing');
       }, 600);
     }
-    
+
     // Автоматически сворачиваем эталонный профиль для удобства
     setIsReferencePanelCollapsed(true);
-    
+
     // Плавная прокрутка к панели после небольшой задержки
     setTimeout(() => {
       if (panelElement) {
-        panelElement.scrollIntoView({ 
-          behavior: 'smooth', 
+        panelElement.scrollIntoView({
+          behavior: 'smooth',
           block: 'start'
         });
       }
     }, 100);
-    
+
     // Если это группа, показываем все профили группы
     if (historyItem.allProfiles && historyItem.allProfiles.length > 0) {
       try {
         const token = localStorage.getItem('token');
-        
+
         // Определяем режим поиска из первого элемента группы
-        const searchMode = historyItem.searchMode || 
+        const searchMode = historyItem.searchMode ||
                           historyItem.allProfiles[0]?.searchMode ||
                           'task';
-        
+
         // Загружаем профили задачи
         const taskResponse = await fetch(`/api/tasks/${selectedActiveTask.id}/profiles`, {
           headers: {
             'Authorization': `Bearer ${token}`
           }
         });
-        
+
         if (!taskResponse.ok) {
           throw new Error('Failed to load task profiles');
         }
-        
+
         const taskData = await taskResponse.json();
         const taskProfiles = taskData.data.profiles;
-        
+
         // Если поиск был в мастер массиве, загружаем и их тоже
         let masterProfiles = [];
         if (searchMode === 'master' || searchMode === 'master_array') {
@@ -2032,13 +2031,13 @@ const GenotypeAnalysisPage = ({ onNavigate, selectedActiveTask }) => {
               'Authorization': `Bearer ${token}`
             }
           });
-          
+
           if (masterResponse.ok) {
             const masterData = await masterResponse.json();
             masterProfiles = masterData.profiles || [];
           }
         }
-        
+
         // Если поиск был в задачах отдела, загружаем профили из всех задач отдела
         let departmentProfiles = [];
         if (searchMode === 'department_tasks') {
@@ -2053,7 +2052,7 @@ const GenotypeAnalysisPage = ({ onNavigate, selectedActiveTask }) => {
                 taskId: selectedActiveTask.id
               })
             });
-            
+
             if (departmentResponse.ok) {
               const departmentData = await departmentResponse.json();
               departmentProfiles = departmentData.profiles || [];
@@ -2062,23 +2061,23 @@ const GenotypeAnalysisPage = ({ onNavigate, selectedActiveTask }) => {
             console.warn('Failed to load department profiles:', err);
           }
         }
-        
+
         // Объединяем все профили для поиска
         const allProfiles = [...taskProfiles, ...masterProfiles, ...departmentProfiles];
-        
+
         // Обогащаем профили группы данными локусов
         const enrichedProfiles = historyItem.allProfiles.map(profile => {
           // Ищем профиль по sample_name и internal_number (более надежный поиск)
           let fullProfile = allProfiles.find(p => {
             const pSampleName = p.sampleName || p.sample_name;
             const pInternalNumber = p.internalNumber || p.internal_number;
-            
+
             return (
               pSampleName === profile.sample_name &&
               pInternalNumber === profile.internal_number
             );
           });
-          
+
           // Если не нашли, пробуем по year + internal_number
           if (!fullProfile) {
             fullProfile = allProfiles.find(p => {
@@ -2089,7 +2088,7 @@ const GenotypeAnalysisPage = ({ onNavigate, selectedActiveTask }) => {
               );
             });
           }
-          
+
           if (fullProfile) {
             const enriched = {
               id: fullProfile.id,
@@ -2106,7 +2105,7 @@ const GenotypeAnalysisPage = ({ onNavigate, selectedActiveTask }) => {
             };
             return enriched;
           }
-          
+
           console.warn('⚠️ Profile not found:', profile.sample_name, 'internal_number:', profile.internal_number, 'year:', profile.year);
           return {
             sample_name: profile.sample_name,
@@ -2116,26 +2115,26 @@ const GenotypeAnalysisPage = ({ onNavigate, selectedActiveTask }) => {
             loci: null
           };
         });
-        
+
         // Первый профиль = эталон
         const refProfile = enrichedProfiles[0];
         setReferenceProfile(refProfile);
-        
+
         // Остальные = совпадения
         const matches = enrichedProfiles.slice(1);
-        
+
         // Вычисляем совпадающие локусы для каждого совпадения
         const matchesWithLoci = matches.map((match, idx) => {
           const matchedLoci = [];
           if (refProfile.loci && match.loci) {
             ANALYSIS_LOCI.forEach(locus => {
               if (ignoredLoci[locus]) return;
-              
+
               const refData = refProfile.loci[locus];
               const compData = match.loci[locus];
-              
+
               if (!refData || !compData) return;
-              
+
               // Получаем массивы аллелей
               const getAlleles = (data) => {
                 if (!data) return [];
@@ -2154,25 +2153,25 @@ const GenotypeAnalysisPage = ({ onNavigate, selectedActiveTask }) => {
                 }
                 return [];
               };
-              
+
               const refAlleles = getAlleles(refData);
               const compAlleles = getAlleles(compData);
-              
+
               if (refAlleles.length === 0 || compAlleles.length === 0) return;
-              
+
               // Базовый алгоритм: все аллели референса должны быть в сравниваемом
               const compSet = new Set(compAlleles);
               const isMatch = refAlleles.every(a => compSet.has(a));
-              
+
               if (isMatch) {
                 matchedLoci.push(locus);
               }
             });
           }
-          
+
           // Получаем информацию о задаче и эксперте из allProfiles
           const originalProfile = historyItem.allProfiles[idx + 1]; // +1 потому что первый - эталон
-          
+
           return {
             id: match.id,
             sample_name: match.sample_name,
@@ -2191,7 +2190,7 @@ const GenotypeAnalysisPage = ({ onNavigate, selectedActiveTask }) => {
             is_active: match.is_active
           };
         });
-        
+
         setSearchResults(matchesWithLoci);
         setReferenceValues({
           sample_name: refProfile.sample_name,
@@ -2207,33 +2206,33 @@ const GenotypeAnalysisPage = ({ onNavigate, selectedActiveTask }) => {
         return;
       }
     }
-    
+
     // Старая логика для одиночных элементов
     if (!historyItem.results || historyItem.results.length === 0) {
       alert('Нет сохраненных результатов для этого поиска');
       return;
     }
-    
+
     // Проверяем, есть ли данные локусов
     const hasLoci = historyItem.results[0] && historyItem.results[0].loci;
-    
+
     if (!hasLoci) {
       // Загружаем полные данные профилей по ID
       try {
         const token = localStorage.getItem('token');
         const profileIds = historyItem.results.map(r => r.id);
-        
+
         // Загружаем все профили
         const response = await fetch('/api/genotype-analysis/profiles', {
           headers: {
             'Authorization': `Bearer ${token}`
           }
         });
-        
+
         if (response.ok) {
           const data = await response.json();
           const allProfiles = data.profiles;
-          
+
           // Обогащаем результаты данными локусов
           const enrichedResults = historyItem.results.map(result => {
             const fullProfile = allProfiles.find(p => p.id === result.id);
@@ -2245,11 +2244,11 @@ const GenotypeAnalysisPage = ({ onNavigate, selectedActiveTask }) => {
             }
             return result;
           });
-          
+
           setSearchResults(enrichedResults);
-          
+
           // Загружаем эталонный профиль
-          const refProfile = allProfiles.find(p => 
+          const refProfile = allProfiles.find(p =>
             p.sample_name === historyItem.sample_name &&
             p.internal_number === historyItem.internal_number
           );
@@ -2266,7 +2265,7 @@ const GenotypeAnalysisPage = ({ onNavigate, selectedActiveTask }) => {
       }
     } else {
       setSearchResults(historyItem.results);
-      
+
       // Пытаемся найти эталонный профиль в загруженных данных
       try {
         const token = localStorage.getItem('token');
@@ -2275,10 +2274,10 @@ const GenotypeAnalysisPage = ({ onNavigate, selectedActiveTask }) => {
             'Authorization': `Bearer ${token}`
           }
         });
-        
+
         if (response.ok) {
           const data = await response.json();
-          const refProfile = data.profiles.find(p => 
+          const refProfile = data.profiles.find(p =>
             p.sample_name === historyItem.sample_name &&
             p.internal_number === historyItem.internal_number
           );
@@ -2289,7 +2288,7 @@ const GenotypeAnalysisPage = ({ onNavigate, selectedActiveTask }) => {
         setReferenceProfile(null);
       }
     }
-    
+
     setReferenceValues({
       sample_name: historyItem.sample_name,
       internal_number: historyItem.internal_number,
@@ -2321,7 +2320,7 @@ const GenotypeAnalysisPage = ({ onNavigate, selectedActiveTask }) => {
 
       {/* Панель ввода эталонных значений */}
       <div className={`input-panel ${isReferencePanelCollapsed ? 'collapsed' : ''}`}>
-        <div 
+        <div
           className="panel-header clickable"
           onClick={() => setIsReferencePanelCollapsed(!isReferencePanelCollapsed)}
           title={isReferencePanelCollapsed ? 'Нажмите для разворачивания' : 'Нажмите для сворачивания'}
@@ -2333,10 +2332,10 @@ const GenotypeAnalysisPage = ({ onNavigate, selectedActiveTask }) => {
             <h3>Эталонный профиль</h3>
           </div>
           <div className="panel-actions" onClick={(e) => e.stopPropagation()}>
-            <button onClick={clearFields} className="btn-small">Очистить</button>
+            <button onClick={clearFields} className="btn-small btn btn-secondary btn-sm">Очистить</button>
           </div>
         </div>
-        
+
         <div className={`panel-content ${isReferencePanelCollapsed ? 'collapsed' : ''}`}>
           <div className="reference-profile-picker">
             <div className="info-field">
@@ -2351,7 +2350,7 @@ const GenotypeAnalysisPage = ({ onNavigate, selectedActiveTask }) => {
                     clearFields();
                   }
                 }}
-              >
+               className="form-select">
                 <option value="">Выберите объект из задачи</option>
                 {profiles.map((profile) => (
                   <option key={profile.id} value={profile.id}>
@@ -2367,33 +2366,33 @@ const GenotypeAnalysisPage = ({ onNavigate, selectedActiveTask }) => {
           <div className="reference-info">
             <div className="info-field">
               <label>№ в в\ч:</label>
-              <input 
-                type="text" 
+              <input
+                type="text"
                 value={referenceValues.sample_name}
                 onChange={(e) => setReferenceValues(prev => ({...prev, sample_name: e.target.value}))}
                 placeholder="№ присвоенный в в/ч"
                 readOnly={!!selectedProfile}
-              />
+               className="form-input"/>
             </div>
             <div className="info-field">
               <label>№:</label>
-              <input 
-                type="text" 
+              <input
+                type="text"
                 value={referenceValues.internal_number}
                 onChange={(e) => setReferenceValues(prev => ({...prev, internal_number: e.target.value}))}
                 placeholder="Внутренний номер"
                 readOnly={!!selectedProfile}
-              />
+               className="form-input"/>
             </div>
             <div className="info-field">
               <label>Привоз:</label>
-              <input 
-                type="text" 
+              <input
+                type="text"
                 value={referenceValues.import_number}
                 onChange={(e) => setReferenceValues(prev => ({...prev, import_number: e.target.value}))}
                 placeholder="Номер привоза"
                 readOnly={!!selectedProfile}
-              />
+               className="form-input"/>
             </div>
           </div>
 
@@ -2420,10 +2419,10 @@ const GenotypeAnalysisPage = ({ onNavigate, selectedActiveTask }) => {
               </div>
             ))}
           </div>
-          
+
           {/* Кнопка сброса порядка колонок */}
           <div className="panel-footer-actions">
-            <button 
+            <button
               onClick={() => {
                 resetBaseColumnsOrder();
                 resetLociOrder();
@@ -2439,29 +2438,29 @@ const GenotypeAnalysisPage = ({ onNavigate, selectedActiveTask }) => {
 
       {/* Кнопки действий */}
       <div className="action-buttons">
-        <button 
-          onClick={performSearch} 
+        <button
+          onClick={performSearch}
           disabled={searching}
           className="btn btn-primary search-action-button search-action-button-primary"
         >
           {searching ? 'Поиск...' : 'Поиск'}
         </button>
-        <button 
-          onClick={performTaskSearch} 
+        <button
+          onClick={performTaskSearch}
           disabled={searching}
           className="btn btn-primary search-action-button"
         >
           Искать внутри задачи
         </button>
-        <button 
-          onClick={performMasterArraySearch} 
+        <button
+          onClick={performMasterArraySearch}
           disabled={searching}
           className="btn btn-primary search-action-button"
         >
           Искать в мастер массиве
         </button>
-        <button 
-          onClick={performDepartmentTasksSearch} 
+        <button
+          onClick={performDepartmentTasksSearch}
           disabled={searching}
           className="btn btn-primary search-action-button"
           title="Поиск дубликатов в активных задачах других пользователей отдела"
@@ -2470,15 +2469,15 @@ const GenotypeAnalysisPage = ({ onNavigate, selectedActiveTask }) => {
         </button>
         <div className="action-split-button">
           <div className="action-split-button-group">
-            <button 
-              onClick={performContaminationSearch} 
+            <button
+              onClick={performContaminationSearch}
               disabled={searching}
               className="btn btn-warning action-split-main search-action-button search-action-button-warning"
               title="Поиск контаминаций сотрудников (алгоритм v4.0)"
             >
               {searching ? 'Контаминация...' : 'Поиск контаминаций'}
             </button>
-            <button 
+            <button
               onClick={(e) => {
                 e.stopPropagation();
                 setShowContaminationSettings(true);
@@ -2490,20 +2489,20 @@ const GenotypeAnalysisPage = ({ onNavigate, selectedActiveTask }) => {
             </button>
           </div>
         </div>
-        <button 
-          onClick={performFullSearch} 
+        <button
+          onClick={performFullSearch}
           disabled={searching}
           className="btn btn-primary btn-full-search search-action-button search-action-button-full"
           title="Полный поиск: дубликаты + мастер массив + контаминация"
         >
           {searching ? 'Полный поиск...' : 'Полный поиск'}
         </button>
-        <button 
+        <button
           onClick={(e) => {
             e.preventDefault();
             e.stopPropagation();
             setShowSettings(true);
-          }} 
+          }}
           className="btn btn-secondary search-action-button search-action-button-secondary"
           title="Настройки параметров поиска"
         >
@@ -2521,33 +2520,33 @@ const GenotypeAnalysisPage = ({ onNavigate, selectedActiveTask }) => {
       {/* Вкладки */}
       <div className="tabs analysis-tabs-shell">
         <div className="analysis-tabs-list">
-          <button 
+          <button
             className={`tab ${activeTab === 'data' ? 'active' : ''}`}
             onClick={() => setActiveTab('data')}
           >
             📊 Данные из БД ({filteredProfiles.length})
           </button>
-          <button 
+          <button
             className={`tab ${activeTab === 'results' ? 'active' : ''}`}
             onClick={() => setActiveTab('results')}
           >
             ✅ Результаты сравнения ({searchResults.length})
           </button>
-          <button 
+          <button
             className={`tab ${activeTab === 'contamination-details' ? 'active' : ''}`}
             onClick={() => setActiveTab('contamination-details')}
             hidden={!contaminationDetails}
           >
             🔬 Детали контаминации
           </button>
-          <button 
+          <button
             className={`tab ${activeTab === 'history' ? 'active' : ''}`}
             onClick={() => setActiveTab('history')}
           >
             📜 История ({searchHistory.length})
           </button>
         </div>
-        
+
         {/* Фильтры для вкладки "Данные из БД" */}
         {activeTab === 'data' && (
           <div className="analysis-tab-filters">
@@ -2572,7 +2571,7 @@ const GenotypeAnalysisPage = ({ onNavigate, selectedActiveTask }) => {
                 )}
               </span>
             </button>
-            
+
             {/* Чекбокс: Скрыть деактивированные */}
             <button
               className={`tab tab-filter ${hideDeactivated ? 'active' : ''}`}
@@ -2629,7 +2628,7 @@ const GenotypeAnalysisPage = ({ onNavigate, selectedActiveTask }) => {
                           </th>
                         ))}
                         {activeLoci.map(locus => (
-                          <th 
+                          <th
                             key={locus}
                             data-column={locus}
                             draggable="true"
@@ -2651,9 +2650,9 @@ const GenotypeAnalysisPage = ({ onNavigate, selectedActiveTask }) => {
                     </thead>
                   </table>
                 </div>
-                
+
                 {/* Прокручиваемое тело таблицы */}
-                <div 
+                <div
                   className="data-table-container"
                   ref={tableContainerRef}
                   onScroll={handleScroll}
@@ -2666,9 +2665,9 @@ const GenotypeAnalysisPage = ({ onNavigate, selectedActiveTask }) => {
                           const isSelected = selectedProfile?.id === profile.id;
                           const isPrevious = previousProfile?.id === profile.id;
                           const isDeactivated = profile.is_active === false;
-                          
+
                           return (
-                            <tr 
+                            <tr
                               key={profile.id}
                               onClick={() => selectProfile(profile)}
                               className={
@@ -2703,12 +2702,12 @@ const GenotypeAnalysisPage = ({ onNavigate, selectedActiveTask }) => {
                                 if (selectedProfile && selectedProfile.id !== profile.id && referenceValues.loci[locus]) {
                                   const refValue = referenceValues.loci[locus];
                                   const profileValue = formatLocusValue(profile.loci ? profile.loci[locus] : null);
-                                  
+
                                   if (refValue && profileValue) {
                                     // Нормализуем значения для сравнения
                                     const refNormalized = refValue.split(',').sort().join(',');
                                     const profileNormalized = profileValue.split(',').sort().join(',');
-                                    
+
                                     if (refNormalized === profileNormalized) {
                                       cellClass = 'matched';
                                       // Применяем цвет из настроек
@@ -2719,7 +2718,7 @@ const GenotypeAnalysisPage = ({ onNavigate, selectedActiveTask }) => {
                                     }
                                   }
                                 }
-                                
+
                                 return (
                                   <td key={locus} data-column={locus} className={cellClass} style={cellStyle}>
                                     {profile.loci ? formatLocusValue(profile.loci[locus]) : ''}
@@ -2768,7 +2767,7 @@ const GenotypeAnalysisPage = ({ onNavigate, selectedActiveTask }) => {
                     </div>
                   )}
                 </div>
-                
+
                 <table className="results-table">
                   <thead>
                     <tr>
@@ -2783,7 +2782,7 @@ const GenotypeAnalysisPage = ({ onNavigate, selectedActiveTask }) => {
                         </>
                       )}
                       {activeLoci.map(locus => (
-                        <th 
+                        <th
                           key={locus}
                           className={`drag-header-cell${dragOverLocus === locus ? ' is-drag-target' : ''}`}
                           draggable="true"
@@ -2816,12 +2815,12 @@ const GenotypeAnalysisPage = ({ onNavigate, selectedActiveTask }) => {
                         )}
                         {activeLoci.map(locus => {
                           // Проверяем есть ли этот локус в совпадениях хотя бы у одного результата
-                          const isMatchedInAny = searchResults.some(result => 
+                          const isMatchedInAny = searchResults.some(result =>
                             result.matchedLoci && result.matchedLoci.includes(locus)
                           );
-                          
+
                           return (
-                            <td 
+                            <td
                               key={locus}
                               className={isMatchedInAny ? 'matched reference-locus-match' : ''}
                               style={
@@ -2843,7 +2842,7 @@ const GenotypeAnalysisPage = ({ onNavigate, selectedActiveTask }) => {
                         </td>
                       </tr>
                     )}
-                    
+
                     {/* Блок с комментарием для эталонного профиля */}
                     {referenceProfile && referenceProfile.expert_comment && (
                       <tr className="comment-row">
@@ -2865,7 +2864,7 @@ const GenotypeAnalysisPage = ({ onNavigate, selectedActiveTask }) => {
                         </td>
                       </tr>
                     )}
-                    
+
                     {/* Совпадения */}
                     {searchResults.map((result, idx) => {
                       // Сначала создаём базовый объект из result (он может содержать обновлённый комментарий)
@@ -2880,13 +2879,13 @@ const GenotypeAnalysisPage = ({ onNavigate, selectedActiveTask }) => {
                         comment_updated_at: result.comment_updated_at,
                         comment_updated_by: result.comment_updated_by
                       };
-                      
+
                       // Ищем профиль в загруженных данных для дополнительной информации
-                      const loadedProfile = profiles.find(p => 
+                      const loadedProfile = profiles.find(p =>
                         (p.internal_number && p.internal_number === result.internal_number) ||
                         (p.sample_name && p.sample_name === result.sample_name)
                       );
-                      
+
                       // Если нашли в загруженных, дополняем данными (но комментарий берём из result)
                       if (loadedProfile) {
                         profileForActions = {
@@ -2898,7 +2897,7 @@ const GenotypeAnalysisPage = ({ onNavigate, selectedActiveTask }) => {
                         profileForActions._isTemporary = true;
                         profileForActions.id = `temp-${result.sample_name}-${result.internal_number}`;
                       }
-                      
+
                       return (
                         <React.Fragment key={idx}>
                           <tr className={profileForActions && !profileForActions.is_active ? 'deactivated-row' : ''}>
@@ -2916,11 +2915,11 @@ const GenotypeAnalysisPage = ({ onNavigate, selectedActiveTask }) => {
                               const isMatched = result.matchedLoci && result.matchedLoci.includes(locus);
                               const refLocusData = referenceProfile?.loci ? referenceProfile.loci[locus] : null;
                               const compLocusData = result.loci ? result.loci[locus] : null;
-                              
+
                               // Определяем тип совпадения для фона
                               let cellClass = '';
                               let isPartialMatch = false;
-                              
+
                               if (refLocusData && compLocusData) {
                                 // Получаем аллели
                                 const getAlleles = (data) => {
@@ -2941,15 +2940,15 @@ const GenotypeAnalysisPage = ({ onNavigate, selectedActiveTask }) => {
                                   }
                                   return [];
                                 };
-                                
+
                                 const refAlleles = getAlleles(refLocusData);
                                 const compAlleles = getAlleles(compLocusData);
-                                
+
                                 if (refAlleles.length > 0 && compAlleles.length > 0) {
                                   // Проверяем полное совпадение: массивы должны быть идентичны
                                   const refSorted = [...refAlleles].sort().join(',');
                                   const compSorted = [...compAlleles].sort().join(',');
-                                  
+
                                   if (refSorted === compSorted) {
                                     // Полное совпадение - аллели идентичны
                                     if (isMatched) {
@@ -2960,7 +2959,7 @@ const GenotypeAnalysisPage = ({ onNavigate, selectedActiveTask }) => {
                                     // Контаминация: есть совпадающие аллели, но не все
                                     const refSet = new Set(refAlleles);
                                     const compSet = new Set(compAlleles);
-                                    
+
                                     // Считаем совпадающие аллели
                                     let matchingCount = 0;
                                     for (const allele of refAlleles) {
@@ -2968,7 +2967,7 @@ const GenotypeAnalysisPage = ({ onNavigate, selectedActiveTask }) => {
                                         matchingCount++;
                                       }
                                     }
-                                    
+
                                     // Если есть хотя бы одно совпадение, это контаминация
                                     if (matchingCount > 0) {
                                       cellClass = 'matched-contamination';
@@ -2980,9 +2979,9 @@ const GenotypeAnalysisPage = ({ onNavigate, selectedActiveTask }) => {
                                   }
                                 }
                               }
-                              
+
                               return (
-                                <td 
+                                <td
                                   key={locus}
                                   className={`results-locus-cell${cellClass ? ` ${cellClass}` : ''}`}
                                   style={
@@ -2995,8 +2994,8 @@ const GenotypeAnalysisPage = ({ onNavigate, selectedActiveTask }) => {
                                           : undefined
                                   }
                                 >
-                                  {isPartialMatch ? 
-                                    formatLocusWithHighlight(compLocusData, refLocusData) : 
+                                  {isPartialMatch ?
+                                    formatLocusWithHighlight(compLocusData, refLocusData) :
                                     formatLocusValue(compLocusData)
                                   }
                                 </td>
@@ -3012,7 +3011,7 @@ const GenotypeAnalysisPage = ({ onNavigate, selectedActiveTask }) => {
                               )}
                             </td>
                           </tr>
-                          
+
                           {/* Блок с комментарием под строкой */}
                           {profileForActions && profileForActions.expert_comment && (
                             <tr className="comment-row">
@@ -3047,7 +3046,7 @@ const GenotypeAnalysisPage = ({ onNavigate, selectedActiveTask }) => {
         {activeTab === 'contamination-details' && contaminationDetails && (
           <div className="contamination-details-tab">
             <h2>📊 Результаты анализа контаминации</h2>
-            
+
             {/* Образец и Сотрудник в одной секции (две колонки) */}
             <div className="contamination-section two-columns">
               <div className="column">
@@ -3060,28 +3059,28 @@ const GenotypeAnalysisPage = ({ onNavigate, selectedActiveTask }) => {
                   <p><strong>Год:</strong> {contaminationDetails.sample.year}</p>
                 )}
               </div>
-              
+
               <div className="column-divider"></div>
-              
+
               <div className="column">
                 <h3>👤 Сотрудник</h3>
                 <div className="section-divider"></div>
                 <p><strong>ФИО:</strong> {contaminationDetails.staff.full_name}</p>
               </div>
             </div>
-            
+
             {/* Результаты сравнения */}
             <div className="contamination-section">
               <h3>📈 Результаты сравнения</h3>
               <div className="section-divider"></div>
               <p><strong>Балл совпадения:</strong> {typeof contaminationDetails.matchScore === 'number' ? contaminationDetails.matchScore.toFixed(1) : contaminationDetails.matchScore} / 30</p>
               <p><strong>Совпавшие локусы:</strong> {contaminationDetails.matchedLoci.length} / 24</p>
-              
+
               {/* Критические аллели с разделением по ценности */}
               {contaminationDetails.detailedMatches && contaminationDetails.detailedMatches.length > 0 && (() => {
                 const strongCritical = contaminationDetails.detailedMatches.filter(m => m.isStrongCritical);
                 const normalCritical = contaminationDetails.detailedMatches.filter(m => m.isCritical && !m.isStrongCritical);
-                
+
                 return (
                   <div className="critical-alleles-section">
                     <p className="critical-alleles-heading"><strong>Критические аллели:</strong></p>
@@ -3117,7 +3116,7 @@ const GenotypeAnalysisPage = ({ onNavigate, selectedActiveTask }) => {
                   </div>
                 );
               })()}
-              
+
               {/* Таблица совпадающих локусов */}
               {contaminationDetails.detailedMatches && contaminationDetails.detailedMatches.length > 0 && (
                 <details className="detailed-matches" open>
@@ -3142,10 +3141,10 @@ const GenotypeAnalysisPage = ({ onNavigate, selectedActiveTask }) => {
                           const indexB = ANALYSIS_LOCI.indexOf(b.locus);
                           return indexA - indexB;
                         }).map((match, idx) => (
-                          <tr 
-                            key={idx} 
+                          <tr
+                            key={idx}
                             className={
-                              match.isStrongCritical ? 'strong-critical-row' : 
+                              match.isStrongCritical ? 'strong-critical-row' :
                               match.isCritical ? 'critical-row' : ''
                             }
                           >
@@ -3186,7 +3185,7 @@ const GenotypeAnalysisPage = ({ onNavigate, selectedActiveTask }) => {
               <div className="history-scroll">
                 <div className="history-toolbar">
                   <h3 className="history-toolbar-title">История ({groupHistoryByGenotype(enrichHistoryWithComments(searchHistory)).filter(g => g.matchCount > 0).length} групп)</h3>
-                  <button 
+                  <button
                     onClick={() => {
                       if (confirm('Очистить всю историю поиска?')) {
                         setSearchHistory([]);
@@ -3197,16 +3196,16 @@ const GenotypeAnalysisPage = ({ onNavigate, selectedActiveTask }) => {
                     🗑️ Очистить историю
                   </button>
                 </div>
-                
+
                 {/* Группируем по типу поиска */}
                 {(() => {
                   // Проверяем есть ли результаты полного поиска
                   const hasFullSearchResults = searchHistory.some(item => item.fullSearchGroup);
-                  
+
                   if (hasFullSearchResults) {
                     // Обогащаем историю актуальными комментариями из БД
                     const enrichedHistory = enrichHistoryWithComments(searchHistory);
-                    
+
                     // Группируем результаты полного поиска
                     const taskGroups = groupHistoryByGenotype(enrichedHistory.filter(item => item.fullSearchGroup === 'task')).filter(g => g.matchCount > 0);
                     const masterGroups = groupHistoryByGenotype(enrichedHistory.filter(item => item.fullSearchGroup === 'master')).filter(g => g.matchCount > 0);
@@ -3218,7 +3217,7 @@ const GenotypeAnalysisPage = ({ onNavigate, selectedActiveTask }) => {
                         const scoreB = typeof b.matchScore === 'number' ? b.matchScore : 0;
                         return scoreB - scoreA;
                       });
-                    
+
                     return (
                       <>
                         {/* Группа 1: Совпадения в данной задаче */}
@@ -3229,17 +3228,17 @@ const GenotypeAnalysisPage = ({ onNavigate, selectedActiveTask }) => {
                             <div className="history-grid">
                               {taskGroups.map((group, idx) => {
                                 const matchCount = group.matchCount;
-                                
+
                                 return (
-                                  <div 
+                                  <div
                                     key={idx}
                                     className="history-card"
                                     onClick={() => restoreFromHistory(group)}
                                   >
                                     <div className="history-card-header">
                                       <strong>
-                                        {group.isGroup 
-                                          ? `Группа из ${group.allProfiles.length} профилей` 
+                                        {group.isGroup
+                                          ? `Группа из ${group.allProfiles.length} профилей`
                                           : `${group.sample_name}${group.internal_number ? ` | ${group.internal_number}` : ''}`
                                         }
                                       </strong>
@@ -3279,7 +3278,7 @@ const GenotypeAnalysisPage = ({ onNavigate, selectedActiveTask }) => {
                                         second: '2-digit'
                                       })}
                                     </div>
-                                    
+
                                     {/* Комментарий эксперта */}
                                     {group.allProfiles.some(p => p.expert_comment) && (
                                       <div className="history-card-comment">
@@ -3302,7 +3301,7 @@ const GenotypeAnalysisPage = ({ onNavigate, selectedActiveTask }) => {
                             </div>
                           </div>
                         )}
-                        
+
                         {/* Группа 2: Совпадения с мастер массивом */}
                         {masterGroups.length > 0 && (
                           <div className="history-group">
@@ -3311,17 +3310,17 @@ const GenotypeAnalysisPage = ({ onNavigate, selectedActiveTask }) => {
                             <div className="history-grid">
                               {masterGroups.map((group, idx) => {
                                 const matchCount = group.matchCount;
-                                
+
                                 return (
-                                  <div 
+                                  <div
                                     key={idx}
                                     className="history-card"
                                     onClick={() => restoreFromHistory(group)}
                                   >
                                     <div className="history-card-header">
                                       <strong>
-                                        {group.isGroup 
-                                          ? `Группа из ${group.allProfiles.length} профилей` 
+                                        {group.isGroup
+                                          ? `Группа из ${group.allProfiles.length} профилей`
                                           : `${group.sample_name}${group.internal_number ? ` | ${group.internal_number}` : ''}`
                                         }
                                       </strong>
@@ -3361,7 +3360,7 @@ const GenotypeAnalysisPage = ({ onNavigate, selectedActiveTask }) => {
                                         second: '2-digit'
                                       })}
                                     </div>
-                                    
+
                                     {/* Комментарий эксперта */}
                                     {group.allProfiles.some(p => p.expert_comment) && (
                                       <div className="history-card-comment">
@@ -3384,7 +3383,7 @@ const GenotypeAnalysisPage = ({ onNavigate, selectedActiveTask }) => {
                             </div>
                           </div>
                         )}
-                        
+
                         {/* Группа 3: Контаминация сотрудниками */}
                         {contaminationGroups.length > 0 && (
                           <div className="history-group">
@@ -3393,13 +3392,13 @@ const GenotypeAnalysisPage = ({ onNavigate, selectedActiveTask }) => {
                             <div className="history-grid">
                               {contaminationGroups.map((item, idx) => {
                                 return (
-                                  <div 
+                                  <div
                                     key={idx}
                                     className="history-card staff-contamination-card"
                                     onClick={() => {
                                       // Автоматически сворачиваем эталонный профиль для удобства
                                       const panelElement = document.querySelector('.input-panel');
-                                      
+
                                       // Добавляем класс анимации
                                       if (panelElement) {
                                         panelElement.classList.add('auto-collapsing');
@@ -3407,20 +3406,20 @@ const GenotypeAnalysisPage = ({ onNavigate, selectedActiveTask }) => {
                                           panelElement.classList.remove('auto-collapsing');
                                         }, 600);
                                       }
-                                      
+
                                       // Сворачиваем панель
                                       setIsReferencePanelCollapsed(true);
-                                      
+
                                       // Плавная прокрутка к панели после небольшой задержки
                                       setTimeout(() => {
                                         if (panelElement) {
-                                          panelElement.scrollIntoView({ 
-                                            behavior: 'smooth', 
+                                          panelElement.scrollIntoView({
+                                            behavior: 'smooth',
                                             block: 'start'
                                           });
                                         }
                                       }, 100);
-                                      
+
                                       // Устанавливаем детальные данные контаминации
                                       setContaminationDetails({
                                         sample: {
@@ -3460,7 +3459,7 @@ const GenotypeAnalysisPage = ({ onNavigate, selectedActiveTask }) => {
                                         second: '2-digit'
                                       })}
                                     </div>
-                                    
+
                                     {/* Комментарий эксперта */}
                                     {item.expert_comment && (
                                       <div className="history-card-comment">
@@ -3483,12 +3482,12 @@ const GenotypeAnalysisPage = ({ onNavigate, selectedActiveTask }) => {
                   } else {
                     // Обогащаем историю актуальными комментариями из БД
                     const enrichedHistory = enrichHistoryWithComments(searchHistory);
-                    
+
                     // Группируем по типу поиска (searchMode)
                     const taskGroups = groupHistoryByGenotype(enrichedHistory.filter(item => item.searchMode === 'task')).filter(g => g.matchCount > 0);
                     const masterGroups = groupHistoryByGenotype(enrichedHistory.filter(item => item.searchMode === 'master_array')).filter(g => g.matchCount > 0);
                     const departmentGroups = groupHistoryByGenotype(enrichedHistory.filter(item => item.searchMode === 'department_tasks')).filter(g => g.matchCount > 0);
-                    
+
                     return (
                       <>
                         {/* Группа 1: Поиск внутри задачи */}
@@ -3499,17 +3498,17 @@ const GenotypeAnalysisPage = ({ onNavigate, selectedActiveTask }) => {
                             <div className="history-grid">
                               {taskGroups.map((group, idx) => {
                                 const matchCount = group.matchCount;
-                                
+
                                 return (
-                                  <div 
+                                  <div
                                     key={idx}
                                     className="history-card"
                                     onClick={() => restoreFromHistory(group)}
                                   >
                                     <div className="history-card-header">
                                       <strong>
-                                        {group.isGroup 
-                                          ? `Группа из ${group.allProfiles.length} профилей` 
+                                        {group.isGroup
+                                          ? `Группа из ${group.allProfiles.length} профилей`
                                           : `${group.sample_name}${group.internal_number ? ` | ${group.internal_number}` : ''}`
                                         }
                                       </strong>
@@ -3549,7 +3548,7 @@ const GenotypeAnalysisPage = ({ onNavigate, selectedActiveTask }) => {
                                         second: '2-digit'
                                       })}
                                     </div>
-                                    
+
                                     {/* Комментарий эксперта */}
                                     {group.allProfiles.some(p => p.expert_comment) && (
                                       <div className="history-card-comment">
@@ -3572,7 +3571,7 @@ const GenotypeAnalysisPage = ({ onNavigate, selectedActiveTask }) => {
                             </div>
                           </div>
                         )}
-                        
+
                         {/* Группа 2: Поиск в мастер массиве */}
                         {masterGroups.length > 0 && (
                           <div className="history-group">
@@ -3581,17 +3580,17 @@ const GenotypeAnalysisPage = ({ onNavigate, selectedActiveTask }) => {
                             <div className="history-grid">
                               {masterGroups.map((group, idx) => {
                                 const matchCount = group.matchCount;
-                                
+
                                 return (
-                                  <div 
+                                  <div
                                     key={idx}
                                     className="history-card"
                                     onClick={() => restoreFromHistory(group)}
                                   >
                                     <div className="history-card-header">
                                       <strong>
-                                        {group.isGroup 
-                                          ? `Группа из ${group.allProfiles.length} профилей` 
+                                        {group.isGroup
+                                          ? `Группа из ${group.allProfiles.length} профилей`
                                           : `${group.sample_name}${group.internal_number ? ` | ${group.internal_number}` : ''}`
                                         }
                                       </strong>
@@ -3631,7 +3630,7 @@ const GenotypeAnalysisPage = ({ onNavigate, selectedActiveTask }) => {
                                         second: '2-digit'
                                       })}
                                     </div>
-                                    
+
                                     {/* Комментарий эксперта */}
                                     {group.allProfiles.some(p => p.expert_comment) && (
                                       <div className="history-card-comment">
@@ -3654,7 +3653,7 @@ const GenotypeAnalysisPage = ({ onNavigate, selectedActiveTask }) => {
                             </div>
                           </div>
                         )}
-                        
+
                         {/* Группа 3: Поиск в задачах отдела */}
                         {departmentGroups.length > 0 && (
                           <div className="history-group">
@@ -3663,17 +3662,17 @@ const GenotypeAnalysisPage = ({ onNavigate, selectedActiveTask }) => {
                             <div className="history-grid department-search">
                               {departmentGroups.map((group, idx) => {
                                 const matchCount = group.matchCount;
-                                
+
                                 return (
-                                  <div 
+                                  <div
                                     key={idx}
                                     className="history-card"
                                     onClick={() => restoreFromHistory(group)}
                                   >
                                     <div className="history-card-header">
                                       <strong>
-                                        {group.isGroup 
-                                          ? `Группа из ${group.allProfiles.length} профилей` 
+                                        {group.isGroup
+                                          ? `Группа из ${group.allProfiles.length} профилей`
                                           : `${group.sample_name}${group.internal_number ? ` | ${group.internal_number}` : ''}`
                                         }
                                       </strong>
@@ -3717,7 +3716,7 @@ const GenotypeAnalysisPage = ({ onNavigate, selectedActiveTask }) => {
                                         second: '2-digit'
                                       })}
                                     </div>
-                                    
+
                                     {/* Комментарий эксперта */}
                                     {group.allProfiles.some(p => p.expert_comment) && (
                                       <div className="history-card-comment">
@@ -3752,8 +3751,8 @@ const GenotypeAnalysisPage = ({ onNavigate, selectedActiveTask }) => {
 
       {/* Модальное окно настроек */}
       {showSettings && (
-        <div 
-          className="modal-overlay settings-modal-overlay" 
+        <div
+          className="modal-overlay settings-modal-overlay"
           onClick={(e) => {
             // Закрываем только если клик на самом overlay
             if (e.target === e.currentTarget) {
@@ -3764,7 +3763,7 @@ const GenotypeAnalysisPage = ({ onNavigate, selectedActiveTask }) => {
           <div className="modal-content settings-modal-content" onClick={(e) => e.stopPropagation()}>
             <div className="modal-header">
               <h3>⚙️ Настройки поиска</h3>
-              <button onClick={() => setShowSettings(false)} className="close-btn">×</button>
+              <button onClick={() => setShowSettings(false)} className="close-btn" aria-label="Закрыть">×</button>
             </div>
             <div className="modal-body">
               <div className="setting-row">
@@ -3775,18 +3774,18 @@ const GenotypeAnalysisPage = ({ onNavigate, selectedActiveTask }) => {
                   max="24"
                   value={minMatches}
                   onChange={(e) => setMinMatches(parseInt(e.target.value) || 15)}
-                />
+                 className="form-input"/>
               </div>
               <div className="setting-info">
                 Для 24 локусов рекомендуется значение ≥ 15
               </div>
-              
+
               <div className="setting-row settings-section-start">
                 <label>Алгоритм сравнения:</label>
-                <select 
-                  value={comparisonAlgorithm} 
+                <select
+                  value={comparisonAlgorithm}
                   onChange={(e) => setComparisonAlgorithm(e.target.value)}
-                  className="setting-select"
+                  className="setting-select form-select"
                 >
                   <option value="standard">Стандартный (точное совпадение)</option>
                   <option value="duplicate_v5">Поиск дублей v5.0 (рекомендуется) 🆕</option>
@@ -3798,14 +3797,14 @@ const GenotypeAnalysisPage = ({ onNavigate, selectedActiveTask }) => {
                 <strong>Поиск дублей v5.0:</strong> Учитывает гомозиготы, drop-out, контаминацию (оптимален для дублей) 🆕<br/>
                 <strong>Контаминация:</strong> Для поиска контаминации сотрудниками (алгоритм v4.0)
               </div>
-              
+
               {/* Настройки алгоритма v5.0 */}
               {comparisonAlgorithm === 'duplicate_v5' && (
                 <>
                   <div className="settings-section-title">
                     Настройки алгоритма v5.0:
                   </div>
-                  
+
                   <div className="setting-row">
                     <label>Мин. балл: {duplicateSettings.minScore}</label>
                     <input
@@ -3824,7 +3823,7 @@ const GenotypeAnalysisPage = ({ onNavigate, selectedActiveTask }) => {
                   <div className="setting-info">
                     Минимальный суммарный балл для считывания дубликатом
                   </div>
-                  
+
                   <div className="setting-row setting-row-stacked">
                     <label>Мин. процент: {duplicateSettings.minPercentage}%</label>
                     <input
@@ -3843,7 +3842,7 @@ const GenotypeAnalysisPage = ({ onNavigate, selectedActiveTask }) => {
                   <div className="setting-info">
                     Минимальный процент совпадения (с учетом весов)
                   </div>
-                  
+
                   <div className="setting-row setting-row-stacked">
                     <label>Мин. локусов: {duplicateSettings.minLoci}</label>
                     <input
@@ -3862,7 +3861,7 @@ const GenotypeAnalysisPage = ({ onNavigate, selectedActiveTask }) => {
                   <div className="setting-info">
                     Минимальное количество сравненных локусов
                   </div>
-                  
+
                   {/* Легенда типов совпадений */}
                   <div className="match-types-legend">
                     <h4>🎨 Цветовая подсветка локусов:</h4>
@@ -3905,7 +3904,7 @@ const GenotypeAnalysisPage = ({ onNavigate, selectedActiveTask }) => {
                 <h4 className="settings-section-title-lg">
                   Настройка цветов подсветки
                 </h4>
-                
+
                 <div className="settings-grid">
                   {/* Полное совпадение */}
                   <div className="settings-color-row">
@@ -3915,8 +3914,8 @@ const GenotypeAnalysisPage = ({ onNavigate, selectedActiveTask }) => {
                     <ColorPicker
                       value={contaminationSettings.colors?.fullMatch || '#90EE90'}
                       onChange={(value) => {
-                        setContaminationSettings({ 
-                          ...contaminationSettings, 
+                        setContaminationSettings({
+                          ...contaminationSettings,
                           colors: { ...contaminationSettings.colors, fullMatch: value }
                         });
                       }}
@@ -3932,8 +3931,8 @@ const GenotypeAnalysisPage = ({ onNavigate, selectedActiveTask }) => {
                     <ColorPicker
                       value={contaminationSettings.colors?.partialMatch || '#9d8311'}
                       onChange={(value) => {
-                        setContaminationSettings({ 
-                          ...contaminationSettings, 
+                        setContaminationSettings({
+                          ...contaminationSettings,
                           colors: { ...contaminationSettings.colors, partialMatch: value }
                         });
                       }}
@@ -3949,8 +3948,8 @@ const GenotypeAnalysisPage = ({ onNavigate, selectedActiveTask }) => {
                     <ColorPicker
                       value={contaminationSettings.colors?.partialMatchAllele || '#1400e8'}
                       onChange={(value) => {
-                        setContaminationSettings({ 
-                          ...contaminationSettings, 
+                        setContaminationSettings({
+                          ...contaminationSettings,
                           colors: { ...contaminationSettings.colors, partialMatchAllele: value }
                         });
                       }}
@@ -3966,8 +3965,8 @@ const GenotypeAnalysisPage = ({ onNavigate, selectedActiveTask }) => {
                     <ColorPicker
                       value={contaminationSettings.colors?.noMatch || '#FFB6C1'}
                       onChange={(value) => {
-                        setContaminationSettings({ 
-                          ...contaminationSettings, 
+                        setContaminationSettings({
+                          ...contaminationSettings,
                           colors: { ...contaminationSettings.colors, noMatch: value }
                         });
                       }}
@@ -3979,8 +3978,8 @@ const GenotypeAnalysisPage = ({ onNavigate, selectedActiveTask }) => {
                 {/* Кнопка сброса цветов */}
                 <button
                   onClick={() => {
-                    setContaminationSettings({ 
-                      ...contaminationSettings, 
+                    setContaminationSettings({
+                      ...contaminationSettings,
                       colors: {
                         fullMatch: '#90EE90',
                         partialMatch: '#9d8311',
@@ -3993,7 +3992,7 @@ const GenotypeAnalysisPage = ({ onNavigate, selectedActiveTask }) => {
                 >
                   🔄 Сбросить цвета по умолчанию
                 </button>
-                
+
                 {/* Автокомментирование дубликатов */}
                 <div className="settings-card">
                   <label className="settings-checkbox-label">
@@ -4014,7 +4013,7 @@ const GenotypeAnalysisPage = ({ onNavigate, selectedActiveTask }) => {
               </div>
             </div>
             <div className="modal-footer">
-              <button 
+              <button
                 onClick={() => {
                   setMinMatches(15);
                   setComparisonAlgorithm('standard');
@@ -4025,11 +4024,11 @@ const GenotypeAnalysisPage = ({ onNavigate, selectedActiveTask }) => {
                     locusWeights: {}
                   });
                 }}
-                className="btn-secondary"
+                className="btn-secondary btn"
               >
                 🔄 Сбросить по умолчанию
               </button>
-              <button onClick={() => setShowSettings(false)} className="btn-primary">
+              <button onClick={() => setShowSettings(false)} className="btn-primary btn">
                 Сохранить
               </button>
             </div>
@@ -4059,7 +4058,7 @@ const GenotypeAnalysisPage = ({ onNavigate, selectedActiveTask }) => {
             <p className="dna-loading-message">
               {searchProgress.stage || 'Выполняется поиск совпадений...'}
             </p>
-            
+
             {/* Progress Bar */}
             {searchProgress.total > 0 ? (
               <div className="analysis-progress">
@@ -4087,7 +4086,7 @@ const GenotypeAnalysisPage = ({ onNavigate, selectedActiveTask }) => {
 
       {/* Модальное окно подтверждения полного поиска */}
       {showFullSearchConfirm && (
-        <div 
+        <div
           className="modal-overlay fullsearch-modal-overlay"
           onClick={(e) => {
             if (e.target === e.currentTarget) {
@@ -4095,16 +4094,16 @@ const GenotypeAnalysisPage = ({ onNavigate, selectedActiveTask }) => {
             }
           }}
         >
-          <div 
-            className="modal-content fullsearch-modal-content modal-content-narrow"
+          <div
+            className="modal-content fullsearch-modal-content modal-md"
             onClick={(e) => e.stopPropagation()}
           >
             <div className="modal-header">
               <h3>🔍 Полный поиск</h3>
-              <button 
-                onClick={() => closeModal(setShowFullSearchConfirm)} 
+              <button
+                onClick={() => closeModal(setShowFullSearchConfirm)}
                 className="close-modal-button"
-              >
+               aria-label="Закрыть">
                 ×
               </button>
             </div>
@@ -4119,7 +4118,7 @@ const GenotypeAnalysisPage = ({ onNavigate, selectedActiveTask }) => {
                   <span className="info-value">{profiles.length}</span>
                 </div>
               </div>
-              
+
               <div className="modal-section">
                 <h4>Будут выполнены следующие анализы:</h4>
                 <div className="analysis-list">
@@ -4148,14 +4147,14 @@ const GenotypeAnalysisPage = ({ onNavigate, selectedActiveTask }) => {
               </div>
             </div>
             <div className="modal-footer">
-              <button 
-                onClick={() => closeModal(setShowFullSearchConfirm)} 
+              <button
+                onClick={() => closeModal(setShowFullSearchConfirm)}
                 className="btn btn-secondary"
               >
                 Отмена
               </button>
-              <button 
-                onClick={executeFullSearch} 
+              <button
+                onClick={executeFullSearch}
                 className="btn btn-primary"
               >
                 Начать поиск
@@ -4167,7 +4166,7 @@ const GenotypeAnalysisPage = ({ onNavigate, selectedActiveTask }) => {
 
       {/* Модальное окно результатов полного поиска */}
       {showFullSearchResults && fullSearchStats && (
-        <div 
+        <div
           className="modal-overlay fullsearch-results-modal-overlay"
           onClick={(e) => {
             if (e.target === e.currentTarget) {
@@ -4175,16 +4174,16 @@ const GenotypeAnalysisPage = ({ onNavigate, selectedActiveTask }) => {
             }
           }}
         >
-          <div 
-            className="modal-content fullsearch-results-modal-content modal-content-narrow"
+          <div
+            className="modal-content fullsearch-results-modal-content modal-md"
             onClick={(e) => e.stopPropagation()}
           >
             <div className="modal-header">
               <h3>✅ Поиск завершен</h3>
-              <button 
-                onClick={() => closeModal(setShowFullSearchResults)} 
+              <button
+                onClick={() => closeModal(setShowFullSearchResults)}
                 className="close-modal-button"
-              >
+               aria-label="Закрыть">
                 ×
               </button>
             </div>
@@ -4221,8 +4220,8 @@ const GenotypeAnalysisPage = ({ onNavigate, selectedActiveTask }) => {
               </div>
             </div>
             <div className="modal-footer">
-              <button 
-                onClick={() => closeModal(setShowFullSearchResults)} 
+              <button
+                onClick={() => closeModal(setShowFullSearchResults)}
                 className="btn btn-primary modal-action-full"
               >
                 Понятно
@@ -4234,8 +4233,8 @@ const GenotypeAnalysisPage = ({ onNavigate, selectedActiveTask }) => {
 
       {/* Модальное окно настроек контаминации */}
       {showContaminationSettings && (
-        <div 
-          className="modal-overlay settings-modal-overlay" 
+        <div
+          className="modal-overlay settings-modal-overlay"
           onClick={(e) => {
             if (e.target === e.currentTarget) {
               setShowContaminationSettings(false);
@@ -4245,18 +4244,18 @@ const GenotypeAnalysisPage = ({ onNavigate, selectedActiveTask }) => {
           <div className="modal-content settings-modal-content" onClick={(e) => e.stopPropagation()}>
             <div className="modal-header">
               <h3>⚙️ Настройки алгоритма контаминации</h3>
-              <button onClick={() => setShowContaminationSettings(false)} className="close-btn">×</button>
+              <button onClick={() => setShowContaminationSettings(false)} className="close-btn" aria-label="Закрыть">×</button>
             </div>
-            
+
             <div className="modal-body">
               {/* Выбор алгоритма */}
               <div className="setting-row">
                 <label>Алгоритм:</label>
-                <select 
-                  className="setting-select"
+                <select
+                  className="setting-select form-select"
                   value={
-                    contaminationSettings.useV5Algorithm ? 'v5' : 
-                    contaminationSettings.useV4Algorithm ? 'v4' : 
+                    contaminationSettings.useV5Algorithm ? 'v5' :
+                    contaminationSettings.useV4Algorithm ? 'v4' :
                     'v1.5'
                   }
                   onChange={(e) => {
@@ -4345,7 +4344,7 @@ const GenotypeAnalysisPage = ({ onNavigate, selectedActiveTask }) => {
                   <div className="settings-section-title">
                     Коэффициенты совпадения:
                   </div>
-                  
+
                   <div className="setting-row">
                     <label>Full Match: {contaminationSettings.matchCoefficients.fullMatch.toFixed(2)}</label>
                     <input
@@ -4364,7 +4363,7 @@ const GenotypeAnalysisPage = ({ onNavigate, selectedActiveTask }) => {
                       className="range-input-full"
                     />
                   </div>
-                  
+
                   {/* Дополнительные коэффициенты для v5.0 */}
                   {contaminationSettings.useV5Algorithm && (
                     <>
@@ -4386,7 +4385,7 @@ const GenotypeAnalysisPage = ({ onNavigate, selectedActiveTask }) => {
                           className="range-input-full"
                         />
                       </div>
-                      
+
                       <div className="setting-row setting-row-stacked">
                         <label>Over-Inclusive Mix 🆕: {(contaminationSettings.matchCoefficients.overInclusiveMix || 0.7).toFixed(2)}</label>
                         <input
@@ -4407,7 +4406,7 @@ const GenotypeAnalysisPage = ({ onNavigate, selectedActiveTask }) => {
                       </div>
                     </>
                   )}
-                  
+
                   <div className="setting-row setting-row-stacked">
                     <label>Partial Mix: {contaminationSettings.matchCoefficients.partialMatch.toFixed(2)}</label>
                     <input
@@ -4426,7 +4425,7 @@ const GenotypeAnalysisPage = ({ onNavigate, selectedActiveTask }) => {
                       className="range-input-full"
                     />
                   </div>
-                  
+
                   <div className="setting-row setting-row-stacked">
                     <label>Mismatch: {contaminationSettings.matchCoefficients.penalty.toFixed(2)}</label>
                     <input
@@ -4448,9 +4447,9 @@ const GenotypeAnalysisPage = ({ onNavigate, selectedActiveTask }) => {
                 </>
               )}
             </div>
-            
+
             <div className="modal-footer">
-              <button 
+              <button
                 onClick={async () => {
                   try {
                     const token = localStorage.getItem('token');
@@ -4469,9 +4468,9 @@ const GenotypeAnalysisPage = ({ onNavigate, selectedActiveTask }) => {
                         useV5Algorithm: data.data.options.useV5Algorithm || false,
                         searchInMasterArray: false,
                         locusWeights: data.data.locusWeights || {},
-                        matchCoefficients: data.data.matchCoefficients || { 
-                          fullMatch: 1.0, 
-                          partialMatch: 0.4, 
+                        matchCoefficients: data.data.matchCoefficients || {
+                          fullMatch: 1.0,
+                          partialMatch: 0.4,
                           penalty: -1.0,
                           inclusiveDropout: 0.85,
                           overInclusiveMix: 0.7
@@ -4482,11 +4481,11 @@ const GenotypeAnalysisPage = ({ onNavigate, selectedActiveTask }) => {
                     console.error('Ошибка загрузки дефолтных настроек:', error);
                   }
                 }}
-                className="btn-secondary"
+                className="btn-secondary btn"
               >
                 🔄 Сбросить по умолчанию
               </button>
-              <button onClick={() => setShowContaminationSettings(false)} className="btn-primary">
+              <button onClick={() => setShowContaminationSettings(false)} className="btn-primary btn">
                 Закрыть
               </button>
             </div>
@@ -4496,7 +4495,7 @@ const GenotypeAnalysisPage = ({ onNavigate, selectedActiveTask }) => {
 
       {/* Модальное окно подтверждения поиска внутри задачи */}
       {showTaskSearchConfirm && (
-        <div 
+        <div
           className="modal-overlay fullsearch-modal-overlay"
           onClick={(e) => {
             if (e.target === e.currentTarget) {
@@ -4504,16 +4503,16 @@ const GenotypeAnalysisPage = ({ onNavigate, selectedActiveTask }) => {
             }
           }}
         >
-          <div 
-            className="modal-content fullsearch-modal-content modal-content-narrow"
+          <div
+            className="modal-content fullsearch-modal-content modal-md"
             onClick={(e) => e.stopPropagation()}
           >
             <div className="modal-header">
               <h3>🔍 {taskSearchMode === 'task' ? 'Поиск внутри задачи' : 'Поиск в мастер массиве'}</h3>
-              <button 
-                onClick={() => setShowTaskSearchConfirm(false)} 
+              <button
+                onClick={() => setShowTaskSearchConfirm(false)}
                 className="close-modal-button"
-              >
+               aria-label="Закрыть">
                 ×
               </button>
             </div>
@@ -4528,7 +4527,7 @@ const GenotypeAnalysisPage = ({ onNavigate, selectedActiveTask }) => {
                   <span className="info-value">{profiles.length}</span>
                 </div>
               </div>
-              
+
               <div className="modal-section">
                 <h4>Будет выполнен анализ:</h4>
                 <div className="analysis-list">
@@ -4543,14 +4542,14 @@ const GenotypeAnalysisPage = ({ onNavigate, selectedActiveTask }) => {
               </div>
             </div>
             <div className="modal-footer">
-              <button 
-                onClick={() => setShowTaskSearchConfirm(false)} 
+              <button
+                onClick={() => setShowTaskSearchConfirm(false)}
                 className="btn btn-secondary"
               >
                 Отмена
               </button>
-              <button 
-                onClick={executeTaskSearch} 
+              <button
+                onClick={executeTaskSearch}
                 className="btn btn-primary"
               >
                 Начать поиск
@@ -4562,7 +4561,7 @@ const GenotypeAnalysisPage = ({ onNavigate, selectedActiveTask }) => {
 
       {/* Модальное окно результатов поиска внутри задачи */}
       {showTaskSearchResults && taskSearchStats && (
-        <div 
+        <div
           className="modal-overlay fullsearch-results-modal-overlay"
           onClick={(e) => {
             if (e.target === e.currentTarget) {
@@ -4570,16 +4569,16 @@ const GenotypeAnalysisPage = ({ onNavigate, selectedActiveTask }) => {
             }
           }}
         >
-          <div 
-            className="modal-content fullsearch-results-modal-content modal-content-narrow"
+          <div
+            className="modal-content fullsearch-results-modal-content modal-md"
             onClick={(e) => e.stopPropagation()}
           >
             <div className="modal-header">
               <h3>✅ Поиск завершен</h3>
-              <button 
-                onClick={() => setShowTaskSearchResults(false)} 
+              <button
+                onClick={() => setShowTaskSearchResults(false)}
                 className="close-modal-button"
-              >
+               aria-label="Закрыть">
                 ×
               </button>
             </div>
@@ -4636,7 +4635,7 @@ const GenotypeAnalysisPage = ({ onNavigate, selectedActiveTask }) => {
 
       {/* Модальное окно подтверждения поиска в задачах отдела */}
       {showDepartmentSearchConfirm && (
-        <div 
+        <div
           className="modal-overlay fullsearch-modal-overlay"
           onClick={(e) => {
             if (e.target === e.currentTarget) {
@@ -4644,16 +4643,16 @@ const GenotypeAnalysisPage = ({ onNavigate, selectedActiveTask }) => {
             }
           }}
         >
-          <div 
-            className="modal-content fullsearch-modal-content modal-content-narrow"
+          <div
+            className="modal-content fullsearch-modal-content modal-md"
             onClick={(e) => e.stopPropagation()}
           >
             <div className="modal-header">
               <h3>🔍 Поиск в задачах отдела</h3>
-              <button 
-                onClick={() => setShowDepartmentSearchConfirm(false)} 
+              <button
+                onClick={() => setShowDepartmentSearchConfirm(false)}
                 className="close-modal-button"
-              >
+               aria-label="Закрыть">
                 ×
               </button>
             </div>
@@ -4668,7 +4667,7 @@ const GenotypeAnalysisPage = ({ onNavigate, selectedActiveTask }) => {
                   <span className="info-value">{profiles.length}</span>
                 </div>
               </div>
-              
+
               <div className="modal-section">
                 <h4>Будет выполнен анализ:</h4>
                 <div className="analysis-list">
@@ -4683,14 +4682,14 @@ const GenotypeAnalysisPage = ({ onNavigate, selectedActiveTask }) => {
               </div>
             </div>
             <div className="modal-footer">
-              <button 
-                onClick={() => setShowDepartmentSearchConfirm(false)} 
+              <button
+                onClick={() => setShowDepartmentSearchConfirm(false)}
                 className="btn btn-secondary"
               >
                 Отмена
               </button>
-              <button 
-                onClick={executeDepartmentTasksSearch} 
+              <button
+                onClick={executeDepartmentTasksSearch}
                 className="btn btn-primary"
               >
                 Начать поиск
@@ -4702,7 +4701,7 @@ const GenotypeAnalysisPage = ({ onNavigate, selectedActiveTask }) => {
 
       {/* Модальное окно результатов поиска в задачах отдела */}
       {showDepartmentSearchResults && departmentSearchStats && (
-        <div 
+        <div
           className="modal-overlay fullsearch-results-modal-overlay"
           onClick={(e) => {
             if (e.target === e.currentTarget) {
@@ -4710,16 +4709,16 @@ const GenotypeAnalysisPage = ({ onNavigate, selectedActiveTask }) => {
             }
           }}
         >
-          <div 
-            className="modal-content fullsearch-results-modal-content modal-content-narrow"
+          <div
+            className="modal-content fullsearch-results-modal-content modal-md"
             onClick={(e) => e.stopPropagation()}
           >
             <div className="modal-header">
               <h3>✅ Поиск завершен</h3>
-              <button 
-                onClick={() => setShowDepartmentSearchResults(false)} 
+              <button
+                onClick={() => setShowDepartmentSearchResults(false)}
                 className="close-modal-button"
-              >
+               aria-label="Закрыть">
                 ×
               </button>
             </div>
@@ -4776,7 +4775,7 @@ const GenotypeAnalysisPage = ({ onNavigate, selectedActiveTask }) => {
 
       {/* Модальное окно результатов поиска контаминаций */}
       {showContaminationResults && contaminationStats && (
-        <div 
+        <div
           className="modal-overlay fullsearch-results-modal-overlay"
           onClick={(e) => {
             if (e.target === e.currentTarget) {
@@ -4784,16 +4783,16 @@ const GenotypeAnalysisPage = ({ onNavigate, selectedActiveTask }) => {
             }
           }}
         >
-          <div 
-            className="modal-content fullsearch-results-modal-content modal-content-narrow"
+          <div
+            className="modal-content fullsearch-results-modal-content modal-md"
             onClick={(e) => e.stopPropagation()}
           >
             <div className="modal-header">
               <h3>✅ Поиск контаминаций завершен</h3>
-              <button 
-                onClick={() => setShowContaminationResults(false)} 
+              <button
+                onClick={() => setShowContaminationResults(false)}
                 className="close-modal-button"
-              >
+               aria-label="Закрыть">
                 ×
               </button>
             </div>
@@ -4850,7 +4849,7 @@ const GenotypeAnalysisPage = ({ onNavigate, selectedActiveTask }) => {
 
       {/* Модальное окно деактивации профиля */}
       {deactivateModalOpen && deactivateModalProfile && (
-        <div 
+        <div
           className="modal-overlay"
           onClick={(e) => {
             if (e.target === e.currentTarget) {
@@ -4860,8 +4859,8 @@ const GenotypeAnalysisPage = ({ onNavigate, selectedActiveTask }) => {
             }
           }}
         >
-          <div 
-            className="modal-content modal-content-narrow"
+          <div
+            className="modal-content modal-md"
             onClick={(e) => e.stopPropagation()}
           >
             <div className="modal-header">
@@ -4874,7 +4873,7 @@ const GenotypeAnalysisPage = ({ onNavigate, selectedActiveTask }) => {
                 }}
                 className="close-modal-button"
                 disabled={deactivateLoading}
-              >
+               aria-label="Закрыть">
                 ×
               </button>
             </div>
@@ -4906,7 +4905,7 @@ const GenotypeAnalysisPage = ({ onNavigate, selectedActiveTask }) => {
                   onChange={(e) => setDeactivateReason(e.target.value)}
                   placeholder="Укажите причину деактивации профиля..."
                   disabled={deactivateLoading}
-                  className="analysis-textarea"
+                  className="analysis-textarea form-textarea"
                 />
               </div>
             </div>

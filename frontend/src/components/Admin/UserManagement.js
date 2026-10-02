@@ -1,5 +1,4 @@
 import React, { useState, useEffect } from 'react';
-import './UserManagement.css';
 
 const UserManagement = ({ onBack }) => {
   const [users, setUsers] = useState([]);
@@ -29,7 +28,7 @@ const UserManagement = ({ onBack }) => {
     try {
       setLoading(true);
       const token = localStorage.getItem('token');
-      
+
       const params = new URLSearchParams({
         page: currentPage,
         limit: usersPerPage,
@@ -62,7 +61,7 @@ const UserManagement = ({ onBack }) => {
   const fetchOrganizationsAndDepartments = async () => {
     try {
       const token = localStorage.getItem('token');
-      
+
       const [orgsResponse, deptsResponse] = await Promise.all([
         fetch('/api/organizations?page=1&limit=1000', {
           headers: { 'Authorization': `Bearer ${token}` }
@@ -161,7 +160,7 @@ const UserManagement = ({ onBack }) => {
 
     try {
       const token = localStorage.getItem('token');
-      
+
       if (!token) {
         alert('Ошибка: токен авторизации не найден. Пожалуйста, войдите в систему заново.');
         return;
@@ -233,13 +232,13 @@ const UserManagement = ({ onBack }) => {
 
     const handleSubmit = (e) => {
       e.preventDefault();
-      
+
       // Валидация
       if (!formData.username || !formData.email || (!user && !formData.password)) {
         alert('Заполните все обязательные поля');
         return;
       }
-      
+
       // Валидация организации и отдела (обязательны для всех ролей)
       if (!formData.organization_id || formData.department_ids.length === 0) {
         alert('Организация и минимум один отдел являются обязательными полями');
@@ -256,14 +255,14 @@ const UserManagement = ({ onBack }) => {
 
     return (
       <div className="modal-overlay">
-        <div className="modal-content">
+        <div className="modal-content modal-lg">
           <div className="modal-header">
             <h3 className="modal-title">
               {user ? 'Редактировать пользователя' : 'Создать пользователя'}
             </h3>
-            <button onClick={onCancel} className="modal-close">×</button>
+            <button onClick={onCancel} className="modal-close" aria-label="Закрыть">×</button>
           </div>
-          
+
           <form onSubmit={handleSubmit}>
             <div className="user-form-shell">
               <div className="user-form-column">
@@ -459,10 +458,10 @@ const UserManagement = ({ onBack }) => {
 
     return (
       <div className="modal-overlay user-details-overlay">
-        <div className="user-details-modal">
+        <div className="user-details-modal modal-content modal-md">
           <div className="user-details-header">
             <h3>Детали пользователя</h3>
-            <button onClick={onClose} className="user-details-close">×</button>
+            <button onClick={onClose} className="user-details-close" aria-label="Закрыть">×</button>
           </div>
 
           <div className="user-details-section">
@@ -520,10 +519,10 @@ const UserManagement = ({ onBack }) => {
           </h1>
           <p className="page-subtitle user-management-subtitle">Создание учетных записей, назначение ролей и контроль доступа по организации.</p>
         </div>
-        <div className="departments-controls user-management-header-actions">
+        <div className="departments-controls user-management-header-actions header-actions">
           <button
             onClick={onBack}
-            className="nav-button"
+            className="nav-button btn btn-secondary"
           >
             Назад к дашборду
           </button>
@@ -531,10 +530,10 @@ const UserManagement = ({ onBack }) => {
       </div>
 
       {/* Панель управления */}
-      <div className="user-management-controls departments-controls">
+      <div className="user-management-controls departments-controls header-actions">
         <div className="user-management-filters">
           <button
-            className={`role-filter ${!roleFilter ? 'active' : ''}`}
+            className={`role-filter btn btn-secondary ${!roleFilter ? 'active' : ''}`}
             onClick={() => setRoleFilter('')}
           >
             Все роли
@@ -542,17 +541,17 @@ const UserManagement = ({ onBack }) => {
           {roles.map(role => (
             <button
               key={role.value}
-              className={`role-filter ${roleFilter === role.value ? 'active' : ''}`}
+              className={`role-filter btn btn-secondary ${roleFilter === role.value ? 'active' : ''}`}
               onClick={() => setRoleFilter(role.value)}
             >
               {role.label}
             </button>
           ))}
         </div>
-        
+
         <button
           onClick={() => setShowCreateForm(true)}
-          className="create-department-btn create-user-btn"
+          className="create-department-btn create-user-btn btn btn-primary"
         >
           <span>+</span>
           <span>Создать пользователя</span>
@@ -567,8 +566,8 @@ const UserManagement = ({ onBack }) => {
       )}
 
       {/* Таблица пользователей */}
-      <div className="user-management-table organization-table-shell">
-        <table>
+      <div className="user-management-table organization-table-shell table-container">
+        <table className="table table-striped">
           <thead>
             <tr>
               <th>Пользователь</th>
@@ -616,21 +615,21 @@ const UserManagement = ({ onBack }) => {
                   <div className="user-actions department-actions">
                     <button
                       onClick={() => setShowUserDetails(user)}
-                      className="user-action-btn department-action-btn department-action-view user-action-view"
+                      className="user-action-btn department-action-btn department-action-view user-action-view btn btn-secondary btn-icon btn-sm"
                       title="Просмотр"
                     >
                       👁️
                     </button>
                     <button
                       onClick={() => setEditingUser(user)}
-                      className="user-action-btn department-action-btn department-action-edit user-action-edit"
+                      className="user-action-btn department-action-btn department-action-edit user-action-edit btn btn-secondary btn-icon btn-sm"
                       title="Редактировать"
                     >
                       ✏️
                     </button>
                     <button
                       onClick={() => handleResetPassword(user.id)}
-                      className="user-action-btn department-action-btn department-action-settings user-action-reset"
+                      className="user-action-btn department-action-btn department-action-settings user-action-reset btn btn-secondary btn-icon btn-sm"
                       title="Сбросить пароль"
                     >
                       🔑
@@ -638,7 +637,7 @@ const UserManagement = ({ onBack }) => {
                     {user.is_active && (
                       <button
                         onClick={() => handleDeactivateUser(user.id)}
-                        className="user-action-btn department-action-btn department-action-delete user-action-deactivate"
+                        className="user-action-btn department-action-btn department-action-delete user-action-deactivate btn btn-secondary btn-icon btn-sm btn-outline-danger"
                         title="Деактивировать"
                       >
                         🚫
@@ -664,19 +663,19 @@ const UserManagement = ({ onBack }) => {
           <button
             onClick={() => setCurrentPage(Math.max(1, currentPage - 1))}
             disabled={currentPage === 1}
-            className="user-pagination-btn"
+            className="user-pagination-btn btn btn-secondary"
           >
             ← Предыдущая
           </button>
-          
+
           <span className="page-info">
             Страница {currentPage} из {totalPages}
           </span>
-          
+
           <button
             onClick={() => setCurrentPage(Math.min(totalPages, currentPage + 1))}
             disabled={currentPage === totalPages}
-            className="user-pagination-btn"
+            className="user-pagination-btn btn btn-secondary"
           >
             Следующая →
           </button>

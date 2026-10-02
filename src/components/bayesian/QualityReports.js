@@ -1,12 +1,11 @@
 /**
  * Quality Reports Component
- * 
+ *
  * Provides interface for generating and downloading quality analysis reports
  * Requirements: 10.1, 10.2, 10.3 - PDF and Excel report generation
  */
 
 import React, { useState, useCallback } from 'react';
-import './BayesianAnalysis.css';
 
 const QualityReports = ({ results, analysisHistory, onShowHelp }) => {
     const [isGenerating, setIsGenerating] = useState(false);
@@ -18,7 +17,7 @@ const QualityReports = ({ results, analysisHistory, onShowHelp }) => {
         try {
             // Simulate PDF generation
             await new Promise(resolve => setTimeout(resolve, 2000));
-            
+
             // In real implementation, would call ReportGenerator service
             const reportData = {
                 sampleId: results.sampleId,
@@ -30,10 +29,10 @@ const QualityReports = ({ results, analysisHistory, onShowHelp }) => {
                 duplicates: results.duplicates,
                 perspectiveCategory: results.perspectiveCategory
             };
-            
+
             // Mock download
-            const blob = new Blob([JSON.stringify(reportData, null, 2)], { 
-                type: 'application/pdf' 
+            const blob = new Blob([JSON.stringify(reportData, null, 2)], {
+                type: 'application/pdf'
             });
             const url = URL.createObjectURL(blob);
             const a = document.createElement('a');
@@ -43,7 +42,7 @@ const QualityReports = ({ results, analysisHistory, onShowHelp }) => {
             a.click();
             document.body.removeChild(a);
             URL.revokeObjectURL(url);
-            
+
         } catch (error) {
             console.error('Failed to generate PDF report:', error);
             alert('Ошибка при генерации PDF отчета: ' + error.message);
@@ -58,7 +57,7 @@ const QualityReports = ({ results, analysisHistory, onShowHelp }) => {
         try {
             // Simulate Excel generation
             await new Promise(resolve => setTimeout(resolve, 1500));
-            
+
             // In real implementation, would call ReportGenerator service
             const reportData = {
                 sampleId: results.sampleId,
@@ -76,14 +75,14 @@ const QualityReports = ({ results, analysisHistory, onShowHelp }) => {
                 duplicates_found: results.duplicates.potentialDuplicates.length,
                 perspective_category: results.perspectiveCategory.category
             };
-            
+
             // Mock download
             const csvContent = Object.entries(reportData)
                 .map(([key, value]) => `${key},${value}`)
                 .join('\n');
-            
-            const blob = new Blob([csvContent], { 
-                type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' 
+
+            const blob = new Blob([csvContent], {
+                type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'
             });
             const url = URL.createObjectURL(blob);
             const a = document.createElement('a');
@@ -93,7 +92,7 @@ const QualityReports = ({ results, analysisHistory, onShowHelp }) => {
             a.click();
             document.body.removeChild(a);
             URL.revokeObjectURL(url);
-            
+
         } catch (error) {
             console.error('Failed to generate Excel report:', error);
             alert('Ошибка при генерации Excel отчета: ' + error.message);
@@ -116,7 +115,7 @@ const QualityReports = ({ results, analysisHistory, onShowHelp }) => {
         setIsGenerating(true);
         try {
             await new Promise(resolve => setTimeout(resolve, 1000));
-            
+
             const historyData = analysisHistory.map(analysis => ({
                 sampleId: analysis.sampleId,
                 analysisDate: analysis.analysisDate.toISOString(),
@@ -125,12 +124,12 @@ const QualityReports = ({ results, analysisHistory, onShowHelp }) => {
                 contamination: analysis.contamination.isContaminated,
                 duplicates: analysis.duplicates.potentialDuplicates.length
             }));
-            
+
             const csvContent = [
                 'Sample ID,Analysis Date,PCI,Category,Contamination,Duplicates',
                 ...historyData.map(row => Object.values(row).join(','))
             ].join('\n');
-            
+
             const blob = new Blob([csvContent], { type: 'text/csv' });
             const url = URL.createObjectURL(blob);
             const a = document.createElement('a');
@@ -140,7 +139,7 @@ const QualityReports = ({ results, analysisHistory, onShowHelp }) => {
             a.click();
             document.body.removeChild(a);
             URL.revokeObjectURL(url);
-            
+
         } catch (error) {
             console.error('Failed to export history:', error);
             alert('Ошибка при экспорте истории: ' + error.message);
@@ -153,8 +152,8 @@ const QualityReports = ({ results, analysisHistory, onShowHelp }) => {
         <div className="quality-reports">
             <div className="reports-header">
                 <h3>Генерация отчетов</h3>
-                <button 
-                    className="help-button"
+                <button
+                    className="help-button btn btn-secondary btn-icon"
                     onClick={() => onShowHelp('quality-reports')}
                     title="Справка по отчетам"
                 >
@@ -179,7 +178,7 @@ const QualityReports = ({ results, analysisHistory, onShowHelp }) => {
                             <span>PDF отчет</span>
                             <small>Полный отчет с графиками и интерпретацией</small>
                         </label>
-                        
+
                         <label className="radio-option">
                             <input
                                 type="radio"
@@ -199,14 +198,14 @@ const QualityReports = ({ results, analysisHistory, onShowHelp }) => {
                 <div className="report-generation-section">
                     <h4>Генерация отчета</h4>
                     <div className="generation-controls">
-                        <button 
-                            className="generate-button"
+                        <button
+                            className="generate-button btn btn-primary"
                             onClick={generateReport}
                             disabled={isGenerating}
                         >
                             {isGenerating ? 'Генерация...' : `Создать ${reportType.toUpperCase()} отчет`}
                         </button>
-                        
+
                         <div className="report-info">
                             <div className="info-item">
                                 <span className="info-label">Образец:</span>
@@ -231,14 +230,14 @@ const QualityReports = ({ results, analysisHistory, onShowHelp }) => {
                     <div className="history-export-section">
                         <h4>Экспорт истории анализов</h4>
                         <div className="export-controls">
-                            <button 
-                                className="export-button"
+                            <button
+                                className="export-button btn btn-secondary"
                                 onClick={exportHistory}
                                 disabled={isGenerating}
                             >
                                 {isGenerating ? 'Экспорт...' : 'Экспортировать историю (CSV)'}
                             </button>
-                            
+
                             <div className="export-info">
                                 <span>Всего анализов: {analysisHistory.length}</span>
                             </div>
@@ -257,7 +256,7 @@ const QualityReports = ({ results, analysisHistory, onShowHelp }) => {
                                 <p>Полный анализ качества с рекомендациями</p>
                             </div>
                         </div>
-                        
+
                         <div className="template-card">
                             <div className="template-icon">📊</div>
                             <div className="template-info">
@@ -265,7 +264,7 @@ const QualityReports = ({ results, analysisHistory, onShowHelp }) => {
                                 <p>Краткая сводка основных показателей</p>
                             </div>
                         </div>
-                        
+
                         <div className="template-card">
                             <div className="template-icon">📈</div>
                             <div className="template-info">

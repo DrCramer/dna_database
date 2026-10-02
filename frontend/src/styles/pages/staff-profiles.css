@@ -1,140 +1,97 @@
 /* Страница профилей сотрудников */
 
-.staff-profiles-page {
-  padding: 2rem;
-  padding-bottom: 1rem;
-  max-width: 100%;
-  height: 100vh;
-  display: flex;
-  flex-direction: column;
-  overflow: hidden;
-}
-
-.page-header {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  margin-bottom: 1.5rem;
-}
-
-.page-header h1 {
-  margin: 0;
-  color: var(--text-primary);
-  font-size: 1.75rem;
-}
-
 /* Секция загрузки */
-.upload-section {
-  background: var(--bg-card);
-  border: 1px solid var(--border-color);
-  border-radius: 8px;
-  padding: 1.5rem;
-  margin-bottom: 1.5rem;
-}
 
-.upload-controls {
-  display: flex;
-  gap: 1rem;
-  align-items: center;
-  margin-bottom: 0.75rem;
-}
-
-.file-input {
+:where(.staff-profiles-page) .file-input {
   flex: 1;
-  padding: 0.5rem;
+  padding: var(--space-2);
   border: 1px solid var(--border-color);
-  border-radius: 4px;
+  border-radius: var(--radius-sm);
   background: var(--bg-secondary);
   color: var(--text-primary);
 }
 
-.upload-status {
-  padding: 0.75rem;
-  border-radius: 4px;
-  margin-bottom: 0.75rem;
+:where(.staff-profiles-page) .upload-status {
+  padding: var(--space-3);
+  border-radius: var(--radius-sm);
+  margin-bottom: var(--space-3);
 }
 
-.upload-status.success {
+:where(.staff-profiles-page) .upload-status.success {
   background: rgba(144, 238, 144, 0.2);
   color: #2d7a2d;
   border: 1px solid #90EE90;
 }
 
-.upload-status.error {
+:where(.staff-profiles-page) .upload-status.error {
   background: rgba(255, 99, 71, 0.2);
   color: #d32f2f;
   border: 1px solid #ff6347;
 }
 
-.upload-hint {
-  font-size: 0.875rem;
+:where(.staff-profiles-page) .upload-hint {
+  font-size: var(--font-size-md);
   color: var(--text-secondary);
 }
 
 /* Секция поиска */
-.search-section {
+:where(.staff-profiles-page) .search-section {
   display: flex;
-  gap: 0.75rem;
+  gap: var(--space-3);
   align-items: center;
-  margin-bottom: 1rem;
+  margin-bottom: var(--space-4);
 }
 
-.search-input {
+:where(.staff-profiles-page) .search-input {
   flex: 1;
-  padding: 0.75rem 1rem;
-  border: 1px solid var(--border-color);
-  border-radius: 4px;
-  background: var(--bg-secondary);
-  color: var(--text-primary);
-  font-size: 1rem;
 }
 
-.search-input:focus {
+:where(.staff-profiles-page) .search-input:focus {
   outline: none;
   border-color: var(--primary-color);
 }
 
 /* Таблица */
-.table-wrapper {
+:where(.staff-profiles-page) .table-wrapper {
   flex: 1;
   display: flex;
   flex-direction: column;
   background: var(--bg-card);
   border: 1px solid var(--border-color);
-  border-radius: 8px;
+  border-radius: var(--radius-md);
   overflow: hidden;
   min-height: 0;
 }
 
-.table-header-fixed {
+:where(.staff-profiles-page) .table-header-fixed {
   background: var(--bg-tertiary);
   border-bottom: 2px solid var(--border-color);
   overflow: auto;
   flex-shrink: 0;
 }
 
-.table-header-fixed::-webkit-scrollbar {
+:where(.staff-profiles-page) .table-header-fixed::-webkit-scrollbar {
   height: 0;
   width: 0;
 }
 
-.table-body-scroll {
+:where(.staff-profiles-page) .table-body-scroll {
   flex: 1;
   overflow: auto;
   min-height: 0;
 }
 
-.staff-profiles-table {
+:where(.staff-profiles-page) .staff-profiles-table {
   width: 100%;
   border-collapse: collapse;
   font-size: 0.7rem;
   table-layout: fixed;
 }
 
-.staff-profiles-table thead th {
-  padding: 0.5rem 0.3rem;
+:where(.staff-profiles-page) .staff-profiles-table thead th {
+  padding: var(--space-2) 0.3rem;
   text-align: center;
-  font-weight: 600;
+  font-weight: var(--font-weight-semibold);
   color: var(--text-primary);
   background: var(--bg-tertiary);
   border-bottom: 1px solid var(--border-color);
@@ -145,7 +102,7 @@
   vertical-align: bottom;
 }
 
-.staff-profiles-table thead th:not(:first-child):not(:last-child) {
+:where(.staff-profiles-page) .staff-profiles-table thead th:not(:first-child):not(:last-child) {
   writing-mode: vertical-rl;
   transform: rotate(180deg);
   text-align: center;
@@ -153,22 +110,22 @@
   vertical-align: middle;
 }
 
-.staff-profiles-table thead th:first-child {
+:where(.staff-profiles-page) .staff-profiles-table thead th:first-child {
   text-align: left;
   writing-mode: horizontal-tb;
   height: auto;
   vertical-align: middle;
 }
 
-.staff-profiles-table thead th:last-child {
+:where(.staff-profiles-page) .staff-profiles-table thead th:last-child {
   text-align: center;
   writing-mode: horizontal-tb;
   height: auto;
   vertical-align: middle;
 }
 
-.staff-profiles-table tbody td {
-  padding: 0.5rem 0.3rem;
+:where(.staff-profiles-page) .staff-profiles-table tbody td {
+  padding: var(--space-2) 0.3rem;
   border-bottom: 1px solid var(--border-color);
   color: var(--text-primary);
   white-space: nowrap;
@@ -177,16 +134,16 @@
   text-align: center;
 }
 
-.staff-profiles-table tbody td:first-child {
+:where(.staff-profiles-page) .staff-profiles-table tbody td:first-child {
   text-align: left;
 }
 
-.staff-profiles-table tbody tr:hover {
+:where(.staff-profiles-page) .staff-profiles-table tbody tr:hover {
   background: var(--bg-hover);
 }
 
 /* Состояния */
-.loading-container {
+:where(.staff-profiles-page) .loading-container {
   display: flex;
   flex-direction: column;
   align-items: center;
@@ -195,49 +152,558 @@
   color: var(--text-secondary);
 }
 
-.spinner {
+:where(.staff-profiles-page) .spinner {
   width: 40px;
   height: 40px;
   border: 4px solid var(--border-color);
   border-top-color: var(--primary-color);
   border-radius: 50%;
-  animation: spin 1s linear infinite;
-  margin-bottom: 1rem;
+  animation: ui-staff-profiles-spin 1s linear infinite;
+  margin-bottom: var(--space-4);
 }
 
-@keyframes spin {
+@keyframes ui-staff-profiles-spin {
   to { transform: rotate(360deg); }
-}
-
-.empty-state {
-  text-align: center;
-  padding: 3rem;
-  color: var(--text-secondary);
-  font-size: 1.1rem;
 }
 
 /* Responsive */
 @media (max-width: 768px) {
-  .staff-profiles-page {
-    padding: 1rem;
+
+  :where(.staff-profiles-page) .staff-profiles-table {
+    font-size: var(--font-size-xs);
   }
 
-  .page-header {
+  :where(.staff-profiles-page) .staff-profiles-table thead th,
+:where(.staff-profiles-page) .staff-profiles-table tbody td {
+    padding: var(--space-2);
+  }
+}
+/* Профили сотрудников - Стили с поддержкой светлой и темной темы */
+/* Основной контейнер страницы */
+:where(.staff-profiles-page) .staff-table-shell {
+  overflow-x: auto;
+}
+/* Заголовок страницы */
+/* Секция загрузки */
+:where(.staff-profiles-page) .upload-controls {
+  display: flex;
+  gap: var(--space-4);
+  align-items: center;
+  flex-wrap: wrap;
+}
+:where(.staff-profiles-page) .upload-controls input[type="file"] {
+  display: none;
+}
+:where(.staff-profiles-page) .staff-hidden-file-input {
+  display: none;
+}
+:where(.staff-profiles-page) .file-label {
+  padding: var(--space-3) var(--space-6);
+  background: var(--bg-tertiary);
+  color: var(--text-primary);
+  border: 2px dashed var(--border-strong);
+  border-radius: var(--radius-md);
+  cursor: pointer;
+  transition: all 0.3s ease;
+  font-size: var(--font-size-lg);
+  flex: 1;
+  min-width: 250px;
+  text-align: center;
+}
+:where(.staff-profiles-page) .file-label:hover {
+  background: var(--bg-hover);
+  border-color: var(--color-primary);
+}
+/* Сообщения */
+:where(.staff-profiles-page) .message {
+  margin-top: var(--space-5);
+  padding: var(--space-4) var(--space-5);
+  border-radius: var(--radius-md);
+  font-size: var(--font-size-md);
+  animation: ui-staff-profiles-slideIn 0.3s ease;
+}
+:where(.staff-profiles-page) .message-success {
+  background: var(--alert-success-bg);
+  color: var(--alert-success-text);
+  border: 1px solid var(--alert-success-border);
+}
+:where(.staff-profiles-page) .message-error {
+  background: var(--alert-error-bg);
+  color: var(--alert-error-text);
+  border: 1px solid var(--alert-error-border);
+}
+:where(.staff-profiles-page) .staff-example-toggle {
+  margin-top: var(--space-4);
+}
+:where(.staff-profiles-page) .staff-example-toggle-btn:hover {
+  border-color: var(--color-primary);
+}
+:where(.staff-profiles-page) .staff-example-subtitle {
+  margin: 0 0 var(--space-2);
+  color: var(--text-secondary);
+  font-size: var(--font-size-md);
+}
+:where(.staff-profiles-page) .staff-example-table-shell {
+  overflow-x: auto;
+  background: var(--bg-primary);
+  padding: var(--space-2);
+  border-radius: var(--radius-sm);
+}
+:where(.staff-profiles-page) .staff-example-table {
+  width: 100%;
+  min-width: 800px;
+  border-collapse: collapse;
+  font-size: var(--font-size-xs);
+  font-family: Consolas, Monaco, monospace;
+}
+:where(.staff-profiles-page) .staff-example-table thead tr {
+  background: var(--bg-hover);
+}
+:where(.staff-profiles-page) .staff-example-table th,
+:where(.staff-profiles-page) .staff-example-table td {
+  padding: var(--space-2);
+  border: 1px solid var(--border-color);
+  color: var(--text-primary);
+  text-align: left;
+}
+:where(.staff-profiles-page) .staff-example-muted {
+  color: var(--text-secondary);
+}
+:where(.staff-profiles-page) .staff-example-notes {
+  margin-top: var(--space-2);
+}
+:where(.staff-profiles-page) .staff-example-note-label {
+  margin: 5px 0;
+  color: var(--text-secondary);
+  font-size: var(--font-size-sm);
+}
+:where(.staff-profiles-page) .staff-example-note-list {
+  margin: 5px 0;
+  padding-left: 20px;
+  color: var(--text-secondary);
+  font-size: var(--font-size-sm);
+}
+@keyframes ui-staff-profiles-slideIn {
+  from {
+    opacity: 0;
+    transform: translateY(-10px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+/* Список профилей */
+:where(.staff-profiles-page) .profile-list {
+  background: var(--bg-card);
+  border-radius: var(--radius-lg);
+  padding: var(--space-6);
+  box-shadow: var(--shadow-card);
+  border: 1px solid var(--border-color);
+}
+:where(.staff-profiles-page) .profiles-table tbody tr {
+  transition: background 0.2s ease;
+}
+:where(.staff-profiles-page) .actions-cell {
+  display: flex;
+  gap: var(--space-2);
+  justify-content: flex-end;
+}
+:where(.staff-profiles-page) .action-button {
+  padding: var(--space-2) var(--space-4);
+  border: none;
+  border-radius: var(--radius-sm);
+  cursor: pointer;
+  font-size: var(--font-size-md);
+  font-weight: var(--font-weight-medium);
+  transition: all 0.2s ease;
+}
+:where(.staff-profiles-page) .view-button {
+  background: var(--color-primary);
+  color: var(--text-inverse);
+}
+:where(.staff-profiles-page) .view-button:hover {
+  background: var(--brand-primary-hover);
+  transform: translateY(-1px);
+}
+:where(.staff-profiles-page) .delete-button {
+  background: var(--color-danger);
+  color: var(--text-inverse);
+}
+:where(.staff-profiles-page) .delete-button:hover {
+  background: var(--color-danger-hover);
+  transform: translateY(-1px);
+}
+/* Пустое состояние */
+/* Загрузка */
+:where(.staff-profiles-page) .loading {
+  text-align: center;
+  padding: 40px;
+  color: var(--text-muted);
+  font-size: 18px;
+}
+:where(.staff-profiles-page) .loading-overlay {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background: rgba(0, 0, 0, 0.5);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 9999;
+}
+/* Модальное окно - БЕЗ АНИМАЦИИ */
+/* Заголовок модального окна */
+:where(.staff-profiles-page) .modal-title-block {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+}
+:where(.staff-profiles-page) .modal-kicker {
+  margin: 0;
+  color: var(--color-primary);
+  font-size: var(--font-size-sm);
+  font-weight: var(--font-weight-bold);
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+:where(.staff-profiles-page) .modal-subtitle {
+  margin: 0;
+  color: var(--text-secondary);
+  font-size: var(--font-size-lg);
+  line-height: 1.5;
+}
+:where(.staff-profiles-page) .profile-overview {
+  display: flex;
+  justify-content: space-between;
+  gap: var(--space-4);
+  align-items: flex-start;
+  padding: var(--space-5) 22px;
+  border-radius: 18px;
+  border: 1px solid var(--border-color);
+  background: color-mix(in srgb, var(--bg-secondary) 88%, var(--bg-card));
+}
+:where(.staff-profiles-page) .profile-overview-copy h3,
+:where(.staff-profiles-page) .loci-section-header h3 {
+  margin: 0 0 var(--space-2);
+  color: var(--text-primary);
+  font-size: 22px;
+}
+:where(.staff-profiles-page) .profile-overview-copy p,
+:where(.staff-profiles-page) .loci-section-header p {
+  margin: 0;
+  color: var(--text-secondary);
+  font-size: var(--font-size-md);
+  line-height: 1.6;
+}
+:where(.staff-profiles-page) .profile-badges {
+  display: flex;
+  gap: var(--space-2);
+  flex-wrap: wrap;
+  justify-content: flex-end;
+}
+:where(.staff-profiles-page) .profile-badge {
+  display: inline-flex;
+  align-items: center;
+  min-height: 42px;
+  padding: 0 var(--space-3);
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--color-primary) 12%, var(--bg-card));
+  border: 1px solid color-mix(in srgb, var(--color-primary) 20%, var(--border-color));
+  color: var(--text-primary);
+  font-size: var(--font-size-md);
+  font-weight: var(--font-weight-semibold);
+}
+:where(.staff-profiles-page) .loci-section {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-4);
+}
+/* Сетка локусов */
+:where(.staff-profiles-page) .loci-grid {
+  padding: 0;
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(170px, 1fr));
+  gap: var(--space-3);
+  width: 100%;
+}
+/* Карточка локуса */
+:where(.staff-profiles-page) .loci-card {
+  padding: var(--space-3) var(--space-4);
+  border-radius: var(--radius-lg);
+  border: 1px solid;
+  transition: all 0.2s ease;
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+  gap: var(--space-2);
+  min-height: 92px;
+  box-shadow: 0 8px 20px rgba(15, 23, 42, 0.08);
+}
+:where(.staff-profiles-page) .loci-card:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 14px 26px rgba(15, 23, 42, 0.12);
+}
+:where(.staff-profiles-page) .locus-name {
+  font-weight: var(--font-weight-bold);
+  font-size: var(--font-size-sm);
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  line-height: 1.35;
+  white-space: normal;
+  overflow: visible;
+  text-overflow: clip;
+}
+:where(.staff-profiles-page) .locus-value {
+  font-size: var(--font-size-xl);
+  font-weight: var(--font-weight-bold);
+  font-family: 'Courier New', monospace;
+  line-height: 1.35;
+  white-space: normal;
+  overflow: visible;
+  text-overflow: clip;
+  word-break: break-word;
+}
+/* Цветовое кодирование локусов */
+:where(.staff-profiles-page) .loci-card-amel {
+  background: linear-gradient(135deg, #e3f2fd 0%, #bbdefb 100%);
+  border-color: #2196f3;
+  color: #0d47a1;
+}
+:where(.staff-profiles-page) .loci-card-y {
+  background: linear-gradient(135deg, #e8f5e9 0%, #c8e6c9 100%);
+  border-color: #4caf50;
+  color: #1b5e20;
+}
+:where(.staff-profiles-page) .loci-card-x {
+  background: linear-gradient(135deg, #f3e5f5 0%, #e1bee7 100%);
+  border-color: #9c27b0;
+  color: #4a148c;
+}
+:where(.staff-profiles-page) .loci-card-snp {
+  background: linear-gradient(135deg, #fff9c4 0%, #fff59d 100%);
+  border-color: #fbc02d;
+  color: #f57f17;
+}
+:where(.staff-profiles-page) .loci-card-penta {
+  background: linear-gradient(135deg, #ffe0b2 0%, #ffcc80 100%);
+  border-color: #ff9800;
+  color: #e65100;
+}
+:where(.staff-profiles-page) .loci-card-str {
+  background: linear-gradient(135deg, #f5f5f5 0%, var(--border-default) 100%);
+  border-color: #9e9e9e;
+  color: #424242;
+}
+/* Темная тема - приглушенные цвета карточек */
+.staff-profiles-page.dark .loci-card-amel {
+  background: linear-gradient(135deg, #1e3a5f 0%, #2c5282 100%);
+  border-color: #4a7ba7;
+  color: #b3d9ff;
+}
+.staff-profiles-page.dark .loci-card-y {
+  background: linear-gradient(135deg, #1f4d2c 0%, #2d6a3e 100%);
+  border-color: #5a9367;
+  color: #c8e6c9;
+}
+.staff-profiles-page.dark .loci-card-x {
+  background: linear-gradient(135deg, #3d1f4d 0%, #4a2658 100%);
+  border-color: #7e5a8e;
+  color: #e1bee7;
+}
+.staff-profiles-page.dark .loci-card-snp {
+  background: linear-gradient(135deg, #5d3a1a 0%, #7d4e1e 100%);
+  border-color: #a67c52;
+  color: #ffd699;
+}
+.staff-profiles-page.dark .loci-card-penta {
+  background: linear-gradient(135deg, #5d2f0f 0%, #7d3f14 100%);
+  border-color: #a67c52;
+  color: #ffcc99;
+}
+.staff-profiles-page.dark .loci-card-str {
+  background: linear-gradient(135deg, #2d2d2d 0%, #3d3d3d 100%);
+  border-color: #6d6d6d;
+  color: var(--border-default);
+}
+/* Футер модального окна */
+/* Финальный слой унификации страницы */
+:where(.staff-profiles-page) .upload-section {
+  background: var(--bg-card);
+  box-shadow: var(--shadow-card);
+  border: 1px solid var(--border-color);
+  padding: var(--space-6);
+  margin-bottom: var(--space-6);
+  border-radius: var(--radius-lg);
+}
+:where(.staff-profiles-page) .upload-section h3 {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  margin: 0 0 var(--space-5);
+}
+:where(.staff-profiles-page) .file-input-wrapper {
+  display: flex;
+  align-items: center;
+}
+:where(.staff-profiles-page) .choose-file-btn {
+  border-color: var(--border-color);
+}
+:where(.staff-profiles-page) .file-name-display {
+  min-width: 220px;
+  padding: 0.9rem var(--space-4);
+  border: 1px solid var(--border-color);
+  border-radius: var(--border-radius-md);
+  background: var(--bg-secondary);
+  color: var(--text-secondary);
+}
+:where(.staff-profiles-page) .staff-example-panel {
+  margin-top: var(--space-4);
+  border: 1px solid var(--border-color);
+  padding: var(--space-4);
+  background: var(--bg-secondary);
+  border-radius: var(--radius-lg);
+}
+:where(.staff-profiles-page) .staff-example-title {
+  margin: 0 0 var(--space-2);
+  color: var(--text-primary);
+  margin-bottom: 0.65rem;
+  font-size: var(--font-size-lg);
+}
+:where(.staff-profiles-page) .profiles-table {
+  width: 100%;
+  min-width: 760px;
+}
+:where(.staff-profiles-page) .profiles-table th {
+  text-align: left;
+}
+:where(.staff-profiles-page) .profiles-table td {
+  vertical-align: middle;
+}
+:where(.staff-profiles-page) .staff-actions {
+  display: flex;
+  gap: 0.65rem;
+  flex-wrap: wrap;
+}
+:where(.staff-profiles-page) .staff-action-view {
+  border-color: color-mix(in srgb, var(--color-primary) 26%, var(--border-color));
+}
+:where(.staff-profiles-page) .staff-action-delete {
+  border-color: color-mix(in srgb, var(--color-danger) 24%, var(--border-color));
+}
+:where(.staff-profiles-page) .empty-state {
+  text-align: center;
+  padding: 2.75rem var(--space-6);
+  color: var(--text-secondary);
+  border: 1px dashed var(--border-color);
+  border-radius: var(--radius-lg);
+  background: var(--bg-card);
+  box-shadow: var(--shadow-card);
+}
+:where(.staff-profiles-page) .empty-state p:first-child {
+  font-size: 1.35rem;
+  margin-bottom: 0.6rem;
+}
+:where(.staff-profiles-page) .empty-hint {
+  color: var(--text-muted);
+  font-size: 0.98rem;
+}
+@media (max-width: 768px) {
+
+  :where(.staff-profiles-page) .upload-controls {
     flex-direction: column;
-    align-items: flex-start;
-    gap: 1rem;
+    align-items: stretch;
   }
 
-  .upload-controls {
+  :where(.staff-profiles-page) .file-name-display {
+    min-width: 0;
+  }
+
+  :where(.staff-profiles-page) .modal-subtitle {
+    font-size: var(--font-size-md);
+  }
+
+  :where(.staff-profiles-page) .profile-overview {
     flex-direction: column;
   }
 
-  .staff-profiles-table {
-    font-size: 0.8rem;
+  :where(.staff-profiles-page) .profile-badges {
+    justify-content: flex-start;
   }
 
-  .staff-profiles-table thead th,
-  .staff-profiles-table tbody td {
-    padding: 0.5rem;
+  :where(.staff-profiles-page) .loci-grid {
+    grid-template-columns: repeat(auto-fit, minmax(138px, 1fr));
   }
+
+  :where(.staff-profiles-page) .loci-card {
+    min-height: 84px;
+    padding: var(--space-3) var(--space-3);
+  }
+
+  :where(.staff-profiles-page) .locus-name {
+    font-size: var(--font-size-xs);
+  }
+
+  :where(.staff-profiles-page) .locus-value {
+    font-size: 18px;
+  }
+}
+
+/* Градиенты для карточек локусов в темной теме */
+.staff-profiles-page.dark .loci-card-amel,
+[data-theme="dark"] .staff-profiles-page .loci-card-amel {
+  background: linear-gradient(135deg, #1a2b4a 0%, #253a60 100%);
+  border-color: #3a5a8a;
+  color: #a0c0ff;
+}
+
+.staff-profiles-page.dark .loci-card-y,
+[data-theme="dark"] .staff-profiles-page .loci-card-y {
+  background: linear-gradient(135deg, #1a3a2a 0%, #254a35 100%);
+  border-color: #3a6a50;
+  color: #a0e0a0;
+}
+
+.staff-profiles-page.dark .loci-card-x,
+[data-theme="dark"] .staff-profiles-page .loci-card-x {
+  background: linear-gradient(135deg, #2a1a3a 0%, #3a2550 100%);
+  border-color: #5a3a7a;
+  color: #c0a0e0;
+}
+
+.staff-profiles-page.dark .loci-card-snp,
+[data-theme="dark"] .staff-profiles-page .loci-card-snp {
+  background: linear-gradient(135deg, #3a2a1a 0%, #4a3525 100%);
+  border-color: #6a503a;
+  color: #e0c080;
+}
+
+.staff-profiles-page.dark .loci-card-penta,
+[data-theme="dark"] .staff-profiles-page .loci-card-penta {
+  background: linear-gradient(135deg, #3a251a 0%, #4a3025 100%);
+  border-color: #6a453a;
+  color: #e0a080;
+}
+
+.staff-profiles-page.dark .loci-card-str,
+[data-theme="dark"] .staff-profiles-page .loci-card-str {
+  background: linear-gradient(135deg, #252525 0%, #303030 100%);
+  border-color: #4a4a4a;
+  color: #c0c0c0;
+}
+
+/* Критичные данные (**, *) - красный на темном фоне */
+[data-theme="dark"] .staff-profiles-page .critical-data {
+  background: #2a1a1a;
+  color: #ef9a9a;
+  font-weight: var(--font-weight-semibold);
+  padding: 2px var(--space-1);
+  border-radius: var(--radius-sm);
+}
+
+[data-theme="dark"] .staff-profiles-page .critical-data::before {
+  content: "⚠️";
+  margin-right: var(--space-1);
 }

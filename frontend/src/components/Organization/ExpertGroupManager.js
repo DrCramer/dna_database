@@ -36,11 +36,11 @@ const ExpertGroupManager = () => {
           'Authorization': `Bearer ${localStorage.getItem('token')}`
         }
       });
-      
+
       if (!response.ok) {
         throw new Error('Не удалось загрузить экспертные группы');
       }
-      
+
       const data = await response.json();
       setExpertGroups(data);
     } catch (err) {
@@ -58,11 +58,11 @@ const ExpertGroupManager = () => {
           'Authorization': `Bearer ${localStorage.getItem('token')}`
         }
       });
-      
+
       if (!response.ok) {
         throw new Error('Не удалось загрузить отделы');
       }
-      
+
       const data = await response.json();
       setDepartments(data.filter(dept => dept.is_active));
     } catch (err) {
@@ -77,11 +77,11 @@ const ExpertGroupManager = () => {
           'Authorization': `Bearer ${localStorage.getItem('token')}`
         }
       });
-      
+
       if (!response.ok) {
         throw new Error('Не удалось загрузить пользователей');
       }
-      
+
       const data = await response.json();
       setUsers(data);
     } catch (err) {
@@ -91,7 +91,7 @@ const ExpertGroupManager = () => {
 
   const handleCreateGroup = async (e) => {
     e.preventDefault();
-    
+
     if (!newGroup.name || !newGroup.department_id) {
       setError('Group name and department are required');
       return;
@@ -218,8 +218,8 @@ const ExpertGroupManager = () => {
   };
 
   const getAvailableUsers = (departmentId, currentMembers = []) => {
-    return users.filter(user => 
-      user.department_id === parseInt(departmentId) && 
+    return users.filter(user =>
+      user.department_id === parseInt(departmentId) &&
       !currentMembers.some(member => member.id === user.id)
     );
   };
@@ -251,7 +251,7 @@ const ExpertGroupManager = () => {
         </div>
         <button
           onClick={() => setShowCreateForm(!showCreateForm)}
-          className="create-department-btn"
+          className="create-department-btn btn btn-primary"
         >
           <span>➕</span>
           <span>{showCreateForm ? 'Отмена' : 'Создать экспертную группу'}</span>
@@ -265,7 +265,7 @@ const ExpertGroupManager = () => {
       )}
 
       {showCreateForm && (
-        <div className="modal-content modal-content-wide department-create-panel">
+        <div className="modal-content department-create-panel modal-lg">
           <h3 className="modal-title">Создать новую экспертную группу</h3>
           <form onSubmit={handleCreateGroup}>
             <div className="form-grid department-create-grid">
@@ -428,13 +428,13 @@ const ExpertGroupManager = () => {
       {/* Members Management Modal */}
       {showMembersModal && (
         <div className="modal-overlay">
-          <div className="organization-modal-panel">
+          <div className="organization-modal-panel modal-content modal-lg">
             <div className="organization-modal-header">
               <h3>Состав группы: {showMembersModal.name}</h3>
               <button
                 onClick={() => setShowMembersModal(null)}
                 className="organization-modal-close"
-              >
+               aria-label="Закрыть">
                 ×
               </button>
             </div>

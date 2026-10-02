@@ -74,6 +74,20 @@
   --radius-lg: 14px;
   --radius-xl: 20px;
 
+  /* Layout and controls: shared by every working page */
+  --page-max-width: 1400px;
+  --page-padding-x: 24px;
+  --page-padding-y: 24px;
+  --page-header-padding: 24px;
+  --control-height-sm: 36px;
+  --control-height-md: 42px;
+  --control-height-lg: 48px;
+  --control-padding-x: 16px;
+  --modal-width-sm: 420px;
+  --modal-width-md: 680px;
+  --modal-width-lg: 960px;
+  --modal-width-xl: 1240px;
+
   /* Отступы */
   --space-1: 4px;
   --space-2: 8px;
@@ -231,3 +245,8 @@
   --bg-hover: rgba(110, 168, 255, 0.1);
   --alert-warning-text: #ffd98c;
 }
+
+/* Page gutters respond at shared tablet breakpoints. */
+
+@media (max-width: 1024px) { :root { --page-padding-x: 20px; --page-padding-y: 20px; } }
+@media (max-width: 768px) { :root { --page-padding-x: 16px; --page-padding-y: 16px; --page-header-padding: 16px; } }

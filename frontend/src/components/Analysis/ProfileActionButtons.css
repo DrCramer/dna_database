@@ -8,32 +8,16 @@
 
 .profile-action-btn {
   position: relative;
-  width: 32px;
-  height: 32px;
-  border-radius: 8px;
-  border: 1px solid var(--border-color);
-  background-color: var(--bg-secondary);
-  cursor: pointer;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  transition: all 0.2s ease;
   font-size: 16px;
 }
 
 .profile-action-btn:hover:not(:disabled) {
-  background-color: var(--bg-hover);
-  transform: translateY(-1px);
-  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
 }
 
 .profile-action-btn:active:not(:disabled) {
-  transform: translateY(0);
 }
 
 .profile-action-btn:disabled {
-  opacity: 0.5;
-  cursor: not-allowed;
 }
 
 /* Deactivate Button */
@@ -53,15 +37,6 @@
 
 .deactivate-btn .spinner {
   animation: spin 1s linear infinite;
-}
-
-@keyframes spin {
-  from {
-    transform: rotate(0deg);
-  }
-  to {
-    transform: rotate(360deg);
-  }
 }
 
 /* Comment Button */

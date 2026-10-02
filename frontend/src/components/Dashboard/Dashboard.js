@@ -2,7 +2,6 @@ import React, { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { useAuth } from '../../contexts/AuthContext';
 import { dnaAnalysisService } from '../../services/dnaAnalysisService';
-import './Dashboard.css';
 
 const Dashboard = () => {
   const { user, hasRole } = useAuth();

@@ -1,5 +1,4 @@
 import React, { useEffect, useState } from 'react';
-import './LoginPage.css';
 
 const LoginPage = ({
   onNavigate,
@@ -176,7 +175,7 @@ const LoginPage = ({
                   name="username"
                   value={credentials.username}
                   onChange={handleChange}
-                  className="helix-input"
+                  className="helix-input form-input form-input-lg"
                   placeholder="Введите имя пользователя"
                   required
                   disabled={isLoading}
@@ -197,7 +196,7 @@ const LoginPage = ({
                   name="password"
                   value={credentials.password}
                   onChange={handleChange}
-                  className="helix-input"
+                  className="helix-input form-input form-input-lg"
                   placeholder="Введите пароль"
                   required
                   disabled={isLoading}
@@ -205,7 +204,7 @@ const LoginPage = ({
                 <button
                   type="button"
                   onClick={() => setShowPassword(!showPassword)}
-                  className="helix-password-toggle"
+                  className="helix-password-toggle btn btn-ghost btn-icon-sm"
                   aria-label={showPassword ? 'Скрыть пароль' : 'Показать пароль'}
                 >
                   {showPassword ? (
@@ -223,7 +222,7 @@ const LoginPage = ({
               </div>
             </div>
 
-            <button type="submit" disabled={isLoading} className="helix-submit">
+            <button type="submit" disabled={isLoading} className="helix-submit btn btn-primary btn-lg btn-block">
               <span>{isAuthenticating ? 'Подготавливаем вход...' : 'Войти в систему'}</span>
               <svg className="helix-submit-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
                 <path d="M15 3h4a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2h-4" />

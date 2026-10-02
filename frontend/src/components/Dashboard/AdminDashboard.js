@@ -1,12 +1,11 @@
 import React, { useState, useEffect } from 'react';
 import { BarChart, Bar, PieChart, Pie, Cell, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer } from 'recharts';
-import './AdminDashboard.css';
 
 const AdminDashboard = ({ onNavigate }) => {
   // Получаем user из контекста через window (так как useAuth недоступен здесь)
   // Альтернатива: передать user как prop или использовать контекст
   const [user, setUser] = useState(null);
-  
+
   useEffect(() => {
     // Получаем user из localStorage
     const savedUser = localStorage.getItem('user');
@@ -18,7 +17,7 @@ const AdminDashboard = ({ onNavigate }) => {
       }
     }
   }, []);
-  
+
   const [activeTab, setActiveTab] = useState('summary');
   const [kpiData, setKpiData] = useState(null);
   const [monthlyData, setMonthlyData] = useState([]);
@@ -74,9 +73,9 @@ const AdminDashboard = ({ onNavigate }) => {
           'Authorization': `Bearer ${token}`
         }
       });
-      
+
       if (!response.ok) throw new Error('Failed to load KPI data');
-      
+
       const result = await response.json();
       setKpiData(result.data);
     } catch (err) {
@@ -93,9 +92,9 @@ const AdminDashboard = ({ onNavigate }) => {
           'Authorization': `Bearer ${token}`
         }
       });
-      
+
       if (!response.ok) throw new Error('Failed to load monthly stats');
-      
+
       const result = await response.json();
       setMonthlyData(result.data);
     } catch (err) {
@@ -111,9 +110,9 @@ const AdminDashboard = ({ onNavigate }) => {
           'Authorization': `Bearer ${token}`
         }
       });
-      
+
       if (!response.ok) throw new Error('Failed to load status distribution');
-      
+
       const result = await response.json();
       setStatusData(result.data);
     } catch (err) {
@@ -131,9 +130,9 @@ const AdminDashboard = ({ onNavigate }) => {
           'Authorization': `Bearer ${token}`
         }
       });
-      
+
       if (!response.ok) throw new Error('Failed to load filter options');
-      
+
       const result = await response.json();
       setFilterOptions(result.data);
     } catch (err) {
@@ -149,15 +148,15 @@ const AdminDashboard = ({ onNavigate }) => {
         limit: pagination.limit,
         ...filters
       });
-      
+
       const response = await fetch(`/api/analytics/profiles-in-work?${params}`, {
         headers: {
           'Authorization': `Bearer ${token}`
         }
       });
-      
+
       if (!response.ok) throw new Error('Failed to load profiles in work');
-      
+
       const result = await response.json();
       setProfilesInWork(result.data.profiles);
       setPagination(prev => ({ ...prev, total: result.data.pagination.total }));
@@ -168,7 +167,7 @@ const AdminDashboard = ({ onNavigate }) => {
 
   const handleFindDuplicates = async () => {
     if (!duplicateSearch.trim()) return;
-    
+
     try {
       const token = localStorage.getItem('token');
       const response = await fetch('/api/analytics/find-duplicates', {
@@ -179,12 +178,12 @@ const AdminDashboard = ({ onNavigate }) => {
         },
         body: JSON.stringify({ military_unit_number: duplicateSearch })
       });
-      
+
       if (!response.ok) {
         const body = await response.json();
         throw new Error(body.error || 'Не удалось найти дубликаты');
       }
-      
+
       const result = await response.json();
       setDuplicateResults(result.data);
     } catch (err) {
@@ -204,7 +203,7 @@ const AdminDashboard = ({ onNavigate }) => {
       'pending': { emoji: '🟡', text: 'Ожидается', class: 'badge-warning' },
       'not_assigned': { emoji: '🔴', text: 'Не назначено', class: 'badge-danger' }
     };
-    
+
     const badge = badges[status] || badges.not_assigned;
     return (
       <span className={`realtime-badge ${badge.class}`}>
@@ -232,7 +231,7 @@ const AdminDashboard = ({ onNavigate }) => {
             Пользователь: <strong>{user?.username}</strong> ({user?.role})
           </p>
         </div>
-        <button onClick={() => onNavigate('/dashboard')} className="nav-button">
+        <button onClick={() => onNavigate('/dashboard')} className="nav-button btn btn-secondary">
           Назад к дашборду
         </button>
       </div>
@@ -240,19 +239,19 @@ const AdminDashboard = ({ onNavigate }) => {
       {/* Tabs */}
       <div className="dashboard-tabs">
         <button
-          className={`tab-button ${activeTab === 'summary' ? 'active' : ''}`}
+          className={`tab-button btn btn-ghost ${activeTab === 'summary' ? 'active' : ''}`}
           onClick={() => setActiveTab('summary')}
         >
           📈 Сводка
         </button>
         <button
-          className={`tab-button ${activeTab === 'in-work' ? 'active' : ''}`}
+          className={`tab-button btn btn-ghost ${activeTab === 'in-work' ? 'active' : ''}`}
           onClick={() => setActiveTab('in-work')}
         >
           📋 Данные в работе
         </button>
         <button
-          className={`tab-button ${activeTab === 'duplicates' ? 'active' : ''}`}
+          className={`tab-button btn btn-ghost ${activeTab === 'duplicates' ? 'active' : ''}`}
           onClick={() => setActiveTab('duplicates')}
         >
           🔍 Анализ дубликатов
@@ -314,18 +313,18 @@ const AdminDashboard = ({ onNavigate }) => {
                 <ResponsiveContainer width="100%" height={300}>
                   <BarChart data={monthlyData}>
                     <CartesianGrid strokeDasharray="3 3" stroke="var(--border-color)" />
-                    <XAxis 
-                      dataKey="month" 
+                    <XAxis
+                      dataKey="month"
                       stroke="var(--text-secondary)"
                       tick={{ fill: 'var(--text-secondary)' }}
                     />
-                    <YAxis 
+                    <YAxis
                       stroke="var(--text-secondary)"
                       tick={{ fill: 'var(--text-secondary)' }}
                     />
-                    <Tooltip 
-                      contentStyle={{ 
-                        backgroundColor: 'var(--bg-card)', 
+                    <Tooltip
+                      contentStyle={{
+                        backgroundColor: 'var(--bg-card)',
                         border: '1px solid var(--border-color)',
                         borderRadius: '8px'
                       }}
@@ -355,9 +354,9 @@ const AdminDashboard = ({ onNavigate }) => {
                         <Cell key={`cell-${index}`} fill={PIE_COLORS[index % PIE_COLORS.length]} />
                       ))}
                     </Pie>
-                    <Tooltip 
-                      contentStyle={{ 
-                        backgroundColor: 'var(--bg-card)', 
+                    <Tooltip
+                      contentStyle={{
+                        backgroundColor: 'var(--bg-card)',
                         border: '1px solid var(--border-color)',
                         borderRadius: '8px'
                       }}
@@ -376,10 +375,10 @@ const AdminDashboard = ({ onNavigate }) => {
             <div className="filters-row">
               <div className="filter-group">
                 <label>Год:</label>
-                <select 
-                  value={filters.year} 
+                <select
+                  value={filters.year}
                   onChange={(e) => handleFilterChange('year', e.target.value)}
-                  className="filter-select"
+                  className="filter-select form-select"
                 >
                   <option value="">Все</option>
                   {filterOptions.years.map(year => (
@@ -390,10 +389,10 @@ const AdminDashboard = ({ onNavigate }) => {
 
               <div className="filter-group">
                 <label>Привоз:</label>
-                <select 
-                  value={filters.import_number} 
+                <select
+                  value={filters.import_number}
                   onChange={(e) => handleFilterChange('import_number', e.target.value)}
-                  className="filter-select"
+                  className="filter-select form-select"
                 >
                   <option value="">Все</option>
                   {filterOptions.importNumbers.map(num => (
@@ -404,10 +403,10 @@ const AdminDashboard = ({ onNavigate }) => {
 
               <div className="filter-group">
                 <label>Статус RT:</label>
-                <select 
-                  value={filters.realtime_status} 
+                <select
+                  value={filters.realtime_status}
                   onChange={(e) => handleFilterChange('realtime_status', e.target.value)}
-                  className="filter-select"
+                  className="filter-select form-select"
                 >
                   <option value="">Все</option>
                   {filterOptions.realtimeStatuses.map(status => (
@@ -419,7 +418,7 @@ const AdminDashboard = ({ onNavigate }) => {
 
             {/* Table */}
             <div className="table-container">
-              <table className="data-table">
+              <table className="data-table table table-striped">
                 <thead>
                   <tr>
                     <th>ID</th>
@@ -450,7 +449,7 @@ const AdminDashboard = ({ onNavigate }) => {
                         </td>
                         <td>{getRealtimeStatusBadge(profile.realtime_status)}</td>
                         <td>
-                          <button className="btn-icon" title="Привязать данные">
+                          <button className="btn-icon btn btn-secondary" title="Привязать данные">
                             🔗
                           </button>
                         </td>
@@ -467,7 +466,7 @@ const AdminDashboard = ({ onNavigate }) => {
                 <button
                   onClick={() => setPagination(prev => ({ ...prev, page: Math.max(1, prev.page - 1) }))}
                   disabled={pagination.page === 1}
-                  className="btn-secondary btn-sm"
+                  className="btn-secondary btn-sm btn"
                 >
                   ← Назад
                 </button>
@@ -477,7 +476,7 @@ const AdminDashboard = ({ onNavigate }) => {
                 <button
                   onClick={() => setPagination(prev => ({ ...prev, page: Math.min(Math.ceil(pagination.total / pagination.limit), prev.page + 1) }))}
                   disabled={pagination.page >= Math.ceil(pagination.total / pagination.limit)}
-                  className="btn-secondary btn-sm"
+                  className="btn-secondary btn-sm btn"
                 >
                   Вперед →
                 </button>
@@ -494,19 +493,19 @@ const AdminDashboard = ({ onNavigate }) => {
               <p className="section-description">
                 Введите номер воинской части для поиска всех профилей с этим номером
               </p>
-              
+
               <div className="search-row">
                 <input
                   type="text"
                   value={duplicateSearch}
                   onChange={(e) => setDuplicateSearch(e.target.value)}
                   placeholder="Введите № в в/ч"
-                  className="search-input"
+                  className="search-input form-input"
                   onKeyPress={(e) => e.key === 'Enter' && handleFindDuplicates()}
                 />
-                <button 
+                <button
                   onClick={handleFindDuplicates}
-                  className="btn-primary"
+                  className="btn-primary btn"
                 >
                   Найти дубликаты
                 </button>
@@ -521,7 +520,7 @@ const AdminDashboard = ({ onNavigate }) => {
 
                   {duplicateResults.count > 0 && (
                     <div className="table-container">
-                      <table className="data-table">
+                      <table className="data-table table table-striped">
                         <thead>
                           <tr>
                             <th>Внутренний №</th>
@@ -558,29 +557,29 @@ const AdminDashboard = ({ onNavigate }) => {
             {/* Export Section */}
             <div className="export-card">
               <h3 className="section-title">📥 Выгрузка данных</h3>
-              
+
               <div className="export-form">
                 <div className="form-row">
                   <div className="form-group">
                     <label>Период с:</label>
-                    <input type="date" className="form-control" />
+                    <input type="date" className="form-control form-input" />
                   </div>
                   <div className="form-group">
                     <label>Период по:</label>
-                    <input type="date" className="form-control" />
+                    <input type="date" className="form-control form-input" />
                   </div>
                 </div>
 
                 <div className="form-group">
                   <label>Тип отчета:</label>
-                  <select className="form-control">
+                  <select className="form-control form-select">
                     <option>Сводный отчет по лаборатории</option>
                     <option>Отчет по дубликатам</option>
                     <option>Отчет по привозам</option>
                   </select>
                 </div>
 
-                <button className="btn-export">
+                <button className="btn-export btn btn-primary">
                   📊 Сформировать Excel
                 </button>
               </div>

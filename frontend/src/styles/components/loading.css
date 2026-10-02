@@ -1,0 +1,147 @@
+
+/* DNA Loading Animation */
+.dna-loading-overlay .dna-loading-overlay {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background: rgba(18, 18, 18, 0.95);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 10000;
+  animation: loading-fadeIn 0.3s ease;
+}
+
+@keyframes loading-fadeIn {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+
+.dna-loading-overlay .dna-loading-container {
+  text-align: center;
+  padding: 3rem 2rem;
+  max-width: 500px;
+  background: var(--bg-card);
+  border-radius: 16px;
+  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.6);
+  border: 1px solid var(--border-color);
+  animation: loading-slideIn 0.5s ease;
+}
+
+@keyframes loading-slideIn {
+  from {
+    opacity: 0;
+    transform: translateY(-30px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.dna-loading-overlay .dna {
+  position: relative;
+  width: 40px;
+  height: 100px;
+  margin: 0 auto 2rem;
+  transform-style: preserve-3d;
+}
+
+.dna-loading-overlay .dna-dot {
+  position: absolute;
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  background-color: var(--color-primary, #5e81f4);
+  box-shadow: 0 0 10px rgba(94, 129, 244, 0.5);
+  left: 50%;
+  transform: translateX(-50%);
+  animation: loading-dnaRotate 2s infinite ease-in-out;
+}
+
+.dna-loading-overlay .dna-dot:nth-child(2n) {
+  background-color: #9c27b0;
+  animation-delay: -1s;
+  box-shadow: 0 0 10px rgba(156, 39, 176, 0.5);
+}
+
+.dna-loading-overlay .dna-dot:nth-child(1),
+.dna-loading-overlay .dna-dot:nth-child(2) { top: 0px; }
+.dna-loading-overlay .dna-dot:nth-child(3),
+.dna-loading-overlay .dna-dot:nth-child(4) { top: 20px; animation-delay: -0.2s; }
+.dna-loading-overlay .dna-dot:nth-child(3):nth-child(2n),
+.dna-loading-overlay .dna-dot:nth-child(4):nth-child(2n) { animation-delay: -1.2s; }
+.dna-loading-overlay .dna-dot:nth-child(5),
+.dna-loading-overlay .dna-dot:nth-child(6) { top: 40px; animation-delay: -0.4s; }
+.dna-loading-overlay .dna-dot:nth-child(5):nth-child(2n),
+.dna-loading-overlay .dna-dot:nth-child(6):nth-child(2n) { animation-delay: -1.4s; }
+.dna-loading-overlay .dna-dot:nth-child(7),
+.dna-loading-overlay .dna-dot:nth-child(8) { top: 60px; animation-delay: -0.6s; }
+.dna-loading-overlay .dna-dot:nth-child(7):nth-child(2n),
+.dna-loading-overlay .dna-dot:nth-child(8):nth-child(2n) { animation-delay: -1.6s; }
+.dna-loading-overlay .dna-dot:nth-child(9),
+.dna-loading-overlay .dna-dot:nth-child(10) { top: 80px; animation-delay: -0.8s; }
+.dna-loading-overlay .dna-dot:nth-child(9):nth-child(2n),
+.dna-loading-overlay .dna-dot:nth-child(10):nth-child(2n) { animation-delay: -1.8s; }
+.dna-loading-overlay .dna-dot:nth-child(11),
+.dna-loading-overlay .dna-dot:nth-child(12) { top: 100px; animation-delay: -1s; }
+.dna-loading-overlay .dna-dot:nth-child(11):nth-child(2n),
+.dna-loading-overlay .dna-dot:nth-child(12):nth-child(2n) { animation-delay: -2s; }
+
+@keyframes loading-dnaRotate {
+  0%, 100% {
+    transform: translateX(-25px) scale(0.8);
+    opacity: 0.3;
+    z-index: 1;
+  }
+  50% {
+    transform: translateX(25px) scale(1.2);
+    opacity: 1;
+    z-index: 10;
+  }
+}
+
+.dna-loading-overlay .dna-loading-title {
+  font-size: 1.5rem;
+  font-weight: 600;
+  color: var(--text-primary);
+  margin-bottom: 0.5rem;
+}
+
+.dna-loading-overlay .dna-loading-message {
+  color: var(--text-secondary);
+  font-size: 1rem;
+  margin-bottom: 1rem;
+  line-height: 1.6;
+}
+
+.dna-loading-overlay .dna-loading-dots {
+  display: flex;
+  justify-content: center;
+  gap: 0.5rem;
+}
+
+.dna-loading-overlay .dna-loading-dot {
+  width: 10px;
+  height: 10px;
+  background: var(--color-primary);
+  border-radius: 50%;
+  animation: loading-dotPulse 1.4s ease-in-out infinite both;
+}
+
+.dna-loading-overlay .dna-loading-dot:nth-child(1) { animation-delay: -0.32s; }
+.dna-loading-overlay .dna-loading-dot:nth-child(2) { animation-delay: -0.16s; }
+.dna-loading-overlay .dna-loading-dot:nth-child(3) { animation-delay: 0s; }
+
+@keyframes loading-dotPulse {
+  0%, 80%, 100% {
+    transform: scale(0.8);
+    opacity: 0.5;
+  }
+  40% {
+    transform: scale(1);
+    opacity: 1;
+  }
+}

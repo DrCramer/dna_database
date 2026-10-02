@@ -1,0 +1,466 @@
+/* UserManagement Component Styles */
+
+.user-management-header-actions {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+}
+
+.user-management-controls {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: var(--space-6);
+  gap: var(--space-3);
+  flex-wrap: wrap;
+}
+
+.user-management-filters {
+  display: flex;
+  gap: var(--space-2);
+  align-items: center;
+  flex-wrap: wrap;
+}
+
+.user-management-table {
+  overflow-x: auto;
+}
+
+.user-management-table table {
+  width: 100%;
+  min-width: 900px;
+}
+
+.user-management-table th {
+  text-align: left;
+}
+
+:where(.user-management) .user-status-badge {
+  padding: var(--space-1) var(--space-2);
+  border-radius: var(--radius-lg);
+  font-size: var(--font-size-xs);
+  font-weight: var(--font-weight-medium);
+}
+
+:where(.user-management) .user-status-active {
+  background-color: var(--alert-success-bg);
+  color: var(--alert-success-text);
+  border: 1px solid var(--alert-success-border);
+}
+
+:where(.user-management) .user-status-inactive {
+  background-color: var(--alert-error-bg);
+  color: var(--alert-error-text);
+  border: 1px solid var(--alert-error-border);
+}
+
+:where(.user-management) .user-actions {
+  display: flex;
+  gap: var(--space-2);
+  justify-content: center;
+  flex-wrap: wrap;
+}
+
+:where(.user-management) .user-action-view {
+  color: var(--color-primary);
+}
+
+:where(.user-management) .user-action-edit {
+  color: var(--color-success);
+}
+
+:where(.user-management) .user-action-reset {
+  color: var(--color-warning);
+}
+
+:where(.user-management) .user-action-deactivate {
+  color: var(--color-danger);
+}
+
+:where(.user-management) .user-pagination {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  gap: var(--space-2);
+  margin-top: var(--space-5);
+}
+
+:where(.user-management) .user-modal-overlay {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background-color: var(--bg-modal-overlay);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 1000;
+}
+
+:where(.user-management) .user-modal {
+  background-color: var(--bg-primary);
+  padding: var(--space-8);
+  border-radius: var(--radius-md);
+  width: 500px;
+  max-height: 80vh;
+  overflow: auto;
+  box-shadow: var(--shadow-md);
+}
+
+:where(.user-management) .user-form-group {
+  margin-bottom: var(--space-4);
+}
+
+:where(.user-management) .user-form-label {
+  display: block;
+  margin-bottom: 5px;
+  color: var(--text-primary);
+  font-weight: var(--font-weight-medium);
+}
+
+:where(.user-management) .user-form-input,
+:where(.user-management) .user-form-select {
+  width: 100%;
+  padding: var(--space-2);
+  border: 1px solid var(--border-color);
+  border-radius: var(--radius-sm);
+  background-color: var(--bg-secondary);
+  color: var(--text-primary);
+  font-size: var(--font-size-md);
+}
+
+:where(.user-management) .user-form-input:focus,
+:where(.user-management) .user-form-select:focus {
+  outline: none;
+  border-color: var(--brand-primary);
+  box-shadow: var(--shadow-focus);
+}
+
+:where(.user-management) .user-form-actions {
+  display: flex;
+  gap: var(--space-2);
+  justify-content: flex-end;
+  margin-top: var(--space-5);
+}
+
+:where(.user-management) .user-error-message {
+  padding: var(--space-2);
+  background-color: var(--alert-error-bg);
+  color: var(--alert-error-text);
+  border: 1px solid var(--alert-error-border);
+  border-radius: var(--radius-sm);
+  margin-bottom: var(--space-5);
+}
+
+:where(.user-management) .user-error-banner {
+  margin-bottom: var(--space-5);
+}
+
+:where(.user-management) .user-loading-state {
+  padding: var(--space-5);
+  text-align: center;
+  color: var(--text-primary);
+}
+
+:where(.user-management) .user-details-overlay {
+  z-index: 1000;
+}
+
+:where(.user-management) .user-details-modal {
+  overflow: auto;
+  padding: var(--space-8);
+}
+
+:where(.user-management) .user-details-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: var(--space-4);
+  margin-bottom: var(--space-5);
+}
+
+:where(.user-management) .user-details-header h3 {
+  margin: 0;
+  color: var(--text-primary);
+}
+
+:where(.user-management) .user-sessions-list {
+  max-height: 200px;
+  overflow: auto;
+}
+
+:where(.user-management) .user-details-empty {
+  color: var(--text-muted);
+}
+
+:where(.user-management) .user-empty-state {
+  padding: 40px;
+  text-align: center;
+  color: var(--text-muted);
+}
+
+:where(.user-management) .user-details-section {
+  margin-bottom: var(--space-5);
+}
+
+:where(.user-management) .user-details-section h4 {
+  color: var(--text-primary);
+  margin-bottom: var(--space-2);
+  border-bottom: 1px solid var(--border-color);
+  padding-bottom: 5px;
+}
+
+:where(.user-management) .user-session-item {
+  padding: var(--space-2);
+  border: 1px solid var(--border-color);
+  border-radius: var(--radius-sm);
+  margin-bottom: var(--space-2);
+  background-color: var(--bg-secondary);
+}
+
+:where(.user-management) .user-session-item p {
+  margin: 0 0 5px 0;
+  font-size: var(--font-size-xs);
+}
+
+/* Form styles */
+:where(.user-management) .form-section {
+  margin-bottom: var(--space-5);
+}
+
+:where(.user-management) .section-title {
+  font-size: var(--font-size-md);
+  font-weight: var(--font-weight-semibold);
+  color: var(--text-primary);
+  margin-bottom: var(--space-3);
+  padding-bottom: 6px;
+  border-bottom: 1px solid var(--border-color);
+}
+
+:where(.user-management) .form-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+  gap: var(--space-3);
+}
+
+:where(.user-management) .form-grid-compact {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+
+:where(.user-management) .form-group-full {
+  grid-column: 1 / -1;
+}
+
+:where(.user-management) .select-wrapper {
+  position: relative;
+  width: 100%;
+}
+
+:where(.user-management) .form-hint {
+  font-size: 11px;
+  color: var(--text-muted);
+  margin-top: var(--space-1);
+}
+
+/* btn-primary и btn-secondary базовые стили в frontend/src/styles/buttons.css */
+
+/* Role options */
+:where(.user-management) .role-options {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+}
+
+:where(.user-management) .role-options-compact {
+  gap: var(--space-2);
+}
+
+:where(.user-management) .role-option {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--space-3);
+  padding: var(--space-2) var(--space-3);
+  border: 1px solid var(--border-color);
+  border-radius: var(--radius-md);
+  cursor: pointer;
+  transition: all 0.2s ease;
+  background-color: var(--bg-secondary);
+}
+
+:where(.user-management) .role-option:hover {
+  border-color: var(--brand-primary);
+  background-color: var(--bg-tertiary);
+}
+
+:where(.user-management) .role-option.selected {
+  border-color: var(--brand-primary);
+  background-color: var(--color-primary-light);
+}
+
+:where(.user-management) .role-option input[type="radio"] {
+  margin-top: 2px;
+  cursor: pointer;
+}
+
+:where(.user-management) .role-name {
+  font-weight: var(--font-weight-semibold);
+  color: var(--text-primary);
+  margin-bottom: 2px;
+  font-size: var(--font-size-sm);
+}
+
+:where(.user-management) .role-desc {
+  font-size: var(--font-size-xs);
+  color: var(--text-muted);
+  line-height: 1.35;
+}
+
+/* Modal styles - БЕЗ АНИМАЦИИ */
+
+:where(.user-management) .modal-title {
+  font-size: var(--font-size-xl);
+  font-weight: var(--font-weight-semibold);
+  color: var(--text-primary);
+  margin: 0;
+}
+
+:where(.user-management) .user-form-shell {
+  display: grid;
+  grid-template-columns: minmax(0, 1.1fr) minmax(300px, 0.9fr);
+  gap: var(--space-5);
+  align-items: start;
+}
+
+:where(.user-management) .user-form-column {
+  min-width: 0;
+}
+
+:where(.user-management) .user-form-column-narrow .form-section:last-child {
+  margin-bottom: 0;
+}
+
+/* Other buttons */
+
+:where(.user-management) .role-filter:hover {
+  border-color: var(--brand-primary);
+}
+
+:where(.user-management) .role-filter.active {
+  border-color: var(--brand-primary);
+}
+
+:where(.user-management) .user-email {
+  font-size: var(--font-size-xs);
+  color: var(--text-secondary);
+  margin-top: var(--space-1);
+}
+
+:where(.user-management) .user-role-badge {
+  display: inline-block;
+  padding: 0.35rem var(--space-3);
+  border-radius: 999px;
+  font-size: var(--font-size-xs);
+  font-weight: var(--font-weight-semibold);
+}
+
+:where(.user-management) .user-departments-cell {
+  color: var(--text-secondary);
+  font-size: var(--font-size-md);
+  line-height: 1.5;
+}
+
+:where(.user-management) .department-checkboxes {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+}
+
+:where(.user-management) .department-checkboxes-compact {
+  gap: var(--space-2);
+}
+
+:where(.user-management) .department-checkbox {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  padding: var(--space-2) var(--space-2);
+  border: 1px solid var(--border-color);
+  border-radius: var(--radius-md);
+  background: var(--bg-secondary);
+  cursor: pointer;
+  transition: all 0.2s ease;
+  font-size: var(--font-size-sm);
+}
+
+:where(.user-management) .department-checkbox:hover {
+  border-color: var(--brand-primary);
+  background: var(--bg-hover);
+}
+
+:where(.user-management) .department-checkbox.is-selected {
+  border-color: color-mix(in srgb, var(--brand-primary) 32%, var(--border-color));
+  background: color-mix(in srgb, var(--brand-primary) 8%, var(--bg-card));
+}
+
+:where(.user-management) .department-checkbox input {
+  margin: 0;
+}
+
+:where(.user-management) .role-admin {
+  color: var(--color-danger);
+  border-color: color-mix(in srgb, var(--color-danger) 24%, var(--border-color));
+  background: color-mix(in srgb, var(--color-danger) 10%, var(--bg-secondary));
+}
+
+:where(.user-management) .role-manager {
+  color: var(--color-warning);
+  border-color: color-mix(in srgb, var(--color-warning) 28%, var(--border-color));
+  background: color-mix(in srgb, var(--color-warning) 10%, var(--bg-secondary));
+}
+
+:where(.user-management) .role-expert {
+  color: var(--color-success);
+  border-color: color-mix(in srgb, var(--color-success) 24%, var(--border-color));
+  background: color-mix(in srgb, var(--color-success) 10%, var(--bg-secondary));
+}
+
+:where(.user-management) .last-login {
+  font-size: var(--font-size-sm);
+  color: var(--text-secondary);
+}
+
+@media (max-width: 768px) {
+
+  .user-management-controls {
+    flex-direction: column;
+    align-items: stretch;
+  }
+
+  .user-management-filters {
+    flex-direction: column;
+    gap: var(--space-2);
+  }
+
+  :where(.user-management) .user-form-shell {
+    grid-template-columns: 1fr;
+    gap: 0;
+  }
+
+  :where(.user-management) .form-grid-compact {
+    grid-template-columns: 1fr;
+  }
+
+  :where(.user-management) .form-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .user-management-table {
+    overflow-x: auto;
+  }
+
+  :where(.user-management) .user-actions {
+    flex-direction: column;
+    gap: 2px;
+  }
+}

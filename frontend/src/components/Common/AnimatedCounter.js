@@ -1,5 +1,4 @@
 import React, { useState, useEffect, useRef } from 'react';
-import './PageTransition.css';
 
 /**
  * Компонент анимированного счетчика

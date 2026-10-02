@@ -1,5 +1,4 @@
 import React, { useState, useRef, useEffect } from 'react';
-import './ColorPicker.css';
 
 // Предзаданная палитра цветов для DNA анализа
 const PRESET_COLORS = [
@@ -54,8 +53,8 @@ const ColorPicker = ({ value, onChange, label = "Выбрать цвет" }) => 
   return (
     <div className="cp-wrapper" ref={popoverRef}>
       {/* Кнопка-триггер */}
-      <button 
-        type="button" 
+      <button
+        type="button"
         className="cp-button"
         onClick={() => setIsOpen(!isOpen)}
         aria-label={label}

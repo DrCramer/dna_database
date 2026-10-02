@@ -29,12 +29,12 @@ const ErrorDetailsSection = ({ errors }) => {
   // Группируем ошибки по типу сообщения
   const groupedErrors = errors.reduce((acc, error) => {
     let errorMessage = error.error || 'Неизвестная ошибка';
-    
+
     // Переводим сообщения об ошибках БД на русский с уточнением
     if (errorMessage.includes('duplicate key value violates unique constraint')) {
       errorMessage = 'Дубликат: Профиль с таким годом и номером образца уже существует в вашей базе данных. Каждый номер образца должен быть уникальным в пределах одного года. Возможно вы пытаетесь загрузить один и тот же файл повторно.';
     }
-    
+
     if (!acc[errorMessage]) {
       acc[errorMessage] = [];
     }
@@ -55,12 +55,12 @@ const ErrorDetailsSection = ({ errors }) => {
         ❌ Детали ошибок валидации:
       </div>
       {Object.entries(groupedErrors).map(([errorType, errorList]) => (
-        <details 
+        <details
           key={errorType}
           open={expandedGroups[errorType]}
           className="error-group"
         >
-          <summary 
+          <summary
             onClick={(e) => {
               e.preventDefault();
               toggleGroup(errorType);
@@ -73,7 +73,7 @@ const ErrorDetailsSection = ({ errors }) => {
             <div className="error-group-content error-group-content-expanded">
               <div className="error-items-grid error-items-grid-wide">
                 {errorList.map((error, index) => (
-                  <div 
+                  <div
                     key={index}
                     className="error-item error-item-card"
                     title={`Строка ${error.index + 2}: ${error.sampleName}`}
@@ -111,12 +111,12 @@ const FileUploader = ({ onNavigate, onUploadSuccess, selectedActiveTask }) => {
   const [uploadResult, setUploadResult] = useState(null);
   const [error, setError] = useState(null);
   const [uploadProgress, setUploadProgress] = useState({ current: 0, total: 0, stage: '' });
-  
+
   // Новые state для preview и замены
   const [previewData, setPreviewData] = useState(null);
   const [showReplaceConfirm, setShowReplaceConfirm] = useState(false);
   const [autoReplaceDeactivated, setAutoReplaceDeactivated] = useState(true);
-  
+
   const { user } = useAuth();
   const fileInputRef = React.useRef(null);
 
@@ -129,7 +129,7 @@ const FileUploader = ({ onNavigate, onUploadSuccess, selectedActiveTask }) => {
 
   const handleUpload = async (e) => {
     e.preventDefault();
-    
+
     if (!file) {
       setError('Выберите файл для загрузки');
       return;
@@ -144,7 +144,7 @@ const FileUploader = ({ onNavigate, onUploadSuccess, selectedActiveTask }) => {
     try {
       // Get token from user context instead of localStorage
       const token = user?.accessToken || localStorage.getItem('token');
-      
+
       if (!token) {
         throw new Error('Токен авторизации не найден. Войдите в систему повторно.');
       }
@@ -154,7 +154,7 @@ const FileUploader = ({ onNavigate, onUploadSuccess, selectedActiveTask }) => {
         const payload = JSON.parse(atob(token.split('.')[1]));
         const now = Math.floor(Date.now() / 1000);
         const isExpired = payload.exp < now;
-        
+
         if (isExpired) {
           throw new Error('Срок действия токена истек. Войдите в систему повторно.');
         }
@@ -166,7 +166,7 @@ const FileUploader = ({ onNavigate, onUploadSuccess, selectedActiveTask }) => {
 
       const formData = new FormData();
       formData.append('file', file);
-      
+
       // Добавить taskId если задача выбрана
       if (selectedActiveTask?.id) {
         formData.append('taskId', selectedActiveTask.id);
@@ -186,20 +186,20 @@ const FileUploader = ({ onNavigate, onUploadSuccess, selectedActiveTask }) => {
       if (!previewResponse.ok) {
         const errorText = await previewResponse.text();
         console.error('Preview error response:', errorText);
-        
+
         if (previewResponse.status === 401) {
           throw new Error('Authentication failed. Please login again.');
         }
-        
+
         try {
           const errorData = JSON.parse(errorText);
-          
+
           // Обработка специфичных ошибок с понятными сообщениями
           if (errorData.code === 'INTERNAL_DUPLICATES' && errorData.details?.internalDuplicates) {
             const duplicates = errorData.details.internalDuplicates;
             let message = `❌ Обнаружены дубликаты внутри файла!\n\n`;
             message += `Найдено ${duplicates.length} повторяющихся образцов:\n\n`;
-            
+
             duplicates.forEach((dup, index) => {
               message += `${index + 1}. Образец: ${dup.sampleName || 'N/A'}\n`;
               message += `   Внутренний номер: ${dup.internalNumber || dup.key || 'N/A'}\n`;
@@ -207,11 +207,11 @@ const FileUploader = ({ onNavigate, onUploadSuccess, selectedActiveTask }) => {
               message += `   Первое упоминание: строка ${dup.firstRow}\n`;
               message += `   Повторяется в строке: ${dup.duplicateRow}\n\n`;
             });
-            
+
             message += `\n📝 Пожалуйста, исправьте дубликаты в файле Excel и попробуйте загрузить снова.`;
             throw new Error(message);
           }
-          
+
           // Другие типы ошибок
           throw new Error(errorData.message || 'Ошибка при проверке файла');
         } catch (parseError) {
@@ -254,13 +254,13 @@ const FileUploader = ({ onNavigate, onUploadSuccess, selectedActiveTask }) => {
 
     } catch (err) {
       console.error('Upload error:', err);
-      
+
       // Сбрасываем выбранный файл при любой ошибке
       setFile(null);
       if (fileInputRef.current) {
         fileInputRef.current.value = '';
       }
-      
+
       setError(err.message || 'Не удалось загрузить файл. Повторите попытку.');
       setUploading(false);
       setShowDnaLoading(false);
@@ -287,7 +287,7 @@ const FileUploader = ({ onNavigate, onUploadSuccess, selectedActiveTask }) => {
       if (!response.ok) {
         const errorText = await response.text();
         console.error('Server error response:', errorText);
-        
+
         // Handle 401 Unauthorized with detailed token checking
         if (response.status === 401) {
           // Check if token exists and provide more specific error message
@@ -310,7 +310,7 @@ const FileUploader = ({ onNavigate, onUploadSuccess, selectedActiveTask }) => {
             }
           }
         }
-        
+
         // Try to parse as JSON to get validation details
         let errorData;
         try {
@@ -319,7 +319,7 @@ const FileUploader = ({ onNavigate, onUploadSuccess, selectedActiveTask }) => {
           // If not JSON, use the text as error message
           throw new Error(`Server error (${response.status}): ${errorText}`);
         }
-        
+
         // Handle validation errors specially
         if (errorData.code === 'VALIDATION_FAILED' && errorData.validation) {
           const validationError = new Error(errorData.message || 'File validation failed');
@@ -327,7 +327,7 @@ const FileUploader = ({ onNavigate, onUploadSuccess, selectedActiveTask }) => {
           validationError.code = 'VALIDATION_FAILED';
           throw validationError;
         }
-        
+
         // Handle Excel parsing errors
         if (errorData.error === 'Excel parsing failed' || errorData.code) {
           const parsingError = new Error(errorData.message || 'Excel parsing failed');
@@ -336,7 +336,7 @@ const FileUploader = ({ onNavigate, onUploadSuccess, selectedActiveTask }) => {
           parsingError.isExcelError = true;
           throw parsingError;
         }
-        
+
         // Handle other errors
         throw new Error(`Server error (${response.status}): ${errorData.message || errorText}`);
       }
@@ -349,7 +349,7 @@ const FileUploader = ({ onNavigate, onUploadSuccess, selectedActiveTask }) => {
       window.lastUploadResult = result; // Сохраняем для отладки (можно удалить в продакшене)
 
       await completePerformActualUpload(result);
-      
+
     } catch (err) {
       console.error('Actual upload error:', err);
       throw err; // Пробрасываем ошибку выше
@@ -362,24 +362,24 @@ const FileUploader = ({ onNavigate, onUploadSuccess, selectedActiveTask }) => {
   // Завершение функции performActualUpload - обработка успешного ответа
   const completePerformActualUpload = async (result) => {
     if (result.success) {
-      setUploadProgress({ 
-        current: (result.processing?.created || 0) + (result.processing?.replaced || 0), 
-        total: (result.processing?.created || 0) + (result.processing?.replaced || 0), 
-        stage: 'Загрузка завершена!' 
+      setUploadProgress({
+        current: (result.processing?.created || 0) + (result.processing?.replaced || 0),
+        total: (result.processing?.created || 0) + (result.processing?.replaced || 0),
+        stage: 'Загрузка завершена!'
       });
-      
+
       await new Promise(resolve => setTimeout(resolve, 500));
-      
+
       setUploadResult(result);
       setFile(null);
       if (fileInputRef.current) {
         fileInputRef.current.value = '';
       }
-      
+
       // Закрываем модальное окно если оно было открыто
       setShowReplaceConfirm(false);
       setPreviewData(null);
-      
+
       if (onUploadSuccess) {
         onUploadSuccess(result);
       }
@@ -395,18 +395,18 @@ const FileUploader = ({ onNavigate, onUploadSuccess, selectedActiveTask }) => {
       setShowDnaLoading(true);
       setShowReplaceConfirm(false);
       setUploadProgress({ current: 0, total: 0, stage: 'Загрузка с заменой профилей...' });
-      
+
       const token = user?.accessToken || localStorage.getItem('token');
       const formData = new FormData();
       formData.append('file', file);
       formData.append('replaceDeactivated', 'true');
-      
+
       if (selectedActiveTask?.id) {
         formData.append('taskId', selectedActiveTask.id);
       }
-      
+
       await performActualUpload(token, formData);
-      
+
     } catch (err) {
       console.error('Replace confirmation error:', err);
       setError(err.message || 'Не удалось загрузить файл с заменой');
@@ -432,19 +432,19 @@ const FileUploader = ({ onNavigate, onUploadSuccess, selectedActiveTask }) => {
       setShowDnaLoading(true);
       setShowReplaceConfirm(false);
       setUploadProgress({ current: 0, total: 0, stage: 'Загрузка как новых профилей...' });
-      
+
       const token = user?.accessToken || localStorage.getItem('token');
       const formData = new FormData();
       formData.append('file', file);
       formData.append('replaceDeactivated', 'false'); // НЕ заменять деактивированные
       formData.append('allowDuplicates', 'true'); // Разрешить дубликаты (загрузить как новые)
-      
+
       if (selectedActiveTask?.id) {
         formData.append('taskId', selectedActiveTask.id);
       }
-      
+
       await performActualUpload(token, formData);
-      
+
     } catch (err) {
       console.error('Load as new error:', err);
       setError(err.message || 'Не удалось загрузить профили как новые');
@@ -468,7 +468,7 @@ const FileUploader = ({ onNavigate, onUploadSuccess, selectedActiveTask }) => {
           <div className="section-header-actions">
             <button
               onClick={() => onNavigate('/dashboard')}
-              className="nav-button"
+              className="nav-button btn btn-secondary"
             >
               Назад к дашборду
             </button>
@@ -504,9 +504,14 @@ const FileUploader = ({ onNavigate, onUploadSuccess, selectedActiveTask }) => {
               hidden
               ref={fileInputRef}
             />
-            <label htmlFor="file-input" className="browse-btn" role="button">
+            <button
+              type="button"
+              className="browse-btn btn btn-secondary btn-lg"
+              disabled={uploading}
+              onClick={() => fileInputRef.current?.click()}
+            >
               {uploading ? '⏳ Загрузка...' : '📂 Выбрать файл'}
-            </label>
+            </button>
           </div>
 
           {/* File List */}
@@ -527,7 +532,7 @@ const FileUploader = ({ onNavigate, onUploadSuccess, selectedActiveTask }) => {
             <button
               type="submit"
               disabled={!file || uploading}
-              className="upload-file-btn"
+              className="upload-file-btn btn btn-primary btn-lg btn-block"
             >
               {uploading ? '⏳ Загрузка...' : '📤 Загрузить файл'}
             </button>
@@ -543,7 +548,7 @@ const FileUploader = ({ onNavigate, onUploadSuccess, selectedActiveTask }) => {
                 Ошибка: {typeof error === 'string' ? error : error.message}
               </h3>
             </div>
-            
+
             {/* Display multiple validation errors */}
             {error.validationErrors && error.validationErrors.length > 0 && (
               <details className="validation-errors-details upload-detail-block">
@@ -570,7 +575,7 @@ const FileUploader = ({ onNavigate, onUploadSuccess, selectedActiveTask }) => {
                 </div>
               </details>
             )}
-            
+
             {/* Display internal duplicates within file */}
             {error.internalDuplicates && error.internalDuplicates.length > 0 && (
               <div className="upload-detail-block">
@@ -607,7 +612,7 @@ const FileUploader = ({ onNavigate, onUploadSuccess, selectedActiveTask }) => {
                 </details>
               </div>
             )}
-            
+
             {/* Display detailed validation errors */}
             {error.validation && (
               <>
@@ -617,19 +622,19 @@ const FileUploader = ({ onNavigate, onUploadSuccess, selectedActiveTask }) => {
                     <div className="validation-row">
                       <span className="validation-label">Тип экспертизы:</span>
                       <span className="validation-value">
-                        {error.validation.expertiseType === 'emergency' 
-                          ? 'ЧС (чрезвычайные ситуации)' 
+                        {error.validation.expertiseType === 'emergency'
+                          ? 'ЧС (чрезвычайные ситуации)'
                           : 'Генетическая экспертиза'}
                       </span>
                     </div>
                   )}
-                  
+
                   {error.validation.summary && (
                     <div className="validation-row">
                       <span className="validation-label">Обработано строк:</span>
                       <span className={`validation-value ${error.validation.errors?.length > 0 ? 'error' : 'success'}`}>
                         {error.validation.summary.actualDataRows || 0}
-                        {error.validation.summary.skippedEmptyRows > 0 && 
+                        {error.validation.summary.skippedEmptyRows > 0 &&
                           ` (пропущено ${error.validation.summary.skippedEmptyRows} пустых строк)`}
                       </span>
                     </div>
@@ -662,7 +667,7 @@ const FileUploader = ({ onNavigate, onUploadSuccess, selectedActiveTask }) => {
                       </ul>
                     </div>
                   )}
-                  
+
                   {/* Show warnings */}
                   {error.validation.warnings && error.validation.warnings.length > 0 && (
                     <div className="warning-section">
@@ -686,7 +691,7 @@ const FileUploader = ({ onNavigate, onUploadSuccess, selectedActiveTask }) => {
                 </div>
               </>
             )}
-            
+
             {/* Display conflicts with active profiles */}
             {error.conflicts && error.conflicts.length > 0 && (
               <div className="upload-detail-block">
@@ -756,12 +761,12 @@ const FileUploader = ({ onNavigate, onUploadSuccess, selectedActiveTask }) => {
                   <p><strong>Пропущено дубликатов:</strong> {skippedDuplicates.length} {pluralizeProfiles(skippedDuplicates.length)}</p>
                 );
               })()}
-              
+
               {/* Детальная информация об ошибках */}
               {uploadResult.data?.errors && uploadResult.data.errors.length > 0 && (
                 <ErrorDetailsSection errors={uploadResult.data.errors} />
               )}
-              
+
               {/* Информация о замененных профилях */}
               {(() => {
                 const replacedProfiles = uploadResult.data?.duplicates?.filter(d => d.action === 'replace') || [];
@@ -773,8 +778,8 @@ const FileUploader = ({ onNavigate, onUploadSuccess, selectedActiveTask }) => {
                       </summary>
                       <div className="upload-detail-content upload-detail-content-tall upload-result-list">
                         {replacedProfiles.map((dup, index) => (
-                          <div 
-                            key={index} 
+                          <div
+                            key={index}
                             className={`upload-result-row${index < replacedProfiles.length - 1 ? ' upload-result-row-bordered' : ''}`}
                           >
                             <div className="upload-result-row-title">
@@ -795,7 +800,7 @@ const FileUploader = ({ onNavigate, onUploadSuccess, selectedActiveTask }) => {
                   </div>
                 );
               })()}
-              
+
               {/* Информация о пропущенных дубликатах */}
               {(() => {
                 const skippedDuplicates = uploadResult.data?.duplicates?.filter(d => d.action !== 'replace') || [];
@@ -812,16 +817,16 @@ const FileUploader = ({ onNavigate, onUploadSuccess, selectedActiveTask }) => {
                           <div>Год / Номер</div>
                           <div>Причина</div>
                         </div>
-                        
+
                         {/* Строки дубликатов */}
                         {skippedDuplicates.map((dup, index) => {
                         // Формируем понятное сообщение о дубликате
                         let message = '';
-                        
+
                         if (dup.existingProfiles && dup.existingProfiles.length > 0) {
                           const ex = dup.existingProfiles[0];
                           const isCurrentUser = ex.userId === user?.id;
-                          
+
                           // Базовая информация об образце
                           let sampleInfo = '';
                           if (ex.sampleName) {
@@ -830,11 +835,11 @@ const FileUploader = ({ onNavigate, onUploadSuccess, selectedActiveTask }) => {
                           if (ex.year && ex.internalNumber) {
                             sampleInfo += ` (${ex.year}/${ex.internalNumber})`;
                           }
-                          
+
                           // Формируем сообщение в зависимости от местоположения
                           if (ex.taskId) {
                             const taskName = `#${ex.taskId}`;
-                            
+
                             if (isCurrentUser) {
                               message = `Этот образец уже был загружен в вашей задаче: ${taskName}`;
                             } else {
@@ -847,7 +852,7 @@ const FileUploader = ({ onNavigate, onUploadSuccess, selectedActiveTask }) => {
                               message = `Этот образец уже есть в личных профилях другого пользователя`;
                             }
                           }
-                          
+
                           // Добавляем информацию об образце, если есть
                           if (sampleInfo) {
                             message += ` ${sampleInfo}`;
@@ -856,10 +861,10 @@ const FileUploader = ({ onNavigate, onUploadSuccess, selectedActiveTask }) => {
                           // Если нет информации о существующем профиле
                           message = 'Дубликат уже существует в базе данных';
                         }
-                        
+
                         return (
-                          <div 
-                            key={index} 
+                          <div
+                            key={index}
                             className={`upload-duplicates-table-row${index < skippedDuplicates.length - 1 ? ' upload-duplicates-table-row-bordered' : ''}${index % 2 === 0 ? ' is-even' : ' is-odd'}`}
                           >
                             <div className="upload-duplicates-sample">
@@ -903,7 +908,7 @@ const FileUploader = ({ onNavigate, onUploadSuccess, selectedActiveTask }) => {
           <p className="upload-example-description upload-example-description-tight">
             Ваш Excel файл должен иметь следующую структуру заголовков в первой строке:
           </p>
-          
+
           {/* Таблица с примером */}
           <div className="example-table-wrapper">
             <table className="example-table example-table-compact">
@@ -1033,13 +1038,13 @@ const FileUploader = ({ onNavigate, onUploadSuccess, selectedActiveTask }) => {
             <p className="dna-loading-message">
               {uploadProgress.stage || 'Обработка и валидация данных...'}
             </p>
-            
+
             {/* Progress Bar */}
             {uploadProgress.total > 0 ? (
               <div className="upload-loading-progress">
                 <div className="upload-loading-progress-track">
                   <div
-                    className="upload-loading-progress-bar"
+                    className="upload-loading-upload-progress-bar"
                     style={{ width: `${(uploadProgress.current / uploadProgress.total * 100).toFixed(1)}%` }}
                   />
                 </div>
@@ -1061,7 +1066,7 @@ const FileUploader = ({ onNavigate, onUploadSuccess, selectedActiveTask }) => {
 
       {/* Модальное окно подтверждения замены */}
       {showReplaceConfirm && previewData && (
-        <div 
+        <div
           className="modal-overlay"
           onClick={(e) => {
             if (e.target === e.currentTarget) {
@@ -1069,8 +1074,8 @@ const FileUploader = ({ onNavigate, onUploadSuccess, selectedActiveTask }) => {
             }
           }}
         >
-          <div 
-            className="modal-content modal-content-wide"
+          <div
+            className="modal-content modal-lg"
             onClick={(e) => e.stopPropagation()}
           >
             <div className="modal-header">
@@ -1078,7 +1083,7 @@ const FileUploader = ({ onNavigate, onUploadSuccess, selectedActiveTask }) => {
               <button
                 onClick={handleCancelReplace}
                 className="close-modal-button"
-              >
+               aria-label="Закрыть">
                 ×
               </button>
             </div>
@@ -1117,7 +1122,7 @@ const FileUploader = ({ onNavigate, onUploadSuccess, selectedActiveTask }) => {
                   {previewData.profiles
                     .filter(p => p.action === 'replace')
                     .map((profile, index) => (
-                      <div 
+                      <div
                         key={index}
                         className="upload-duplicate-card upload-duplicate-card-warning"
                       >

@@ -5,7 +5,7 @@
 /* === КОНТЕЙНЕРЫ === */
 .container {
   width: 100%;
-  max-width: 1200px;
+  max-width: var(--page-max-width);
   margin: 0 auto;
   padding: 0 var(--spacing-md);
 }
@@ -20,7 +20,7 @@
 }
 
 .container-lg {
-  max-width: 1400px;
+  max-width: var(--page-max-width);
 }
 
 /* === FLEXBOX УТИЛИТЫ === */
@@ -136,7 +136,7 @@
   .container {
     max-width: 720px;
   }
-  
+
   .grid-cols-3,
   .grid-cols-4,
   .grid-cols-6,
@@ -149,7 +149,7 @@
   .container {
     padding: 0 var(--spacing-sm);
   }
-  
+
   .grid-cols-2,
   .grid-cols-3,
   .grid-cols-4,
@@ -158,3 +158,14 @@
     grid-template-columns: 1fr;
   }
 }
+
+/* Application frame and page widths */
+.app-layout { display: flex; flex-direction: column; height: 100dvh; width: 100%; overflow: hidden; background: var(--surface-page); color: var(--text-primary); }
+.app-main { flex: 1; min-height: 0; min-width: 0; overflow: auto; display: flex; flex-direction: column; }
+.page-shell { width: 100%; max-width: var(--page-max-width); min-width: 0; margin: 0 auto; padding: var(--page-padding-y) var(--page-padding-x); }
+.page-shell-fluid { flex: 1; min-height: 0; max-width: none; padding: 0; display: flex; flex-direction: column; }
+.page-shell > .page-wrapper { display: flex; flex-direction: column; height: auto; min-width: 0; }
+.page-shell-fluid > .page-wrapper { flex: 1; min-height: 0; height: 100%; }
+.page-shell > .page-wrapper > * { min-width: 0; width: 100%; }
+.page-container, .page-content { min-width: 0; }
+.no-scroll { overflow: hidden; }

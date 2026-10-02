@@ -1,6 +1,5 @@
 import React, { useState, useEffect } from 'react';
 import { useTheme } from '../../contexts/ThemeContext';
-import './StaffProfilesPage.css';
 
 // Фиксированный порядок отображения локусов
 const LOCI_DISPLAY_ORDER = [
@@ -16,21 +15,21 @@ const LOCI_DISPLAY_ORDER = [
 // Сортировка локусов по заданному порядку
 function sortLociByOrder(loci) {
   const sortedLoci = {};
-  
+
   // Сначала добавляем локусы в заданном порядке
   LOCI_DISPLAY_ORDER.forEach(locusName => {
     if (loci[locusName]) {
       sortedLoci[locusName] = loci[locusName];
     }
   });
-  
+
   // Затем добавляем локусы, которых нет в списке (на случай новых)
   Object.keys(loci).forEach(locusName => {
     if (!sortedLoci[locusName]) {
       sortedLoci[locusName] = loci[locusName];
     }
   });
-  
+
   return sortedLoci;
 }
 
@@ -81,22 +80,22 @@ function UploadSection({ onUploadSuccess }) {
       const data = await response.json();
 
       if (response.ok) {
-        setMessage({ 
-          type: 'success', 
-          text: `Успешно загружено ${data.profilesCount} профилей` 
+        setMessage({
+          type: 'success',
+          text: `Успешно загружено ${data.profilesCount} профилей`
         });
         setFile(null);
         onUploadSuccess();
       } else {
-        setMessage({ 
-          type: 'error', 
-          text: data.error || 'Ошибка при загрузке файла' 
+        setMessage({
+          type: 'error',
+          text: data.error || 'Ошибка при загрузке файла'
         });
       }
     } catch (error) {
-      setMessage({ 
-        type: 'error', 
-        text: 'Ошибка соединения с сервером' 
+      setMessage({
+        type: 'error',
+        text: 'Ошибка соединения с сервером'
       });
     } finally {
       setUploading(false);
@@ -119,8 +118,8 @@ function UploadSection({ onUploadSuccess }) {
             id="staff-file-input"
             className="staff-hidden-file-input"
           />
-          <button 
-            className="choose-file-btn"
+          <button
+            className="choose-file-btn btn btn-secondary"
             onClick={() => document.getElementById('staff-file-input').click()}
             disabled={uploading}
           >
@@ -134,13 +133,13 @@ function UploadSection({ onUploadSuccess }) {
         <button
           onClick={handleUpload}
           disabled={!file || uploading}
-          className="upload-btn"
+          className="upload-btn btn btn-primary"
         >
           <span>📤</span>
           <span>{uploading ? 'Загрузка...' : 'Загрузить профили'}</span>
         </button>
       </div>
-      
+
       {message && (
         <div className={`message message-${message.type}`}>
           {message.text}
@@ -151,7 +150,7 @@ function UploadSection({ onUploadSuccess }) {
       <div className="staff-example-toggle">
         <button
           onClick={() => setShowExample(!showExample)}
-          className="staff-example-toggle-btn"
+          className="staff-example-toggle-btn btn btn-secondary btn-sm"
         >
           {showExample ? '▼ Скрыть пример' : '▶ Показать пример формата файла'}
         </button>
@@ -167,7 +166,7 @@ function UploadSection({ onUploadSuccess }) {
             Первая строка должна содержать заголовки столбцов:
           </p>
           <div className="staff-example-table-shell">
-            <table className="staff-example-table">
+            <table className="staff-example-table table table-striped">
               <thead>
                 <tr>
                   <th>Sample Name</th>
@@ -231,8 +230,8 @@ function ProfileList({ profiles, onView, onDelete, loading }) {
   }
 
   return (
-    <div className="staff-table-shell">
-      <table className="profiles-table">
+    <div className="staff-table-shell table-container">
+      <table className="profiles-table table table-striped">
         <thead>
           <tr>
             <th>ФИО сотрудника</th>
@@ -247,7 +246,7 @@ function ProfileList({ profiles, onView, onDelete, loading }) {
                 <div className="staff-actions">
                   <button
                     onClick={() => onView(profile.id)}
-                    className="staff-action-btn staff-action-view"
+                    className="staff-action-btn staff-action-view btn btn-secondary btn-sm btn-outline-primary"
                     title="Просмотр"
                   >
                     <span>👁️</span>
@@ -255,7 +254,7 @@ function ProfileList({ profiles, onView, onDelete, loading }) {
                   </button>
                   <button
                     onClick={() => onDelete(profile.id)}
-                    className="staff-action-btn staff-action-delete"
+                    className="staff-action-btn staff-action-delete btn btn-secondary btn-sm btn-outline-danger"
                     title="Удалить"
                   >
                     <span>🗑️</span>
@@ -281,14 +280,14 @@ function ProfileViewModal({ profile, onClose }) {
 
   return (
     <div className="modal-overlay" onClick={onClose}>
-      <div className="modal-content" onClick={e => e.stopPropagation()}>
+      <div className="modal-content modal-full" onClick={e => e.stopPropagation()}>
         <div className="modal-header">
           <div className="modal-title-block">
             <p className="modal-kicker">ДНК-профиль сотрудника</p>
             <h2>{profile.full_name}</h2>
             <p className="modal-subtitle">Карточка профиля и все загруженные генетические локусы в удобном формате.</p>
           </div>
-          <button onClick={onClose} className="close-button">✕</button>
+          <button onClick={onClose} className="close-button" aria-label="Закрыть">✕</button>
         </div>
 
         <div className="modal-body">
@@ -328,7 +327,7 @@ function ProfileViewModal({ profile, onClose }) {
         </div>
 
         <div className="modal-footer">
-          <button onClick={onClose} className="close-modal-button">
+          <button onClick={onClose} className="btn btn-secondary">
             Закрыть
           </button>
         </div>
@@ -442,7 +441,7 @@ function StaffProfilesPage({ onNavigate }) {
         <div className="header-actions">
           <button
             onClick={() => onNavigate('/dashboard')}
-            className="nav-button"
+            className="nav-button btn btn-secondary"
           >
             Назад к дашборду
           </button>

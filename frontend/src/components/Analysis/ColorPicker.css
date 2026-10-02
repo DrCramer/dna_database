@@ -1,25 +1,15 @@
 /* Базовые переменные (Светлая тема по умолчанию) */
-:root {
-  --cp-bg: #ffffff;
-  --cp-border: #e0e0e0;
-  --cp-text: #333333;
-  --cp-hover: #f5f5f5;
-  --cp-shadow: rgba(0, 0, 0, 0.1);
-  --cp-primary: #1565C0;
-}
 
 /* Темная тема */
-[data-theme="dark"] {
-  --cp-bg: #1e1e1e;
-  --cp-border: #424242;
-  --cp-text: #e0e0e0;
-  --cp-hover: #2d2d2d;
-  --cp-shadow: rgba(0, 0, 0, 0.5);
-  --cp-primary: #5E81F4;
-}
 
 /* --- Стили компонента --- */
 .cp-wrapper {
+  --cp-bg: var(--surface-card);
+  --cp-border: var(--border-default);
+  --cp-text: var(--text-primary);
+  --cp-hover: var(--surface-card-hover);
+  --cp-shadow: var(--surface-overlay);
+  --cp-primary: var(--brand-primary);
   position: relative;
   display: inline-block;
   font-family: system-ui, -apple-system, sans-serif;
@@ -32,9 +22,9 @@
   gap: 10px;
   padding: 0;
   width: 60px;
-  height: 35px;
+  height: var(--control-height-sm);
   border: 2px solid var(--cp-border);
-  border-radius: 6px;
+  border-radius: var(--radius-sm);
   background-color: var(--cp-bg);
   color: var(--cp-text);
   cursor: pointer;

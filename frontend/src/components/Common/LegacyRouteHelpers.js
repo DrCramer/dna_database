@@ -15,9 +15,9 @@ export const AccessDeniedState = ({ message, onNavigate }) => (
 
 export const LegacyFeaturePage = ({ title, accent = false, description, actions = [], onNavigate }) => (
   <div className="legacy-page-shell">
-    <div className={`legacy-page-header${accent ? ' is-accent' : ''}`}>
-      <h2 className={`legacy-page-title${accent ? ' is-accent' : ''}`}>{title}</h2>
-      <div className="legacy-page-actions">
+    <div className={`legacy-page-header page-header${accent ? ' is-accent' : ''}`}>
+      <h2 className={`legacy-page-title page-title${accent ? ' is-accent' : ''}`}>{title}</h2>
+      <div className="legacy-page-actions header-actions">
         <button
           onClick={() => onNavigate('/dashboard')}
           className="btn btn-secondary"

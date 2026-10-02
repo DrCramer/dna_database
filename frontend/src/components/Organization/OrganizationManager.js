@@ -29,11 +29,11 @@ const OrganizationManager = ({ hasRole, onNavigate }) => {
           'Authorization': `Bearer ${token}`
         }
       });
-      
+
       if (!response.ok) {
         throw new Error('Failed to load organizations');
       }
-      
+
       const data = await response.json();
       // Handle both response formats
       const orgsArray = data.data?.organizations || data.data || data;
@@ -48,7 +48,7 @@ const OrganizationManager = ({ hasRole, onNavigate }) => {
 
   const handleCreateOrganization = async (e) => {
     e.preventDefault();
-    
+
     if (!newOrganization.name) {
       setError('Organization name is required');
       return;
@@ -163,11 +163,11 @@ const OrganizationManager = ({ hasRole, onNavigate }) => {
           </h1>
           <p className="page-subtitle">Эта страница позволит вам управлять организациями в системе.</p>
         </div>
-        
+
         <div className="header-actions">
           <button
             onClick={() => setShowCreateForm(!showCreateForm)}
-            className="create-organization-btn"
+            className="create-organization-btn btn btn-primary"
           >
             <span>➕</span>
             <span>{showCreateForm ? 'Отмена' : 'Создать организацию'}</span>
@@ -175,7 +175,7 @@ const OrganizationManager = ({ hasRole, onNavigate }) => {
           {onNavigate && (
             <button
               onClick={() => onNavigate('/dashboard')}
-              className="nav-button"
+              className="nav-button btn btn-secondary"
             >
               Назад к дашборду
             </button>
@@ -194,9 +194,9 @@ const OrganizationManager = ({ hasRole, onNavigate }) => {
           <div className="modal-content">
             <div className="modal-header">
               <h3 className="modal-title">Создать новую организацию</h3>
-              <button onClick={() => setShowCreateForm(false)} className="modal-close">×</button>
+              <button onClick={() => setShowCreateForm(false)} className="modal-close" aria-label="Закрыть">×</button>
             </div>
-            
+
             <form onSubmit={handleCreateOrganization}>
               <div className="form-section">
                 <div className="form-grid">
@@ -251,8 +251,8 @@ const OrganizationManager = ({ hasRole, onNavigate }) => {
         </div>
       )}
 
-      <div className="organization-table-shell">
-        <table>
+      <div className="organization-table-shell table-container">
+        <table className="table table-striped">
           <thead>
             <tr>
               <th>Название</th>
@@ -278,7 +278,7 @@ const OrganizationManager = ({ hasRole, onNavigate }) => {
                             handleUpdateOrganization(org.id, { name: e.target.value });
                           }
                         }}
-                        className="inline-edit-input"
+                        className="inline-edit-input form-input"
                       />
                     ) : (
                       <span
@@ -313,21 +313,21 @@ const OrganizationManager = ({ hasRole, onNavigate }) => {
                 <td>
                   <div className="organization-actions">
                     <button
-                      className="organization-action-btn organization-action-view"
+                      className="organization-action-btn organization-action-view btn btn-secondary btn-icon btn-sm"
                       title="Просмотр"
                       onClick={() => console.log('View org:', org.id)}
                     >
                       👁️
                     </button>
                     <button
-                      className="organization-action-btn organization-action-edit"
+                      className="organization-action-btn organization-action-edit btn btn-secondary btn-icon btn-sm"
                       title="Редактировать"
                       onClick={() => setEditingOrg(org.id)}
                     >
                       ✏️
                     </button>
                     <button
-                      className="organization-action-btn organization-action-settings"
+                      className="organization-action-btn organization-action-settings btn btn-secondary btn-icon btn-sm"
                       title="Настройки"
                       onClick={() => setError('Функция настроек пока не реализована')}
                     >
@@ -335,7 +335,7 @@ const OrganizationManager = ({ hasRole, onNavigate }) => {
                     </button>
                     {org.is_active && (
                       <button
-                        className="organization-action-btn organization-action-delete"
+                        className="organization-action-btn organization-action-delete btn btn-secondary btn-icon btn-sm btn-outline-danger"
                         title="Удалить"
                         onClick={() => handleDeactivateOrganization(org.id)}
                       >

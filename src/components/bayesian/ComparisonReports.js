@@ -1,12 +1,11 @@
 /**
  * Comparison Reports Component
- * 
+ *
  * Provides interface for generating and downloading comparison analysis reports
  * Requirements: 10.1, 10.2, 10.4 - PDF and Excel report generation for comparisons
  */
 
 import React, { useState, useCallback } from 'react';
-import './BayesianAnalysis.css';
 
 const ComparisonReports = ({ results, comparisonHistory, onShowHelp }) => {
     const [isGenerating, setIsGenerating] = useState(false);
@@ -19,7 +18,7 @@ const ComparisonReports = ({ results, comparisonHistory, onShowHelp }) => {
         try {
             // Simulate PDF generation
             await new Promise(resolve => setTimeout(resolve, 2500));
-            
+
             // In real implementation, would call ReportGenerator service
             const reportData = {
                 comparisonType: results.comparisonType,
@@ -33,10 +32,10 @@ const ComparisonReports = ({ results, comparisonHistory, onShowHelp }) => {
                 calculationMetadata: results.calculationMetadata,
                 populationUsed: results.populationUsed
             };
-            
+
             // Mock download
-            const blob = new Blob([JSON.stringify(reportData, null, 2)], { 
-                type: 'application/pdf' 
+            const blob = new Blob([JSON.stringify(reportData, null, 2)], {
+                type: 'application/pdf'
             });
             const url = URL.createObjectURL(blob);
             const a = document.createElement('a');
@@ -46,7 +45,7 @@ const ComparisonReports = ({ results, comparisonHistory, onShowHelp }) => {
             a.click();
             document.body.removeChild(a);
             URL.revokeObjectURL(url);
-            
+
         } catch (error) {
             console.error('Failed to generate PDF report:', error);
             alert('Ошибка при генерации PDF отчета: ' + error.message);
@@ -61,7 +60,7 @@ const ComparisonReports = ({ results, comparisonHistory, onShowHelp }) => {
         try {
             // Simulate Excel generation
             await new Promise(resolve => setTimeout(resolve, 2000));
-            
+
             // Prepare main comparison data
             const mainData = {
                 comparison_type: results.comparisonType,
@@ -78,13 +77,13 @@ const ComparisonReports = ({ results, comparisonHistory, onShowHelp }) => {
                 population: results.populationUsed,
                 analysis_date: results.calculationMetadata.timestamp.toISOString()
             };
-            
+
             // Prepare locus details if requested
             let csvContent = 'Comparison Summary\n';
             csvContent += Object.entries(mainData)
                 .map(([key, value]) => `${key.replace(/_/g, ' ')},${value}`)
                 .join('\n');
-            
+
             if (includeDetails && results.locusComparisons.length > 0) {
                 csvContent += '\n\nLocus Details\n';
                 csvContent += 'Locus,Sample 1 Alleles,Sample 2 Alleles,Match Type,Locus LR\n';
@@ -92,9 +91,9 @@ const ComparisonReports = ({ results, comparisonHistory, onShowHelp }) => {
                     .map(locus => `${locus.locusName},"${locus.sample1Alleles.join('/')}","${locus.sample2Alleles.join('/')}",${locus.matchType},${locus.locusLR}`)
                     .join('\n');
             }
-            
-            const blob = new Blob([csvContent], { 
-                type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' 
+
+            const blob = new Blob([csvContent], {
+                type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'
             });
             const url = URL.createObjectURL(blob);
             const a = document.createElement('a');
@@ -104,7 +103,7 @@ const ComparisonReports = ({ results, comparisonHistory, onShowHelp }) => {
             a.click();
             document.body.removeChild(a);
             URL.revokeObjectURL(url);
-            
+
         } catch (error) {
             console.error('Failed to generate Excel report:', error);
             alert('Ошибка при генерации Excel отчета: ' + error.message);
@@ -127,7 +126,7 @@ const ComparisonReports = ({ results, comparisonHistory, onShowHelp }) => {
         setIsGenerating(true);
         try {
             await new Promise(resolve => setTimeout(resolve, 1000));
-            
+
             const historyData = comparisonHistory.map(comparison => ({
                 comparisonType: comparison.comparisonType,
                 sample1Id: comparison.sample1Id,
@@ -138,12 +137,12 @@ const ComparisonReports = ({ results, comparisonHistory, onShowHelp }) => {
                 significance: comparison.significance,
                 analysisDate: comparison.timestamp.toISOString()
             }));
-            
+
             const csvContent = [
                 'Comparison Type,Sample 1,Sample 2,Match %,LR,Match Probability %,Significance,Analysis Date',
                 ...historyData.map(row => Object.values(row).join(','))
             ].join('\n');
-            
+
             const blob = new Blob([csvContent], { type: 'text/csv' });
             const url = URL.createObjectURL(blob);
             const a = document.createElement('a');
@@ -153,7 +152,7 @@ const ComparisonReports = ({ results, comparisonHistory, onShowHelp }) => {
             a.click();
             document.body.removeChild(a);
             URL.revokeObjectURL(url);
-            
+
         } catch (error) {
             console.error('Failed to export history:', error);
             alert('Ошибка при экспорте истории: ' + error.message);
@@ -176,8 +175,8 @@ const ComparisonReports = ({ results, comparisonHistory, onShowHelp }) => {
         <div className="comparison-reports">
             <div className="reports-header">
                 <h3>Генерация отчетов сравнения</h3>
-                <button 
-                    className="help-button"
+                <button
+                    className="help-button btn btn-secondary btn-icon"
                     onClick={() => onShowHelp('comparison-reports')}
                     title="Справка по отчетам сравнения"
                 >
@@ -202,7 +201,7 @@ const ComparisonReports = ({ results, comparisonHistory, onShowHelp }) => {
                             <span>PDF отчет</span>
                             <small>Полный отчет с графиками и статистикой</small>
                         </label>
-                        
+
                         <label className="radio-option">
                             <input
                                 type="radio"
@@ -238,14 +237,14 @@ const ComparisonReports = ({ results, comparisonHistory, onShowHelp }) => {
                 <div className="report-generation-section">
                     <h4>Генерация отчета</h4>
                     <div className="generation-controls">
-                        <button 
-                            className="generate-button"
+                        <button
+                            className="generate-button btn btn-primary"
                             onClick={generateReport}
                             disabled={isGenerating}
                         >
                             {isGenerating ? 'Генерация...' : `Создать ${reportType.toUpperCase()} отчет`}
                         </button>
-                        
+
                         <div className="report-info">
                             <div className="info-item">
                                 <span className="info-label">Тип сравнения:</span>
@@ -280,8 +279,8 @@ const ComparisonReports = ({ results, comparisonHistory, onShowHelp }) => {
                     <div className="search-export-section">
                         <h4>Экспорт результатов поиска</h4>
                         <div className="export-controls">
-                            <button 
-                                className="export-button"
+                            <button
+                                className="export-button btn btn-secondary"
                                 onClick={() => {
                                     // Export search results
                                     const searchData = results.searchResults.map(result => ({
@@ -289,12 +288,12 @@ const ComparisonReports = ({ results, comparisonHistory, onShowHelp }) => {
                                         matchPercentage: result.matchPercentage,
                                         likelihoodRatio: result.likelihoodRatio
                                     }));
-                                    
+
                                     const csvContent = [
                                         'Target Sample,Match %,LR',
                                         ...searchData.map(row => Object.values(row).join(','))
                                     ].join('\n');
-                                    
+
                                     const blob = new Blob([csvContent], { type: 'text/csv' });
                                     const url = URL.createObjectURL(blob);
                                     const a = document.createElement('a');
@@ -309,7 +308,7 @@ const ComparisonReports = ({ results, comparisonHistory, onShowHelp }) => {
                             >
                                 Экспортировать результаты поиска (CSV)
                             </button>
-                            
+
                             <div className="export-info">
                                 <span>Найдено совпадений: {results.searchResults.length}</span>
                             </div>
@@ -322,14 +321,14 @@ const ComparisonReports = ({ results, comparisonHistory, onShowHelp }) => {
                     <div className="history-export-section">
                         <h4>Экспорт истории сравнений</h4>
                         <div className="export-controls">
-                            <button 
-                                className="export-button"
+                            <button
+                                className="export-button btn btn-secondary"
                                 onClick={exportHistory}
                                 disabled={isGenerating}
                             >
                                 {isGenerating ? 'Экспорт...' : 'Экспортировать историю (CSV)'}
                             </button>
-                            
+
                             <div className="export-info">
                                 <span>Всего сравнений: {comparisonHistory.length}</span>
                             </div>
@@ -348,7 +347,7 @@ const ComparisonReports = ({ results, comparisonHistory, onShowHelp }) => {
                                 <p>Полный анализ сравнения с интерпретацией</p>
                             </div>
                         </div>
-                        
+
                         <div className="template-card">
                             <div className="template-icon">📈</div>
                             <div className="template-info">
@@ -356,7 +355,7 @@ const ComparisonReports = ({ results, comparisonHistory, onShowHelp }) => {
                                 <p>Детальная статистика и LR расчеты</p>
                             </div>
                         </div>
-                        
+
                         <div className="template-card">
                             <div className="template-icon">🔍</div>
                             <div className="template-info">

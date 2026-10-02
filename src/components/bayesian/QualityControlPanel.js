@@ -1,6 +1,6 @@
 /**
  * Quality Control Panel - UI for sample quality analysis
- * 
+ *
  * This component provides interface for quality control analysis including:
  * - PCI calculation
  * - Heterozygosity analysis
@@ -8,7 +8,7 @@
  * - Contamination detection
  * - Duplicate search
  * - Perspective categorization
- * 
+ *
  * Requirements: 9.1, 9.2 - Quality control section with color coding
  */
 
@@ -16,14 +16,13 @@ import React, { useState, useCallback } from 'react';
 import SampleSelector from './SampleSelector';
 import QualityResults from './QualityResults';
 import QualityReports from './QualityReports';
-import './BayesianAnalysis.css';
 
-const QualityControlPanel = ({ 
-    onStartProcessing, 
-    onStopProcessing, 
-    onUpdateProgress, 
+const QualityControlPanel = ({
+    onStartProcessing,
+    onStopProcessing,
+    onUpdateProgress,
     onShowHelp,
-    isProcessing 
+    isProcessing
 }) => {
     // Component state
     const [selectedSample, setSelectedSample] = useState(null);
@@ -48,7 +47,7 @@ const QualityControlPanel = ({
 
         try {
             onStartProcessing('Запуск анализа качества...');
-            
+
             // Try to use real API first
             try {
                 const token = localStorage.getItem('token');
@@ -57,7 +56,7 @@ const QualityControlPanel = ({
                 }
 
                 onUpdateProgress(10, 'Подключение к серверу анализа...');
-                
+
                 const response = await fetch('/api/bayesian/quality-analysis', {
                     method: 'POST',
                     headers: {
@@ -72,9 +71,9 @@ const QualityControlPanel = ({
                 if (response.ok) {
                     const data = await response.json();
                     const analysisResult = data.data.analysis;
-                    
+
                     onUpdateProgress(100, 'Анализ завершен');
-                    
+
                     // Set real analysis results
                     const combinedResults = {
                         sampleId: selectedSample.internalNumber || selectedSample.name,
@@ -94,7 +93,7 @@ const QualityControlPanel = ({
                     };
 
                     setQualityResults(combinedResults);
-                    
+
                     // Add to history
                     setAnalysisHistory(prev => [
                         ...prev,
@@ -108,7 +107,7 @@ const QualityControlPanel = ({
                     return;
                 } else {
                     console.warn('API request failed, falling back to browser analysis:', response.status);
-                    
+
                     // Check if it's a rate limiting error
                     if (response.status === 429) {
                         onUpdateProgress(50, 'Превышен лимит запросов. Используется локальный анализ...');
@@ -117,7 +116,7 @@ const QualityControlPanel = ({
                 }
             } catch (apiError) {
                 console.warn('API analysis failed, falling back to browser analysis:', apiError.message);
-                
+
                 // Check if it's a rate limiting error
                 if (apiError.message.includes('429') || apiError.message.includes('rate limit')) {
                     onUpdateProgress(50, 'Превышен лимит запросов. Используется локальный анализ...');
@@ -127,35 +126,35 @@ const QualityControlPanel = ({
 
             // Fallback to browser-based analysis if API fails
             onUpdateProgress(10, 'Запуск браузерного анализа...');
-            
+
             // Import the browser-compatible quality analyzer
             const { default: QualityAnalyzer } = await import('./QualityAnalyzer.browser');
             const qualityAnalyzer = new QualityAnalyzer();
-            
+
             // Simulate analysis steps with progress updates
             onUpdateProgress(20, 'Расчет индекса полноты профиля (PCI)...');
             const pciResults = await qualityAnalyzer.calculatePCI(selectedSample);
             await new Promise(resolve => setTimeout(resolve, 300));
-            
+
             onUpdateProgress(40, 'Анализ гетерозиготности...');
             const heterozygosityResults = await qualityAnalyzer.calculateHeterozygosity(selectedSample);
             await new Promise(resolve => setTimeout(resolve, 300));
-            
+
             onUpdateProgress(60, 'Расчет индекса деградации...');
             // Mock degradation results based on heterozygosity
             const degradationResults = {
                 degradationValue: Math.max(0, 1 - heterozygosityResults.observedHeterozygosity),
-                classification: heterozygosityResults.observedHeterozygosity > 0.6 ? 'минимальная деградация' : 
+                classification: heterozygosityResults.observedHeterozygosity > 0.6 ? 'минимальная деградация' :
                               heterozygosityResults.observedHeterozygosity > 0.4 ? 'умеренная деградация' : 'высокая деградация',
-                colorCode: heterozygosityResults.observedHeterozygosity > 0.6 ? '#2d8f2d' : 
+                colorCode: heterozygosityResults.observedHeterozygosity > 0.6 ? '#2d8f2d' :
                           heterozygosityResults.observedHeterozygosity > 0.4 ? '#f0ad4e' : '#d9534f',
                 affectedLoci: heterozygosityResults.observedHeterozygosity < 0.5 ? ['D3S1358', 'vWA'] : [],
-                recommendations: heterozygosityResults.observedHeterozygosity > 0.6 ? 
-                    ['Образец пригоден для всех видов анализа'] : 
+                recommendations: heterozygosityResults.observedHeterozygosity > 0.6 ?
+                    ['Образец пригоден для всех видов анализа'] :
                     ['Рекомендуется дополнительная очистка', 'Ограниченное использование в анализе']
             };
             await new Promise(resolve => setTimeout(resolve, 300));
-            
+
             onUpdateProgress(75, 'Поиск контаминации сотрудников...');
             // Deterministic mock contamination results (no random data)
             const contaminationResults = {
@@ -167,7 +166,7 @@ const QualityControlPanel = ({
                 colorCode: '#2d8f2d'
             };
             await new Promise(resolve => setTimeout(resolve, 300));
-            
+
             onUpdateProgress(90, 'Поиск дубликатов...');
             // Deterministic mock data (no random numbers)
             const duplicateResults = {
@@ -176,16 +175,16 @@ const QualityControlPanel = ({
                 colorCode: '#2d8f2d'
             };
             await new Promise(resolve => setTimeout(resolve, 300));
-            
+
             onUpdateProgress(95, 'Присвоение категории перспективности...');
-            
+
             // Calculate perspective category based on all results
             let perspectiveCategory, categoryColor;
             const pciScore = pciResults.pciValue;
             const hetScore = heterozygosityResults.observedHeterozygosity;
             const isContaminated = contaminationResults.isContaminated;
             const hasDuplicates = duplicateResults.potentialDuplicates.length > 0;
-            
+
             if (pciScore >= 0.8 && hetScore >= 0.6 && !isContaminated && !hasDuplicates) {
                 perspectiveCategory = 'ВЫСОКАЯ ПЕРСПЕКТИВНОСТЬ';
                 categoryColor = '#2d8f2d';
@@ -196,7 +195,7 @@ const QualityControlPanel = ({
                 perspectiveCategory = 'НИЗКАЯ ПЕРСПЕКТИВНОСТЬ';
                 categoryColor = '#d9534f';
             }
-            
+
             const perspectiveResults = {
                 category: perspectiveCategory,
                 colorCode: categoryColor,
@@ -206,11 +205,11 @@ const QualityControlPanel = ({
                     isContaminated ? 'Обнаружена контаминация' : 'Контаминация не обнаружена',
                     hasDuplicates ? 'Найдены потенциальные дубликаты' : 'Дубликаты не найдены'
                 ],
-                recommendations: pciScore >= 0.8 ? 
+                recommendations: pciScore >= 0.8 ?
                     ['Образец пригоден для всех видов анализа', 'Рекомендуется для сравнительного анализа'] :
                     ['Ограниченное использование', 'Требуется дополнительная проверка']
             };
-            
+
             await new Promise(resolve => setTimeout(resolve, 200));
 
             // Combine all results
@@ -228,7 +227,7 @@ const QualityControlPanel = ({
             };
 
             setQualityResults(combinedResults);
-            
+
             // Add to history
             setAnalysisHistory(prev => [
                 ...prev,
@@ -239,7 +238,7 @@ const QualityControlPanel = ({
             ]);
 
             onStopProcessing(); // Убираем уведомление
-            
+
         } catch (error) {
             console.error('Quality analysis failed:', error);
             onStopProcessing('Ошибка анализа качества');
@@ -265,8 +264,8 @@ const QualityControlPanel = ({
             <div className="panel-header">
                 <h2>Контроль качества образцов</h2>
                 <div className="panel-controls">
-                    <button 
-                        className="help-button"
+                    <button
+                        className="help-button btn btn-secondary btn-icon"
                         onClick={() => onShowHelp('quality-control')}
                         title="Справка по контролю качества"
                     >
@@ -289,24 +288,24 @@ const QualityControlPanel = ({
                 {/* Analysis Controls */}
                 <section className="analysis-controls">
                     <div className="control-buttons">
-                        <button 
-                            className="primary-button"
+                        <button
+                            className="primary-button btn btn-primary"
                             onClick={runQualityAnalysis}
                             disabled={!selectedSample || isProcessing}
                         >
                             {isProcessing ? 'Анализ...' : 'Запустить анализ качества'}
                         </button>
-                        
-                        <button 
-                            className="secondary-button"
+
+                        <button
+                            className="secondary-button btn btn-secondary"
                             onClick={clearResults}
                             disabled={isProcessing}
                         >
                             Очистить результаты
                         </button>
 
-                        <button 
-                            className="secondary-button"
+                        <button
+                            className="secondary-button btn btn-secondary"
                             onClick={toggleReports}
                             disabled={!qualityResults}
                         >
@@ -318,7 +317,7 @@ const QualityControlPanel = ({
                 {/* Results Section */}
                 {qualityResults && (
                     <section className="results-section">
-                        <QualityResults 
+                        <QualityResults
                             results={qualityResults}
                             onShowHelp={onShowHelp}
                         />
@@ -328,7 +327,7 @@ const QualityControlPanel = ({
                 {/* Reports Section */}
                 {showReports && qualityResults && (
                     <section className="reports-section">
-                        <QualityReports 
+                        <QualityReports
                             results={qualityResults}
                             analysisHistory={analysisHistory}
                             onShowHelp={onShowHelp}

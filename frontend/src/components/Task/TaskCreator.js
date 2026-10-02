@@ -1,6 +1,5 @@
 import React, { useState, useEffect } from 'react';
 import { useAuth } from '../../contexts/AuthContext';
-import '../../styles/pages/tasks.css';
 
 const TaskCreator = ({ onTaskCreated, onCancel }) => {
   const { hasRole } = useAuth();
@@ -158,8 +157,8 @@ const TaskCreator = ({ onTaskCreated, onCancel }) => {
           </h1>
           <p className="page-subtitle">Заполните параметры назначения и целевого образца для запуска анализа.</p>
         </div>
-        <div className="departments-controls task-creator-controls">
-          {onCancel && <button onClick={onCancel} className="nav-button">Отменить</button>}
+        <div className="departments-controls task-creator-controls header-actions">
+          {onCancel && <button onClick={onCancel} className="nav-button btn btn-secondary">Отменить</button>}
         </div>
       </div>
 
@@ -222,7 +221,7 @@ const TaskCreator = ({ onTaskCreated, onCancel }) => {
             <div className="task-form-field">
               <label>Тип назначения</label>
               <select
-                className="filter-select"
+                className="filter-select form-select"
                 value={assignmentType}
                 onChange={(e) => {
                   setAssignmentType(e.target.value);
@@ -242,7 +241,7 @@ const TaskCreator = ({ onTaskCreated, onCancel }) => {
             <div className="task-form-field">
               <label>{assignmentType === 'user' ? 'Сотрудник *' : 'Экспертная группа *'}</label>
               {assignmentType === 'user' ? (
-                <select className="filter-select" value={formData.assigned_to_user} onChange={(e) => setFormData({ ...formData, assigned_to_user: e.target.value })} required disabled={loading}>
+                <select className="filter-select form-select" value={formData.assigned_to_user} onChange={(e) => setFormData({ ...formData, assigned_to_user: e.target.value })} required disabled={loading}>
                   <option value="">Выберите сотрудника</option>
                   {users.map((user) => (
                     <option key={user.id} value={user.id}>
@@ -251,7 +250,7 @@ const TaskCreator = ({ onTaskCreated, onCancel }) => {
                   ))}
                 </select>
               ) : (
-                <select className="filter-select" value={formData.assigned_to_group} onChange={(e) => setFormData({ ...formData, assigned_to_group: e.target.value })} required disabled={loading}>
+                <select className="filter-select form-select" value={formData.assigned_to_group} onChange={(e) => setFormData({ ...formData, assigned_to_group: e.target.value })} required disabled={loading}>
                   <option value="">Выберите экспертную группу</option>
                   {expertGroups.map((group) => (
                     <option key={group.id} value={group.id}>
@@ -273,7 +272,7 @@ const TaskCreator = ({ onTaskCreated, onCancel }) => {
           <div className="task-creator-grid">
             <div className="task-form-field">
               <label>Источник данных</label>
-              <select className="filter-select" value={formData.data_source} onChange={(e) => setFormData({ ...formData, data_source: e.target.value })} disabled={loading}>
+              <select className="filter-select form-select" value={formData.data_source} onChange={(e) => setFormData({ ...formData, data_source: e.target.value })} disabled={loading}>
                 <option value="master_array">Мастер-массив</option>
                 <option value="user_array">Пользовательский массив</option>
                 <option value="new_array">Новый массив</option>

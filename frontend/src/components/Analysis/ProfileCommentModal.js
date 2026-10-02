@@ -39,7 +39,7 @@ const ProfileCommentModal = ({ isOpen, onClose, profile, onSave }) => {
       if (onSave) {
         await onSave(comment.trim() || null);
       }
-      
+
       // Сбрасываем состояние загрузки
       setLoading(false);
     } catch (err) {
@@ -64,7 +64,7 @@ const ProfileCommentModal = ({ isOpen, onClose, profile, onSave }) => {
 
   const handleOverlayClick = (e) => {
     // Закрываем только если mouseDown и click были на overlay
-    if (e.target.classList.contains('modal-overlay') && 
+    if (e.target.classList.contains('modal-overlay') &&
         mouseDownTarget === e.target) {
       handleClose();
     }
@@ -74,12 +74,12 @@ const ProfileCommentModal = ({ isOpen, onClose, profile, onSave }) => {
   if (!isOpen) return null;
 
   return (
-    <div 
-      className="modal-overlay" 
+    <div
+      className="modal-overlay"
       onMouseDown={handleOverlayMouseDown}
       onClick={handleOverlayClick}
     >
-      <div className="modal-content modal-content-narrow profile-comment-modal" onClick={(e) => e.stopPropagation()}>
+      <div className="modal-content profile-comment-modal modal-md" onClick={(e) => e.stopPropagation()}>
         <div className="modal-header">
           <h3>💬 Комментарий к образцу</h3>
           <button

@@ -1,7 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { useAuth } from '../../contexts/AuthContext';
 import TaskViewer from './TaskViewer';
-import '../../styles/pages/tasks.css';
 
 const TaskDashboard = () => {
   const { user, hasRole } = useAuth();
@@ -29,7 +28,7 @@ const TaskDashboard = () => {
     try {
       setLoading(true);
       setError(null);
-      
+
       const params = new URLSearchParams({
         page: pagination.page.toString(),
         limit: pagination.limit.toString(),
@@ -43,11 +42,11 @@ const TaskDashboard = () => {
           'Authorization': `Bearer ${localStorage.getItem('token')}`
         }
       });
-      
+
       if (!response.ok) {
         throw new Error('Failed to load tasks');
       }
-      
+
       const data = await response.json();
       setTasks(data.data.tasks);
       setPagination(prev => ({
@@ -114,13 +113,13 @@ const TaskDashboard = () => {
   const canUpdateStatus = (task) => {
     // Users can update status of tasks assigned to them
     if (task.assigned_to_user === user.id) return true;
-    
+
     // Users can update status of tasks assigned to their expert groups
     // (This would need expert group membership check in real implementation)
-    
+
     // Department heads and admins can update any task in their department
     if (hasRole(['department_head', 'system_administrator'])) return true;
-    
+
     return false;
   };
 
@@ -173,7 +172,7 @@ const TaskDashboard = () => {
               Статус
             </label>
             <select
-              className="filter-select"
+              className="filter-select form-select"
               value={filters.status}
               onChange={(e) => setFilters({ ...filters, status: e.target.value })}
             >
@@ -189,7 +188,7 @@ const TaskDashboard = () => {
               Приоритет
             </label>
             <select
-              className="filter-select"
+              className="filter-select form-select"
               value={filters.priority}
               onChange={(e) => setFilters({ ...filters, priority: e.target.value })}
             >
@@ -232,7 +231,7 @@ const TaskDashboard = () => {
               <tr key={task.id} className={index % 2 === 0 ? 'tasks-row-even' : 'tasks-row-odd'}>
                 <td>
                   <div className="tasks-title-cell">
-                    <strong 
+                    <strong
                       onClick={() => setSelectedTaskId(task.id)}
                       className="tasks-title-link"
                     >
@@ -240,7 +239,7 @@ const TaskDashboard = () => {
                     </strong>
                     {task.description && (
                       <div className="tasks-title-meta">
-                        {task.description.length > 100 
+                        {task.description.length > 100
                           ? task.description.substring(0, 100) + '...'
                           : task.description
                         }
@@ -268,7 +267,7 @@ const TaskDashboard = () => {
                   {task.assigned_to_user ? 'Сотрудник' : 'Экспертная группа'}
                 </td>
                 <td className="tasks-muted-cell">
-                  {task.deadline 
+                  {task.deadline
                     ? new Date(task.deadline).toLocaleDateString('ru-RU')
                     : '—'
                   }
@@ -284,10 +283,10 @@ const TaskDashboard = () => {
                     >
                       Открыть
                     </button>
-                    
+
                     {canUpdateStatus(task) && task.status !== 'approved' && (
                       <select
-                        className="filter-select task-status-select"
+                        className="filter-select task-status-select form-select"
                         value={task.status}
                         onChange={(e) => handleStatusUpdate(task.id, e.target.value)}
                       >
@@ -296,7 +295,7 @@ const TaskDashboard = () => {
                         <option value="completed">Завершена</option>
                       </select>
                     )}
-                    
+
                     {canApprove(task) && (
                       <button
                         onClick={() => handleApproveTask(task.id)}
@@ -323,11 +322,11 @@ const TaskDashboard = () => {
           >
             Назад
           </button>
-          
+
           <span className="tasks-pagination-info">
             Страница {pagination.page} из {pagination.pages}
           </span>
-          
+
           <button
             onClick={() => setPagination(prev => ({ ...prev, page: Math.min(prev.pages, prev.page + 1) }))}
             disabled={pagination.page === pagination.pages}
@@ -347,12 +346,12 @@ const TaskDashboard = () => {
       {/* Task Viewer Modal */}
       {selectedTaskId && (
         <div className="modal-overlay tasks-viewer-overlay">
-          <TaskViewer 
-            taskId={selectedTaskId} 
+          <TaskViewer
+            taskId={selectedTaskId}
             onClose={() => {
               setSelectedTaskId(null);
               loadTasks(); // Reload tasks after closing viewer
-            }} 
+            }}
           />
         </div>
       )}

@@ -26,14 +26,14 @@ const LegacyCreateTaskPageView = ({
           <button
             onClick={() => onNavigate('/tasks')}
             title="Вернуться к списку задач"
-            className="nav-button"
+            className="nav-button btn btn-secondary"
           >
             ← Назад к задачам
           </button>
           <button
             onClick={() => onNavigate('/dashboard')}
             title="Вернуться на главную страницу"
-            className="nav-button"
+            className="nav-button btn btn-secondary"
           >
             Назад к дашборду
           </button>

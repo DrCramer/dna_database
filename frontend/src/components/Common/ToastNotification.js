@@ -1,5 +1,4 @@
 import React, { useState, useEffect } from 'react';
-import './ToastNotification.css';
 
 /**
  * Toast уведомление - всплывающее окно в углу экрана
@@ -33,15 +32,15 @@ const ToastNotification = ({ notification, onClose }) => {
     if (!timestamp) return '';
     const date = new Date(timestamp);
     const now = new Date();
-    
+
     const hours = date.getHours().toString().padStart(2, '0');
     const minutes = date.getMinutes().toString().padStart(2, '0');
-    
+
     // Если сегодня - показываем только время
     if (date.toDateString() === now.toDateString()) {
       return `${hours}:${minutes}`;
     }
-    
+
     // Если другой день - показываем дату и время
     const day = date.getDate().toString().padStart(2, '0');
     const month = (date.getMonth() + 1).toString().padStart(2, '0');
@@ -84,8 +83,8 @@ const ToastNotification = ({ notification, onClose }) => {
         )}
         {notification.priority && (
           <div className={`toast-priority priority-${notification.priority}`}>
-            {notification.priority === 'urgent' ? '🔴 Срочно' : 
-             notification.priority === 'high' ? '🟠 Высокий' : 
+            {notification.priority === 'urgent' ? '🔴 Срочно' :
+             notification.priority === 'high' ? '🟠 Высокий' :
              notification.priority === 'normal' ? '🟢 Обычный' : '⚪ Низкий'}
           </div>
         )}

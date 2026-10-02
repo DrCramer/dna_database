@@ -7,8 +7,8 @@
   align-items: center;
   justify-content: center;
   gap: var(--space-2);
-  min-height: 40px;
-  padding: 0 18px;
+  min-height: var(--control-height-md);
+  padding: 0 var(--control-padding-x);
   border: 1px solid transparent;
   border-radius: var(--radius-md);
   background: var(--surface-card);
@@ -16,7 +16,7 @@
   font-family: var(--font-family-base);
   font-size: var(--font-size-md);
   font-weight: var(--font-weight-semibold);
-  line-height: 1;
+  line-height: 1.25;
   text-decoration: none;
   white-space: nowrap;
   cursor: pointer;
@@ -135,14 +135,14 @@
 }
 
 .btn-sm {
-  min-height: 34px;
-  padding: 0 14px;
+  min-height: var(--control-height-sm);
+  padding: 0 var(--space-3);
   font-size: var(--font-size-sm);
 }
 
 .btn-lg {
-  min-height: 46px;
-  padding: 0 22px;
+  min-height: var(--control-height-lg);
+  padding: 0 var(--space-6);
   font-size: var(--font-size-lg);
 }
 
@@ -151,55 +151,44 @@
   display: inline-flex;
 }
 
+/* Square controls. The small variant is intended for table actions. */
+.btn-icon,
 .btn-icon-only {
-  min-width: 40px;
+  width: var(--control-height-md);
+  height: var(--control-height-md);
+  min-width: var(--control-height-md);
+  padding: 0;
+  flex-shrink: 0;
+}
+
+.btn-icon-sm,
+.btn-icon.btn-sm,
+.btn-icon-only.btn-sm {
+  width: var(--control-height-sm);
+  height: var(--control-height-sm);
+  min-width: var(--control-height-sm);
+  min-height: var(--control-height-sm);
   padding: 0;
 }
 
-.btn-collapse {
-  font-weight: var(--font-weight-bold);
-}
+.btn svg { width: 18px; height: 18px; flex-shrink: 0; }
+.btn-sm svg { width: 16px; height: 16px; }
 
-.button-with-badge {
-  position: relative;
-  display: inline-block;
+/* DNA result rows stay 40px tall; these actions preserve their original footprint. */
+.btn-analysis-icon {
+  width: 32px;
+  height: 32px;
+  min-width: 32px;
+  min-height: 32px;
+  padding: 0;
 }
+.btn-outline-danger { color: var(--status-danger); border-color: var(--status-danger); background: var(--surface-card); }
+.btn-outline-danger:hover:not(:disabled) { background: var(--status-danger-bg); }
+.btn-outline-primary { color: var(--brand-primary); border-color: var(--brand-primary); background: var(--surface-card); }
+.btn-outline-primary:hover:not(:disabled) { background: var(--color-primary-light); }
+.btn.is-active, .btn.active { color: var(--brand-primary); border-color: var(--brand-primary); background: var(--color-primary-light); }
+.btn[aria-disabled="true"] { opacity: 0.55; cursor: not-allowed; }
 
+.button-with-badge { position: relative; display: inline-flex; }
 .button-with-badge > .btn,
-.button-with-badge > .quick-action-card {
-  width: 100%;
-  height: 100%;
-}
-
-.nav-button {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  min-height: 34px;
-  padding: 0 14px;
-  background: var(--surface-muted);
-  border: 1px solid var(--border-subtle);
-  border-radius: var(--radius-md);
-  color: var(--text-primary);
-  font-size: var(--font-size-sm);
-  font-weight: var(--font-weight-medium);
-  white-space: nowrap;
-  cursor: pointer;
-  transition: all var(--motion-fast);
-}
-
-.nav-button:hover:not(:disabled) {
-  background: var(--surface-card);
-  border-color: var(--border-default);
-  box-shadow: var(--shadow-sm);
-}
-
-.nav-button:focus-visible {
-  outline: none;
-  box-shadow: var(--shadow-focus);
-}
-
-.nav-button:disabled {
-  opacity: 0.55;
-  cursor: not-allowed;
-}
+.button-with-badge > .quick-action-card { width: 100%; height: 100%; }

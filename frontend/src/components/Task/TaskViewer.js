@@ -1,6 +1,5 @@
 import React, { useState, useEffect } from 'react';
 import { useAuth } from '../../contexts/AuthContext';
-import '../../styles/pages/tasks.css';
 
 const TaskViewer = ({ taskId, onClose }) => {
   const { user, hasRole } = useAuth();
@@ -187,7 +186,7 @@ const TaskViewer = ({ taskId, onClose }) => {
 
   return (
     <div className="task-viewer-shell">
-      <div className="task-header task-header-panel">
+      <div className="task-header task-header-panel page-header">
         <div>
           <h1>Карточка задачи</h1>
           <p className="tasks-subtitle">Подробности, обсуждение и результаты по выбранной задаче.</p>
@@ -214,7 +213,7 @@ const TaskViewer = ({ taskId, onClose }) => {
               {task.priority === 'low' && 'Низкий'}
             </span>
             {canUpdateStatus(task) && task.status !== 'approved' && (
-              <select className="filter-select task-status-select" value={task.status} onChange={(e) => handleStatusUpdate(e.target.value)}>
+              <select className="filter-select task-status-select form-select" value={task.status} onChange={(e) => handleStatusUpdate(e.target.value)}>
                 <option value="assigned">Назначена</option>
                 <option value="in_progress">В работе</option>
                 <option value="completed">Завершена</option>

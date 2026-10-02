@@ -1,9 +1,8 @@
+import './styles/index.css';
 import React from 'react';
 import ReactDOM from 'react-dom/client';
 import FixedApp from './App-fixed';
-import './index.css';
 // Все стили импортируются через единый файл
-import './styles/index.css';
 
 console.log('Fixed React: Starting application with custom router...');
 

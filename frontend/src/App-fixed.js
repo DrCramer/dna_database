@@ -7,7 +7,6 @@ import LoginPage from './components/Auth/LoginPage';
 import AdminDashboard from './components/Dashboard/AdminDashboard';
 import FileUploader from './components/Upload/FileUploader';
 import { useNotifications } from './hooks/useNotifications';
-import './components/Auth/LoginTransition.css';
 import PageTransition from './components/Common/PageTransition';
 import { Navigate, Route, SimpleRouter } from './components/Common/SimpleRouter';
 import { AccessDeniedState } from './components/Common/LegacyRouteHelpers';
@@ -58,7 +57,7 @@ const LoginForm = ({ onNavigate, setShowTransition, setTransitionStatus }) => {
 };
 
 // Protected Route Component
-const ProtectedRoute = ({ children, onNavigate }) => {
+const ProtectedRoute = ({ children, onNavigate, fluid = false }) => {
   const { user, loading, logout, hasRole } = useAuth();
 
   // Синхронная проверка - если нет пользователя и не загружается, сразу перенаправляем
@@ -95,11 +94,12 @@ const ProtectedRoute = ({ children, onNavigate }) => {
 
   // Оборачиваем children в Layout
   return (
-    <Layout 
+    <Layout
       user={user}
       onNavigate={onNavigate}
       onLogout={logout}
       hasRole={hasRole}
+      fluid={fluid}
     >
       {children}
     </Layout>
@@ -123,7 +123,7 @@ const ProfileViewer = ({ onNavigate }) => {
     try {
       setLoading(true);
       const token = localStorage.getItem('token');
-      
+
       const response = await fetch('/api/profiles', {
         method: 'GET',
         headers: {
@@ -163,12 +163,12 @@ const ProfileViewer = ({ onNavigate }) => {
   return (
     <div className="profile-viewer-page">
       {/* Header */}
-      <div className="profile-viewer-header">
-        <h2 className="profile-viewer-title">📊 Все ДНК-профили</h2>
-        <div className="profile-viewer-header-actions">
+      <div className="profile-viewer-header page-header">
+        <h2 className="profile-viewer-title page-title">📊 Все ДНК-профили</h2>
+        <div className="profile-viewer-header-actions header-actions">
           <button
             onClick={() => onNavigate('/dashboard')}
-            className="nav-button"
+            className="nav-button btn btn-secondary"
           >
             ← Назад к дашборду
           </button>
@@ -210,8 +210,8 @@ const ProfileViewer = ({ onNavigate }) => {
 
       {/* Таблица профилей */}
       {filteredProfiles.length > 0 ? (
-        <div className="profile-viewer-table-shell">
-          <table className="profile-viewer-table">
+        <div className="profile-viewer-table-shell table-container">
+          <table className="profile-viewer-table table table-striped">
             <thead>
               <tr>
                 <th>Наименование образца</th>
@@ -236,7 +236,7 @@ const ProfileViewer = ({ onNavigate }) => {
                       {importNumber}
                     </td>
                     <td className="profile-viewer-cell-muted">
-                      {profile.uploadDate || profile.upload_date || profile.created_at ? 
+                      {profile.uploadDate || profile.upload_date || profile.created_at ?
                         new Date(profile.uploadDate || profile.upload_date || profile.created_at).toLocaleDateString('ru-RU') :
                         'Нет данных'
                       }
@@ -251,7 +251,7 @@ const ProfileViewer = ({ onNavigate }) => {
         <div className="profile-viewer-empty">
           <h3>Профили не найдены</h3>
           <p>
-            {searchTerm ? 
+            {searchTerm ?
               `По запросу "${searchTerm}" ничего не найдено` :
               'Пока не загружено ни одного ДНК-профиля.'
             }
@@ -287,11 +287,11 @@ const Dashboard = ({ onNavigate, selectedActiveTask, setSelectedActiveTask, onNo
   });
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
-  
+
   // State для списка активных задач
   const [activeTasks, setActiveTasks] = useState([]);
   const [loadingTasks, setLoadingTasks] = useState(false);
-  
+
   // Использовать WebSocket хук для уведомлений в реальном времени
   const { unreadCount, latestNotification, isConnected } = useNotifications(user);
 
@@ -325,11 +325,11 @@ const Dashboard = ({ onNavigate, selectedActiveTask, setSelectedActiveTask, onNo
   const loadDashboardStats = async () => {
     try {
       setLoading(true);
-      
+
       // Для аналитиков - новая статистика
       if (hasRole('user_analyst') && !hasRole('department_head') && !hasRole('admin')) {
         const token = localStorage.getItem('token');
-        
+
         // Профили в текущей задаче
         let taskProfiles = 0;
         if (selectedActiveTask) {
@@ -341,19 +341,19 @@ const Dashboard = ({ onNavigate, selectedActiveTask, setSelectedActiveTask, onNo
             taskProfiles = data.count || 0;
           }
         }
-        
+
         // Загружено за 30 дней
         const uploaded30DaysRes = await fetch('/api/profiles/count-by-user-30days', {
           headers: { 'Authorization': `Bearer ${token}` }
         });
         const uploaded30DaysData = await uploaded30DaysRes.json();
-        
+
         // Активные задачи
         const activeTasksRes = await fetch('/api/tasks/active-count', {
           headers: { 'Authorization': `Bearer ${token}` }
         });
         const activeTasksData = await activeTasksRes.json();
-        
+
         setStats({
           taskProfiles,
           uploaded30Days: uploaded30DaysData.count || 0,
@@ -392,7 +392,7 @@ const Dashboard = ({ onNavigate, selectedActiveTask, setSelectedActiveTask, onNo
           'Authorization': `Bearer ${token}`
         }
       });
-      
+
       if (response.ok) {
         const data = await response.json();
         const nextActiveTasks = data.data || [];
@@ -426,7 +426,7 @@ const Dashboard = ({ onNavigate, selectedActiveTask, setSelectedActiveTask, onNo
     const task = activeTasks.find(t => t.id === taskId);
     const storageKey = getSelectedActiveTaskStorageKey(activeDepartmentId);
     setSelectedActiveTask(task || null);
-    
+
     if (task) {
       localStorage.setItem(storageKey, task.id);
     } else {
@@ -444,7 +444,7 @@ const Dashboard = ({ onNavigate, selectedActiveTask, setSelectedActiveTask, onNo
           'Authorization': `Bearer ${token}`
         }
       });
-      
+
       if (response.ok) {
         // Счетчик обновится автоматически через SSE или при следующей загрузке
       }
@@ -452,7 +452,7 @@ const Dashboard = ({ onNavigate, selectedActiveTask, setSelectedActiveTask, onNo
       console.error('Ошибка пометки уведомлений как прочитанных:', err);
       // Все равно переходим к задачам
     }
-    
+
     onNavigate('/tasks');
   };
 
@@ -464,7 +464,7 @@ const Dashboard = ({ onNavigate, selectedActiveTask, setSelectedActiveTask, onNo
       dashboardContainer.style.opacity = '0';
       dashboardContainer.style.transform = 'translateY(-20px) scale(0.98)';
     }
-    
+
     // Выполняем logout после анимации
     setTimeout(() => {
       logout();
@@ -521,13 +521,13 @@ const TasksPage = ({ onNavigate }) => {
   const [assigning, setAssigning] = React.useState(false);
   const [sortField, setSortField] = React.useState(null);
   const [sortDirection, setSortDirection] = React.useState('asc'); // 'asc' или 'desc'
-  
+
   // Новые модальные окна для подтверждения действий
   const [showStartModal, setShowStartModal] = React.useState(false);
   const [showCompleteModal, setShowCompleteModal] = React.useState(false);
   const [showApproveModal, setShowApproveModal] = React.useState(false);
   const [actionTask, setActionTask] = React.useState(null);
-  
+
   const [stats, setStats] = React.useState({
     total: 0,
     assigned: 0,
@@ -566,7 +566,7 @@ const TasksPage = ({ onNavigate }) => {
       const appMain = document.querySelector('.app-main');
       const pageContainer = document.querySelector('.page-container');
       const pageContent = document.querySelector('.page-content');
-      
+
       if (appMain) appMain.style.overflow = 'hidden';
       if (pageContainer) pageContainer.style.overflow = 'hidden';
       if (pageContent) pageContent.style.overflow = 'hidden';
@@ -576,18 +576,18 @@ const TasksPage = ({ onNavigate }) => {
       const appMain = document.querySelector('.app-main');
       const pageContainer = document.querySelector('.page-container');
       const pageContent = document.querySelector('.page-content');
-      
+
       if (appMain) appMain.style.overflow = '';
       if (pageContainer) pageContainer.style.overflow = '';
       if (pageContent) pageContent.style.overflow = '';
     }
-    
+
     return () => {
       document.body.style.overflow = '';
       const appMain = document.querySelector('.app-main');
       const pageContainer = document.querySelector('.page-container');
       const pageContent = document.querySelector('.page-content');
-      
+
       if (appMain) appMain.style.overflow = '';
       if (pageContainer) pageContainer.style.overflow = '';
       if (pageContent) pageContent.style.overflow = '';
@@ -614,13 +614,13 @@ const TasksPage = ({ onNavigate }) => {
       setLoading(true);
       setError('');
       const token = localStorage.getItem('token');
-      
+
       // Для user_analyst показываем только свои задачи
       // Для department_head и admin показываем все задачи отдела
       const url = (hasRole('department_head') || hasRole('admin'))
-        ? '/api/tasks' 
+        ? '/api/tasks'
         : '/api/tasks?assigned_to_me=true';
-      
+
       const response = await fetch(url, {
         headers: {
           'Authorization': `Bearer ${token}`
@@ -630,7 +630,7 @@ const TasksPage = ({ onNavigate }) => {
       if (response.ok) {
         const data = await response.json();
         let tasksList = data.data?.tasks || [];
-        
+
         // Загрузить количество профилей для каждой задачи (для всех пользователей)
         const tasksWithProfiles = await Promise.all(
           tasksList.map(async (task) => {
@@ -649,7 +649,7 @@ const TasksPage = ({ onNavigate }) => {
           })
         );
         tasksList = tasksWithProfiles;
-                
+
         // Подсчет статистики для руководителей и админов
         if (hasRole('department_head') || hasRole('admin')) {
           const newStats = {
@@ -662,12 +662,12 @@ const TasksPage = ({ onNavigate }) => {
           };
           setStats(newStats);
         }
-        
+
         // Фильтрация по статусу
         if (filterStatus !== 'all') {
           tasksList = tasksList.filter(task => task.status === filterStatus);
         }
-        
+
         setTasks(tasksList);
       } else {
         setError('Ошибка загрузки задач');
@@ -733,7 +733,7 @@ const TasksPage = ({ onNavigate }) => {
     try {
       setUploadingFile(true);
       setError('');
-      
+
       const token = localStorage.getItem('token');
       const formData = new FormData();
       formData.append('file', file);
@@ -791,7 +791,7 @@ const TasksPage = ({ onNavigate }) => {
       // Restore body scroll when modal is closed
       document.body.style.overflow = 'unset';
     }
-    
+
     // Cleanup on unmount
     return () => {
       document.body.style.overflow = 'unset';
@@ -806,7 +806,7 @@ const TasksPage = ({ onNavigate }) => {
           'Authorization': `Bearer ${token}`
         }
       });
-      
+
       if (response.ok) {
         const data = await response.json();
         setDepartmentUsers(data.data || []);
@@ -861,7 +861,7 @@ const TasksPage = ({ onNavigate }) => {
     try {
       setShowDnaLoading(true);
       setError('');
-      
+
       const token = localStorage.getItem('token');
       const response = await fetch(`/api/tasks/${taskId}/approve`, {
         method: 'POST',
@@ -873,13 +873,13 @@ const TasksPage = ({ onNavigate }) => {
 
       if (response.ok) {
         const data = await response.json();
-        
+
         // Показать детальную информацию о результате
         let message = data.message || 'Задача подтверждена успешно';
-        
+
         if (data.data && data.data.masterArrayResult) {
           const { success, errors } = data.data.masterArrayResult;
-          
+
           if (errors && errors.length > 0) {
             message += '\n\nОшибки при добавлении в мастер массив:';
             errors.forEach(err => {
@@ -890,12 +890,12 @@ const TasksPage = ({ onNavigate }) => {
               }
             });
           }
-          
+
           if (success && success.length > 0) {
             message += `\n\nУспешно добавлено ${success.length} ${pluralizeProfiles(success.length)}`;
           }
         }
-        
+
         alert(message);
         loadTasks();
         setShowModal(false);
@@ -1069,7 +1069,7 @@ const CreateTaskPage = ({ onNavigate }) => {
   const [error, setError] = React.useState('');
   const [success, setSuccess] = React.useState('');
   const [analysts, setAnalysts] = React.useState([]);
-  
+
   // Загрузка списка аналитиков при монтировании
   React.useEffect(() => {
     const loadAnalysts = async () => {
@@ -1080,7 +1080,7 @@ const CreateTaskPage = ({ onNavigate }) => {
             'Authorization': `Bearer ${token}`
           }
         });
-        
+
         if (response.ok) {
           const data = await response.json();
           setAnalysts(data.data?.users || []);
@@ -1089,17 +1089,17 @@ const CreateTaskPage = ({ onNavigate }) => {
         console.error('Ошибка загрузки аналитиков:', err);
       }
     };
-    
+
     loadAnalysts();
   }, [activeDepartmentId]);
-  
+
   // Обработка отправки формы
   const handleSubmit = async (e) => {
     e.preventDefault();
     setError('');
     setSuccess('');
     setLoading(true);
-    
+
     try {
       const formData = new FormData(e.target);
       const taskData = {
@@ -1112,22 +1112,22 @@ const CreateTaskPage = ({ onNavigate }) => {
         data_source: 'new_array',
         target_sample: {}
       };
-      
+
       // Валидация
       if (!taskData.title || !taskData.internal_number_start || !taskData.assigned_to_user) {
         setError('Заполните все обязательные поля');
         setLoading(false);
         return;
       }
-      
+
       if (isRangeMode && !taskData.internal_number_end) {
         setError('Укажите конечный номер для диапазона');
         setLoading(false);
         return;
       }
-      
+
       const token = localStorage.getItem('token');
-      
+
       const response = await fetch('/api/tasks', {
         method: 'POST',
         headers: {
@@ -1136,9 +1136,9 @@ const CreateTaskPage = ({ onNavigate }) => {
         },
         body: JSON.stringify(taskData)
       });
-      
+
       const data = await response.json();
-      
+
       if (response.ok) {
         setSuccess('Задача успешно создана!');
         setTimeout(() => {
@@ -1153,7 +1153,7 @@ const CreateTaskPage = ({ onNavigate }) => {
       setLoading(false);
     }
   };
-  
+
   // Проверка доступа: только для Руководителей и Администраторов
   if (!hasRole('department_head')) {
     return (
@@ -1163,7 +1163,7 @@ const CreateTaskPage = ({ onNavigate }) => {
       />
     );
   }
-  
+
   return (
     <LegacyCreateTaskPageView
       onNavigate={onNavigate}
@@ -1183,13 +1183,13 @@ const CreateTaskPage = ({ onNavigate }) => {
 // Main App Component
 function FixedApp() {
   const [currentPath, setCurrentPath] = useState(window.location.pathname);
-  
+
   // Глобальный state для активной задачи (для передачи между компонентами)
   const [selectedActiveTask, setSelectedActiveTask] = useState(null);
-  
+
   // Глобальный state для Toast уведомлений
   const [toastNotification, setToastNotification] = useState(null);
-  
+
   // Глобальный state для анимации перехода логин → дашборд
   const [showTransition, setShowTransition] = useState(false);
   const [transitionStatus, setTransitionStatus] = useState('Инициализация биометрии...');
@@ -1206,7 +1206,7 @@ function FixedApp() {
         console.warn('Защитный таймаут: принудительное скрытие анимации через 10 секунд');
         setShowTransition(false);
       }, 10000);
-      
+
       return () => clearTimeout(safetyTimeout);
     }
   }, [showTransition]);
@@ -1243,14 +1243,14 @@ function FixedApp() {
         try {
           const token = localStorage.getItem('token');
           if (!token) return;
-          
+
           // Загружаем активные задачи
           const response = await fetch('/api/tasks/my-active', {
             headers: {
               'Authorization': `Bearer ${token}`
             }
           });
-          
+
           if (response.ok) {
             const data = await response.json();
             if (data.success && data.data) {
@@ -1265,7 +1265,7 @@ function FixedApp() {
         }
       }
     };
-    
+
     restoreSelectedTask();
   }, []);
 
@@ -1323,277 +1323,133 @@ function FixedApp() {
         )}
 
         <div className="App app-root-shell">
-          <style>
-            {`
-              @keyframes spin {
-                0% { transform: rotate(0deg); }
-                100% { transform: rotate(360deg); }
-              }
-
-              /* DNA Loading Animation */
-              .dna-loading-overlay {
-                position: fixed;
-                top: 0;
-                left: 0;
-                right: 0;
-                bottom: 0;
-                background: rgba(18, 18, 18, 0.95);
-                display: flex;
-                align-items: center;
-                justify-content: center;
-                z-index: 10000;
-                animation: fadeIn 0.3s ease;
-              }
-
-              @keyframes fadeIn {
-                from { opacity: 0; }
-                to { opacity: 1; }
-              }
-
-              .dna-loading-container {
-                text-align: center;
-                padding: 3rem 2rem;
-                max-width: 500px;
-                background: var(--bg-card);
-                border-radius: 16px;
-                box-shadow: 0 8px 32px rgba(0, 0, 0, 0.6);
-                border: 1px solid var(--border-color);
-                animation: slideIn 0.5s ease;
-              }
-
-              @keyframes slideIn {
-                from {
-                  opacity: 0;
-                  transform: translateY(-30px);
-                }
-                to {
-                  opacity: 1;
-                  transform: translateY(0);
-                }
-              }
-
-              .dna {
-                position: relative;
-                width: 40px;
-                height: 100px;
-                margin: 0 auto 2rem;
-                transform-style: preserve-3d;
-              }
-
-              .dna-dot {
-                position: absolute;
-                width: 10px;
-                height: 10px;
-                border-radius: 50%;
-                background-color: var(--color-primary, #5e81f4);
-                box-shadow: 0 0 10px rgba(94, 129, 244, 0.5);
-                left: 50%;
-                transform: translateX(-50%);
-                animation: dnaRotate 2s infinite ease-in-out;
-              }
-
-              .dna-dot:nth-child(2n) {
-                background-color: #9c27b0;
-                animation-delay: -1s;
-                box-shadow: 0 0 10px rgba(156, 39, 176, 0.5);
-              }
-
-              .dna-dot:nth-child(1), .dna-dot:nth-child(2) { top: 0px; }
-              .dna-dot:nth-child(3), .dna-dot:nth-child(4) { top: 20px; animation-delay: -0.2s; }
-              .dna-dot:nth-child(3):nth-child(2n), .dna-dot:nth-child(4):nth-child(2n) { animation-delay: -1.2s; }
-              .dna-dot:nth-child(5), .dna-dot:nth-child(6) { top: 40px; animation-delay: -0.4s; }
-              .dna-dot:nth-child(5):nth-child(2n), .dna-dot:nth-child(6):nth-child(2n) { animation-delay: -1.4s; }
-              .dna-dot:nth-child(7), .dna-dot:nth-child(8) { top: 60px; animation-delay: -0.6s; }
-              .dna-dot:nth-child(7):nth-child(2n), .dna-dot:nth-child(8):nth-child(2n) { animation-delay: -1.6s; }
-              .dna-dot:nth-child(9), .dna-dot:nth-child(10) { top: 80px; animation-delay: -0.8s; }
-              .dna-dot:nth-child(9):nth-child(2n), .dna-dot:nth-child(10):nth-child(2n) { animation-delay: -1.8s; }
-              .dna-dot:nth-child(11), .dna-dot:nth-child(12) { top: 100px; animation-delay: -1s; }
-              .dna-dot:nth-child(11):nth-child(2n), .dna-dot:nth-child(12):nth-child(2n) { animation-delay: -2s; }
-
-              @keyframes dnaRotate {
-                0%, 100% {
-                  transform: translateX(-25px) scale(0.8);
-                  opacity: 0.3;
-                  z-index: 1;
-                }
-                50% {
-                  transform: translateX(25px) scale(1.2);
-                  opacity: 1;
-                  z-index: 10;
-                }
-              }
-
-              .dna-loading-title {
-                font-size: 1.5rem;
-                font-weight: 600;
-                color: var(--text-primary);
-                margin-bottom: 0.5rem;
-              }
-
-              .dna-loading-message {
-                color: var(--text-secondary);
-                font-size: 1rem;
-                margin-bottom: 1rem;
-                line-height: 1.6;
-              }
-
-              .dna-loading-dots {
-                display: flex;
-                justify-content: center;
-                gap: 0.5rem;
-              }
-
-              .dna-loading-dot {
-                width: 10px;
-                height: 10px;
-                background: var(--color-primary);
-                border-radius: 50%;
-                animation: dotPulse 1.4s ease-in-out infinite both;
-              }
-
-              .dna-loading-dot:nth-child(1) { animation-delay: -0.32s; }
-              .dna-loading-dot:nth-child(2) { animation-delay: -0.16s; }
-              .dna-loading-dot:nth-child(3) { animation-delay: 0s; }
-
-              @keyframes dotPulse {
-                0%, 80%, 100% {
-                  transform: scale(0.8);
-                  opacity: 0.5;
-                }
-                40% {
-                  transform: scale(1);
-                  opacity: 1;
-                }
-              }
-            `}
-          </style>
           <SimpleRouter currentPath={currentPath} setCurrentPath={setCurrentPath}>
             <Route path="/login" element={
-              <LoginForm 
-                onNavigate={navigate} 
+              <LoginForm
+                onNavigate={navigate}
                 setShowTransition={setShowTransition}
                 setTransitionStatus={setTransitionStatus}
               />
             } />
-            <Route 
-              path="/dashboard" 
+            <Route
+              path="/dashboard"
               element={
                 <ProtectedRoute onNavigate={navigate}>
                   <PageTransition fast={true}>
-                    <Dashboard 
-                      onNavigate={navigate} 
+                    <Dashboard
+                      onNavigate={navigate}
                       selectedActiveTask={selectedActiveTask}
                       setSelectedActiveTask={setSelectedActiveTask}
                       onNotification={handleNotification}
                     />
                   </PageTransition>
                 </ProtectedRoute>
-              } 
+              }
             />
-            <Route 
-              path="/upload" 
+            <Route
+              path="/upload"
               element={
                 <ProtectedRoute onNavigate={navigate}>
                   <PageTransition>
-                    <FileUploader 
+                    <FileUploader
                       onNavigate={navigate}
                       selectedActiveTask={selectedActiveTask}
                     />
                   </PageTransition>
                 </ProtectedRoute>
-              } 
+              }
             />
-            <Route 
-              path="/profiles" 
+            <Route
+              path="/profiles"
               element={
                 <ProtectedRoute onNavigate={navigate}>
                   <PageTransition>
                     <ProfilesPage onNavigate={navigate} />
                   </PageTransition>
                 </ProtectedRoute>
-              } 
+              }
             />
-            <Route 
-              path="/users" 
+            <Route
+              path="/users"
               element={
                 <ProtectedRoute onNavigate={navigate}>
                   <PageTransition>
                     <UsersPage onNavigate={navigate} />
                   </PageTransition>
                 </ProtectedRoute>
-              } 
+              }
             />
-            <Route 
-              path="/organizations" 
+            <Route
+              path="/organizations"
               element={
                 <ProtectedRoute onNavigate={navigate}>
                   <PageTransition>
                     <OrganizationsPage onNavigate={navigate} />
                   </PageTransition>
                 </ProtectedRoute>
-              } 
+              }
             />
-            <Route 
-              path="/departments" 
+            <Route
+              path="/departments"
               element={
                 <ProtectedRoute onNavigate={navigate}>
                   <PageTransition>
                     <DepartmentsPage onNavigate={navigate} />
                   </PageTransition>
                 </ProtectedRoute>
-              } 
+              }
             />
-            <Route 
-              path="/expert-groups" 
+            <Route
+              path="/expert-groups"
               element={
                 <ProtectedRoute onNavigate={navigate}>
                   <PageTransition>
                     <ExpertGroupsPage onNavigate={navigate} />
                   </PageTransition>
                 </ProtectedRoute>
-              } 
+              }
             />
-            <Route 
-              path="/tasks" 
+            <Route
+              path="/tasks"
               element={
                 <ProtectedRoute onNavigate={navigate}>
                   <PageTransition>
                     <TasksPage onNavigate={navigate} />
                   </PageTransition>
                 </ProtectedRoute>
-              } 
+              }
             />
-            <Route 
-              path="/tasks/create" 
+            <Route
+              path="/tasks/create"
               element={
                 <ProtectedRoute onNavigate={navigate}>
                   <PageTransition>
                     <CreateTaskPage onNavigate={navigate} />
                   </PageTransition>
                 </ProtectedRoute>
-              } 
+              }
             />
-            <Route 
-              path="/bayesian" 
+            <Route
+              path="/bayesian"
               element={
                 <ProtectedRoute onNavigate={navigate}>
                   <PageTransition>
                     <LegacyBayesianShell onNavigate={navigate} />
                   </PageTransition>
                 </ProtectedRoute>
-              } 
+              }
             />
-            <Route 
-              path="/staff-profiles" 
+            <Route
+              path="/staff-profiles"
               element={
                 <ProtectedRoute onNavigate={navigate}>
                   <PageTransition>
                     <StaffProfilesPage onNavigate={navigate} />
                   </PageTransition>
                 </ProtectedRoute>
-              } 
+              }
             />
-            <Route 
+            <Route
               path="/master-object-search"
               element={
                 <ProtectedRoute onNavigate={navigate}>
@@ -1603,35 +1459,35 @@ function FixedApp() {
                 </ProtectedRoute>
               }
             />
-            <Route 
-              path="/analysis" 
+            <Route
+              path="/analysis"
               element={
-                <ProtectedRoute onNavigate={navigate}>
+                <ProtectedRoute onNavigate={navigate} fluid>
                   <PageTransition>
-                    <GenotypeAnalysisPage 
+                    <GenotypeAnalysisPage
                       onNavigate={navigate}
                       selectedActiveTask={selectedActiveTask}
                     />
                   </PageTransition>
                 </ProtectedRoute>
-              } 
+              }
             />
-            <Route 
-              path="/admin-dashboard" 
+            <Route
+              path="/admin-dashboard"
               element={
                 <ProtectedRoute onNavigate={navigate}>
                   <PageTransition>
-                    <AdminDashboard 
+                    <AdminDashboard
                       onNavigate={navigate}
                     />
                   </PageTransition>
                 </ProtectedRoute>
-              } 
+              }
             />
             <Route path="/" element={<RootRoute />} />
             <Route path="*" element={<RootRoute />} />
           </SimpleRouter>
-          
+
           {/* Toast уведомления */}
           <ToastWrapper notification={toastNotification} />
         </div>
@@ -1641,5 +1497,3 @@ function FixedApp() {
 }
 
 export default FixedApp;
-
-

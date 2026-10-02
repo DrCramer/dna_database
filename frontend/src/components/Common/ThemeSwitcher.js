@@ -1,6 +1,5 @@
 import React from 'react';
 import { useTheme } from '../../contexts/ThemeContext';
-import './ThemeSwitcher.css';
 
 const ThemeSwitcher = () => {
   const { theme, setTheme } = useTheme();

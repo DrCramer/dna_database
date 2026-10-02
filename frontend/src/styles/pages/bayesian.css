@@ -1,0 +1,2531 @@
+/* ========================================
+   BAYESIAN ANALYSIS - CONSOLIDATED STYLES
+   ========================================
+
+   СИСТЕМА ТЕМ:
+   Этот CSS файл использует CSS переменные (custom properties) для поддержки
+   светлой и темной темы. Переменные определяются в корневом файле проекта
+   и автоматически переключаются при смене темы.
+
+   ИСПОЛЬЗУЕМЫЕ ПЕРЕМЕННЫЕ ТЕМ:
+   --bg-primary      - основной фон (светлая: белый, темная: темно-серый)
+   --bg-secondary    - вторичный фон (светлая: светло-серый, темная: серый)
+   --bg-tertiary     - третичный фон (светлая: очень светло-серый, темная: средне-серый)
+   --bg-card         - фон карточек (светлая: белый, темная: темно-серый)
+   --bg-navbar       - фон навигации (светлая: темно-серый, темная: темно-серый)
+   --bg-hover        - фон при наведении (светлая: светло-серый, темная: серый)
+
+   --text-primary    - основной текст (светлая: темный, темная: светлый)
+   --text-secondary  - вторичный текст (светлая: серый, темная: светло-серый)
+   --text-navbar     - текст навигации (светлая: белый, темная: белый)
+   --text-muted      - приглушенный текст (светлая: светло-серый, темная: темно-серый)
+
+   --border-color    - цвет границ (светлая: светло-серый, темная: темно-серый)
+   --shadow-card     - тень карточек (светлая: легкая, темная: темная)
+
+   --color-primary   - основной цвет (синий - одинаковый для обеих тем)
+   --color-success   - цвет успеха (зеленый - одинаковый для обеих тем)
+   --color-warning   - цвет предупреждения (оранжевый - одинаковый для обеих тем)
+   --color-danger    - цвет опасности (красный - одинаковый для обеих тем)
+   --color-info      - информационный цвет (голубой - одинаковый для обеих тем)
+
+   --alert-*-bg      - фон алертов (адаптируется под тему)
+   --alert-*-text    - текст алертов (адаптируется под тему)
+   --alert-*-border  - границы алертов (адаптируется под тему)
+
+   ПРИНУДИТЕЛЬНЫЕ СТИЛИ (НЕ ЗАВИСЯТ ОТ ТЕМЫ):
+   Некоторые элементы имеют принудительные цвета с !important:
+   - Текст в блоке "Результаты анализа качества" всегда черный (#000000)
+   ======================================== */
+
+/* ========================================
+   1. BAYESIAN ANALYSIS APP - MAIN STYLES
+   ======================================== */
+
+.bayesian-analysis-app {
+    min-height: 100vh;
+    background: var(--bg-secondary);
+    font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+    transition: background-color 0.3s ease;
+}
+
+/* Header Styles */
+:where(.bayesian-analysis-app) .bayesian-app-header {
+    background: var(--surface-card);
+    color: var(--text-primary);
+    padding: var(--space-6) var(--space-8);
+    box-shadow: var(--shadow-card);
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    transition: background-color 0.3s ease, color 0.3s ease;
+}
+
+:where(.bayesian-analysis-app) .bayesian-app-header h1 {
+    margin: 0;
+    font-size: 1.8rem;
+    font-weight: var(--font-weight-semibold);
+    color: var(--text-primary);
+}
+
+:where(.bayesian-analysis-app) .header-controls {
+    display: flex;
+    gap: var(--space-4);
+}
+
+:where(.bayesian-analysis-app) .help-button:hover {
+    border-color: rgba(255, 255, 255, 0.5);
+}
+/* Navigation Tabs */
+:where(.bayesian-analysis-app) .main-navigation {
+    background: var(--bg-card);
+    padding: 0;
+    box-shadow: var(--shadow-card);
+    display: flex;
+    border-bottom: 1px solid var(--border-color);
+    transition: background-color 0.3s ease, border-color 0.3s ease;
+}
+
+:where(.bayesian-analysis-app) .nav-tab {
+    border-bottom: 3px solid transparent;
+    position: relative;
+}
+
+:where(.bayesian-analysis-app) .nav-tab.active {
+    border-bottom-color: var(--color-primary);
+}
+
+/* Main Content */
+:where(.bayesian-analysis-app) .main-content {
+    padding: var(--space-6);
+    overflow: visible;
+}
+
+:where(.bayesian-analysis-app) .quality-control-panel,
+:where(.bayesian-analysis-app) .genotype-comparison-panel {
+    width: 100%;
+    overflow: visible;
+}
+/* ========================================
+   2. SAMPLE SELECTOR COMPONENT STYLES
+   ======================================== */
+
+:where(.bayesian-analysis-app) .sample-selector {
+    position: relative;
+    width: 100%;
+    max-width: 600px;
+    min-width: 0;
+}
+
+:where(.bayesian-analysis-app) .sample-selector.disabled {
+    opacity: 0.6;
+    pointer-events: none;
+}
+
+/* Input Container */
+:where(.bayesian-analysis-app) .selector-input-container {
+    position: relative;
+}
+
+:where(.bayesian-analysis-app) .dropdown-arrow {
+    padding: var(--space-2);
+    color: var(--text-secondary);
+    font-size: var(--font-size-xs);
+    pointer-events: none;
+}
+/* Selected Sample Info */
+:where(.bayesian-analysis-app) .selected-sample-info {
+    margin-top: var(--space-2);
+    padding: var(--space-2);
+    background: var(--bg-tertiary);
+    border-radius: var(--radius-sm);
+    border-left: 4px solid var(--color-primary);
+}
+
+:where(.bayesian-analysis-app) .sample-details {
+    display: flex;
+    align-items: center;
+    gap: var(--space-3);
+    font-size: var(--font-size-md);
+    flex-wrap: nowrap;
+    overflow-x: auto;
+}
+
+:where(.bayesian-analysis-app) .sample-id {
+    font-weight: var(--font-weight-semibold);
+    color: var(--text-primary);
+    white-space: nowrap;
+    flex-shrink: 0;
+}
+
+:where(.bayesian-analysis-app) .sample-date {
+    color: var(--text-secondary);
+    font-size: var(--font-size-xs);
+    white-space: nowrap;
+}
+
+:where(.bayesian-analysis-app) .quality-indicator {
+    width: 12px;
+    height: 12px;
+    border-radius: 50%;
+    border: 2px solid white;
+    box-shadow: 0 1px 3px rgba(0, 0, 0, 0.2);
+}
+
+/* Dropdown */
+:where(.bayesian-analysis-app) .selector-dropdown {
+    position: fixed;
+    background: var(--bg-card);
+    transition: background-color 0.3s ease, border-color 0.3s ease, box-shadow 0.3s ease;
+    border: 2px solid var(--border-color);
+    border-radius: var(--radius-md);
+    box-shadow: 0 8px 24px rgba(0, 0, 0, 0.2);
+    z-index: 99999;
+    max-height: 300px;
+    overflow: hidden;
+    min-width: 500px;
+}
+
+:where(.bayesian-analysis-app) .dropdown-loading,
+:where(.bayesian-analysis-app) .dropdown-empty {
+    padding: var(--space-4);
+    text-align: center;
+    color: var(--text-secondary);
+    font-style: italic;
+}
+
+:where(.bayesian-analysis-app) .dropdown-list {
+    max-height: 300px;
+    overflow-y: auto;
+}
+
+:where(.bayesian-analysis-app) .dropdown-item {
+    padding: var(--space-3) var(--space-4);
+    cursor: pointer;
+    transition: background-color 0.2s ease;
+    border-bottom: 1px solid var(--border-color);
+}
+
+:where(.bayesian-analysis-app) .dropdown-item:hover {
+    background: var(--bg-hover);
+}
+
+:where(.bayesian-analysis-app) .dropdown-item.selected {
+    background: var(--bg-tertiary);
+    border-left: 4px solid var(--color-primary);
+}
+
+:where(.bayesian-analysis-app) .dropdown-item:last-child {
+    border-bottom: none;
+}
+/* Sample Info in Dropdown */
+:where(.bayesian-analysis-app) .dropdown-item .sample-info {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-1);
+    text-align: left; /* Force left alignment in dropdown */
+}
+
+:where(.bayesian-analysis-app) .sample-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+}
+
+/* Ensure dropdown items are left-aligned */
+:where(.bayesian-analysis-app) .dropdown-item .sample-header {
+    justify-content: flex-start; /* Override for dropdown */
+    gap: var(--space-4); /* Add spacing between elements */
+}
+
+:where(.bayesian-analysis-app) .sample-name {
+    font-weight: var(--font-weight-semibold);
+    color: var(--text-primary);
+    white-space: nowrap;
+    flex-shrink: 0;
+}
+
+:where(.bayesian-analysis-app) .sample-name mark,
+:where(.bayesian-analysis-app) .sample-id mark {
+    background-color: #00e5ff; /* Яркий голубой/циан для темной темы */
+    color: var(--text-primary); /* Черный текст для контраста */
+    padding: 1px 3px;
+    border-radius: var(--radius-sm);
+    font-weight: var(--font-weight-bold);
+}
+
+:where(.bayesian-analysis-app) .sample-type {
+    font-size: var(--font-size-xs);
+    color: var(--color-primary);
+    background: rgba(102, 126, 234, 0.1);
+    padding: 0.2rem var(--space-2);
+    border-radius: var(--radius-lg);
+}
+
+:where(.bayesian-analysis-app) .sample-meta {
+    display: flex;
+    align-items: center;
+    gap: var(--space-2);
+    font-size: var(--font-size-sm);
+    color: var(--text-secondary);
+    flex-wrap: nowrap;
+    overflow-x: auto;
+}
+
+/* Ensure dropdown meta items are left-aligned */
+:where(.bayesian-analysis-app) .dropdown-item .sample-meta {
+    justify-content: flex-start; /* Force left alignment in dropdown */
+    text-align: left; /* Ensure text is left-aligned */
+}
+
+:where(.bayesian-analysis-app) .sample-name-field,
+:where(.bayesian-analysis-app) .sample-name-tech,
+:where(.bayesian-analysis-app) .sample-privoz {
+    font-size: var(--font-size-xs);
+    background: var(--bg-tertiary);
+    padding: 1px var(--space-1);
+    border-radius: var(--radius-sm);
+    border: 1px solid var(--border-color);
+    white-space: nowrap;
+}
+
+:where(.bayesian-analysis-app) .sample-name-field {
+    color: var(--text-primary);
+}
+
+:where(.bayesian-analysis-app) .sample-name-tech {
+    color: var(--color-info);
+    background: rgba(23, 162, 184, 0.1);
+    border-color: var(--color-info);
+}
+
+:where(.bayesian-analysis-app) .sample-privoz {
+    color: var(--color-primary);
+}
+
+:where(.bayesian-analysis-app) .sample-name-field mark,
+:where(.bayesian-analysis-app) .sample-name-tech mark,
+:where(.bayesian-analysis-app) .sample-privoz mark {
+    background-color: #00e5ff; /* Яркий голубой/циан для темной темы */
+    color: var(--text-primary); /* Черный текст для контраста */
+    padding: 1px 3px;
+    border-radius: var(--radius-sm);
+    font-weight: var(--font-weight-bold);
+}
+/* Scrollbar Styling */
+:where(.bayesian-analysis-app) .dropdown-list::-webkit-scrollbar {
+    width: 6px;
+}
+
+:where(.bayesian-analysis-app) .dropdown-list::-webkit-scrollbar-track {
+    background: var(--bg-secondary);
+}
+
+:where(.bayesian-analysis-app) .dropdown-list::-webkit-scrollbar-thumb {
+    background: var(--border-color);
+    border-radius: var(--radius-sm);
+}
+
+:where(.bayesian-analysis-app) .dropdown-list::-webkit-scrollbar-thumb:hover {
+    background: var(--text-secondary);
+}
+
+/* ========================================
+   3. QUALITY CONTROL PANEL STYLES
+   ======================================== */
+
+:where(.bayesian-analysis-app) .quality-control-panel {
+    background: var(--bg-card);
+    border-radius: var(--radius-lg);
+    box-shadow: var(--shadow-card);
+    overflow: visible;
+    border: 1px solid var(--border-color);
+    transition: background-color 0.3s ease, border-color 0.3s ease, box-shadow 0.3s ease;
+}
+
+/* Panel Header */
+:where(.bayesian-analysis-app) .panel-header {
+    background: var(--surface-muted);
+    color: var(--text-inverse);
+    padding: var(--space-6) var(--space-8);
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    transition: background-color 0.3s ease;
+}
+
+:where(.bayesian-analysis-app) .panel-header h2 {
+    margin: 0;
+    font-size: 1.4rem;
+    font-weight: var(--font-weight-semibold);
+    color: var(--text-inverse);
+}
+
+:where(.bayesian-analysis-app) .panel-controls {
+    display: flex;
+    gap: var(--space-4);
+}
+
+:where(.bayesian-analysis-app) .panel-controls .help-button:hover {
+    border-color: rgba(255, 255, 255, 0.5);
+}
+/* Panel Content */
+:where(.bayesian-analysis-app) .panel-content {
+    padding: var(--space-8);
+    overflow: visible;
+}
+
+/* Sections */
+:where(.bayesian-analysis-app) .sample-selection-section,
+:where(.bayesian-analysis-app) .analysis-controls,
+:where(.bayesian-analysis-app) .results-section,
+:where(.bayesian-analysis-app) .reports-section,
+:where(.bayesian-analysis-app) .history-section {
+    margin-bottom: var(--space-8);
+}
+
+:where(.bayesian-analysis-app) .sample-selection-section:last-child,
+:where(.bayesian-analysis-app) .analysis-controls:last-child,
+:where(.bayesian-analysis-app) .results-section:last-child,
+:where(.bayesian-analysis-app) .reports-section:last-child,
+:where(.bayesian-analysis-app) .history-section:last-child {
+    margin-bottom: 0;
+}
+
+:where(.bayesian-analysis-app) .sample-selection-section h3,
+:where(.bayesian-analysis-app) .history-section h3 {
+    margin: 0 0 var(--space-4) 0;
+    font-size: 1.2rem;
+    font-weight: var(--font-weight-semibold);
+    color: var(--text-primary);
+    border-bottom: 2px solid var(--border-color);
+    padding-bottom: var(--space-2);
+}
+
+/* Control Buttons */
+:where(.bayesian-analysis-app) .control-buttons {
+    display: flex;
+    gap: var(--space-4);
+    flex-wrap: wrap;
+}
+
+:where(.bayesian-analysis-app) .secondary-button:disabled {
+    border-color: var(--border-color);
+}
+/* Results Section */
+:where(.bayesian-analysis-app) .results-section {
+    border-top: 1px solid var(--border-color);
+    padding-top: var(--space-8);
+}
+
+/* Reports Section */
+:where(.bayesian-analysis-app) .reports-section {
+    background: var(--bg-tertiary);
+    border-radius: var(--radius-md);
+    padding: var(--space-6);
+    border: 1px solid var(--border-color);
+}
+
+/* History Section */
+:where(.bayesian-analysis-app) .history-section {
+    background: var(--bg-tertiary);
+    border-radius: var(--radius-md);
+    padding: var(--space-6);
+    border: 1px solid var(--border-color);
+}
+
+:where(.bayesian-analysis-app) .history-list {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-3);
+}
+
+:where(.bayesian-analysis-app) .history-item {
+    background: var(--bg-card);
+    border: 1px solid var(--border-color);
+    border-radius: var(--radius-sm);
+    padding: var(--space-4);
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    transition: all 0.3s ease;
+}
+
+:where(.bayesian-analysis-app) .history-item:hover {
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+    transform: translateY(-1px);
+}
+
+:where(.bayesian-analysis-app) .history-sample {
+    font-weight: var(--font-weight-semibold);
+    color: var(--text-primary);
+}
+
+:where(.bayesian-analysis-app) .history-category {
+    padding: var(--space-1) var(--space-3);
+    border-radius: var(--radius-lg);
+    font-size: var(--font-size-xs);
+    font-weight: var(--font-weight-semibold);
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+}
+
+:where(.bayesian-analysis-app) .history-date {
+    font-size: var(--font-size-md);
+    color: var(--text-secondary);
+}
+
+/* ========================================
+   4. QUALITY RESULTS COMPONENT STYLES
+   ========================================
+
+   АДАПТИРОВАНО: Все цвета теперь адаптируются под светлую и темную тему
+   ======================================== */
+
+:where(.bayesian-analysis-app) .quality-results {
+    background: var(--bg-card); /* АДАПТИРУЕТСЯ: светлая/темная тема */
+    transition: background-color 0.3s ease, border-color 0.3s ease, box-shadow 0.3s ease;
+    border-radius: var(--radius-lg);
+    box-shadow: var(--shadow-card); /* АДАПТИРУЕТСЯ: светлая/темная тема */
+    overflow: hidden;
+    color: var(--text-primary); /* АДАПТИРУЕТСЯ: основной текст под тему */
+}
+/* Results Header */
+:where(.bayesian-analysis-app) .results-header {
+    background: var(--surface-muted); /* АДАПТИРУЕТСЯ: светлая/темная тема */
+    color: var(--text-inverse); /* СТАТИЧНО: всегда белый для контраста с navbar */
+    padding: var(--space-6) var(--space-8);
+}
+
+:where(.bayesian-analysis-app) .results-header h3 {
+    margin: 0 0 var(--space-2) 0;
+    font-size: 1.4rem;
+    font-weight: var(--font-weight-semibold);
+}
+
+:where(.bayesian-analysis-app) .results-header .sample-info {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    gap: var(--space-8);
+    font-size: var(--font-size-md);
+}
+
+/* Enhanced Sample Info Styles with Icons - ONLY for results header */
+:where(.bayesian-analysis-app) .results-header .sample-identifiers {
+    display: flex;
+    align-items: center;
+    gap: var(--space-3);
+    flex-wrap: wrap;
+    flex: 1;
+}
+
+:where(.bayesian-analysis-app) .results-header .sample-item {
+    display: flex;
+    align-items: center;
+    gap: 0.4rem;
+    font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+    font-weight: var(--font-weight-medium);
+    color: rgba(255, 255, 255, 0.95);
+    font-size: var(--font-size-md);
+}
+
+:where(.bayesian-analysis-app) .results-header .sample-item.primary .sample-value {
+    color: #90EE90; /* Light green for primary number */
+    font-weight: var(--font-weight-semibold);
+}
+
+:where(.bayesian-analysis-app) .results-header .sample-item.secondary .sample-value {
+    color: #87CEEB; /* Light blue for secondary number */
+}
+
+:where(.bayesian-analysis-app) .results-header .sample-item.batch .sample-value {
+    color: #F0E68C; /* Light yellow for batch number */
+}
+
+:where(.bayesian-analysis-app) .results-header .sample-icon {
+    font-size: var(--font-size-lg);
+    opacity: 0.9;
+}
+
+:where(.bayesian-analysis-app) .results-header .sample-value {
+    font-family: 'Courier New', monospace;
+    font-size: var(--font-size-md);
+    font-weight: var(--font-weight-medium);
+}
+
+:where(.bayesian-analysis-app) .results-header .sample-separator {
+    color: rgba(255, 255, 255, 0.6);
+    font-weight: var(--font-weight-bold);
+    margin: 0 0.2rem;
+}
+
+:where(.bayesian-analysis-app) .analysis-metadata {
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+    align-items: flex-end;
+    flex-shrink: 0;
+}
+
+:where(.bayesian-analysis-app) .analysis-date {
+    font-size: var(--font-size-sm);
+    color: rgba(255, 255, 255, 0.8);
+    font-weight: var(--font-weight-normal);
+}
+
+/* Results Grid */
+:where(.bayesian-analysis-app) .results-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(350px, 1fr));
+    gap: var(--space-6);
+    padding: var(--space-8);
+}
+
+/* Result Cards */
+:where(.bayesian-analysis-app) .result-card {
+    background: var(--bg-card); /* АДАПТИРУЕТСЯ: светлая/темная тема */
+    border: 1px solid var(--border-color); /* АДАПТИРУЕТСЯ: светлая/темная тема */
+    border-radius: var(--radius-lg);
+    overflow: hidden;
+    transition: all 0.3s ease;
+}
+
+:where(.bayesian-analysis-app) .result-card:hover {
+    box-shadow: var(--shadow-card); /* АДАПТИРУЕТСЯ: светлая/темная тема */
+    transform: translateY(-2px);
+}
+
+:where(.bayesian-analysis-app) .perspective-card {
+    grid-column: 1 / -1;
+    background: linear-gradient(135deg, var(--bg-tertiary) 0%, var(--bg-secondary) 100%); /* АДАПТИРУЕТСЯ: светлая/темная тема */
+}
+
+/* Card Header */
+:where(.bayesian-analysis-app) .card-header {
+    background: var(--bg-tertiary); /* АДАПТИРУЕТСЯ: светлая/темная тема */
+    padding: var(--space-4) var(--space-6);
+    border-bottom: 1px solid var(--border-color); /* АДАПТИРУЕТСЯ: светлая/темная тема */
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+}
+
+:where(.bayesian-analysis-app) .card-header h4 {
+    margin: 0;
+    font-size: 1.1rem;
+    font-weight: var(--font-weight-semibold);
+    color: var(--text-primary); /* АДАПТИРУЕТСЯ: основной текст под тему */
+}
+/* Card Content */
+:where(.bayesian-analysis-app) .card-content {
+    padding: var(--space-6);
+}
+
+/* Main Metrics */
+:where(.bayesian-analysis-app) .main-metric {
+    text-align: center;
+    margin-bottom: var(--space-4);
+}
+
+:where(.bayesian-analysis-app) .metric-value {
+    display: block;
+    font-size: var(--font-size-3xl);
+    font-weight: var(--font-weight-bold);
+    margin-bottom: var(--space-1);
+}
+
+:where(.bayesian-analysis-app) .metric-value.large {
+    font-size: var(--font-size-2xl);
+}
+
+:where(.bayesian-analysis-app) .metric-label {
+    display: block;
+    font-size: var(--font-size-md);
+    font-weight: var(--font-weight-medium);
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+    color: var(--text-primary); /* АДАПТИРУЕТСЯ: основной текст под тему */
+}
+
+/* Metric Pairs */
+:where(.bayesian-analysis-app) .metric-pair {
+    display: flex;
+    justify-content: space-around;
+    margin-bottom: var(--space-4);
+}
+
+:where(.bayesian-analysis-app) .metric-item {
+    text-align: center;
+}
+
+:where(.bayesian-analysis-app) .metric-item .metric-value {
+    font-size: var(--font-size-3xl);
+    color: var(--color-primary); /* АДАПТИРУЕТСЯ: основной цвет темы */
+}
+
+:where(.bayesian-analysis-app) .metric-item .metric-label {
+    font-size: var(--font-size-md);
+    color: var(--text-primary); /* АДАПТИРУЕТСЯ: основной текст под тему */
+}
+
+/* Metric Details */
+:where(.bayesian-analysis-app) .metric-details {
+    background: var(--bg-tertiary); /* АДАПТИРУЕТСЯ: светлая/темная тема */
+    border-radius: var(--radius-sm);
+    padding: var(--space-4);
+    margin-top: var(--space-4);
+}
+
+:where(.bayesian-analysis-app) .detail-row {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: var(--space-1) 0;
+    font-size: var(--font-size-md);
+}
+
+:where(.bayesian-analysis-app) .detail-row:not(:last-child) {
+    border-bottom: 1px solid var(--border-color); /* АДАПТИРУЕТСЯ: светлая/темная тема */
+    padding-bottom: var(--space-4);
+    margin-bottom: var(--space-2);
+}
+
+:where(.bayesian-analysis-app) .detail-row span:first-child {
+    color: var(--text-primary); /* АДАПТИРУЕТСЯ: основной текст под тему */
+}
+
+:where(.bayesian-analysis-app) .detail-row span:last-child {
+    font-weight: var(--font-weight-semibold);
+    color: var(--text-primary); /* АДАПТИРУЕТСЯ: основной текст под тему */
+}
+/* Recommendations */
+:where(.bayesian-analysis-app) .recommendations,
+:where(.bayesian-analysis-app) .reasoning-section,
+:where(.bayesian-analysis-app) .recommendations-section {
+    margin-top: var(--space-4);
+}
+
+:where(.bayesian-analysis-app) .recommendations h5,
+:where(.bayesian-analysis-app) .reasoning-section h5,
+:where(.bayesian-analysis-app) .recommendations-section h5 {
+    margin: 0 0 var(--space-2) 0;
+    font-size: var(--font-size-md);
+    font-weight: var(--font-weight-semibold);
+    color: var(--text-primary); /* АДАПТИРУЕТСЯ: основной текст под тему */
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+}
+
+:where(.bayesian-analysis-app) .recommendation {
+    background: var(--alert-success-bg); /* АДАПТИРУЕТСЯ: фон успеха под тему */
+    border-left: 4px solid var(--color-success); /* АДАПТИРУЕТСЯ: цвет успеха */
+    padding: var(--space-2) var(--space-3);
+    margin-bottom: var(--space-2);
+    border-radius: 0 4px 4px 0;
+    font-size: var(--font-size-md);
+    color: var(--alert-success-text); /* АДАПТИРУЕТСЯ: текст успеха под тему */
+}
+
+:where(.bayesian-analysis-app) .reasoning-list,
+:where(.bayesian-analysis-app) .recommendations-list {
+    margin: 0;
+    padding-left: 1.5rem;
+}
+
+:where(.bayesian-analysis-app) .reasoning-list li,
+:where(.bayesian-analysis-app) .recommendations-list li {
+    margin-bottom: var(--space-2);
+    font-size: var(--font-size-md);
+    color: var(--text-primary); /* АДАПТИРУЕТСЯ: основной текст под тему */
+    line-height: 1.4;
+}
+
+/* Warning Messages */
+:where(.bayesian-analysis-app) .warning-message {
+    background: var(--alert-warning-bg); /* АДАПТИРУЕТСЯ: фон предупреждения под тему */
+    border: 1px solid var(--alert-warning-border); /* АДАПТИРУЕТСЯ: граница предупреждения под тему */
+    border-radius: var(--radius-sm);
+    padding: var(--space-3);
+    margin-top: var(--space-4);
+    color: var(--alert-warning-text); /* АДАПТИРУЕТСЯ: текст предупреждения под тему */
+}
+
+:where(.bayesian-analysis-app) .warning-message span:first-child {
+    font-weight: var(--font-weight-semibold);
+    display: block;
+    margin-bottom: var(--space-2);
+}
+
+/* Duplicates List */
+:where(.bayesian-analysis-app) .duplicates-list {
+    margin-top: var(--space-4);
+}
+
+:where(.bayesian-analysis-app) .duplicate-item {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: var(--space-2) var(--space-3);
+    background: var(--alert-warning-bg); /* АДАПТИРУЕТСЯ: фон предупреждения под тему */
+    border-left: 4px solid var(--color-warning); /* АДАПТИРУЕТСЯ: цвет предупреждения */
+    border-radius: 0 4px 4px 0;
+    margin-bottom: var(--space-2);
+}
+
+:where(.bayesian-analysis-app) .duplicate-id {
+    font-weight: var(--font-weight-semibold);
+    color: var(--text-primary); /* АДАПТИРУЕТСЯ: основной текст под тему */
+}
+
+:where(.bayesian-analysis-app) .duplicate-match {
+    font-weight: var(--font-weight-semibold);
+    color: var(--color-warning); /* АДАПТИРУЕТСЯ: цвет предупреждения */
+}
+/* ========================================
+   5. GENOTYPE COMPARISON PANEL STYLES
+   ======================================== */
+
+:where(.bayesian-analysis-app) .genotype-comparison-panel {
+    background: var(--bg-card);
+    border-radius: var(--radius-lg);
+    box-shadow: var(--shadow-card);
+    overflow: visible;
+    border: 1px solid var(--border-color);
+    transition: background-color 0.3s ease, border-color 0.3s ease, box-shadow 0.3s ease;
+}
+
+/* Comparison Type Selector */
+:where(.bayesian-analysis-app) .comparison-type-section,
+:where(.bayesian-analysis-app) .sample-selection-section,
+:where(.bayesian-analysis-app) .analysis-controls,
+:where(.bayesian-analysis-app) .results-section,
+:where(.bayesian-analysis-app) .reports-section,
+:where(.bayesian-analysis-app) .history-section {
+    margin-bottom: var(--space-8);
+}
+
+:where(.bayesian-analysis-app) .comparison-type-section:last-child,
+:where(.bayesian-analysis-app) .sample-selection-section:last-child,
+:where(.bayesian-analysis-app) .analysis-controls:last-child,
+:where(.bayesian-analysis-app) .results-section:last-child,
+:where(.bayesian-analysis-app) .reports-section:last-child,
+:where(.bayesian-analysis-app) .history-section:last-child {
+    margin-bottom: 0;
+}
+
+:where(.bayesian-analysis-app) .comparison-type-section h3,
+:where(.bayesian-analysis-app) .sample-selection-section h3,
+:where(.bayesian-analysis-app) .history-section h3 {
+    margin: 0 0 var(--space-4) 0;
+    font-size: 1.2rem;
+    font-weight: var(--font-weight-semibold);
+    color: var(--text-primary);
+    border-bottom: 2px solid var(--border-color);
+    padding-bottom: var(--space-2);
+}
+
+:where(.bayesian-analysis-app) .comparison-type-selector {
+    display: flex;
+    gap: var(--space-8);
+    flex-wrap: wrap;
+}
+
+:where(.bayesian-analysis-app) .radio-option input[type="radio"]:checked + span {
+    color: var(--color-primary);
+    font-weight: var(--font-weight-semibold);
+}
+/* Sample Selectors */
+:where(.bayesian-analysis-app) .sample-selectors {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+    gap: var(--space-6);
+}
+
+:where(.bayesian-analysis-app) .sample-selector-group {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-2);
+}
+
+:where(.bayesian-analysis-app) .sample-selector-group label {
+    font-weight: var(--font-weight-semibold);
+    color: var(--text-primary);
+    font-size: var(--font-size-md);
+}
+
+/* ========================================
+   6. COMPARISON RESULTS COMPONENT STYLES
+   ======================================== */
+
+:where(.bayesian-analysis-app) .comparison-results {
+    background: var(--bg-card);
+    transition: background-color 0.3s ease, border-color 0.3s ease, box-shadow 0.3s ease;
+    border-radius: var(--radius-lg);
+    box-shadow: var(--shadow-card);
+    overflow: hidden;
+}
+
+:where(.bayesian-analysis-app) .comparison-info {
+    display: flex;
+    gap: var(--space-8);
+    font-size: var(--font-size-md);
+    opacity: 0.9;
+    flex-wrap: wrap;
+}
+
+/* Results Summary */
+:where(.bayesian-analysis-app) .results-summary {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+    gap: var(--space-6);
+    padding: var(--space-8);
+}
+
+/* Summary Cards */
+:where(.bayesian-analysis-app) .summary-card {
+    background: var(--bg-card);
+    border: 1px solid var(--border-color);
+    border-radius: var(--radius-lg);
+    overflow: hidden;
+    transition: all 0.3s ease;
+}
+
+:where(.bayesian-analysis-app) .summary-card:hover {
+    box-shadow: var(--shadow-card);
+    transform: translateY(-2px);
+}
+
+:where(.bayesian-analysis-app) .summary-card .card-header {
+    background: var(--bg-tertiary);
+    padding: var(--space-4) var(--space-6);
+    border-bottom: 1px solid var(--border-color);
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+}
+
+:where(.bayesian-analysis-app) .summary-card .card-header h4 {
+    margin: 0;
+    font-size: 1.1rem;
+    font-weight: var(--font-weight-semibold);
+    color: var(--text-primary);
+}
+
+:where(.bayesian-analysis-app) .summary-card .card-content {
+    padding: var(--space-6);
+}
+/* Match Overview */
+:where(.bayesian-analysis-app) .match-overview {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: var(--space-4);
+}
+
+:where(.bayesian-analysis-app) .match-percentage {
+    text-align: center;
+}
+
+:where(.bayesian-analysis-app) .percentage-value {
+    display: block;
+    font-size: 2.5rem;
+    font-weight: var(--font-weight-bold);
+    color: var(--color-primary);
+    margin-bottom: var(--space-1);
+}
+
+:where(.bayesian-analysis-app) .percentage-label {
+    display: block;
+    font-size: var(--font-size-md);
+    font-weight: var(--font-weight-medium);
+    color: var(--text-secondary);
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+}
+
+:where(.bayesian-analysis-app) .match-breakdown {
+    display: flex;
+    justify-content: space-around;
+    width: 100%;
+    gap: var(--space-4);
+}
+
+:where(.bayesian-analysis-app) .match-item {
+    text-align: center;
+    flex: 1;
+}
+
+:where(.bayesian-analysis-app) .match-count {
+    display: block;
+    font-size: var(--font-size-2xl);
+    font-weight: var(--font-weight-bold);
+    margin-bottom: var(--space-1);
+}
+
+:where(.bayesian-analysis-app) .match-label {
+    display: block;
+    font-size: var(--font-size-xs);
+    color: var(--text-secondary);
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+}
+
+:where(.bayesian-analysis-app) .loci-info {
+    margin-top: var(--space-4);
+    padding-top: var(--space-4);
+    border-top: 1px solid var(--border-color);
+    text-align: center;
+    font-size: var(--font-size-md);
+    color: var(--text-secondary);
+}
+
+/* Statistical Significance */
+:where(.bayesian-analysis-app) .lr-section {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-4);
+}
+
+:where(.bayesian-analysis-app) .lr-value,
+:where(.bayesian-analysis-app) .match-probability,
+:where(.bayesian-analysis-app) .significance-level {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: var(--space-2) 0;
+}
+
+:where(.bayesian-analysis-app) .lr-value:not(:last-child),
+:where(.bayesian-analysis-app) .match-probability:not(:last-child),
+:where(.bayesian-analysis-app) .significance-level:not(:last-child) {
+    border-bottom: 1px solid var(--border-color);
+}
+
+:where(.bayesian-analysis-app) .confidence-interval {
+    margin-top: var(--space-4);
+    padding: var(--space-3);
+    background: var(--bg-tertiary);
+    border-radius: var(--radius-sm);
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    font-size: var(--font-size-md);
+}
+/* Metadata Grid */
+:where(.bayesian-analysis-app) .metadata-grid {
+    display: grid;
+    grid-template-columns: 1fr;
+    gap: var(--space-3);
+}
+
+:where(.bayesian-analysis-app) .metadata-item {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: var(--space-2) 0;
+    border-bottom: 1px solid var(--border-color);
+}
+
+:where(.bayesian-analysis-app) .metadata-item:last-child {
+    border-bottom: none;
+}
+
+:where(.bayesian-analysis-app) .metadata-label {
+    font-weight: var(--font-weight-medium);
+    color: var(--text-secondary);
+}
+
+:where(.bayesian-analysis-app) .metadata-value {
+    font-weight: var(--font-weight-semibold);
+    color: var(--text-primary);
+}
+
+:where(.bayesian-analysis-app) .warnings-section {
+    margin-top: var(--space-4);
+    padding: var(--space-4);
+    background: var(--alert-warning-bg);
+    border-radius: var(--radius-sm);
+    border-left: 4px solid var(--color-warning);
+}
+
+:where(.bayesian-analysis-app) .warnings-section h5 {
+    margin: 0 0 var(--space-2) 0;
+    color: var(--alert-warning-text);
+    font-size: var(--font-size-md);
+}
+
+:where(.bayesian-analysis-app) .warnings-section ul {
+    margin: 0;
+    padding-left: 1.5rem;
+}
+
+:where(.bayesian-analysis-app) .warning-item {
+    color: var(--alert-warning-text);
+    font-size: var(--font-size-md);
+    margin-bottom: var(--space-1);
+}
+
+/* Detailed Comparison Section */
+:where(.bayesian-analysis-app) .detailed-comparison-section {
+    border-top: 1px solid var(--border-color);
+    padding: var(--space-8);
+}
+
+:where(.bayesian-analysis-app) .section-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: var(--space-6);
+}
+
+:where(.bayesian-analysis-app) .section-header h4 {
+    margin: 0;
+    font-size: 1.2rem;
+    font-weight: var(--font-weight-semibold);
+    color: var(--text-primary);
+}
+/* Comparison Table */
+:where(.bayesian-analysis-app) .comparison-table-container {
+    overflow-x: auto;
+    border-radius: var(--radius-md);
+    border: 1px solid var(--border-color);
+}
+
+:where(.bayesian-analysis-app) .comparison-table {
+    width: 100%;
+    border-collapse: collapse;
+    background: var(--bg-card);
+    transition: background-color 0.3s ease, border-color 0.3s ease, box-shadow 0.3s ease;
+}
+
+:where(.bayesian-analysis-app) .comparison-table th {
+    background: var(--bg-tertiary);
+    padding: var(--space-4);
+    text-align: left;
+    font-weight: var(--font-weight-semibold);
+    color: var(--text-primary);
+    border-bottom: 2px solid var(--border-color);
+    position: sticky;
+    top: 0;
+    z-index: 10;
+}
+
+:where(.bayesian-analysis-app) .comparison-table th.sortable {
+    cursor: pointer;
+    user-select: none;
+    transition: background-color 0.3s ease;
+}
+
+:where(.bayesian-analysis-app) .comparison-table th.sortable:hover {
+    background: var(--bg-hover);
+}
+
+:where(.bayesian-analysis-app) .comparison-table th.sortable.asc::after {
+    content: ' ↑';
+    color: var(--color-primary);
+}
+
+:where(.bayesian-analysis-app) .comparison-table th.sortable.desc::after {
+    content: ' ↓';
+    color: var(--color-primary);
+}
+
+:where(.bayesian-analysis-app) .comparison-table td {
+    padding: var(--space-3) var(--space-4);
+    border-bottom: 1px solid var(--border-color);
+    vertical-align: middle;
+}
+
+:where(.bayesian-analysis-app) .comparison-table tr:hover {
+    background: var(--bg-hover);
+}
+
+:where(.bayesian-analysis-app) .locus-name {
+    font-weight: var(--font-weight-semibold);
+    color: var(--text-primary);
+}
+
+:where(.bayesian-analysis-app) .alleles {
+    font-family: 'Courier New', monospace;
+    font-size: var(--font-size-md);
+    color: var(--text-secondary);
+}
+
+:where(.bayesian-analysis-app) .match-type {
+    font-weight: var(--font-weight-semibold);
+    text-transform: uppercase;
+    font-size: var(--font-size-xs);
+    letter-spacing: 0.5px;
+}
+
+:where(.bayesian-analysis-app) .lr-value {
+    font-family: 'Courier New', monospace;
+    font-size: var(--font-size-md);
+    text-align: right;
+}
+/* Search Results Section */
+:where(.bayesian-analysis-app) .search-results-section {
+    border-top: 1px solid var(--border-color);
+    padding: var(--space-8);
+}
+
+:where(.bayesian-analysis-app) .search-results-list {
+    display: grid;
+    gap: var(--space-4);
+    margin-top: var(--space-4);
+}
+
+:where(.bayesian-analysis-app) .search-result-item {
+    background: var(--bg-card);
+    border: 1px solid var(--border-color);
+    border-radius: var(--radius-md);
+    padding: var(--space-4);
+    transition: all 0.3s ease;
+}
+
+:where(.bayesian-analysis-app) .search-result-item:hover {
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+    transform: translateY(-1px);
+}
+
+:where(.bayesian-analysis-app) .result-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: var(--space-2);
+}
+
+:where(.bayesian-analysis-app) .result-sample {
+    font-weight: var(--font-weight-semibold);
+    color: var(--text-primary);
+}
+
+:where(.bayesian-analysis-app) .result-match {
+    font-weight: var(--font-weight-bold);
+    font-size: 1.1rem;
+}
+
+:where(.bayesian-analysis-app) .result-details {
+    font-size: var(--font-size-md);
+    color: var(--text-secondary);
+}
+
+/* ========================================
+   7. PROGRESS INDICATOR COMPONENT STYLES
+   ======================================== */
+
+:where(.bayesian-analysis-app) .progress-indicator {
+    background: var(--bg-card);
+    transition: background-color 0.3s ease, border-color 0.3s ease, box-shadow 0.3s ease;
+    border-radius: var(--radius-lg);
+    box-shadow: var(--shadow-card);
+    padding: var(--space-8);
+    margin: var(--space-4) 0;
+    position: relative;
+    overflow: hidden;
+}
+
+:where(.bayesian-analysis-app) .progress-indicator.starting {
+    animation: ui-bayesian-slideIn 0.5s ease-out;
+}
+
+:where(.bayesian-analysis-app) .progress-indicator.completed {
+    animation: ui-bayesian-completionPulse 0.8s ease-out;
+}
+
+:where(.bayesian-analysis-app) .progress-indicator.in-progress {
+    animation: ui-bayesian-pulse 2s ease-in-out infinite;
+}
+
+@keyframes ui-bayesian-slideIn {
+    from {
+        opacity: 0;
+        transform: translateY(-20px);
+    }
+    to {
+        opacity: 1;
+        transform: translateY(0);
+    }
+}
+
+@keyframes ui-bayesian-completionPulse {
+    0%, 100% { transform: scale(1); }
+    50% { transform: scale(1.02); }
+}
+
+@keyframes ui-bayesian-pulse {
+    0%, 100% { box-shadow: var(--shadow-card); }
+    50% { box-shadow: 0 6px 20px rgba(102, 126, 234, 0.2); }
+}
+/* Progress Container */
+:where(.bayesian-analysis-app) .progress-container {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-6);
+}
+
+/* Progress Bar */
+:where(.bayesian-analysis-app) .progress-bar-container {
+    position: relative;
+    background: var(--surface-muted);
+    border-radius: 25px;
+    height: 12px;
+    overflow: hidden;
+}
+
+:where(.bayesian-analysis-app) .progress-bar {
+    height: 100%;
+    border-radius: 25px;
+    transition: width 0.5s ease, background-color 0.3s ease;
+    position: relative;
+    overflow: hidden;
+}
+
+:where(.bayesian-analysis-app) .progress-shine {
+    position: absolute;
+    top: 0;
+    left: -100%;
+    width: 100%;
+    height: 100%;
+    background: linear-gradient(
+        90deg,
+        transparent,
+        rgba(255, 255, 255, 0.4),
+        transparent
+    );
+    animation: ui-bayesian-shine 2s ease-in-out infinite;
+}
+
+@keyframes ui-bayesian-shine {
+    0% { left: -100%; }
+    100% { left: 100%; }
+}
+
+:where(.bayesian-analysis-app) .progress-percentage {
+    position: absolute;
+    top: 50%;
+    right: 1rem;
+    transform: translateY(-50%);
+    font-size: var(--font-size-xs);
+    font-weight: var(--font-weight-semibold);
+    color: var(--text-primary);
+    background: var(--bg-card);
+    transition: background-color 0.3s ease, border-color 0.3s ease, box-shadow 0.3s ease;
+    padding: 0.2rem var(--space-2);
+    border-radius: var(--radius-lg);
+    box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
+}
+
+/* Progress Message */
+:where(.bayesian-analysis-app) .progress-message {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: var(--space-2);
+    text-align: center;
+}
+
+:where(.bayesian-analysis-app) .loading-dots {
+    display: flex;
+    gap: 0.2rem;
+}
+
+:where(.bayesian-analysis-app) .dot {
+    width: 4px;
+    height: 4px;
+    background: var(--color-primary);
+    border-radius: 50%;
+    animation: ui-bayesian-dotPulse 1.4s ease-in-out infinite both;
+}
+
+:where(.bayesian-analysis-app) .dot:nth-child(1) { animation-delay: -0.32s; }
+:where(.bayesian-analysis-app) .dot:nth-child(2) { animation-delay: -0.16s; }
+:where(.bayesian-analysis-app) .dot:nth-child(3) { animation-delay: 0s; }
+
+@keyframes ui-bayesian-dotPulse {
+    0%, 80%, 100% {
+        transform: scale(0.8);
+        opacity: 0.5;
+    }
+    40% {
+        transform: scale(1);
+        opacity: 1;
+    }
+}
+/* Progress Steps */
+:where(.bayesian-analysis-app) .progress-steps {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    position: relative;
+    margin-top: var(--space-4);
+}
+
+:where(.bayesian-analysis-app) .progress-steps::before {
+    content: '';
+    position: absolute;
+    top: 20px;
+    left: 20px;
+    right: 20px;
+    height: 2px;
+    background: var(--surface-muted);
+    z-index: 1;
+}
+
+:where(.bayesian-analysis-app) .step {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: var(--space-2);
+    position: relative;
+    z-index: 2;
+    flex: 1;
+    max-width: 120px;
+}
+
+:where(.bayesian-analysis-app) .step-circle {
+    width: 40px;
+    height: 40px;
+    border-radius: 50%;
+    background: var(--surface-muted);
+    color: var(--text-secondary);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-weight: var(--font-weight-semibold);
+    font-size: var(--font-size-md);
+    transition: all 0.3s ease;
+    border: 3px solid var(--surface-muted);
+}
+
+:where(.bayesian-analysis-app) .step.active .step-circle {
+    background: var(--color-primary);
+    color: var(--text-inverse);
+    border-color: var(--color-primary);
+    animation: ui-bayesian-stepPulse 1s ease-in-out infinite;
+}
+
+:where(.bayesian-analysis-app) .step.completed .step-circle {
+    background: var(--status-success);
+    color: var(--text-inverse);
+    border-color: var(--status-success);
+}
+
+:where(.bayesian-analysis-app) .step.completed .step-circle::before {
+    content: '✓';
+    font-size: var(--font-size-lg);
+}
+
+@keyframes ui-bayesian-stepPulse {
+    0%, 100% { transform: scale(1); }
+    50% { transform: scale(1.1); }
+}
+
+:where(.bayesian-analysis-app) .step-label {
+    font-size: var(--font-size-xs);
+    color: var(--text-secondary);
+    text-align: center;
+    font-weight: var(--font-weight-medium);
+    line-height: 1.2;
+}
+
+:where(.bayesian-analysis-app) .step.active .step-label {
+    color: var(--color-primary);
+    font-weight: var(--font-weight-semibold);
+}
+
+:where(.bayesian-analysis-app) .step.completed .step-label {
+    color: var(--status-success);
+    font-weight: var(--font-weight-semibold);
+}
+/* Completion Indicator */
+:where(.bayesian-analysis-app) .completion-indicator {
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: var(--space-2);
+    animation: ui-bayesian-completionAppear 0.8s ease-out;
+}
+
+@keyframes ui-bayesian-completionAppear {
+    0% {
+        opacity: 0;
+        transform: translate(-50%, -50%) scale(0.5);
+    }
+    100% {
+        opacity: 1;
+        transform: translate(-50%, -50%) scale(1);
+    }
+}
+
+:where(.bayesian-analysis-app) .checkmark {
+    width: 60px;
+    height: 60px;
+    background: var(--status-success);
+    color: var(--text-inverse);
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: var(--font-size-3xl);
+    font-weight: var(--font-weight-bold);
+    animation: ui-bayesian-checkmarkBounce 0.6s ease-out;
+}
+
+@keyframes ui-bayesian-checkmarkBounce {
+    0% { transform: scale(0); }
+    50% { transform: scale(1.2); }
+    100% { transform: scale(1); }
+}
+
+:where(.bayesian-analysis-app) .completion-text {
+    font-size: 1.2rem;
+    font-weight: var(--font-weight-semibold);
+    color: var(--status-success);
+    text-transform: uppercase;
+    letter-spacing: 1px;
+}
+
+/* ========================================
+   8. STATUS MESSAGES COMPONENT STYLES
+   ======================================== */
+
+:where(.bayesian-analysis-app) .status-message {
+    background: var(--bg-card);
+    border-radius: var(--radius-md);
+    box-shadow: var(--shadow-card);
+    margin: var(--space-4) 0;
+    overflow: hidden;
+    position: relative;
+    border-left: 4px solid var(--status-info);
+    transition: all 0.3s ease;
+}
+
+:where(.bayesian-analysis-app) .status-message.fade-in {
+    animation: ui-bayesian-slideInRight 0.3s ease-out;
+}
+
+:where(.bayesian-analysis-app) .status-message.fade-out {
+    animation: ui-bayesian-slideOutRight 0.3s ease-in;
+}
+
+@keyframes ui-bayesian-slideInRight {
+    from {
+        opacity: 0;
+        transform: translateX(100%);
+    }
+    to {
+        opacity: 1;
+        transform: translateX(0);
+    }
+}
+
+@keyframes ui-bayesian-slideOutRight {
+    from {
+        opacity: 1;
+        transform: translateX(0);
+    }
+    to {
+        opacity: 0;
+        transform: translateX(100%);
+    }
+}
+/* Message Types */
+:where(.bayesian-analysis-app) .status-message.success {
+    border-left-color: var(--status-success);
+}
+
+:where(.bayesian-analysis-app) .status-message.warning {
+    border-left-color: var(--status-warning);
+}
+
+:where(.bayesian-analysis-app) .status-message.error {
+    border-left-color: var(--status-danger);
+}
+
+:where(.bayesian-analysis-app) .status-message.info {
+    border-left-color: var(--status-info);
+}
+
+/* Message Content */
+:where(.bayesian-analysis-app) .message-content {
+    display: flex;
+    align-items: center;
+    padding: var(--space-4) var(--space-6);
+    gap: var(--space-4);
+}
+
+:where(.bayesian-analysis-app) .message-icon {
+    font-size: 1.2rem;
+    font-weight: var(--font-weight-bold);
+    flex-shrink: 0;
+}
+
+:where(.bayesian-analysis-app) .message-text {
+    font-weight: var(--font-weight-medium);
+    flex: 1;
+    font-size: var(--font-size-md);
+    color: var(--text-primary);
+    line-height: 1.4;
+}
+
+:where(.bayesian-analysis-app) .message-close {
+    background: none;
+    border: none;
+    color: var(--text-muted);
+    cursor: pointer;
+    font-size: var(--font-size-lg);
+    padding: var(--space-1);
+    border-radius: 50%;
+    transition: all 0.3s ease;
+    flex-shrink: 0;
+    width: 24px;
+    height: 24px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+:where(.bayesian-analysis-app) .message-close:hover {
+    background: var(--surface-muted);
+    color: var(--text-secondary);
+    transform: scale(1.1);
+}
+
+/* Progress Bar for Auto-hide */
+:where(.bayesian-analysis-app) .message-progress {
+    height: 3px;
+    width: 100%;
+    animation: ui-bayesian-progressShrink linear;
+    transform-origin: left;
+}
+
+@keyframes ui-bayesian-progressShrink {
+    from { transform: scaleX(1); }
+    to { transform: scaleX(0); }
+}
+
+/* Multi-message Container */
+:where(.bayesian-analysis-app) .status-messages-container {
+    position: fixed;
+    top: 80px;
+    right: 20px;
+    z-index: 1000;
+    max-width: 400px;
+    width: 100%;
+    pointer-events: none;
+}
+
+:where(.bayesian-analysis-app) .status-messages-container .status-message {
+    pointer-events: all;
+    margin-bottom: var(--space-2);
+}
+/* Enhanced Message Variants */
+:where(.bayesian-analysis-app) .status-message.success .message-content {
+    background: linear-gradient(135deg, #d4edda 0%, #c3e6cb 100%);
+}
+
+:where(.bayesian-analysis-app) .status-message.warning .message-content {
+    background: linear-gradient(135deg, var(--alert-warning-bg) 0%, var(--alert-warning-border) 100%);
+}
+
+:where(.bayesian-analysis-app) .status-message.error .message-content {
+    background: linear-gradient(135deg, #f8d7da 0%, #f5c6cb 100%);
+}
+
+:where(.bayesian-analysis-app) .status-message.info .message-content {
+    background: linear-gradient(135deg, #d1ecf1 0%, #bee5eb 100%);
+}
+
+/* Hover Effects */
+:where(.bayesian-analysis-app) .status-message:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 6px 20px rgba(0, 0, 0, 0.2);
+}
+
+:where(.bayesian-analysis-app) .status-message:hover .message-progress {
+    animation-play-state: paused;
+}
+
+/* ========================================
+   9. HELP SYSTEM COMPONENT STYLES
+   ======================================== */
+
+@keyframes ui-bayesian-overlayFadeIn {
+    from { opacity: 0; }
+    to { opacity: 1; }
+}
+
+:where(.bayesian-analysis-app) .help-system {
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+}
+
+@keyframes ui-bayesian-helpSystemSlideIn {
+    from {
+        opacity: 0;
+        transform: scale(0.9) translateY(-20px);
+    }
+    to {
+        opacity: 1;
+        transform: scale(1) translateY(0);
+    }
+}
+/* Help Header */
+:where(.bayesian-analysis-app) .help-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+}
+
+:where(.bayesian-analysis-app) .help-header h2 {
+    margin: 0;
+}
+
+/* Help Content */
+:where(.bayesian-analysis-app) .help-content {
+    display: flex;
+    flex: 1;
+    overflow: hidden;
+}
+
+/* Help Sidebar */
+:where(.bayesian-analysis-app) .help-sidebar {
+    width: 300px;
+    background: var(--surface-muted);
+    border-right: 1px solid var(--border-default);
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+}
+
+:where(.bayesian-analysis-app) .search-section {
+    padding: var(--space-4);
+    border-bottom: 1px solid var(--border-default);
+}
+
+:where(.bayesian-analysis-app) .search-input {
+    width: 100%;
+}
+
+:where(.bayesian-analysis-app) .search-input:focus {
+    outline: none;
+    border-color: var(--color-primary);
+}
+
+:where(.bayesian-analysis-app) .topics-list {
+    flex: 1;
+    overflow-y: auto;
+    padding: var(--space-4) 0;
+}
+
+:where(.bayesian-analysis-app) .topics-list h3 {
+    margin: 0 0 var(--space-4) 0;
+    padding: 0 var(--space-4);
+    font-size: var(--font-size-md);
+    font-weight: var(--font-weight-semibold);
+    color: var(--text-secondary);
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+}
+
+:where(.bayesian-analysis-app) .topic-button {
+    text-align: left;
+    border-left: 3px solid transparent;
+}
+
+:where(.bayesian-analysis-app) .topic-button.active {
+    border-left-color: var(--color-primary);
+}
+/* Help Main Content */
+:where(.bayesian-analysis-app) .help-main {
+    flex: 1;
+    overflow-y: auto;
+    background: var(--bg-card);
+    transition: background-color 0.3s ease, border-color 0.3s ease, box-shadow 0.3s ease;
+}
+
+:where(.bayesian-analysis-app) .help-article {
+    padding: var(--space-8);
+    max-width: 800px;
+    line-height: 1.6;
+}
+
+:where(.bayesian-analysis-app) .help-article h1 {
+    margin: 0 0 var(--space-6) 0;
+    font-size: var(--font-size-3xl);
+    font-weight: var(--font-weight-bold);
+    color: var(--text-primary);
+    border-bottom: 3px solid var(--brand-primary);
+    padding-bottom: var(--space-2);
+}
+
+:where(.bayesian-analysis-app) .help-text h3 {
+    margin: var(--space-8) 0 var(--space-4) 0;
+    font-size: 1.3rem;
+    font-weight: var(--font-weight-semibold);
+    color: var(--text-primary);
+}
+
+:where(.bayesian-analysis-app) .help-text h4 {
+    margin: var(--space-6) 0 var(--space-3) 0;
+    font-size: 1.1rem;
+    font-weight: var(--font-weight-semibold);
+    color: var(--color-primary);
+}
+
+:where(.bayesian-analysis-app) .help-text h5 {
+    margin: var(--space-4) 0 var(--space-2) 0;
+    font-size: var(--font-size-lg);
+    font-weight: var(--font-weight-semibold);
+    color: var(--text-secondary);
+}
+
+:where(.bayesian-analysis-app) .help-text p {
+    margin: 0 0 var(--space-4) 0;
+    color: var(--text-secondary);
+}
+
+:where(.bayesian-analysis-app) .help-text ul,
+:where(.bayesian-analysis-app) .help-text ol {
+    margin: 0 0 var(--space-4) 0;
+    padding-left: 2rem;
+}
+
+:where(.bayesian-analysis-app) .help-text li {
+    margin-bottom: var(--space-2);
+    color: var(--text-secondary);
+}
+
+:where(.bayesian-analysis-app) .help-text li strong {
+    color: var(--text-primary);
+}
+
+:where(.bayesian-analysis-app) .help-text code {
+    background: var(--surface-muted);
+    border: 1px solid var(--surface-muted);
+    border-radius: var(--radius-sm);
+    padding: 0.2rem 0.4rem;
+    font-family: 'Courier New', monospace;
+    font-size: 0.9em;
+    color: #e83e8c;
+}
+
+:where(.bayesian-analysis-app) .help-text span[style*="color"] {
+    font-weight: var(--font-weight-semibold);
+    margin-right: 0.5rem;
+}
+
+/* Help Footer */
+
+:where(.bayesian-analysis-app) .help-navigation {
+    display: flex;
+    gap: var(--space-4);
+    justify-content: center;
+}
+
+:where(.bayesian-analysis-app) .nav-button {
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    gap: var(--space-2);
+}
+/* Scrollbar Styling for Help System */
+:where(.bayesian-analysis-app) .topics-list::-webkit-scrollbar,
+:where(.bayesian-analysis-app) .help-main::-webkit-scrollbar {
+    width: 6px;
+}
+
+:where(.bayesian-analysis-app) .topics-list::-webkit-scrollbar-track,
+:where(.bayesian-analysis-app) .help-main::-webkit-scrollbar-track {
+    background: var(--surface-muted);
+}
+
+:where(.bayesian-analysis-app) .topics-list::-webkit-scrollbar-thumb,
+:where(.bayesian-analysis-app) .help-main::-webkit-scrollbar-thumb {
+    background: #c1c1c1;
+    border-radius: var(--radius-sm);
+}
+
+:where(.bayesian-analysis-app) .topics-list::-webkit-scrollbar-thumb:hover,
+:where(.bayesian-analysis-app) .help-main::-webkit-scrollbar-thumb:hover {
+    background: #a8a8a8;
+}
+
+/* ========================================
+   10. QUALITY REPORTS COMPONENT STYLES
+   ======================================== */
+
+:where(.bayesian-analysis-app) .quality-reports {
+    background: var(--bg-card);
+    transition: background-color 0.3s ease, border-color 0.3s ease, box-shadow 0.3s ease;
+    border-radius: var(--radius-md);
+    border: 1px solid var(--border-color);
+    overflow: hidden;
+}
+
+/* Reports Header */
+:where(.bayesian-analysis-app) .reports-header {
+    background: var(--bg-tertiary);
+    padding: var(--space-4) var(--space-6);
+    border-bottom: 1px solid var(--border-color);
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+}
+
+:where(.bayesian-analysis-app) .reports-header h3 {
+    margin: 0;
+    font-size: 1.2rem;
+    font-weight: var(--font-weight-semibold);
+    color: var(--text-primary);
+}
+
+/* Reports Content */
+:where(.bayesian-analysis-app) .reports-content {
+    padding: var(--space-6);
+}
+
+/* Sections */
+:where(.bayesian-analysis-app) .report-type-section,
+:where(.bayesian-analysis-app) .report-generation-section,
+:where(.bayesian-analysis-app) .history-export-section,
+:where(.bayesian-analysis-app) .report-templates-section {
+    margin-bottom: var(--space-8);
+}
+
+:where(.bayesian-analysis-app) .report-type-section:last-child,
+:where(.bayesian-analysis-app) .report-generation-section:last-child,
+:where(.bayesian-analysis-app) .history-export-section:last-child,
+:where(.bayesian-analysis-app) .report-templates-section:last-child {
+    margin-bottom: 0;
+}
+
+:where(.bayesian-analysis-app) .report-type-section h4,
+:where(.bayesian-analysis-app) .report-generation-section h4,
+:where(.bayesian-analysis-app) .history-export-section h4,
+:where(.bayesian-analysis-app) .report-templates-section h4 {
+    margin: 0 0 var(--space-4) 0;
+    font-size: 1.1rem;
+    font-weight: var(--font-weight-semibold);
+    color: var(--text-primary);
+    border-bottom: 1px solid var(--border-color);
+    padding-bottom: var(--space-2);
+}
+/* Report Type Selector */
+:where(.bayesian-analysis-app) .report-type-selector {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-4);
+}
+
+:where(.bayesian-analysis-app) .radio-option {
+    align-items: center;
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-1);
+    cursor: pointer;
+    padding: var(--space-4);
+    border: 2px solid var(--border-color);
+    border-radius: var(--radius-md);
+    background: var(--bg-card);
+    transition: background-color 0.3s ease, border-color 0.3s ease, box-shadow 0.3s ease;
+}
+
+:where(.bayesian-analysis-app) .radio-option:hover {
+    border-color: var(--color-success);
+    background: var(--bg-hover);
+}
+
+:where(.bayesian-analysis-app) .radio-option input[type="radio"] {
+    margin: 0;
+    cursor: pointer;
+}
+
+:where(.bayesian-analysis-app) .radio-option:has(input[type="radio"]:checked) {
+    border-color: var(--color-success);
+    background: rgba(45, 143, 45, 0.1);
+}
+
+:where(.bayesian-analysis-app) .radio-option span {
+    transition: all 0.3s ease;
+    font-size: var(--font-size-lg);
+    font-weight: var(--font-weight-semibold);
+    color: var(--text-primary);
+    display: flex;
+    align-items: center;
+    gap: var(--space-2);
+}
+
+:where(.bayesian-analysis-app) .radio-option small {
+    font-size: var(--font-size-sm);
+    color: var(--text-secondary);
+    font-weight: var(--font-weight-normal);
+    margin-left: 1.5rem;
+}
+
+/* Generation Controls */
+:where(.bayesian-analysis-app) .generation-controls,
+:where(.bayesian-analysis-app) .export-controls {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-4);
+}
+
+:where(.bayesian-analysis-app) .generate-button,
+:where(.bayesian-analysis-app) .export-button {
+    align-self: flex-start;
+}
+/* Report Info */
+:where(.bayesian-analysis-app) .report-info,
+:where(.bayesian-analysis-app) .export-info {
+    background: var(--bg-tertiary);
+    border-radius: var(--radius-sm);
+    padding: var(--space-4);
+    border: 1px solid var(--border-color);
+}
+
+:where(.bayesian-analysis-app) .info-item {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: var(--space-1) 0;
+    font-size: var(--font-size-md);
+}
+
+:where(.bayesian-analysis-app) .info-item:not(:last-child) {
+    border-bottom: 1px solid var(--border-color);
+    padding-bottom: var(--space-2);
+    margin-bottom: var(--space-2);
+}
+
+:where(.bayesian-analysis-app) .info-label {
+    font-weight: var(--font-weight-medium);
+    color: var(--text-secondary);
+}
+
+:where(.bayesian-analysis-app) .info-value {
+    font-weight: var(--font-weight-semibold);
+    color: var(--text-primary);
+}
+
+:where(.bayesian-analysis-app) .export-info {
+    text-align: center;
+    font-size: var(--font-size-md);
+    color: var(--text-secondary);
+}
+
+/* Report Templates */
+:where(.bayesian-analysis-app) .templates-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+    gap: var(--space-4);
+}
+
+:where(.bayesian-analysis-app) .template-card {
+    background: var(--bg-card);
+    border: 1px solid var(--border-color);
+    border-radius: var(--radius-lg);
+    padding: var(--space-4);
+    text-align: center;
+    transition: all 0.3s ease;
+    cursor: pointer;
+}
+
+:where(.bayesian-analysis-app) .template-card:hover {
+    border-color: var(--color-success);
+    box-shadow: 0 2px 8px rgba(45, 143, 45, 0.1);
+    transform: translateY(-2px);
+}
+
+:where(.bayesian-analysis-app) .template-icon {
+    font-size: var(--font-size-3xl);
+    margin-bottom: var(--space-2);
+}
+
+:where(.bayesian-analysis-app) .template-info h5 {
+    margin: 0 0 var(--space-2) 0;
+    font-size: var(--font-size-lg);
+    font-weight: var(--font-weight-semibold);
+    color: var(--text-primary);
+}
+
+:where(.bayesian-analysis-app) .template-info p {
+    margin: 0;
+    font-size: var(--font-size-sm);
+    color: var(--text-secondary);
+    line-height: 1.4;
+}
+
+/* ========================================
+   11. COMPARISON REPORTS COMPONENT STYLES
+   ======================================== */
+
+:where(.bayesian-analysis-app) .comparison-reports {
+    background: var(--bg-card);
+    transition: background-color 0.3s ease, border-color 0.3s ease, box-shadow 0.3s ease;
+    border-radius: var(--radius-md);
+    border: 1px solid var(--border-color);
+    overflow: hidden;
+}
+/* Report Options */
+:where(.bayesian-analysis-app) .report-options-section,
+:where(.bayesian-analysis-app) .search-export-section {
+    margin-bottom: var(--space-8);
+}
+
+:where(.bayesian-analysis-app) .report-options-section:last-child,
+:where(.bayesian-analysis-app) .search-export-section:last-child {
+    margin-bottom: 0;
+}
+
+:where(.bayesian-analysis-app) .report-options-section h4,
+:where(.bayesian-analysis-app) .search-export-section h4 {
+    margin: 0 0 var(--space-4) 0;
+    font-size: 1.1rem;
+    font-weight: var(--font-weight-semibold);
+    color: var(--text-primary);
+    border-bottom: 1px solid var(--border-color);
+    padding-bottom: var(--space-2);
+}
+
+:where(.bayesian-analysis-app) .options-list {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-3);
+}
+
+:where(.bayesian-analysis-app) .checkbox-option {
+    display: flex;
+    align-items: center;
+    gap: var(--space-2);
+    cursor: pointer;
+    padding: var(--space-3);
+    border: 1px solid var(--border-color);
+    border-radius: var(--radius-sm);
+    background: var(--bg-card);
+    transition: background-color 0.3s ease, border-color 0.3s ease, box-shadow 0.3s ease;
+}
+
+:where(.bayesian-analysis-app) .checkbox-option:hover {
+    border-color: var(--color-primary);
+    background: var(--bg-hover);
+}
+
+:where(.bayesian-analysis-app) .checkbox-option input[type="checkbox"] {
+    margin: 0;
+    cursor: pointer;
+}
+
+:where(.bayesian-analysis-app) .checkbox-option:has(input[type="checkbox"]:checked) {
+    border-color: var(--color-primary);
+    background: rgba(102, 126, 234, 0.1);
+}
+
+:where(.bayesian-analysis-app) .checkbox-option span {
+    font-size: var(--font-size-md);
+    color: var(--text-primary);
+}
+
+/* Loading States */
+:where(.bayesian-analysis-app) .generate-button:disabled,
+:where(.bayesian-analysis-app) .export-button:disabled {
+    position: relative;
+    overflow: hidden;
+}
+
+:where(.bayesian-analysis-app) .generate-button:disabled::after,
+:where(.bayesian-analysis-app) .export-button:disabled::after {
+    content: '';
+    position: absolute;
+    top: 0;
+    left: -100%;
+    animation: ui-bayesian-buttonLoading 1.5s ease-in-out infinite;
+}
+
+@keyframes ui-bayesian-buttonLoading {
+    0% { left: -100%; }
+    100% { left: 100%; }
+}
+/* ========================================
+   RESPONSIVE DESIGN - MOBILE FIRST
+   ======================================== */
+
+/* Responsive Design for App */
+@media (max-width: 768px) {
+    :where(.bayesian-analysis-app) .bayesian-app-header {
+        padding: var(--space-4);
+        flex-direction: column;
+        gap: var(--space-4);
+        text-align: center;
+    }
+
+    :where(.bayesian-analysis-app) .bayesian-app-header h1 {
+        font-size: 1.4rem;
+    }
+
+    :where(.bayesian-analysis-app) .main-navigation {
+        flex-direction: column;
+    }
+
+    :where(.bayesian-analysis-app) .nav-tab {
+        text-align: center;
+    }
+
+    :where(.bayesian-analysis-app) .main-content {
+        padding: var(--space-6);
+    }
+
+    /* Sample Selector Responsive */
+    :where(.bayesian-analysis-app) .sample-selector {
+        max-width: 100%;
+    }
+
+    :where(.bayesian-analysis-app) .sample-details {
+        flex-direction: column;
+        align-items: flex-start;
+        gap: var(--space-2);
+    }
+
+    :where(.bayesian-analysis-app) .sample-header {
+        flex-direction: column;
+        align-items: flex-start;
+        gap: var(--space-1);
+    }
+
+    /* Panel Responsive */
+    :where(.bayesian-analysis-app) .panel-header {
+        padding: var(--space-4);
+        flex-direction: column;
+        gap: var(--space-4);
+        text-align: center;
+    }
+
+    :where(.bayesian-analysis-app) .panel-header h2 {
+        font-size: 1.2rem;
+    }
+
+    :where(.bayesian-analysis-app) .panel-content {
+        padding: var(--space-4);
+    }
+
+    :where(.bayesian-analysis-app) .control-buttons {
+        flex-direction: column;
+    }
+
+    :where(.bayesian-analysis-app) .primary-button,
+:where(.bayesian-analysis-app) .secondary-button {
+        text-align: center;
+    }
+
+    :where(.bayesian-analysis-app) .history-item {
+        flex-direction: column;
+        align-items: flex-start;
+        gap: var(--space-2);
+    }
+
+    :where(.bayesian-analysis-app) .history-item > * {
+        width: 100%;
+    }
+
+    :where(.bayesian-analysis-app) .history-date {
+        text-align: right;
+    }
+
+    /* Results Responsive */
+    :where(.bayesian-analysis-app) .results-grid {
+        grid-template-columns: 1fr;
+        gap: var(--space-4);
+        padding: var(--space-4);
+    }
+
+    :where(.bayesian-analysis-app) .results-header {
+        padding: var(--space-4);
+    }
+
+    :where(.bayesian-analysis-app) .results-header h3 {
+        font-size: 1.2rem;
+    }
+
+    :where(.bayesian-analysis-app) .results-header .sample-info {
+        flex-direction: column;
+        gap: var(--space-4);
+        align-items: flex-start;
+    }
+
+    :where(.bayesian-analysis-app) .results-header .sample-identifiers {
+        flex-direction: column;
+        align-items: flex-start;
+        gap: var(--space-2);
+        width: 100%;
+    }
+
+    :where(.bayesian-analysis-app) .results-header .sample-item {
+        font-size: var(--font-size-sm);
+    }
+
+    :where(.bayesian-analysis-app) .results-header .sample-icon {
+        font-size: var(--font-size-md);
+    }
+
+    :where(.bayesian-analysis-app) .results-header .sample-value {
+        font-size: var(--font-size-sm);
+    }
+
+    :where(.bayesian-analysis-app) .results-header .sample-separator {
+        display: none; /* Hide separators on mobile, use vertical layout */
+    }
+
+    :where(.bayesian-analysis-app) .analysis-metadata {
+        align-items: flex-start;
+        width: 100%;
+    }
+
+    :where(.bayesian-analysis-app) .analysis-date {
+        font-size: var(--font-size-xs);
+    }
+
+    :where(.bayesian-analysis-app) .card-content {
+        padding: var(--space-4);
+    }
+
+    :where(.bayesian-analysis-app) .metric-value {
+        font-size: var(--font-size-3xl); /* Изменено: сохраняем 2rem вместо 1.5rem */
+    }
+
+    :where(.bayesian-analysis-app) .metric-pair {
+        flex-direction: column;
+        gap: var(--space-4);
+    }
+}
+@media (max-width: 480px) {
+    :where(.bayesian-analysis-app) .bayesian-app-header h1 {
+        font-size: 1.2rem;
+    }
+
+    :where(.bayesian-analysis-app) .panel-header {
+        padding: var(--space-3);
+    }
+
+    :where(.bayesian-analysis-app) .panel-header h2 {
+        font-size: 1.1rem;
+    }
+
+    :where(.bayesian-analysis-app) .panel-content {
+        padding: var(--space-3);
+    }
+
+    :where(.bayesian-analysis-app) .sample-selection-section h3,
+:where(.bayesian-analysis-app) .history-section h3 {
+        font-size: 1.1rem;
+    }
+
+    :where(.bayesian-analysis-app) .history-item {
+        padding: var(--space-3);
+    }
+
+    :where(.bayesian-analysis-app) .history-category {
+        font-size: 0.7rem;
+        padding: 0.2rem var(--space-2);
+    }
+
+    :where(.bayesian-analysis-app) .card-header {
+        padding: var(--space-3) var(--space-4);
+    }
+
+    :where(.bayesian-analysis-app) .card-header h4 {
+        font-size: var(--font-size-lg);
+    }
+
+    :where(.bayesian-analysis-app) .metric-value {
+        font-size: var(--font-size-3xl); /* Изменено: сохраняем 2rem вместо 1.3rem */
+    }
+
+    :where(.bayesian-analysis-app) .detail-row {
+        flex-direction: column;
+        align-items: flex-start;
+        gap: var(--space-1);
+    }
+
+    /* Progress Responsive */
+    :where(.bayesian-analysis-app) .progress-indicator {
+        padding: var(--space-4);
+    }
+
+    :where(.bayesian-analysis-app) .progress-steps {
+        gap: var(--space-2);
+    }
+
+    :where(.bayesian-analysis-app) .step {
+        max-width: 60px;
+    }
+
+    :where(.bayesian-analysis-app) .step-circle {
+        width: 30px;
+        height: 30px;
+        font-size: 0.7rem;
+    }
+
+    :where(.bayesian-analysis-app) .step-label {
+        font-size: 0.6rem;
+    }
+
+    /* Status Messages Responsive */
+    :where(.bayesian-analysis-app) .status-messages-container {
+        top: 50px;
+        right: 5px;
+        left: 5px;
+    }
+
+    :where(.bayesian-analysis-app) .message-content {
+        padding: var(--space-2) var(--space-3);
+        gap: var(--space-2);
+    }
+
+    :where(.bayesian-analysis-app) .message-text {
+        font-size: var(--font-size-sm);
+    }
+
+    :where(.bayesian-analysis-app) .message-close {
+        width: 20px;
+        height: 20px;
+        font-size: var(--font-size-md);
+    }
+}
+/* ========================================
+   ACCESSIBILITY & HIGH CONTRAST
+   ======================================== */
+
+/* Focus States for Accessibility */
+:where(.bayesian-analysis-app) .primary-button:focus,
+:where(.bayesian-analysis-app) .secondary-button:focus,
+:where(.bayesian-analysis-app) .panel-controls .help-button:focus,
+:where(.bayesian-analysis-app) .radio-option:focus-within,
+:where(.bayesian-analysis-app) .checkbox-option:focus-within,
+:where(.bayesian-analysis-app) .template-card:focus {
+    outline: 3px solid rgba(102, 126, 234, 0.5);
+    outline-offset: 2px;
+}
+
+/* Accessibility - Reduced Motion */
+@media (prefers-reduced-motion: reduce) {
+
+    :where(.bayesian-analysis-app) .status-message.fade-in,
+:where(.bayesian-analysis-app) .status-message.fade-out {
+        animation: none;
+    }
+}
+
+/* High Contrast Mode */
+@media (prefers-contrast: high) {
+    :where(.bayesian-analysis-app) .quality-control-panel,
+:where(.bayesian-analysis-app) .genotype-comparison-panel,
+:where(.bayesian-analysis-app) .quality-reports,
+:where(.bayesian-analysis-app) .comparison-reports {
+        border: 2px solid var(--text-primary);
+    }
+
+    :where(.bayesian-analysis-app) .panel-header {
+        background: var(--text-primary);
+        color: var(--text-inverse);
+    }
+
+    :where(.bayesian-analysis-app) .radio-option,
+:where(.bayesian-analysis-app) .checkbox-option {
+        border-color: var(--text-primary);
+    }
+
+    :where(.bayesian-analysis-app) .radio-option:has(input[type="radio"]:checked),
+:where(.bayesian-analysis-app) .checkbox-option:has(input[type="checkbox"]:checked) {
+        background: var(--text-primary);
+        color: var(--text-inverse);
+    }
+
+    :where(.bayesian-analysis-app) .radio-option:has(input[type="radio"]:checked) span,
+:where(.bayesian-analysis-app) .checkbox-option:has(input[type="checkbox"]:checked) span {
+        color: var(--text-inverse);
+    }
+
+    :where(.bayesian-analysis-app) .template-card:hover {
+        border-color: var(--text-primary);
+        background: var(--surface-muted);
+    }
+
+    :where(.bayesian-analysis-app) .help-sidebar {
+        border-right-color: var(--text-primary);
+    }
+
+    :where(.bayesian-analysis-app) .help-text code {
+        background: var(--text-primary);
+        color: var(--text-inverse);
+        border-color: var(--text-primary);
+    }
+
+    :where(.bayesian-analysis-app) .status-message {
+        border-width: 2px;
+        border-style: solid;
+    }
+
+    :where(.bayesian-analysis-app) .status-message.success {
+        border-color: var(--status-success);
+        background: #e8f5e8;
+    }
+
+    :where(.bayesian-analysis-app) .status-message.warning {
+        border-color: var(--status-warning);
+        background: #fff8e1;
+    }
+
+    :where(.bayesian-analysis-app) .status-message.error {
+        border-color: var(--status-danger);
+        background: #ffeaea;
+    }
+
+    :where(.bayesian-analysis-app) .status-message.info {
+        border-color: var(--status-info);
+        background: #e3f2fd;
+    }
+
+    :where(.bayesian-analysis-app) .message-text {
+        color: var(--text-primary);
+        font-weight: var(--font-weight-medium);
+    }
+}
+
+/* ========================================
+   END OF CONSOLIDATED STYLES
+   ========================================
+
+   ИТОГОВАЯ ИНФОРМАЦИЯ О ТЕМАХ:
+
+   1. АДАПТИВНЫЕ ЭЛЕМЕНТЫ (работают с обеими темами):
+      - Все фоны через var(--bg-*)
+      - Все границы через var(--border-color)
+      - Все тени через var(--shadow-card)
+      - Основные цвета через var(--color-*)
+      - Алерты через var(--alert-*)
+      - ВСЕ тексты через var(--text-primary) и var(--text-secondary)
+
+   2. СТАТИЧНЫЕ ЭЛЕМЕНТЫ (не зависят от темы):
+      - Белый текст на navbar (для контраста)
+      - Основные цвета кнопок (синий, зеленый, красный)
+      - Некоторые специальные цвета для индикаторов
+
+   3. ПРИНУДИТЕЛЬНЫЕ ЭЛЕМЕНТЫ (с !important для приоритета):
+      ✅ ВСЕ АДАПТИРОВАНЫ! Теперь используют var(--text-primary) !important
+      - Текст в блоке "Результаты анализа качества"
+      - Заголовки карточек результатов
+      - Метки метрик и детали строк
+      - Заголовки рекомендаций
+      - Элементы списков рекомендаций
+      - ID дубликатов
+
+   ✅ ПОЛНАЯ СОВМЕСТИМОСТЬ: Все элементы теперь корректно работают
+   как в светлой, так и в темной теме!
+   ======================================== */

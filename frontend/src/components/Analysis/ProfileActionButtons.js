@@ -1,5 +1,4 @@
 import React, { useState } from 'react';
-import './ProfileActionButtons.css';
 
 /**
  * Кнопка деактивации профиля (стиль как у ThemeSwitcher)
@@ -10,7 +9,7 @@ export const DeactivateButton = ({ profile, onToggle, disabled }) => {
 
   const handleClick = async (e) => {
     e.stopPropagation(); // Не выбирать строку при клике
-    
+
     if (loading || disabled) return;
 
     // Проверка наличия ID профиля
@@ -28,7 +27,7 @@ export const DeactivateButton = ({ profile, onToggle, disabled }) => {
 
   return (
     <button
-      className={`profile-action-btn deactivate-btn ${!isActive ? 'inactive' : ''} ${loading ? 'loading' : ''}`}
+      className={`profile-action-btn btn btn-secondary btn-analysis-icon deactivate-btn ${!isActive ? 'inactive' : ''} ${loading ? 'loading' : ''}`}
       onClick={handleClick}
       disabled={loading || disabled}
       title={isActive ? 'Деактивировать профиль' : 'Активировать профиль'}
@@ -59,7 +58,7 @@ export const CommentIcon = ({ profile, onClick, disabled }) => {
 
   return (
     <button
-      className={`profile-action-btn comment-btn ${hasComment ? 'has-comment' : ''}`}
+      className={`profile-action-btn btn btn-secondary btn-analysis-icon comment-btn ${hasComment ? 'has-comment' : ''}`}
       onClick={handleClick}
       disabled={disabled}
       title={hasComment ? 'Редактировать комментарий' : 'Добавить комментарий'}
@@ -77,16 +76,16 @@ const ProfileActionButtons = ({ profile, onToggleActive, onOpenComment, onDeacti
   // Поддерживаем оба варианта названий для обратной совместимости
   const handleToggle = onToggleActive || onDeactivate;
   const handleComment = onOpenComment || onComment;
-  
+
   return (
     <div className="profile-actions" onClick={(e) => e.stopPropagation()}>
-      <DeactivateButton 
-        profile={profile} 
+      <DeactivateButton
+        profile={profile}
         onToggle={handleToggle}
         disabled={disabled}
       />
-      <CommentIcon 
-        profile={profile} 
+      <CommentIcon
+        profile={profile}
         onClick={handleComment}
         disabled={disabled}
       />

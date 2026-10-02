@@ -1,12 +1,11 @@
 /**
  * Comparison Results Component
- * 
+ *
  * Displays genotype comparison results with detailed locus-by-locus tables
  * Requirements: 9.3 - Detailed comparison tables by locus
  */
 
 import React, { useState, useCallback } from 'react';
-import './BayesianAnalysis.css';
 
 const ComparisonResults = ({ results, onShowHelp }) => {
     const [showDetailedTable, setShowDetailedTable] = useState(false);
@@ -63,12 +62,12 @@ const ComparisonResults = ({ results, onShowHelp }) => {
         const sorted = [...results.locusComparisons].sort((a, b) => {
             let aValue = a[sortBy];
             let bValue = b[sortBy];
-            
+
             if (sortBy === 'locusLR') {
                 aValue = parseFloat(aValue) || 0;
                 bValue = parseFloat(bValue) || 0;
             }
-            
+
             if (sortOrder === 'asc') {
                 return aValue > bValue ? 1 : -1;
             } else {
@@ -115,7 +114,7 @@ const ComparisonResults = ({ results, onShowHelp }) => {
                         {results.sample1Id || 'N/A'} vs {results.sample2Id || 'N/A'}
                     </span>
                     <span className="analysis-date">
-                        {results.calculationMetadata?.timestamp 
+                        {results.calculationMetadata?.timestamp
                             ? new Date(results.calculationMetadata.timestamp).toLocaleString('ru-RU')
                             : 'N/A'}
                     </span>
@@ -127,8 +126,8 @@ const ComparisonResults = ({ results, onShowHelp }) => {
                 <div className="summary-card">
                     <div className="card-header">
                         <h4>Общая статистика совпадений</h4>
-                        <button 
-                            className="help-button"
+                        <button
+                            className="help-button btn btn-secondary btn-icon"
                             onClick={() => onShowHelp('match-statistics')}
                             title="Справка по статистике"
                         >
@@ -174,8 +173,8 @@ const ComparisonResults = ({ results, onShowHelp }) => {
                 <div className="summary-card">
                     <div className="card-header">
                         <h4>Статистическая значимость</h4>
-                        <button 
-                            className="help-button"
+                        <button
+                            className="help-button btn btn-secondary btn-icon"
                             onClick={() => onShowHelp('likelihood-ratio')}
                             title="Справка по LR"
                         >
@@ -198,7 +197,7 @@ const ComparisonResults = ({ results, onShowHelp }) => {
                             </div>
                             <div className="significance-level">
                                 <span className="metric-label">Уровень значимости:</span>
-                                <span 
+                                <span
                                     className="metric-value"
                                     style={{ color: getSignificanceColor(results.significance) }}
                                 >
@@ -255,8 +254,8 @@ const ComparisonResults = ({ results, onShowHelp }) => {
             <div className="detailed-comparison-section">
                 <div className="section-header">
                     <h4>Детальное сравнение по локусам</h4>
-                    <button 
-                        className="toggle-button"
+                    <button
+                        className="toggle-button btn btn-secondary"
                         onClick={toggleDetailedTable}
                     >
                         {showDetailedTable ? 'Скрыть таблицу' : 'Показать таблицу'}
@@ -268,7 +267,7 @@ const ComparisonResults = ({ results, onShowHelp }) => {
                         <table className="comparison-table">
                             <thead>
                                 <tr>
-                                    <th 
+                                    <th
                                         className={`sortable ${sortBy === 'locusName' ? sortOrder : ''}`}
                                         onClick={() => handleSort('locusName')}
                                     >
@@ -276,13 +275,13 @@ const ComparisonResults = ({ results, onShowHelp }) => {
                                     </th>
                                     <th>Образец 1</th>
                                     <th>Образец 2</th>
-                                    <th 
+                                    <th
                                         className={`sortable ${sortBy === 'matchType' ? sortOrder : ''}`}
                                         onClick={() => handleSort('matchType')}
                                     >
                                         Тип совпадения
                                     </th>
-                                    <th 
+                                    <th
                                         className={`sortable ${sortBy === 'locusLR' ? sortOrder : ''}`}
                                         onClick={() => handleSort('locusLR')}
                                     >
@@ -300,15 +299,15 @@ const ComparisonResults = ({ results, onShowHelp }) => {
                                         <td className="alleles">
                                             {comparison.sample2Alleles?.join('/') || 'N/A'}
                                         </td>
-                                        <td 
+                                        <td
                                             className="match-type"
                                             style={{ color: getMatchColor(comparison.matchType) }}
                                         >
                                             {comparison.matchType || 'N/A'}
                                         </td>
                                         <td className="lr-value">
-                                            {comparison.locusLR && comparison.locusLR > 0 ? 
-                                                formatScientific(comparison.locusLR) : 
+                                            {comparison.locusLR && comparison.locusLR > 0 ?
+                                                formatScientific(comparison.locusLR) :
                                                 '—'
                                             }
                                         </td>
@@ -325,8 +324,8 @@ const ComparisonResults = ({ results, onShowHelp }) => {
                 <div className="search-results-section">
                     <div className="section-header">
                         <h4>Результаты поиска в базе данных</h4>
-                        <button 
-                            className="help-button"
+                        <button
+                            className="help-button btn btn-secondary btn-icon"
                             onClick={() => onShowHelp('database-search')}
                             title="Справка по поиску в БД"
                         >
@@ -341,9 +340,9 @@ const ComparisonResults = ({ results, onShowHelp }) => {
                                         <span className="result-sample" title={result.targetSampleId}>
                                             {result.targetSampleId || 'N/A'}
                                         </span>
-                                        <span 
+                                        <span
                                             className="result-match"
-                                            style={{ color: (result.matchPercentage || 0) > 90 ? '#2d8f2d' : 
+                                            style={{ color: (result.matchPercentage || 0) > 90 ? '#2d8f2d' :
                                                            (result.matchPercentage || 0) > 70 ? '#f39c12' : '#e74c3c' }}
                                         >
                                             {formatPercentage(result.matchPercentage)}

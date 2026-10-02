@@ -16,6 +16,7 @@ node_modules
 !/scripts/install.sh
 !/scripts/update_server.sh
 !/scripts/bootstrap-admin.js
+!/scripts/check-ui.js
 *.backup*.js
 npm-debug.log
 .git

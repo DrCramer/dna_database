@@ -1,12 +1,11 @@
 /**
  * Quality Results Component
- * 
+ *
  * Displays quality analysis results with color coding
  * Requirements: 9.2 - Color coding for results (green/yellow/red/gray)
  */
 
 import React, { useCallback } from 'react';
-import './BayesianAnalysis.css';
 
 const QualityResults = ({ results, onShowHelp }) => {
     // Get color from results or fallback to classification-based color
@@ -109,8 +108,8 @@ const QualityResults = ({ results, onShowHelp }) => {
                 <div className="result-card">
                     <div className="card-header">
                         <h4>Индекс полноты профиля (PCI)</h4>
-                        <button 
-                            className="help-button"
+                        <button
+                            className="help-button btn btn-secondary btn-icon"
                             onClick={() => onShowHelp('pci')}
                             title="Справка по PCI"
                         >
@@ -119,13 +118,13 @@ const QualityResults = ({ results, onShowHelp }) => {
                     </div>
                     <div className="card-content">
                         <div className="main-metric">
-                            <span 
+                            <span
                                 className="metric-value"
                                 style={{ color: getResultColor(results.pci, results.pci.classification, getPCIColor) }}
                             >
                                 {results.pci.percentage}%
                             </span>
-                            <span 
+                            <span
                                 className="metric-label"
                                 style={{ color: getResultColor(results.pci, results.pci.classification, getPCIColor) }}
                             >
@@ -149,8 +148,8 @@ const QualityResults = ({ results, onShowHelp }) => {
                 <div className="result-card">
                     <div className="card-header">
                         <h4>Анализ гетерозиготности</h4>
-                        <button 
-                            className="help-button"
+                        <button
+                            className="help-button btn btn-secondary btn-icon"
                             onClick={() => onShowHelp('heterozygosity')}
                             title="Справка по гетерозиготности"
                         >
@@ -189,8 +188,8 @@ const QualityResults = ({ results, onShowHelp }) => {
                 <div className="result-card">
                     <div className="card-header">
                         <h4>Индекс деградации</h4>
-                        <button 
-                            className="help-button"
+                        <button
+                            className="help-button btn btn-secondary btn-icon"
                             onClick={() => onShowHelp('degradation')}
                             title="Справка по деградации"
                         >
@@ -202,7 +201,7 @@ const QualityResults = ({ results, onShowHelp }) => {
                             <span className="metric-value">
                                 {formatNumber(results.degradation.degradationValue)}
                             </span>
-                            <span 
+                            <span
                                 className="metric-label"
                                 style={{ color: getDegradationColor(results.degradation.classification) }}
                             >
@@ -231,8 +230,8 @@ const QualityResults = ({ results, onShowHelp }) => {
                 <div className="result-card">
                     <div className="card-header">
                         <h4>Контаминация сотрудников</h4>
-                        <button 
-                            className="help-button"
+                        <button
+                            className="help-button btn btn-secondary btn-icon"
                             onClick={() => onShowHelp('contamination')}
                             title="Справка по контаминации"
                         >
@@ -241,7 +240,7 @@ const QualityResults = ({ results, onShowHelp }) => {
                     </div>
                     <div className="card-content">
                         <div className="main-metric">
-                            <span 
+                            <span
                                 className="metric-value"
                                 style={{ color: getContaminationColor(results.contamination.isContaminated) }}
                             >
@@ -278,8 +277,8 @@ const QualityResults = ({ results, onShowHelp }) => {
                 <div className="result-card">
                     <div className="card-header">
                         <h4>Поиск дубликатов</h4>
-                        <button 
-                            className="help-button"
+                        <button
+                            className="help-button btn btn-secondary btn-icon"
                             onClick={() => onShowHelp('duplicates')}
                             title="Справка по дубликатам"
                         >
@@ -318,8 +317,8 @@ const QualityResults = ({ results, onShowHelp }) => {
                 <div className="result-card perspective-card">
                     <div className="card-header">
                         <h4>Категория перспективности</h4>
-                        <button 
-                            className="help-button"
+                        <button
+                            className="help-button btn btn-secondary btn-icon"
                             onClick={() => onShowHelp('perspective')}
                             title="Справка по категориям"
                         >
@@ -328,7 +327,7 @@ const QualityResults = ({ results, onShowHelp }) => {
                     </div>
                     <div className="card-content">
                         <div className="main-metric">
-                            <span 
+                            <span
                                 className="metric-value large"
                                 style={{ color: getPerspectiveColor(results.perspectiveCategory.category) }}
                             >

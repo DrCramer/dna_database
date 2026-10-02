@@ -1,18 +1,18 @@
 import React from 'react';
 import Header from './Header';
-import './Layout.css';
+import PageShell from './PageShell';
 
-const Layout = ({ children, user, onNavigate, onLogout, hasRole }) => {
+const Layout = ({ children, user, onNavigate, onLogout, hasRole, fluid = false }) => {
   return (
     <div className="app-layout">
-      <Header 
+      <Header
         user={user}
         onNavigate={onNavigate}
         onLogout={onLogout}
         hasRole={hasRole}
       />
       <main className="app-main">
-        {children}
+        <PageShell fluid={fluid}>{children}</PageShell>
       </main>
     </div>
   );

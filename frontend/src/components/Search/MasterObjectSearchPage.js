@@ -1,5 +1,4 @@
 import React, { useEffect, useState } from 'react';
-import './MasterObjectSearchPage.css';
 
 const formatDateTime = (value) => {
   if (!value) return 'Нет данных';
@@ -182,9 +181,9 @@ const MasterObjectSearchPage = () => {
             value={query}
             onChange={(event) => setQuery(event.target.value)}
             placeholder="Например: объект, внутренний номер, привоз, комментарий..."
-            className="master-object-search-input"
+            className="master-object-search-input form-input"
           />
-          <button type="submit" className="master-object-search-button" disabled={loading}>
+          <button type="submit" className="master-object-search-button btn btn-primary" disabled={loading}>
             {loading ? 'Поиск...' : 'Найти объект'}
           </button>
         </form>

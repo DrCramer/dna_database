@@ -1,26 +1,25 @@
 /**
  * Sample Selector Component
- * 
+ *
  * Provides interface for selecting genetic samples from database
  * Supports filtering by type (regular samples, reference profiles)
  * Requirements: 9.1 - Sample selection interface
  */
 
 import React, { useState, useEffect, useCallback, useRef } from 'react';
-import './BayesianAnalysis.css';
 
 // Format date to user-friendly format
 const formatDate = (dateString) => {
     if (!dateString) return 'Дата неизвестна';
-    
+
     try {
         const date = new Date(dateString);
-        
+
         // Проверяем, что дата валидна
         if (isNaN(date.getTime())) {
             return 'Дата неизвестна';
         }
-        
+
         // Форматируем в российском формате: ДД.ММ.ГГГГ ЧЧ:ММ
         return date.toLocaleString('ru-RU', {
             day: '2-digit',
@@ -40,27 +39,27 @@ const calculateQualityFromProfile = (profile) => {
     // Проверяем разные возможные поля для STR данных
     const strDataField = profile.strData || profile.str_data || profile.profile_data || profile.loci_data;
     if (!strDataField) return 'low';
-    
+
     try {
         const strData = typeof strDataField === 'string' ? JSON.parse(strDataField) : strDataField;
         if (!strData || typeof strData !== 'object') return 'low';
-        
+
         // Count analyzed loci
         let analyzedLoci = 0;
         let totalLoci = 0;
-        
+
         for (const [locus, data] of Object.entries(strData)) {
             totalLoci++;
-            if (data && data.allele1 && data.allele2 && 
-                data.allele1 !== '0' && data.allele2 !== '0' && 
+            if (data && data.allele1 && data.allele2 &&
+                data.allele1 !== '0' && data.allele2 !== '0' &&
                 data.allele1 !== '' && data.allele2 !== '' &&
                 data.allele1 !== 'null' && data.allele2 !== 'null') {
                 analyzedLoci++;
             }
         }
-        
+
         const completeness = totalLoci > 0 ? analyzedLoci / totalLoci : 0;
-        
+
         if (completeness >= 0.8) return 'high';
         if (completeness >= 0.6) return 'medium';
         return 'low';
@@ -73,20 +72,20 @@ const calculateQualityFromProfile = (profile) => {
 // Highlight search term in text
 const highlightSearchTerm = (text, searchTerm) => {
     if (!searchTerm || !text) return text;
-    
+
     const regex = new RegExp(`(${searchTerm.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')})`, 'gi');
     const parts = text.split(regex);
-    
-    return parts.map((part, index) => 
-        regex.test(part) ? 
-            React.createElement('mark', { key: index, style: { backgroundColor: '#fff3cd', padding: '0 2px' } }, part) : 
+
+    return parts.map((part, index) =>
+        regex.test(part) ?
+            React.createElement('mark', { key: index, style: { backgroundColor: '#fff3cd', padding: '0 2px' } }, part) :
             part
     );
 };
 
-const SampleSelector = ({ 
-    selectedSample, 
-    onSampleSelect, 
+const SampleSelector = ({
+    selectedSample,
+    onSampleSelect,
     disabled = false,
     placeholder = "Поиск по номеру образца, ID или привозу",
     excludeSample = null,
@@ -97,7 +96,7 @@ const SampleSelector = ({
     const [searchTerm, setSearchTerm] = useState('');
     const [isLoading, setIsLoading] = useState(false);
     const [showDropdown, setShowDropdown] = useState(false);
-    
+
     // Refs for dynamic positioning
     const selectorRef = useRef(null);
     const dropdownRef = useRef(null);
@@ -106,7 +105,7 @@ const SampleSelector = ({
     // Dynamic dropdown positioning function
     const positionDropdown = useCallback(() => {
         if (!selectorRef.current || !dropdownRef.current) return;
-        
+
         const selectElement = selectorRef.current;
         const dropdownElement = dropdownRef.current;
         const rect = selectElement.getBoundingClientRect();
@@ -114,13 +113,13 @@ const SampleSelector = ({
         const viewportWidth = window.innerWidth;
         const spaceBelow = viewportHeight - rect.bottom;
         const spaceAbove = rect.top;
-        
+
         // Сброс всех стилей позиционирования
         dropdownElement.style.position = 'fixed';
         dropdownElement.style.left = `${rect.left}px`;
         dropdownElement.style.width = `${rect.width}px`;
         dropdownElement.style.zIndex = '99999';
-        
+
         // Определяем направление открытия
         if (spaceBelow >= 200 || spaceBelow > spaceAbove) {
             // Открываем вниз
@@ -135,18 +134,18 @@ const SampleSelector = ({
             dropdownElement.style.maxHeight = `${Math.min(spaceAbove - 20, 300)}px`;
             dropdownElement.style.borderRadius = '8px';
         }
-        
+
         // Проверяем, не выходит ли за правый край экрана
         if (rect.left + rect.width > viewportWidth - 20) {
             dropdownElement.style.left = `${viewportWidth - rect.width - 20}px`;
         }
-        
+
         // Проверяем, не выходит ли за левый край экрана
         if (rect.left < 20) {
             dropdownElement.style.left = '20px';
             dropdownElement.style.width = `${Math.min(rect.width, viewportWidth - 40)}px`;
         }
-        
+
         console.log('Dropdown positioned:', {
             spaceBelow,
             spaceAbove,
@@ -167,17 +166,17 @@ const SampleSelector = ({
     useEffect(() => {
         if (showDropdown) {
             positionDropdown();
-            
+
             // Reposition on window resize or scroll
             const handleReposition = () => {
                 if (showDropdown) {
                     positionDropdown();
                 }
             };
-            
+
             window.addEventListener('resize', handleReposition);
             window.addEventListener('scroll', handleReposition, true);
-            
+
             return () => {
                 window.removeEventListener('resize', handleReposition);
                 window.removeEventListener('scroll', handleReposition, true);
@@ -238,11 +237,11 @@ const SampleSelector = ({
                 if (response.ok) {
                     const data = await response.json();
                     const profiles = data.profiles || data || [];
-                    
+
                     console.log('=== SampleSelector API Success ===');
                     console.log('Profiles count:', profiles.length);
                     console.log('Total accessible profiles:', data.pagination?.total || profiles.length);
-                    
+
                     if (profiles.length > 0) {
                         console.log('First profile structure:', profiles[0]);
                         console.log('First profile sample_name:', profiles[0].sample_name);
@@ -252,7 +251,7 @@ const SampleSelector = ({
                         console.warn('API returned empty profiles array');
                         console.log('Full API response:', data);
                     }
-                    
+
                     // Convert API data to our format
                     const convertedSamples = profiles.map(profile => {
                         // Определяем отображаемое имя: ВСЕГДА приоритет internal_number
@@ -287,7 +286,7 @@ const SampleSelector = ({
                                 str_data: profile.strData || profile.str_data || profile.profile_data // Нормализуем поле STR данных
                             }
                         };
-                        
+
                         // Логируем конвертированный образец для отладки
                         if (profile.internal_number || profile.sample_name || profile.privoz) {
                             console.log('Converted sample with data:', {
@@ -301,14 +300,14 @@ const SampleSelector = ({
                                 original_privoz: profile.privoz
                             });
                         }
-                        
+
                         return converted;
                     });
-                    
+
                     console.log('Converted samples count:', convertedSamples.length);
                     console.log('Samples with sampleName:', convertedSamples.filter(s => s.sampleName).length);
                     console.log('Samples with import_number:', convertedSamples.filter(s => s.import_number).length);
-                    
+
                     setSamples(convertedSamples);
                 } else if (response.status === 401) {
                     console.error('=== SampleSelector Auth Error ===');
@@ -351,7 +350,7 @@ const SampleSelector = ({
         // Apply client-side search if we have a search term
         if (searchTerm && searchTerm.trim().length > 0) {
             const searchLower = searchTerm.toLowerCase().trim();
-            filtered = filtered.filter(sample => 
+            filtered = filtered.filter(sample =>
                 sample.searchString && sample.searchString.includes(searchLower)
             );
         }
@@ -434,11 +433,11 @@ const SampleSelector = ({
     return (
         <>
             <div className={`sample-selector ${disabled ? 'disabled' : ''}`} ref={selectorRef}>
-                <div className="selector-input-container">
+                <div className="selector-input-container input-group">
                     <input
                         ref={inputRef}
                         type="text"
-                        className="selector-input"
+                        className="selector-input form-input"
                         placeholder={selectedSample ? selectedSample.name : placeholder}
                         value={searchTerm}
                         onChange={handleSearchChange}
@@ -446,10 +445,10 @@ const SampleSelector = ({
                         onBlur={handleInputBlur}
                         disabled={disabled}
                     />
-                    
+
                     {selectedSample && (
-                        <button 
-                            className="clear-button"
+                        <button
+                            className="clear-button btn btn-secondary btn-icon btn-sm"
                             onClick={clearSelection}
                             disabled={disabled}
                             title="Очистить выбор"
@@ -457,7 +456,7 @@ const SampleSelector = ({
                             ✕
                         </button>
                     )}
-                    
+
                     <div className="dropdown-arrow">▼</div>
                 </div>
 
@@ -477,7 +476,7 @@ const SampleSelector = ({
                                 </span>
                             )}
                             <span className="sample-date">{selectedSample.date}</span>
-                            <div 
+                            <div
                                 className="quality-indicator"
                                 style={{ backgroundColor: getQualityColor(selectedSample.quality) }}
                                 title={`Качество: ${selectedSample.quality}`}
@@ -494,7 +493,7 @@ const SampleSelector = ({
                         <div className="dropdown-loading">Загрузка образцов...</div>
                     ) : filteredSamples.length === 0 ? (
                         <div className="dropdown-empty">
-                            {searchTerm ? 'Образцы не найдены' : 
+                            {searchTerm ? 'Образцы не найдены' :
                              !localStorage.getItem('token') ? 'Войдите в систему для загрузки образцов' :
                              'Нет доступных образцов'}
                         </div>
@@ -530,7 +529,7 @@ const SampleSelector = ({
                                                 </span>
                                             )}
                                             <span className="sample-date">{sample.date}</span>
-                                            <div 
+                                            <div
                                                 className="quality-indicator"
                                                 style={{ backgroundColor: getQualityColor(sample.quality) }}
                                                 title={`Качество: ${sample.quality}`}

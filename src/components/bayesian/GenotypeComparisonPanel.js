@@ -1,13 +1,13 @@
 /**
  * Genotype Comparison Panel - UI for genotype comparison analysis
- * 
+ *
  * This component provides interface for genotype comparison including:
  * - Sample vs Sample comparison
  * - Sample vs Reference comparison
  * - Database search
  * - Detailed locus-by-locus comparison tables
  * - Likelihood Ratio calculations
- * 
+ *
  * Requirements: 9.1, 9.3 - Comparison section with detailed comparison tables
  */
 
@@ -15,14 +15,13 @@ import React, { useState, useCallback } from 'react';
 import SampleSelector from './SampleSelector';
 import ComparisonResults from './ComparisonResults';
 import ComparisonReports from './ComparisonReports';
-import './BayesianAnalysis.css';
 
-const GenotypeComparisonPanel = ({ 
-    onStartProcessing, 
-    onStopProcessing, 
-    onUpdateProgress, 
+const GenotypeComparisonPanel = ({
+    onStartProcessing,
+    onStopProcessing,
+    onUpdateProgress,
     onShowHelp,
-    isProcessing 
+    isProcessing
 }) => {
     // Component state
     const [comparisonType, setComparisonType] = useState('sample-vs-sample');
@@ -90,19 +89,19 @@ const GenotypeComparisonPanel = ({
 
         try {
             onStartProcessing('Запуск сравнения генотипов...');
-            
+
             // Progress updates
             onUpdateProgress(15, 'Извлечение данных локусов...');
             await new Promise(resolve => setTimeout(resolve, 200));
-            
+
             onUpdateProgress(30, 'Отправка запроса на сервер...');
             await new Promise(resolve => setTimeout(resolve, 200));
-            
+
             onUpdateProgress(50, 'Сравнение локусов по парам...');
-            
+
             // Real API call instead of mock data
             let apiResults;
-            
+
             if (comparisonType === 'sample-vs-sample') {
                 // Call real comparison API
                 const response = await fetch('/api/bayesian/compare', {
@@ -117,21 +116,21 @@ const GenotypeComparisonPanel = ({
                         populationId: 'default'
                     })
                 });
-                
+
                 if (!response.ok) {
                     throw new Error(`API Error: ${response.status} ${response.statusText}`);
                 }
-                
+
                 const apiData = await response.json();
                 if (!apiData.success) {
                     throw new Error(apiData.message || 'API returned error');
                 }
-                
+
                 apiResults = apiData.data.analysis;
-                
+
                 onUpdateProgress(70, 'Обработка результатов API...');
                 await new Promise(resolve => setTimeout(resolve, 200));
-                
+
             } else if (comparisonType === 'database-search') {
                 // Call duplicates search API
                 const response = await fetch('/api/bayesian/duplicates', {
@@ -145,23 +144,23 @@ const GenotypeComparisonPanel = ({
                         populationId: 'default'
                     })
                 });
-                
+
                 if (!response.ok) {
                     throw new Error(`API Error: ${response.status} ${response.statusText}`);
                 }
-                
+
                 const apiData = await response.json();
                 if (!apiData.success) {
                     throw new Error(apiData.message || 'API returned error');
                 }
-                
+
                 // Convert duplicates results to comparison format
                 const formattedDuplicates = (apiData.data.duplicates || []).map(dup => {
                     const profile = dup.matchedProfile || {};
-                    
+
                     // Извлекаем номер привоза
                     let importNumber = profile.import_number || profile.privoz || '';
-                    
+
                     // Fallback на notes если нет import_number
                     if (!importNumber) {
                         try {
@@ -173,25 +172,25 @@ const GenotypeComparisonPanel = ({
                             // Игнорируем ошибки парсинга
                         }
                     }
-                    
+
                     // Формируем читаемое название: "внутренний_номер | название_образца | 🚚 привоз"
                     const parts = [
                         profile.internal_number || profile.internalNumber,
                         profile.sample_name || profile.sampleName
                     ].filter(Boolean);
-                    
+
                     if (privozNumber) {
                         parts.push(`🚚 ${privozNumber}`);
                     }
-                    
+
                     const displayName = parts.join(' | ') || profile.id || 'N/A';
-                    
+
                     return {
                         targetSampleId: displayName,
                         targetSampleName: profile.sample_name || profile.sampleName || 'N/A',
                         internalNumber: profile.internal_number || profile.internalNumber || 'N/A',
                         privozNumber: privozNumber || 'N/A',
-                        matchPercentage: dup.comparisonMetadata?.matchPercentage || 
+                        matchPercentage: dup.comparisonMetadata?.matchPercentage ||
                                         ((dup.matchingLoci / dup.totalLoci) * 100) || 0,
                         likelihoodRatio: dup.lrScore || 0,
                         probability: dup.probability || 0,
@@ -199,7 +198,7 @@ const GenotypeComparisonPanel = ({
                         totalLoci: dup.totalLoci || 0
                     };
                 });
-                
+
                 apiResults = {
                     overallLR: 0,
                     significance: 'DATABASE_SEARCH',
@@ -213,19 +212,19 @@ const GenotypeComparisonPanel = ({
                         warnings: []
                     }
                 };
-                
+
                 onUpdateProgress(70, 'Обработка результатов поиска...');
                 await new Promise(resolve => setTimeout(resolve, 200));
-                
+
             } else {
                 // For sample-vs-reference, use mock data for now
                 // TODO: Implement reference comparison API
                 throw new Error('Сравнение с эталоном пока не реализовано');
             }
-            
+
             onUpdateProgress(85, 'Формирование отчета...');
             await new Promise(resolve => setTimeout(resolve, 200));
-            
+
             onUpdateProgress(95, 'Завершение...');
             await new Promise(resolve => setTimeout(resolve, 200));
 
@@ -265,15 +264,15 @@ const GenotypeComparisonPanel = ({
                 let fullMatches = 0;
                 let partialMatches = 0;
                 let noMatches = 0;
-                
+
                 // Convert locusLRs to locusComparisons format for display
                 const locusComparisons = [];
-                
+
                 Object.entries(apiResults.locusLRs).forEach(([locusName, locusData]) => {
                     let matchType = 'NO_MATCH';
                     let lr = 0;
                     let significance = 'UNKNOWN';
-                    
+
                     if (typeof locusData === 'object' && locusData !== null) {
                         lr = locusData.lr || 0;
                         significance = locusData.significance || 'UNKNOWN';
@@ -287,7 +286,7 @@ const GenotypeComparisonPanel = ({
                         else if (lr >= 1) significance = 'WEAK';
                         else significance = 'EXCLUSION';
                     }
-                    
+
                     // Правильная логика определения совпадений:
                     // LR = 0 означает ИСКЛЮЧЕНИЕ (аллели не совпадают)
                     // LR > 0 означает СОВПАДЕНИЕ с разной степенью поддержки
@@ -306,7 +305,7 @@ const GenotypeComparisonPanel = ({
                         matchType = 'NO_MATCH';
                         noMatches++;
                     }
-                    
+
                     locusComparisons.push({
                         locusName: locusName,
                         matchType: matchType,
@@ -317,16 +316,16 @@ const GenotypeComparisonPanel = ({
                         colorCode: (typeof locusData === 'object' && locusData.colorCode) ? locusData.colorCode : '#6c757d'
                     });
                 });
-                
+
                 formattedResults.locusComparisons = locusComparisons;
                 formattedResults.overallMatch.fullMatches = fullMatches;
                 formattedResults.overallMatch.partialMatches = partialMatches;
                 formattedResults.overallMatch.noMatches = noMatches;
                 formattedResults.overallMatch.totalLoci = fullMatches + partialMatches + noMatches;
-                formattedResults.overallMatch.matchPercentage = 
-                    formattedResults.overallMatch.totalLoci > 0 ? 
+                formattedResults.overallMatch.matchPercentage =
+                    formattedResults.overallMatch.totalLoci > 0 ?
                     (fullMatches / formattedResults.overallMatch.totalLoci) * 100 : 0;
-                    
+
                 console.log('🔍 DEBUG: Locus LRs processing:', {
                     totalLocusLRs: Object.keys(apiResults.locusLRs).length,
                     fullMatches,
@@ -340,7 +339,7 @@ const GenotypeComparisonPanel = ({
                 let fullMatches = 0;
                 let partialMatches = 0;
                 let noMatches = 0;
-                
+
                 formattedResults.locusComparisons.forEach(lc => {
                     if (lc.matchType === 'FULL_MATCH' || lc.matchType === 'полное совпадение') {
                         fullMatches++;
@@ -350,18 +349,18 @@ const GenotypeComparisonPanel = ({
                         noMatches++;
                     }
                 });
-                
+
                 formattedResults.overallMatch.fullMatches = fullMatches;
                 formattedResults.overallMatch.partialMatches = partialMatches;
                 formattedResults.overallMatch.noMatches = noMatches;
                 formattedResults.overallMatch.totalLoci = fullMatches + partialMatches + noMatches;
-                formattedResults.overallMatch.matchPercentage = 
-                    formattedResults.overallMatch.totalLoci > 0 ? 
+                formattedResults.overallMatch.matchPercentage =
+                    formattedResults.overallMatch.totalLoci > 0 ?
                     (fullMatches / formattedResults.overallMatch.totalLoci) * 100 : 0;
             }
 
             setComparisonResults(formattedResults);
-            
+
             // Add to history
             setComparisonHistory(prev => [
                 ...prev,
@@ -372,7 +371,7 @@ const GenotypeComparisonPanel = ({
             ]);
 
             onStopProcessing('Сравнение генотипов завершено');
-            
+
         } catch (error) {
             console.error('Comparison failed:', error);
             onStopProcessing('Ошибка сравнения генотипов');
@@ -400,8 +399,8 @@ const GenotypeComparisonPanel = ({
             <div className="panel-header">
                 <h2>Сравнение генотипов</h2>
                 <div className="panel-controls">
-                    <button 
-                        className="help-button"
+                    <button
+                        className="help-button btn btn-secondary btn-icon"
                         onClick={() => onShowHelp('genotype-comparison')}
                         title="Справка по сравнению генотипов"
                     >
@@ -426,7 +425,7 @@ const GenotypeComparisonPanel = ({
                             />
                             <span>Образец vs Образец</span>
                         </label>
-                        
+
                         <label className="radio-option">
                             <input
                                 type="radio"
@@ -438,7 +437,7 @@ const GenotypeComparisonPanel = ({
                             />
                             <span>Образец vs Эталон</span>
                         </label>
-                        
+
                         <label className="radio-option">
                             <input
                                 type="radio"
@@ -456,7 +455,7 @@ const GenotypeComparisonPanel = ({
                 {/* Sample Selection Section */}
                 <section className="sample-selection-section">
                     <h3>Выбор образцов</h3>
-                    
+
                     <div className="sample-selectors">
                         <div className="sample-selector-group">
                             <label>Первый образец:</label>
@@ -499,27 +498,27 @@ const GenotypeComparisonPanel = ({
                 {/* Analysis Controls */}
                 <section className="analysis-controls">
                     <div className="control-buttons">
-                        <button 
-                            className="primary-button"
+                        <button
+                            className="primary-button btn btn-primary"
                             onClick={runComparison}
-                            disabled={!sample1 || isProcessing || 
+                            disabled={!sample1 || isProcessing ||
                                 (comparisonType === 'sample-vs-sample' && !sample2) ||
                                 (comparisonType === 'sample-vs-reference' && !referenceProfile)
                             }
                         >
                             {isProcessing ? 'Сравнение...' : 'Запустить сравнение'}
                         </button>
-                        
-                        <button 
-                            className="secondary-button"
+
+                        <button
+                            className="secondary-button btn btn-secondary"
                             onClick={clearResults}
                             disabled={isProcessing}
                         >
                             Очистить результаты
                         </button>
 
-                        <button 
-                            className="secondary-button"
+                        <button
+                            className="secondary-button btn btn-secondary"
                             onClick={toggleReports}
                             disabled={!comparisonResults}
                         >
@@ -531,7 +530,7 @@ const GenotypeComparisonPanel = ({
                 {/* Results Section */}
                 {comparisonResults && (
                     <section className="results-section">
-                        <ComparisonResults 
+                        <ComparisonResults
                             results={comparisonResults}
                             onShowHelp={onShowHelp}
                         />
@@ -541,7 +540,7 @@ const GenotypeComparisonPanel = ({
                 {/* Reports Section */}
                 {showReports && comparisonResults && (
                     <section className="reports-section">
-                        <ComparisonReports 
+                        <ComparisonReports
                             results={comparisonResults}
                             comparisonHistory={comparisonHistory}
                             onShowHelp={onShowHelp}

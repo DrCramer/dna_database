@@ -4,9 +4,9 @@ import BayesianAnalysisApp from '../../../../src/components/bayesian/BayesianAna
 const LegacyBayesianShell = ({ onNavigate }) => {
   return (
     <div className="legacy-page-shell bayesian-page-shell">
-      <div className="legacy-page-card bayesian-page-header">
-        <h2 className="legacy-page-title">🧬 Модуль байесовского анализа и сравнения генотипов</h2>
-        <div className="legacy-page-actions">
+      <div className="legacy-page-card bayesian-page-header page-header">
+        <h2 className="legacy-page-title page-title">🧬 Модуль байесовского анализа и сравнения генотипов</h2>
+        <div className="legacy-page-actions header-actions">
           <button onClick={() => onNavigate('/dashboard')} className="btn btn-secondary">
             🏠 На главную
           </button>

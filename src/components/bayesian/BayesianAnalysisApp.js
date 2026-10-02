@@ -1,12 +1,11 @@
 /**
  * Bayesian Analysis App - Main UI Component
- * 
+ *
  * This is the main application component for Bayesian genotype analysis.
  * Requirements: 9.1 - Main form with separate sections for quality control and genotype comparison
  */
 
 import React, { useState, useCallback } from 'react';
-import './BayesianAnalysis.css';
 
 // Import sub-components
 import QualityControlPanel from './QualityControlPanel';
@@ -42,7 +41,7 @@ const BayesianAnalysisApp = () => {
         setIsProcessing(false);
         setProgress(100);
         setStatusMessage(message);
-        
+
         // Clear status after 3 seconds
         setTimeout(() => {
             setStatusMessage('');
@@ -71,11 +70,11 @@ const BayesianAnalysisApp = () => {
     return (
         <div className="bayesian-analysis-app">
             {/* Header */}
-            <header className="app-header">
+            <header className="bayesian-app-header">
                 <h1>Модуль байесовского анализа и сравнения генотипов</h1>
                 <div className="header-controls">
-                    <button 
-                        className="help-button"
+                    <button
+                        className="help-button btn btn-secondary btn-icon"
                         onClick={() => showHelpFor('main')}
                         title="Справка"
                     >
@@ -86,29 +85,29 @@ const BayesianAnalysisApp = () => {
 
             {/* Progress Indicator */}
             {isProcessing && (
-                <ProgressIndicator 
+                <ProgressIndicator
                     progress={progress}
                     message={statusMessage}
                 />
             )}
 
             {/* Status Messages */}
-            <StatusMessages 
+            <StatusMessages
                 message={statusMessage}
                 isVisible={!!statusMessage && !isProcessing}
             />
 
             {/* Main Navigation Tabs */}
             <nav className="main-navigation">
-                <button 
-                    className={`nav-tab ${activeTab === 'quality' ? 'active' : ''}`}
+                <button
+                    className={`nav-tab btn btn-ghost ${activeTab === 'quality' ? 'active' : ''}`}
                     onClick={() => switchTab('quality')}
                     disabled={isProcessing}
                 >
                     Контроль качества
                 </button>
-                <button 
-                    className={`nav-tab ${activeTab === 'comparison' ? 'active' : ''}`}
+                <button
+                    className={`nav-tab btn btn-ghost ${activeTab === 'comparison' ? 'active' : ''}`}
                     onClick={() => switchTab('comparison')}
                     disabled={isProcessing}
                 >

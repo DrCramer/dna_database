@@ -94,7 +94,7 @@ export const TaskFilterBar = ({ filterStatus, onChange }) => {
           <button
             key={filter.value}
             onClick={() => onChange(filter.value)}
-            className={`task-filter-btn${filterStatus === filter.value ? ' is-active' : ''}`}
+            className={`task-filter-btn btn btn-secondary btn-sm${filterStatus === filter.value ? ' is-active' : ''}`}
           >
             <span className="task-filter-icon">{filter.icon}</span>
             {filter.label}

@@ -30,11 +30,11 @@ const DepartmentManager = ({ hasRole = () => false, onNavigate }) => {
           'Authorization': `Bearer ${localStorage.getItem('token')}`
         }
       });
-      
+
       if (!response.ok) {
         throw new Error('Failed to load departments');
       }
-      
+
       const data = await response.json();
       setDepartments(Array.isArray(data) ? data : data.data || []);
     } catch (err) {
@@ -52,11 +52,11 @@ const DepartmentManager = ({ hasRole = () => false, onNavigate }) => {
           'Authorization': `Bearer ${localStorage.getItem('token')}`
         }
       });
-      
+
       if (!response.ok) {
         throw new Error('Failed to load organizations');
       }
-      
+
       const data = await response.json();
       const orgs = data.data?.organizations || data.data || data || [];
       setOrganizations(Array.isArray(orgs) ? orgs.filter(org => org.is_active) : []);
@@ -68,7 +68,7 @@ const DepartmentManager = ({ hasRole = () => false, onNavigate }) => {
 
   const handleCreateDepartment = async (e) => {
     e.preventDefault();
-    
+
     if (!newDepartment.name || !newDepartment.organization_id) {
       setError('Department name and organization are required');
       return;
@@ -193,12 +193,12 @@ const DepartmentManager = ({ hasRole = () => false, onNavigate }) => {
           </h1>
           <p className="page-subtitle">Эта страница позволит вам управлять отделами внутри организаций.</p>
         </div>
-        
-        <div className="departments-controls">
+
+        <div className="departments-controls header-actions">
           {hasRole('system_administrator') && (
             <button
               onClick={() => setShowCreateForm(!showCreateForm)}
-              className="create-department-btn"
+              className="create-department-btn btn btn-primary"
             >
               <span>➕</span>
               <span>{showCreateForm ? 'Отмена' : 'Добавить новый отдел'}</span>
@@ -207,7 +207,7 @@ const DepartmentManager = ({ hasRole = () => false, onNavigate }) => {
           {onNavigate && (
             <button
               onClick={() => onNavigate('/dashboard')}
-              className="nav-button"
+              className="nav-button btn btn-secondary"
             >
               Назад к дашборду
             </button>
@@ -226,9 +226,9 @@ const DepartmentManager = ({ hasRole = () => false, onNavigate }) => {
           <div className="modal-content">
             <div className="modal-header">
               <h3 className="modal-title">Создать новый отдел</h3>
-              <button onClick={() => setShowCreateForm(false)} className="modal-close">×</button>
+              <button onClick={() => setShowCreateForm(false)} className="modal-close" aria-label="Закрыть">×</button>
             </div>
-            
+
             <form onSubmit={handleCreateDepartment}>
               <div className="form-section">
                 <div className="form-grid">
@@ -299,8 +299,8 @@ const DepartmentManager = ({ hasRole = () => false, onNavigate }) => {
         </div>
       )}
 
-      <div className="organization-table-shell departments-table-shell">
-        <table>
+      <div className="organization-table-shell departments-table-shell table-container">
+        <table className="table table-striped">
           <thead>
             <tr>
               <th>Отдел</th>
@@ -385,7 +385,7 @@ const DepartmentManager = ({ hasRole = () => false, onNavigate }) => {
                 <td>
                   <div className="department-actions">
                     <button
-                      className="department-action-btn department-action-view"
+                      className="department-action-btn department-action-view btn btn-secondary btn-icon btn-sm"
                       title="Просмотр"
                       onClick={() => alert('Функция просмотра деталей отдела будет реализована позже')}
                     >
@@ -395,13 +395,13 @@ const DepartmentManager = ({ hasRole = () => false, onNavigate }) => {
                       <>
                         <button
                           onClick={() => setEditingDept(dept.id)}
-                          className="department-action-btn department-action-edit"
+                          className="department-action-btn department-action-edit btn btn-secondary btn-icon btn-sm"
                           title="Редактировать"
                         >
                           ✏️
                         </button>
                         <button
-                          className="department-action-btn department-action-settings"
+                          className="department-action-btn department-action-settings btn btn-secondary btn-icon btn-sm"
                           title="Настройки"
                           onClick={() => alert('Функция настроек отдела будет реализована позже')}
                         >
@@ -410,7 +410,7 @@ const DepartmentManager = ({ hasRole = () => false, onNavigate }) => {
                         {dept.is_active && (
                           <button
                             onClick={() => handleDeactivateDepartment(dept.id)}
-                            className="department-action-btn department-action-delete"
+                            className="department-action-btn department-action-delete btn btn-secondary btn-icon btn-sm btn-outline-danger"
                             title="Удалить"
                           >
                             🗑️

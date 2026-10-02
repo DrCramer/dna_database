@@ -3,7 +3,6 @@
  */
 
 import React, { useState, useEffect } from 'react';
-import './StaffProfilesManager.css';
 
 const StaffProfilesManager = () => {
     const [staffProfiles, setStaffProfiles] = useState([]);
@@ -79,7 +78,7 @@ const StaffProfilesManager = () => {
             }
 
             const result = await response.json();
-            
+
             // Формируем сообщение о результате
             let message = `✅ Успешно загружено профилей: ${result.profilesCount || result.summary?.created || 0}`;
             if (result.errors && result.errors.length > 0) {
@@ -88,9 +87,9 @@ const StaffProfilesManager = () => {
             if (result.summary?.failed > 0) {
                 message += `\n❌ Не удалось загрузить: ${result.summary.failed}`;
             }
-            
+
             alert(message);
-            
+
             // Перезагрузить список
             await loadStaffProfiles();
         } catch (err) {
@@ -181,13 +180,13 @@ const StaffProfilesManager = () => {
                     <p className="staff-manager-subtitle">Загрузка, фильтрация и просмотр штатных ДНК-профилей сотрудников.</p>
                 </div>
                 <div className="header-actions">
-                    <button 
+                    <button
                         className="btn btn-primary"
                         onClick={() => setShowAddForm(true)}
                     >
                         Добавить сотрудника
                     </button>
-                    <button 
+                    <button
                         className="btn btn-primary"
                         onClick={() => {
                             const input = document.createElement('input');
@@ -204,7 +203,7 @@ const StaffProfilesManager = () => {
                     >
                         📁 Загрузить из файла
                     </button>
-                    <button 
+                    <button
                         className="btn btn-secondary"
                         onClick={loadStatistics}
                     >
@@ -228,7 +227,7 @@ const StaffProfilesManager = () => {
                         value={filters.name}
                         onChange={(e) => handleFilterChange('name', e.target.value)}
                         placeholder="Введите имя сотрудника"
-                    />
+                     className="form-input"/>
                 </div>
                 <div className="filter-group">
                     <label>Отдел:</label>
@@ -237,7 +236,7 @@ const StaffProfilesManager = () => {
                         value={filters.department}
                         onChange={(e) => handleFilterChange('department', e.target.value)}
                         placeholder="Введите название отдела"
-                    />
+                     className="form-input"/>
                 </div>
                 <div className="filter-group">
                     <label>Должность:</label>
@@ -246,7 +245,7 @@ const StaffProfilesManager = () => {
                         value={filters.position}
                         onChange={(e) => handleFilterChange('position', e.target.value)}
                         placeholder="Введите должность"
-                    />
+                     className="form-input"/>
                 </div>
             </div>
 
@@ -368,7 +367,7 @@ const ProfileDetailsModal = ({ profile, onClose, onAnalyzeContamination }) => {
             <div className="modal-content">
                 <div className="modal-header">
                     <h3>Профиль сотрудника: {profile.full_name}</h3>
-                    <button className="close-btn" onClick={onClose}>×</button>
+                    <button className="close-btn" onClick={onClose} aria-label="Закрыть">×</button>
                 </div>
                 <div className="modal-body">
                     <div className="profile-info">
@@ -440,7 +439,7 @@ const AddProfileForm = ({ onClose, onSuccess }) => {
 
     const handleSubmit = async (e) => {
         e.preventDefault();
-        
+
         try {
             setSubmitting(true);
             setError(null);
@@ -479,7 +478,7 @@ const AddProfileForm = ({ onClose, onSuccess }) => {
             <div className="modal-content">
                 <div className="modal-header">
                     <h3>Добавить профиль сотрудника</h3>
-                    <button className="close-btn" onClick={onClose}>×</button>
+                    <button className="close-btn" onClick={onClose} aria-label="Закрыть">×</button>
                 </div>
                 <form onSubmit={handleSubmit}>
                     <div className="modal-body">
@@ -497,7 +496,7 @@ const AddProfileForm = ({ onClose, onSuccess }) => {
                                 onChange={(e) => handleInputChange('staff_id', e.target.value)}
                                 required
                                 placeholder="Введите уникальный ID сотрудника"
-                            />
+                             className="form-input"/>
                         </div>
 
                         <div className="form-group">
@@ -508,7 +507,7 @@ const AddProfileForm = ({ onClose, onSuccess }) => {
                                 onChange={(e) => handleInputChange('full_name', e.target.value)}
                                 required
                                 placeholder="Введите полное имя сотрудника"
-                            />
+                             className="form-input"/>
                         </div>
 
                         <div className="form-group">
@@ -518,7 +517,7 @@ const AddProfileForm = ({ onClose, onSuccess }) => {
                                 value={formData.department}
                                 onChange={(e) => handleInputChange('department', e.target.value)}
                                 placeholder="Введите название отдела"
-                            />
+                             className="form-input"/>
                         </div>
 
                         <div className="form-group">
@@ -528,7 +527,7 @@ const AddProfileForm = ({ onClose, onSuccess }) => {
                                 value={formData.position}
                                 onChange={(e) => handleInputChange('position', e.target.value)}
                                 placeholder="Введите должность"
-                            />
+                             className="form-input"/>
                         </div>
 
                         <div className="form-group">
@@ -538,7 +537,7 @@ const AddProfileForm = ({ onClose, onSuccess }) => {
                                 onChange={(e) => handleInputChange('notes', e.target.value)}
                                 placeholder="Дополнительные заметки"
                                 rows="3"
-                            />
+                             className="form-textarea"/>
                         </div>
 
                         <div className="form-group">
@@ -556,7 +555,7 @@ const AddProfileForm = ({ onClose, onSuccess }) => {
                                 placeholder='{"D3S1358": ["15", "16"], "vWA": ["17", "18"]}'
                                 rows="6"
                                 required
-                            />
+                             className="form-textarea"/>
                             <small>Введите генетические данные в формате JSON</small>
                         </div>
                     </div>

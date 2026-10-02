@@ -39,11 +39,11 @@ const UserManagement = () => {
           'Authorization': `Bearer ${localStorage.getItem('token')}`
         }
       });
-      
+
       if (!response.ok) {
         throw new Error('Failed to load users');
       }
-      
+
       const data = await response.json();
       setUsers(data);
     } catch (err) {
@@ -61,7 +61,7 @@ const UserManagement = () => {
           'Authorization': `Bearer ${localStorage.getItem('token')}`
         }
       });
-      
+
       if (response.ok) {
         const data = await response.json();
         setOrganizations(data);
@@ -78,7 +78,7 @@ const UserManagement = () => {
           'Authorization': `Bearer ${localStorage.getItem('token')}`
         }
       });
-      
+
       if (response.ok) {
         const data = await response.json();
         setDepartments(data);
@@ -91,7 +91,7 @@ const UserManagement = () => {
 
   const handleCreateUser = async (e) => {
     e.preventDefault();
-    
+
     if (!newUser.username || !newUser.email || !newUser.password || !newUser.organization_id || !newUser.department_id) {
       setError('All fields are required');
       return;
@@ -113,10 +113,10 @@ const UserManagement = () => {
         throw new Error(errorData.message || 'Failed to create user');
       }
 
-      setNewUser({ 
-        username: '', 
-        email: '', 
-        password: '', 
+      setNewUser({
+        username: '',
+        email: '',
+        password: '',
         role: 'User_Analyst',
         organization_id: '',
         department_id: ''
@@ -279,7 +279,7 @@ const UserManagement = () => {
                     border: '1px solid #ccc',
                     borderRadius: '4px'
                   }}
-                />
+                 className="form-input"/>
               </div>
               <div>
                 <label style={{
@@ -301,7 +301,7 @@ const UserManagement = () => {
                     border: '1px solid #ccc',
                     borderRadius: '4px'
                   }}
-                />
+                 className="form-input"/>
               </div>
               <div>
                 <label style={{
@@ -323,7 +323,7 @@ const UserManagement = () => {
                     border: '1px solid #ccc',
                     borderRadius: '4px'
                   }}
-                />
+                 className="form-input"/>
               </div>
               <div>
                 <label style={{
@@ -343,7 +343,7 @@ const UserManagement = () => {
                     border: '1px solid #ccc',
                     borderRadius: '4px'
                   }}
-                >
+                 className="form-select">
                   <option value="User_Analyst">User Analyst</option>
                   <option value="Department_Head">Department Head</option>
                   <option value="System_Administrator">System Administrator</option>
@@ -368,7 +368,7 @@ const UserManagement = () => {
                     border: '1px solid #ccc',
                     borderRadius: '4px'
                   }}
-                >
+                 className="form-select">
                   <option value="">Select Organization...</option>
                   {organizations.map(org => (
                     <option key={org.id} value={org.id}>{org.name}</option>
@@ -394,7 +394,7 @@ const UserManagement = () => {
                     border: '1px solid #ccc',
                     borderRadius: '4px'
                   }}
-                >
+                 className="form-select">
                   <option value="">Select Department...</option>
                   {departments.map(dept => (
                     <option key={dept.id} value={dept.id}>{dept.name}</option>
@@ -546,7 +546,7 @@ const UserManagement = () => {
                       borderRadius: '4px',
                       backgroundColor: user.id === currentUser?.id ? '#f8f9fa' : 'white'
                     }}
-                  >
+                   className="form-select">
                     <option value="User_Analyst">User Analyst</option>
                     <option value="Department_Head">Department Head</option>
                     <option value="System_Administrator">System Administrator</option>

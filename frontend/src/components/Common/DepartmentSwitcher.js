@@ -1,6 +1,5 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { useAuth } from '../../contexts/AuthContext';
-import './DepartmentSwitcher.css';
 
 const DepartmentSwitcher = () => {
   const { accessibleDepartments, activeDepartmentId, setActiveDepartment } = useAuth();

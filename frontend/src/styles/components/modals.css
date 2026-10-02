@@ -6,7 +6,7 @@
 .task-modal-overlay {
   position: fixed;
   inset: 0;
-  z-index: 1000;
+  z-index: 2000;
   display: flex;
   align-items: center;
   justify-content: center;
@@ -18,7 +18,8 @@
 
 .modal-content,
 .task-modal-content {
-  width: min(100%, 680px);
+  width: 100%;
+  max-width: var(--modal-width-md);
   max-height: min(90vh, 920px);
   display: flex;
   flex-direction: column;
@@ -70,12 +71,19 @@
 }
 
 .close-button,
-.close-modal-button {
+.close-modal-button,
+.modal-close,
+.close-btn,
+.task-modal-close,
+.user-details-close,
+.organization-modal-close {
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  width: 36px;
-  height: 36px;
+  width: var(--control-height-md);
+  min-width: var(--control-height-md);
+  height: var(--control-height-md);
+  flex-shrink: 0;
   padding: 0;
   border: 1px solid transparent;
   border-radius: var(--radius-md);
@@ -88,32 +96,42 @@
 }
 
 .close-button:hover,
-.close-modal-button:hover {
+.close-modal-button:hover,
+.modal-close:hover,
+.close-btn:hover,
+.task-modal-close:hover,
+.user-details-close:hover,
+.organization-modal-close:hover {
   background: var(--bg-hover);
   color: var(--text-primary);
   border-color: var(--border-subtle);
 }
 
 .close-button:focus-visible,
-.close-modal-button:focus-visible {
+.close-modal-button:focus-visible,
+.modal-close:focus-visible,
+.close-btn:focus-visible,
+.task-modal-close:focus-visible,
+.user-details-close:focus-visible,
+.organization-modal-close:focus-visible {
   outline: none;
   box-shadow: var(--shadow-focus);
 }
 
 .modal-sm {
-  max-width: 420px;
+  max-width: var(--modal-width-sm);
 }
 
 .modal-md {
-  max-width: 680px;
+  max-width: var(--modal-width-md);
 }
 
 .modal-lg {
-  max-width: 960px;
+  max-width: var(--modal-width-lg);
 }
 
 .modal-xl {
-  max-width: 1240px;
+  max-width: var(--modal-width-xl);
 }
 
 @media (max-width: 768px) {
@@ -144,3 +162,8 @@
     width: 100%;
   }
 }
+
+.modal-full { max-width: none; width: 100%; max-height: calc(100dvh - 2 * var(--space-5)); }
+.modal-content form { overflow-y: auto; min-height: 0; }
+.modal-header > :first-child { min-width: 0; overflow-wrap: anywhere; }
+.modal-footer { flex-wrap: wrap; }

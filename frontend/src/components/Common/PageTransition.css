@@ -4,10 +4,10 @@
 
 /* Анимация появления страницы - быстрее */
 .page-enter {
-    animation: pageEnter 0.35s cubic-bezier(0.4, 0, 0.2, 1) forwards;
+    animation: ui-page-transition-pageEnter 0.35s cubic-bezier(0.4, 0, 0.2, 1) forwards;
 }
 
-@keyframes pageEnter {
+@keyframes ui-page-transition-pageEnter {
     from {
         opacity: 0;
         transform: translateY(20px) scale(0.98);
@@ -20,10 +20,10 @@
 
 /* Анимация исчезновения страницы */
 .page-exit {
-    animation: pageExit 0.25s cubic-bezier(0.4, 0, 0.2, 1) forwards;
+    animation: ui-page-transition-pageExit 0.25s cubic-bezier(0.4, 0, 0.2, 1) forwards;
 }
 
-@keyframes pageExit {
+@keyframes ui-page-transition-pageExit {
     from {
         opacity: 1;
         transform: translateY(0) scale(1);
@@ -54,7 +54,7 @@
     transform: none;
 }
 
-.page-wrapper-fast {
+.page-wrapper-fast:not(.is-visible) {
     will-change: opacity, transform;
 }
 
@@ -67,7 +67,7 @@
     transform: scale(1.15);
 }
 
-@keyframes fadeIn {
+@keyframes ui-page-transition-fadeIn {
     from {
         opacity: 0;
         transform: scale(0.98) translateY(15px);
@@ -80,10 +80,10 @@
 
 /* Анимация для карточек и элементов */
 .card-enter {
-    animation: cardEnter 0.3s ease-out forwards;
+    animation: ui-page-transition-cardEnter 0.3s ease-out forwards;
 }
 
-@keyframes cardEnter {
+@keyframes ui-page-transition-cardEnter {
     from {
         opacity: 0;
         transform: translateY(10px);
@@ -104,10 +104,10 @@
 
 /* Плавное появление для модальных окон */
 .modal-enter {
-    animation: modalEnter 0.3s cubic-bezier(0.4, 0, 0.2, 1) forwards;
+    animation: ui-page-transition-modalEnter 0.3s cubic-bezier(0.4, 0, 0.2, 1) forwards;
 }
 
-@keyframes modalEnter {
+@keyframes ui-page-transition-modalEnter {
     from {
         opacity: 0;
         transform: scale(0.95);
@@ -120,10 +120,10 @@
 
 /* Плавное исчезновение для модальных окон */
 .modal-exit {
-    animation: modalExit 0.2s cubic-bezier(0.4, 0, 0.2, 1) forwards;
+    animation: ui-page-transition-modalExit 0.2s cubic-bezier(0.4, 0, 0.2, 1) forwards;
 }
 
-@keyframes modalExit {
+@keyframes ui-page-transition-modalExit {
     from {
         opacity: 1;
         transform: scale(1);
@@ -136,10 +136,10 @@
 
 /* Анимация для боковых панелей */
 .sidebar-enter {
-    animation: slideInLeft 0.3s ease-out forwards;
+    animation: ui-page-transition-slideInLeft 0.3s ease-out forwards;
 }
 
-@keyframes slideInLeft {
+@keyframes ui-page-transition-slideInLeft {
     from {
         opacity: 0;
         transform: translateX(-100%);
@@ -152,10 +152,10 @@
 
 /* Анимация для уведомлений */
 .notification-enter {
-    animation: slideInRight 0.3s ease-out forwards;
+    animation: ui-page-transition-slideInRight 0.3s ease-out forwards;
 }
 
-@keyframes slideInRight {
+@keyframes ui-page-transition-slideInRight {
     from {
         opacity: 0;
         transform: translateX(100%);
@@ -168,10 +168,10 @@
 
 /* Универсальная анимация для всех страниц */
 .route-transition-enter {
-    animation: routeEnter 0.4s ease-out forwards;
+    animation: ui-page-transition-routeEnter 0.4s ease-out forwards;
 }
 
-@keyframes routeEnter {
+@keyframes ui-page-transition-routeEnter {
     from {
         opacity: 0;
         transform: translateX(20px);
@@ -183,10 +183,10 @@
 }
 
 .route-transition-exit {
-    animation: routeExit 0.3s ease-in forwards;
+    animation: ui-page-transition-routeExit 0.3s ease-in forwards;
 }
 
-@keyframes routeExit {
+@keyframes ui-page-transition-routeExit {
     from {
         opacity: 1;
         transform: translateX(0);

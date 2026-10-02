@@ -1,0 +1,142 @@
+/* Shared page header and route states. Page-specific CSS does not redefine these. */
+
+.page-header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: var(--space-4);
+  padding: var(--page-header-padding);
+  margin: 0 0 var(--space-6);
+  background: var(--surface-card);
+  border: 1px solid var(--border-default);
+  border-radius: var(--radius-lg);
+  box-shadow: var(--shadow-sm);
+  flex-shrink: 0;
+}
+
+.page-title-section {
+  flex: 1;
+  min-width: min(100%, 240px);
+}
+
+.page-title {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  margin: 0;
+  font-size: var(--font-size-2xl);
+  font-weight: var(--font-weight-bold);
+  line-height: 1.3;
+  color: var(--text-primary);
+  overflow-wrap: anywhere;
+}
+
+.page-subtitle {
+  margin: var(--space-2) 0 0;
+  color: var(--text-secondary);
+  font-size: var(--font-size-md);
+  line-height: 1.5;
+}
+
+.header-actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-3);
+}
+
+.legacy-page-shell {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-6);
+}
+
+:where(.legacy-page-shell, .task-page) > .page-header {
+  margin-bottom: 0;
+}
+
+.legacy-page-card, .bayesian-page-panel {
+  background: var(--surface-card);
+  border: 1px solid var(--border-default);
+  border-radius: var(--radius-lg);
+  padding: var(--space-6);
+  box-shadow: var(--shadow-sm);
+  min-width: 0;
+}
+
+.legacy-page-card h3 {
+  margin: 0 0 var(--space-3);
+  font-size: var(--font-size-lg);
+}
+
+.legacy-page-card p {
+  color: var(--text-secondary);
+  margin: 0 0 var(--space-5);
+}
+
+.legacy-page-button-row {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  flex-wrap: wrap;
+}
+
+.access-denied-state {
+  text-align: center;
+  padding: var(--space-6);
+}
+
+.access-denied-state h2 {
+  color: var(--status-danger);
+  margin-bottom: var(--space-3);
+}
+
+.access-denied-state p {
+  margin-bottom: var(--space-4);
+  color: var(--text-secondary);
+}
+
+.protected-route-state {
+  min-height: 100dvh;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  gap: var(--space-3);
+  background: var(--surface-page);
+  color: var(--text-primary);
+}
+
+.protected-route-spinner {
+  width: 20px;
+  height: 20px;
+  border: 3px solid var(--border-default);
+  border-top-color: var(--brand-primary);
+  border-radius: 50%;
+  animation: spin 1s linear infinite;
+}
+
+.protected-route-redirect {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-3);
+}
+
+.app-root-shell {
+  height: 100dvh;
+  width: 100%;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+
+@media (max-width: 768px) {
+
+  .page-title {
+    font-size: var(--font-size-xl);
+  }
+
+  .header-actions {
+    width: 100%;
+  }
+}

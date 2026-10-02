@@ -2,7 +2,6 @@ import React, { useState, useRef, useEffect } from 'react';
 import { useAuth } from '../../contexts/AuthContext';
 import DepartmentSwitcher from '../Common/DepartmentSwitcher';
 import ThemeSwitcher from '../Common/ThemeSwitcher';
-import './Header.css';
 
 const Header = ({ user, onNavigate, onLogout, hasRole }) => {
   useAuth();
@@ -21,8 +20,18 @@ const Header = ({ user, onNavigate, onLogout, hasRole }) => {
       }
     };
 
+    const handleEscape = (event) => {
+      if (event.key === 'Escape') {
+        setShowUserMenu(false);
+        setShowSystemMenu(false);
+      }
+    };
+    document.addEventListener('keydown', handleEscape);
     document.addEventListener('mousedown', handleClickOutside);
-    return () => document.removeEventListener('mousedown', handleClickOutside);
+    return () => {
+      document.removeEventListener('mousedown', handleClickOutside);
+      document.removeEventListener('keydown', handleEscape);
+    };
   }, []);
 
   const isActive = (path) => window.location.pathname === path;
@@ -59,6 +68,8 @@ const Header = ({ user, onNavigate, onLogout, hasRole }) => {
           {adminMainMenu.map((item) => (
             <button
               key={item.path}
+              title={item.label}
+              aria-current={isActive(item.path) ? "page" : undefined}
               onClick={() => onNavigate(item.path)}
               className={`nav-link ${isActive(item.path) ? 'active' : ''}`}
             >
@@ -71,6 +82,9 @@ const Header = ({ user, onNavigate, onLogout, hasRole }) => {
             <button
               onClick={() => setShowSystemMenu(!showSystemMenu)}
               className="nav-link dropdown-trigger"
+              title="Система"
+              aria-expanded={showSystemMenu}
+              aria-controls="system-menu"
             >
               <span className="nav-icon">⚙️</span>
               <span>Система</span>
@@ -78,10 +92,12 @@ const Header = ({ user, onNavigate, onLogout, hasRole }) => {
             </button>
 
             {showSystemMenu && (
-              <div className="dropdown-menu">
+              <div className="dropdown-menu" id="system-menu">
                 {adminSystemMenu.map((item) => (
                   <button
                     key={item.path}
+                    title={item.label}
+                    aria-current={isActive(item.path) ? 'page' : undefined}
                     onClick={() => {
                       onNavigate(item.path);
                       setShowSystemMenu(false);
@@ -98,6 +114,8 @@ const Header = ({ user, onNavigate, onLogout, hasRole }) => {
 
           <button
             key={adminSearchItem.path}
+            title={adminSearchItem.label}
+            aria-current={isActive(adminSearchItem.path) ? "page" : undefined}
             onClick={() => onNavigate(adminSearchItem.path)}
             className={`nav-link ${isActive(adminSearchItem.path) ? 'active' : ''}`}
           >
@@ -111,6 +129,8 @@ const Header = ({ user, onNavigate, onLogout, hasRole }) => {
     return analystMenu.map((item) => (
       <button
         key={item.path}
+        title={item.label}
+        aria-current={isActive(item.path) ? 'page' : undefined}
         onClick={() => onNavigate(item.path)}
         className={`nav-link ${isActive(item.path) ? 'active' : ''}`}
       >
@@ -184,6 +204,9 @@ const Header = ({ user, onNavigate, onLogout, hasRole }) => {
           <button
             onClick={() => setShowUserMenu(!showUserMenu)}
             className="user-button"
+            aria-label={`Меню пользователя ${user?.username || ''}`}
+            aria-expanded={showUserMenu}
+            aria-controls="user-menu"
           >
             <div className="user-avatar">
               {user?.username?.charAt(0).toUpperCase() || 'U'}
@@ -193,7 +216,7 @@ const Header = ({ user, onNavigate, onLogout, hasRole }) => {
           </button>
 
           {showUserMenu && (
-            <div className="dropdown-menu user-dropdown">
+            <div className="dropdown-menu user-dropdown" id="user-menu">
               <div className="user-info">
                 <div className="user-info-name">{user?.username}</div>
                 <div className="user-info-role">

@@ -1,5 +1,4 @@
 import React, { useState, useEffect } from 'react';
-import './StaffContaminationPanel.css';
 import AlgorithmSettings from './AlgorithmSettings';
 
 // Локусы для анализа (24 основных) - порядок как в таблице данных
@@ -82,10 +81,10 @@ const StaffContaminationPanel = ({ profiles }) => {
 
     try {
       const token = localStorage.getItem('token');
-      
+
       // Используем кастомные настройки, если они есть, иначе дефолтные
       const analysisOptions = customSettings || options;
-      
+
       const response = await fetch('/api/staff-contamination/analyze', {
         method: 'POST',
         headers: {
@@ -153,7 +152,7 @@ const StaffContaminationPanel = ({ profiles }) => {
               setSelectedSample(profile);
               setResults(null);
             }}
-            className="sample-select"
+            className="sample-select form-select"
           >
             <option value="">-- Выберите образец --</option>
             {profiles.map(profile => (
@@ -162,7 +161,7 @@ const StaffContaminationPanel = ({ profiles }) => {
               </option>
             ))}
           </select>
-          
+
           {selectedSample && (
             <div className="selected-sample-info">
               <strong>Выбран:</strong> {selectedSample.sample_name}
@@ -186,7 +185,7 @@ const StaffContaminationPanel = ({ profiles }) => {
                 max="24"
                 value={options.minLociMatch}
                 onChange={(e) => setOptions({...options, minLociMatch: parseInt(e.target.value)})}
-              />
+               className="form-input"/>
             </label>
             <span className="option-hint">Минимальное количество локусов для выявления контаминации</span>
           </div>
@@ -200,7 +199,7 @@ const StaffContaminationPanel = ({ profiles }) => {
                 max="10"
                 value={options.criticalAlleleCount}
                 onChange={(e) => setOptions({...options, criticalAlleleCount: parseInt(e.target.value)})}
-              />
+               className="form-input"/>
             </label>
             <span className="option-hint">Количество аллелей для определения критического локуса</span>
           </div>
@@ -215,7 +214,7 @@ const StaffContaminationPanel = ({ profiles }) => {
                 step="0.1"
                 value={options.threshold}
                 onChange={(e) => setOptions({...options, threshold: parseFloat(e.target.value)})}
-              />
+               className="form-input"/>
             </label>
             <span className="option-hint">Минимальный процент для отображения результата</span>
           </div>
@@ -232,19 +231,19 @@ const StaffContaminationPanel = ({ profiles }) => {
           <button
             onClick={analyzeContamination}
             disabled={!selectedSample || analyzing}
-            className="analyze-button"
+            className="analyze-button btn btn-primary"
           >
             {analyzing ? '⏳ Анализ...' : '🔍 Запустить анализ'}
           </button>
-          
+
           {/* Быстрый переключатель алгоритма */}
           <div className="algorithm-quick-switch">
             <label className="quick-switch-label">Алгоритм:</label>
             <select
-              className="algorithm-select"
+              className="algorithm-select form-select"
               value={
-                customSettings?.useV5Algorithm ? 'v5' : 
-                customSettings?.useV4Algorithm ? 'v4' : 
+                customSettings?.useV5Algorithm ? 'v5' :
+                customSettings?.useV4Algorithm ? 'v4' :
                 'v1.5'
               }
               onChange={(e) => {
@@ -263,15 +262,15 @@ const StaffContaminationPanel = ({ profiles }) => {
               <option value="v5">v5.0 (LCN + Деградация) 🆕</option>
             </select>
           </div>
-          
+
           <button
             onClick={() => setShowSettings(true)}
-            className="btn-secondary"
+            className="btn-secondary btn"
             title="Настройки алгоритма контаминации"
           >
             ⚙️ Настройки алгоритма
           </button>
-          
+
           <div className="settings-indicator">
             {customSettings ? (
               <span className="custom-indicator" title="Используются кастомные настройки">

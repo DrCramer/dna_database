@@ -76,7 +76,7 @@ const LegacyTasksPageView = ({
             <button
               onClick={() => onNavigate('/tasks/create')}
               title="Создать новую задачу для аналитика"
-              className="nav-button"
+              className="nav-button btn btn-secondary"
             >
               ➕ Создать задачу
             </button>
@@ -84,7 +84,7 @@ const LegacyTasksPageView = ({
           <button
             onClick={() => onNavigate('/dashboard')}
             title="Вернуться на главную страницу"
-            className="nav-button"
+            className="nav-button btn btn-secondary"
           >
             Назад к дашборду
           </button>
@@ -148,7 +148,7 @@ const LegacyTasksPageView = ({
                                 setShowStartModal(true);
                               }}
                               title="Взять задачу в работу и начать загрузку генотипов"
-                              className="task-action-btn is-start"
+                              className="task-action-btn is-start btn btn-secondary btn-sm btn-outline-primary"
                             >
                               <span>Начать</span>
                             </button>
@@ -161,7 +161,7 @@ const LegacyTasksPageView = ({
                                 setShowCompleteModal(true);
                               }}
                               title="Завершить задачу после загрузки всех генотипов"
-                              className="task-action-btn is-complete"
+                              className="task-action-btn is-complete btn btn-secondary btn-sm"
                             >
                               <span>Завершить</span>
                             </button>
@@ -171,7 +171,7 @@ const LegacyTasksPageView = ({
                             <button
                               onClick={() => openModal(task)}
                               title="Просмотреть детали задачи и загруженные генотипы"
-                              className="task-action-btn is-view"
+                              className="task-action-btn is-view btn btn-secondary btn-sm"
                             >
                               <span>Открыть</span>
                             </button>
@@ -182,7 +182,7 @@ const LegacyTasksPageView = ({
                               <button
                                 onClick={() => openModal(task)}
                                 title="Просмотреть детали задачи и загруженные генотипы"
-                                className="task-action-btn is-view"
+                                className="task-action-btn is-view btn btn-secondary btn-sm"
                               >
                                 <span>Открыть</span>
                               </button>
@@ -195,7 +195,7 @@ const LegacyTasksPageView = ({
                                   }}
                                   disabled={loading}
                                   title="Подтвердить задачу и добавить генотипы в мастер массив"
-                                  className={`task-action-btn is-approve${loading ? ' task-btn-disabled' : ''}`}
+                                  className={`task-action-btn is-approve btn btn-secondary btn-sm${loading ? ' task-btn-disabled' : ''}`}
                                 >
                                   <span>{loading ? '...' : 'Утвердить'}</span>
                                 </button>
@@ -205,7 +205,7 @@ const LegacyTasksPageView = ({
                                 <button
                                   onClick={() => openCancelModal(task)}
                                   title="Отменить задачу с указанием причины"
-                                  className="task-action-btn is-cancel"
+                                  className="task-action-btn is-cancel btn btn-secondary btn-sm btn-outline-danger"
                                 >
                                   <span>Отменить</span>
                                 </button>
@@ -225,10 +225,10 @@ const LegacyTasksPageView = ({
 
       {showModal && selectedTask && ReactDOM.createPortal(
         <div className="task-modal-overlay" onClick={(e) => e.target === e.currentTarget && closeModal()}>
-          <div className="task-modal-content task-modal-content-wide" onClick={(e) => e.stopPropagation()}>
+          <div className="task-modal-content modal-lg" onClick={(e) => e.stopPropagation()}>
             <div className="task-modal-header">
               <h2 className="task-modal-title">📋 {selectedTask.title}</h2>
-              <button onClick={closeModal} className="task-modal-close">✕</button>
+              <button onClick={closeModal} className="task-modal-close" aria-label="Закрыть">✕</button>
             </div>
 
             <div className="task-modal-section">
@@ -314,7 +314,7 @@ const LegacyTasksPageView = ({
           <div className="modal-content modal-sm" onClick={(e) => e.stopPropagation()}>
             <div className="modal-header">
               <h3 className="task-modal-title">❌ Отмена задачи</h3>
-              <button className="close-button" onClick={closeCancelModal}>✕</button>
+              <button className="close-button" onClick={closeCancelModal} aria-label="Закрыть">✕</button>
             </div>
             <div className="modal-body">
               <p className="task-modal-text with-gap">
@@ -330,7 +330,7 @@ const LegacyTasksPageView = ({
                 value={cancelReason}
                 onChange={(e) => setCancelReason(e.target.value)}
                 placeholder="Укажите причину отмены задачи..."
-                className="task-modal-textarea"
+                className="task-modal-textarea form-textarea"
               />
               {error && <div className="task-modal-alert with-gap-top">{error}</div>}
             </div>
@@ -385,7 +385,7 @@ const LegacyTasksPageView = ({
                   setTaskToAssignDirect(null);
                   setError('');
                 }}
-              >
+               aria-label="Закрыть">
                 ✕
               </button>
             </div>
@@ -402,7 +402,7 @@ const LegacyTasksPageView = ({
                 <select
                   value={selectedAssignee || ''}
                   onChange={(e) => setSelectedAssignee(e.target.value)}
-                  className="task-modal-select"
+                  className="task-modal-select form-select"
                 >
                   <option value="">-- Выберите пользователя --</option>
                   {departmentUsers.map((u) => (
@@ -445,7 +445,7 @@ const LegacyTasksPageView = ({
           <div className="modal-content modal-sm" onClick={(e) => e.stopPropagation()}>
             <div className="modal-header">
               <h3 className="task-modal-title">▶️ Взять задачу в работу</h3>
-              <button className="close-button" onClick={() => setShowStartModalDirect(false)}>✕</button>
+              <button className="close-button" onClick={() => setShowStartModalDirect(false)} aria-label="Закрыть">✕</button>
             </div>
             <div className="modal-body">
               <p className="task-modal-text with-gap">
@@ -478,7 +478,7 @@ const LegacyTasksPageView = ({
           <div className="modal-content modal-sm" onClick={(e) => e.stopPropagation()}>
             <div className="modal-header">
               <h3 className="task-modal-title">✅ Завершить задачу</h3>
-              <button className="close-button" onClick={() => setShowCompleteModalDirect(false)}>✕</button>
+              <button className="close-button" onClick={() => setShowCompleteModalDirect(false)} aria-label="Закрыть">✕</button>
             </div>
             <div className="modal-body">
               <p className="task-modal-text with-gap">
@@ -511,7 +511,7 @@ const LegacyTasksPageView = ({
           <div className="modal-content modal-sm" onClick={(e) => e.stopPropagation()}>
             <div className="modal-header">
               <h3 className="task-modal-title">✅ Подтвердить задачу</h3>
-              <button className="close-button" onClick={() => setShowApproveModalDirect(false)}>✕</button>
+              <button className="close-button" onClick={() => setShowApproveModalDirect(false)} aria-label="Закрыть">✕</button>
             </div>
             <div className="modal-body">
               <p className="task-modal-text with-gap">

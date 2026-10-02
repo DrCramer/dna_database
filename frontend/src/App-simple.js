@@ -26,7 +26,7 @@ const SimpleApp = () => {
     e.preventDefault();
     setLoginLoading(true);
     setError(null);
-    
+
     try {
       const response = await fetch('/api/auth/login', {
         method: 'POST',
@@ -46,7 +46,7 @@ const SimpleApp = () => {
           role: data.data.user.role,
           accessToken: data.data.accessToken
         };
-        
+
         setUser(userData);
         localStorage.setItem('user', JSON.stringify(userData));
         localStorage.setItem('token', data.data.accessToken);
@@ -145,7 +145,7 @@ const SimpleApp = () => {
                 required
                 disabled={loginLoading}
                 placeholder="Enter your username"
-              />
+               className="form-input"/>
             </div>
 
             <div style={{ marginBottom: '20px' }}>
@@ -168,7 +168,7 @@ const SimpleApp = () => {
                 required
                 disabled={loginLoading}
                 placeholder="Enter your password"
-              />
+               className="form-input"/>
             </div>
 
             <button
@@ -190,10 +190,10 @@ const SimpleApp = () => {
             </button>
           </form>
 
-          <div style={{ 
-            marginTop: '30px', 
-            padding: '15px', 
-            backgroundColor: '#f8f9fa', 
+          <div style={{
+            marginTop: '30px',
+            padding: '15px',
+            backgroundColor: '#f8f9fa',
             borderRadius: '4px',
             fontSize: '14px'
           }}>
@@ -207,9 +207,9 @@ const SimpleApp = () => {
   }
 
   return (
-    <div style={{ 
-      maxWidth: '1200px', 
-      margin: '0 auto', 
+    <div style={{
+      maxWidth: '1200px',
+      margin: '0 auto',
       padding: '20px',
       fontFamily: 'Arial, sans-serif'
     }}>
@@ -257,7 +257,7 @@ const SimpleApp = () => {
           <li>✅ API integration works</li>
           <li>✅ State management works</li>
         </ul>
-        
+
         <div style={{ marginTop: '20px', fontSize: '14px', color: '#666' }}>
           <p><strong>User ID:</strong> {user.id}</p>
           <p><strong>Email:</strong> {user.email}</p>

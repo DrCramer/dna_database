@@ -3,19 +3,13 @@
    ======================================== */
 
 /* Анимация исчезновения страницы логина */
-.fade-out {
-    opacity: 0;
-    transform: translateY(-20px);
-    transition: opacity 0.5s ease, transform 0.5s ease;
-    pointer-events: none;
-}
 
 /* Анимация появления страницы дашборда */
-.fade-in {
-    animation: pageReveal 0.8s cubic-bezier(0.4, 0, 0.2, 1) forwards;
+body.fade-in {
+    animation: ui-login-transition-pageReveal 0.8s cubic-bezier(0.4, 0, 0.2, 1) forwards;
 }
 
-@keyframes pageReveal {
+@keyframes ui-login-transition-pageReveal {
     from {
         opacity: 0;
         transform: scale(0.98);
@@ -60,10 +54,10 @@
     letter-spacing: 4px;
     font-size: 0.9rem;
     text-shadow: 0 0 15px rgba(94, 129, 244, 0.5);
-    animation: pulse 2s ease-in-out infinite;
+    animation: ui-login-transition-pulse 2s ease-in-out infinite;
 }
 
-@keyframes pulse {
+@keyframes ui-login-transition-pulse {
     0%, 100% {
         opacity: 0.7;
     }
@@ -79,10 +73,10 @@
     height: 240px;
     margin: 0 auto;
     transform-style: preserve-3d;
-    animation: dnaGrow 0.6s ease-out forwards;
+    animation: ui-login-transition-dnaGrow 0.6s ease-out forwards;
 }
 
-@keyframes dnaGrow {
+@keyframes ui-login-transition-dnaGrow {
     from {
         transform: scale(0);
         opacity: 0;
@@ -102,7 +96,7 @@
     box-shadow: 0 0 15px rgba(94, 129, 244, 0.8);
     left: 50%;
     transform: translateX(-50%);
-    animation: dnaRotate 2s infinite ease-in-out;
+    animation: ui-login-transition-loginDnaRotate 2s infinite ease-in-out;
 }
 
 .transition-overlay .dna-dot:nth-child(2n) {
@@ -111,67 +105,67 @@
     box-shadow: 0 0 15px rgba(156, 39, 176, 0.8);
 }
 
-.transition-overlay .dna-dot:nth-child(1), 
-.transition-overlay .dna-dot:nth-child(2) { 
-    top: 0px; 
+.transition-overlay .dna-dot:nth-child(1),
+.transition-overlay .dna-dot:nth-child(2) {
+    top: 0px;
 }
 
-.transition-overlay .dna-dot:nth-child(3), 
-.transition-overlay .dna-dot:nth-child(4) { 
-    top: 20px; 
-    animation-delay: -0.2s; 
+.transition-overlay .dna-dot:nth-child(3),
+.transition-overlay .dna-dot:nth-child(4) {
+    top: 20px;
+    animation-delay: -0.2s;
 }
 
-.transition-overlay .dna-dot:nth-child(3):nth-child(2n), 
-.transition-overlay .dna-dot:nth-child(4):nth-child(2n) { 
-    animation-delay: -1.2s; 
+.transition-overlay .dna-dot:nth-child(3):nth-child(2n),
+.transition-overlay .dna-dot:nth-child(4):nth-child(2n) {
+    animation-delay: -1.2s;
 }
 
-.transition-overlay .dna-dot:nth-child(5), 
-.transition-overlay .dna-dot:nth-child(6) { 
-    top: 40px; 
-    animation-delay: -0.4s; 
+.transition-overlay .dna-dot:nth-child(5),
+.transition-overlay .dna-dot:nth-child(6) {
+    top: 40px;
+    animation-delay: -0.4s;
 }
 
-.transition-overlay .dna-dot:nth-child(5):nth-child(2n), 
-.transition-overlay .dna-dot:nth-child(6):nth-child(2n) { 
-    animation-delay: -1.4s; 
+.transition-overlay .dna-dot:nth-child(5):nth-child(2n),
+.transition-overlay .dna-dot:nth-child(6):nth-child(2n) {
+    animation-delay: -1.4s;
 }
 
-.transition-overlay .dna-dot:nth-child(7), 
-.transition-overlay .dna-dot:nth-child(8) { 
-    top: 60px; 
-    animation-delay: -0.6s; 
+.transition-overlay .dna-dot:nth-child(7),
+.transition-overlay .dna-dot:nth-child(8) {
+    top: 60px;
+    animation-delay: -0.6s;
 }
 
-.transition-overlay .dna-dot:nth-child(7):nth-child(2n), 
-.transition-overlay .dna-dot:nth-child(8):nth-child(2n) { 
-    animation-delay: -1.6s; 
+.transition-overlay .dna-dot:nth-child(7):nth-child(2n),
+.transition-overlay .dna-dot:nth-child(8):nth-child(2n) {
+    animation-delay: -1.6s;
 }
 
-.transition-overlay .dna-dot:nth-child(9), 
-.transition-overlay .dna-dot:nth-child(10) { 
-    top: 80px; 
-    animation-delay: -0.8s; 
+.transition-overlay .dna-dot:nth-child(9),
+.transition-overlay .dna-dot:nth-child(10) {
+    top: 80px;
+    animation-delay: -0.8s;
 }
 
-.transition-overlay .dna-dot:nth-child(9):nth-child(2n), 
-.transition-overlay .dna-dot:nth-child(10):nth-child(2n) { 
-    animation-delay: -1.8s; 
+.transition-overlay .dna-dot:nth-child(9):nth-child(2n),
+.transition-overlay .dna-dot:nth-child(10):nth-child(2n) {
+    animation-delay: -1.8s;
 }
 
-.transition-overlay .dna-dot:nth-child(11), 
-.transition-overlay .dna-dot:nth-child(12) { 
-    top: 100px; 
-    animation-delay: -1s; 
+.transition-overlay .dna-dot:nth-child(11),
+.transition-overlay .dna-dot:nth-child(12) {
+    top: 100px;
+    animation-delay: -1s;
 }
 
-.transition-overlay .dna-dot:nth-child(11):nth-child(2n), 
-.transition-overlay .dna-dot:nth-child(12):nth-child(2n) { 
-    animation-delay: -2s; 
+.transition-overlay .dna-dot:nth-child(11):nth-child(2n),
+.transition-overlay .dna-dot:nth-child(12):nth-child(2n) {
+    animation-delay: -2s;
 }
 
-@keyframes dnaRotate {
+@keyframes ui-login-transition-loginDnaRotate {
     0%, 100% {
         transform: translateX(-30px) scale(0.8);
         opacity: 0.4;
@@ -190,12 +184,12 @@
         width: 50px;
         height: 200px;
     }
-    
+
     .transition-overlay .dna-dot {
         width: 10px;
         height: 10px;
     }
-    
+
     .loading-status {
         font-size: 0.75rem;
         letter-spacing: 2px;
@@ -205,26 +199,8 @@
 }
 
 /* Отключаем transitions для формы логина чтобы избежать моргания при ошибках */
-.login-form-no-transition,
-.login-form-no-transition *,
-.login-form-no-transition input,
-.login-form-no-transition button,
-.login-container,
-.login-container * {
-  transition: none !important;
-  animation: none !important;
-}
 
 /* Фиксируем скроллбар чтобы избежать сдвига контента при появлении ошибки */
 /* Применяется только на странице логина через специфичность */
-.login-container html {
-  overflow-y: scroll !important;
-}
 
 /* Исключение: оставляем только fade-out анимацию для успешного логина */
-.login-container.fade-out {
-  opacity: 0 !important;
-  transform: translateY(-20px) !important;
-  transition: opacity 0.5s ease, transform 0.5s ease !important;
-  pointer-events: none !important;
-}
