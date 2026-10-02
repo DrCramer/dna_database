@@ -458,7 +458,10 @@ CREATE TABLE public.departments (
 CREATE TABLE public.dna_profiles (
     id uuid DEFAULT gen_random_uuid() NOT NULL,
     user_id uuid,
-    year integer NOT NULL,
+    year integer,
+    import_format character varying(20) DEFAULT 'emergency'::character varying NOT NULL,
+    department_id uuid,
+    organization_id uuid,
     sample_name character varying(100) NOT NULL,
     import_number character varying(255),
     internal_number character varying(100),
@@ -481,6 +484,9 @@ CREATE TABLE public.dna_profiles (
     expert_comment text,
     comment_updated_at timestamp without time zone,
     comment_updated_by uuid,
+    CONSTRAINT dna_profiles_import_format_check CHECK (import_format IN ('emergency', 'genetic')),
+    CONSTRAINT dna_profiles_import_year_check CHECK (year IS NOT NULL OR import_format = 'genetic'),
+    CONSTRAINT dna_profiles_genetic_scope_check CHECK (import_format <> 'genetic' OR (department_id IS NOT NULL AND organization_id IS NOT NULL)),
     CONSTRAINT check_year_range CHECK (((year IS NULL) OR ((year >= 1900) AND (year <= 2100)))),
     CONSTRAINT dna_profiles_new_profile_type_check CHECK (((profile_type)::text = ANY (ARRAY[('user'::character varying)::text, ('master'::character varying)::text, ('staff'::character varying)::text])))
 );
@@ -968,7 +974,7 @@ CREATE TABLE public.file_uploads (
 CREATE TABLE public.master_array_profiles (
     id uuid DEFAULT gen_random_uuid() NOT NULL,
     master_array_id uuid NOT NULL,
-    year integer NOT NULL,
+    year integer,
     sample_name character varying(255) NOT NULL,
     import_number character varying(100),
     internal_number character varying(100) NOT NULL,
@@ -983,6 +989,7 @@ CREATE TABLE public.master_array_profiles (
     metadata_encrypted text,
     encryption_version integer DEFAULT 1,
     encrypted_at timestamp without time zone,
+    CONSTRAINT master_array_profiles_import_year_check CHECK (year IS NOT NULL OR COALESCE(metadata->>'importFormat', 'emergency') = 'genetic'),
     CONSTRAINT check_year_range_master CHECK (((year IS NULL) OR ((year >= 1900) AND (year <= 2100))))
 );
 
@@ -3804,3 +3811,11 @@ ALTER TABLE ONLY public.users
 
 \unrestrict UdtYm5R8ZnYfLTJwFpuPcLbQtvzf486KAwzkhpxYqJsPAgLjCImRmfHZP7ittxi
 
+
+-- Принадлежность профиля активному отделению при загрузке.
+ALTER TABLE public.dna_profiles ADD CONSTRAINT dna_profiles_department_id_fkey FOREIGN KEY (department_id) REFERENCES public.departments(id);
+ALTER TABLE public.dna_profiles ADD CONSTRAINT dna_profiles_organization_id_fkey FOREIGN KEY (organization_id) REFERENCES public.organizations(id);
+CREATE UNIQUE INDEX idx_dna_profiles_genetic_object ON public.dna_profiles (organization_id, department_id, user_id, lower(btrim(sample_name))) WHERE is_active = true AND import_format = 'genetic' AND profile_type = 'user';
+CREATE INDEX idx_dna_profiles_department ON public.dna_profiles (department_id) WHERE is_active = true;
+
+CREATE UNIQUE INDEX idx_master_array_genetic_object ON public.master_array_profiles (master_array_id, lower(btrim(sample_name))) WHERE is_active = true AND metadata->>'importFormat' = 'genetic';

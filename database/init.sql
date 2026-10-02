@@ -154,6 +154,7 @@ FOREIGN KEY (master_array_id) REFERENCES master_arrays(id) ON DELETE SET NULL;
 CREATE TABLE master_array_profiles (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     master_array_id UUID NOT NULL REFERENCES master_arrays(id) ON DELETE CASCADE,
+    year INTEGER,
     sample_name VARCHAR(255) NOT NULL,
     internal_number VARCHAR(255),
     import_number VARCHAR(255),
@@ -304,7 +305,17 @@ ADD COLUMN IF NOT EXISTS profile_type VARCHAR(20) DEFAULT 'user' CHECK (profile_
 ADD COLUMN IF NOT EXISTS internal_number VARCHAR(255),
 ADD COLUMN IF NOT EXISTS import_number VARCHAR(255),
 ADD COLUMN IF NOT EXISTS year INTEGER,
+ADD COLUMN IF NOT EXISTS import_format VARCHAR(20) NOT NULL DEFAULT 'emergency',
+ADD COLUMN IF NOT EXISTS department_id UUID REFERENCES departments(id),
+ADD COLUMN IF NOT EXISTS organization_id UUID REFERENCES organizations(id),
 ADD COLUMN IF NOT EXISTS privoz VARCHAR(255);
+
+-- Проверки нового формата для исторического варианта инициализации.
+ALTER TABLE dna_profiles
+ADD CONSTRAINT dna_profiles_import_format_check CHECK (import_format IN ('emergency', 'genetic')),
+ADD CONSTRAINT dna_profiles_import_year_check CHECK (year IS NOT NULL OR import_format = 'genetic'),
+ADD CONSTRAINT dna_profiles_genetic_scope_check CHECK (import_format <> 'genetic' OR (department_id IS NOT NULL AND organization_id IS NOT NULL));
+CREATE UNIQUE INDEX idx_dna_profiles_genetic_object ON dna_profiles (organization_id, department_id, user_id, lower(btrim(sample_name))) WHERE is_active = true AND import_format = 'genetic' AND profile_type = 'user';
 
 -- Add organizational context to operation_history
 ALTER TABLE operation_history 
@@ -571,13 +582,13 @@ SELECT
     dp.*,
     u.username,
     u.email,
-    u.department_id,
+    u.department_id AS owner_department_id,
     d.name as department_name,
     o.name as organization_name
 FROM dna_profiles dp
 JOIN users u ON dp.user_id = u.id
-LEFT JOIN departments d ON u.department_id = d.id
-LEFT JOIN organizations o ON u.organization_id = o.id
+LEFT JOIN departments d ON COALESCE(dp.department_id, u.department_id) = d.id
+LEFT JOIN organizations o ON COALESCE(dp.organization_id, u.organization_id) = o.id
 WHERE dp.is_active = true AND u.is_active = true;
 
 CREATE VIEW recent_matches AS
@@ -640,3 +651,6 @@ GRANT EXECUTE ON ALL FUNCTIONS IN SCHEMA public TO dna_user;
 -- Admin User: admin; bcrypt hash must be supplied as app.admin_password_hash.
 -- Ready for production use
 -- ============================================================================
+
+ALTER TABLE master_array_profiles ADD CONSTRAINT master_array_profiles_import_year_check CHECK (year IS NOT NULL OR COALESCE(metadata->>'importFormat', 'emergency') = 'genetic');
+CREATE UNIQUE INDEX idx_master_array_genetic_object ON master_array_profiles (master_array_id, lower(btrim(sample_name))) WHERE is_active = true AND metadata->>'importFormat' = 'genetic';

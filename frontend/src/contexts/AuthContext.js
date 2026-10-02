@@ -79,7 +79,7 @@ export const AuthProvider = ({ children }) => {
 
       if (isApiRequest && savedUser?.active_department_id) {
         const headers = new Headers(init.headers || (input instanceof Request ? input.headers : undefined));
-        headers.set('X-Active-Department-Id', savedUser.active_department_id);
+        if (!headers.has('X-Active-Department-Id')) headers.set('X-Active-Department-Id', savedUser.active_department_id);
         nextInit = {
           ...init,
           headers

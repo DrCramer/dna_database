@@ -5,6 +5,7 @@ COPY vendor ./vendor
 RUN npm ci --include=dev --no-audit --no-fund
 COPY . .
 RUN npm run check:ui
+RUN npm test
 RUN mkdir -p public && find public -maxdepth 1 -type f -name '*bundle*' -delete && npm run build
 
 FROM node:20-bullseye-slim

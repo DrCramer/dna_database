@@ -1195,6 +1195,7 @@ class TaskService {
                 internal_number: profile.internalNumber,
                 import_number: task.internal_number_start,
                 metadata: {
+                    importFormat: profile.importFormat,
                     source: 'task',
                     task_id: taskId,
                     internal_number: profile.internalNumber,

@@ -6,6 +6,9 @@ class DNAProfile {
   constructor(data) {
     this.id = data.id;
     this.userId = data.user_id || data.userId;
+    this.importFormat = data.import_format || data.importFormat || 'emergency';
+    this.departmentId = data.department_id || data.departmentId;
+    this.organizationId = data.organization_id || data.organizationId;
     this.year = data.year; // Год образца
     this.sampleName = data.sample_name || data.sampleName;
     this.internalNumber = data.internal_number || data.internalNumber; // New field for original Sample Name
@@ -48,13 +51,25 @@ class DNAProfile {
    * @param {string} profileData.taskId - Task ID (for task-related profiles)
    * @returns {Promise<DNAProfile>} Created profile
    */
-  static async create(profileData) {
-    const { userId, year, sampleName, internalNumber, importNumber, strData, fileSource, notes, masterArrayId, profileType = 'user', taskId } = profileData;
-
-    // Validate year (required field)
-    if (!year) {
-      throw new Error('Year is required for DNA profile');
+  static validateImportFields(data) {
+    const format = data.importFormat || 'emergency';
+    if (!['emergency', 'genetic'].includes(format)) throw new Error('Неизвестный формат импорта.');
+    if (format === 'genetic') {
+      if (!data.departmentId || !data.organizationId) throw new Error('Для генетического профиля требуется активное отделение и организация.');
+      if (!data.sampleName || !String(data.sampleName).trim()) throw new Error('Не заполнено обязательное поле «Объект».');
+      if (!Object.values(data.strData || {}).some(alleles => Array.isArray(alleles) && alleles.length)) throw new Error('Отсутствуют данные генетического профиля.');
+    } else if (!data.year) {
+      throw new Error('Год обязателен для профиля ЧС.');
     }
+    if (data.year != null && (!Number.isInteger(Number(data.year)) || Number(data.year) < 1900 || Number(data.year) > 2100)) {
+      throw new Error('Год должен быть целым числом от 1900 до 2100.');
+    }
+  }
+
+  static async create(profileData) {
+    const { userId, year, sampleName, internalNumber, importNumber, strData, fileSource, notes, masterArrayId, profileType = 'user', taskId, departmentId, organizationId, importFormat = 'emergency' } = profileData;
+
+    this.validateImportFields(profileData);
 
     // Validate STR data
     this.validateSTRData(strData);
@@ -75,8 +90,8 @@ class DNAProfile {
     }
 
     const queryText = `
-      INSERT INTO dna_profiles (user_id, year, sample_name, internal_number, import_number, str_data, file_source, notes, master_array_id, profile_type, task_id)
-      VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)
+      INSERT INTO dna_profiles (user_id, year, sample_name, internal_number, import_number, str_data, file_source, notes, master_array_id, profile_type, task_id, department_id, organization_id, import_format)
+      VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14)
       RETURNING *
     `;
 
@@ -98,7 +113,7 @@ class DNAProfile {
       
       const result = await query(queryText, [
         userId,
-        year,                   // Year is required (NOT NULL)
+        year ?? null,           // NULL разрешён только для genetic-формата
         sampleName,
         internalNumber || null, // Allow null for internal_number
         importNumber || null,   // Allow null for import_number
@@ -107,7 +122,8 @@ class DNAProfile {
         notesStr,
         masterArrayId || null,
         profileType,
-        taskId || null
+        taskId || null,
+        departmentId || null, organizationId || null, importFormat
       ]);
 
       logger.info('DNA profile created', { 
@@ -155,7 +171,7 @@ class DNAProfile {
    * @param {Array} profiles - Array of profiles to check { sampleName, internalNumber, year }
    * @returns {Promise<Array>} Array of check results with action: 'create' | 'conflict' | 'replace'
    */
-  static async checkExistingProfiles(userId, profiles) {
+  static async checkExistingProfiles(userId, profiles, context = {}) {
     if (!profiles || profiles.length === 0) {
       return [];
     }
@@ -175,7 +191,21 @@ class DNAProfile {
           ORDER BY is_active DESC, upload_date DESC
         `;
 
-        const result = await query(queryText, [userId, internalNumber, year]);
+        const genetic = (profile.importFormat || context.importFormat) === 'genetic';
+        if (genetic && (!context.departmentId || !context.organizationId)) throw new Error('Не определено активное отделение для проверки объекта.');
+        const params = genetic
+          ? [userId, profile.sampleName, context.departmentId, context.organizationId]
+          : [userId, internalNumber, year];
+        if (genetic) queryText = `
+          SELECT id, sample_name, internal_number, year, is_active, upload_date,
+                 deactivated_at, deactivation_reason
+          FROM dna_profiles
+          WHERE user_id = $1 AND lower(btrim(sample_name)) = lower(btrim($2))
+            AND department_id = $3 AND organization_id = $4 AND import_format = 'genetic'
+            AND profile_type = 'user'
+          ORDER BY is_active DESC, upload_date DESC
+        `;
+        const result = await query(queryText, params);
 
         if (result.rows.length === 0) {
           // Профиль не найден - можно создавать
@@ -195,6 +225,7 @@ class DNAProfile {
               profile: { sampleName, internalNumber, year },
               existing: {
                 id: activeProfile.id,
+                userId,
                 sampleName: activeProfile.sample_name,
                 internalNumber: activeProfile.internal_number,
                 year: activeProfile.year,
@@ -209,6 +240,7 @@ class DNAProfile {
               profile: { sampleName, internalNumber, year },
               existing: {
                 id: deactivatedProfile.id,
+                userId,
                 sampleName: deactivatedProfile.sample_name,
                 internalNumber: deactivatedProfile.internal_number,
                 year: deactivatedProfile.year,
@@ -317,6 +349,10 @@ class DNAProfile {
     const params = [userId];
     let paramIndex = 2;
 
+    if (options.departmentId) {
+      queryText += ` AND COALESCE(dp.department_id, u.department_id) = $${paramIndex++}`;
+      params.push(options.departmentId);
+    }
     // Filter by profile type
     if (profileType !== 'all') {
       queryText += ` AND dp.profile_type = $${paramIndex}`;
@@ -342,6 +378,14 @@ class DNAProfile {
    * @param {string} excludeId - Profile ID to exclude from search (for updates)
    * @returns {Promise<Array<DNAProfile>>} Array of duplicate profiles
    */
+  static async countByUserId(userId, options = {}) {
+    const params = [userId];
+    let sql = 'SELECT COUNT(*) AS count FROM dna_profiles dp JOIN users u ON u.id = dp.user_id WHERE dp.user_id = $1 AND dp.is_active = true AND u.is_active = true';
+    if (options.departmentId) { params.push(options.departmentId); sql += ` AND COALESCE(dp.department_id, u.department_id) = $${params.length}`; }
+    const result = await query(sql, params);
+    return Number(result.rows[0].count);
+  }
+
   static async findDuplicates(strData, excludeId = null) {
     // Validate STR data
     this.validateSTRData(strData);
@@ -475,8 +519,8 @@ class DNAProfile {
       LEFT JOIN users u ON dp.user_id = u.id
       LEFT JOIN master_array_profiles map ON dp.id = map.id
       WHERE dp.is_active = true AND (
-        (dp.user_id = $1) OR 
-        (dp.profile_type = 'master' AND u.department_id = $2)
+        (dp.user_id = $1 AND COALESCE(dp.department_id, u.department_id) = $2) OR
+        (dp.profile_type = 'master' AND COALESCE(dp.department_id, u.department_id) = $2)
       )
     `;
     const params = [userId, departmentId];
@@ -484,12 +528,12 @@ class DNAProfile {
 
     // Filter by profile type if specified
     if (profile_type && profile_type !== 'all') {
-      queryText += ` AND dp.profile_type = ${paramIndex}`;
+      queryText += ` AND dp.profile_type = $${paramIndex}`;
       params.push(profile_type);
       paramIndex++;
     }
 
-    queryText += ` ORDER BY dp.upload_date DESC LIMIT ${paramIndex} OFFSET ${paramIndex + 1}`;
+    queryText += ` ORDER BY dp.upload_date DESC LIMIT $${paramIndex} OFFSET $${paramIndex + 1}`;
     params.push(limit, offset);
 
     try {
@@ -520,8 +564,8 @@ class DNAProfile {
       SELECT COUNT(DISTINCT dp.id) as count FROM dna_profiles dp
       LEFT JOIN users u ON dp.user_id = u.id
       WHERE dp.is_active = true AND (
-        (dp.user_id = $1) OR 
-        (dp.profile_type = 'master' AND u.department_id = $2)
+        (dp.user_id = $1 AND COALESCE(dp.department_id, u.department_id) = $2) OR
+        (dp.profile_type = 'master' AND COALESCE(dp.department_id, u.department_id) = $2)
       )
     `;
     const params = [userId, departmentId];
@@ -567,7 +611,7 @@ class DNAProfile {
 
     // Filter by department if specified
     if (department_id) {
-      queryText += ` AND u.department_id = $${paramIndex}`;
+      queryText += ` AND COALESCE(dp.department_id, u.department_id) = $${paramIndex}`;
       params.push(department_id);
       paramIndex++;
     }
@@ -614,7 +658,7 @@ class DNAProfile {
 
     // Filter by department if specified
     if (department_id) {
-      queryText += ` AND u.department_id = $${paramIndex}`;
+      queryText += ` AND COALESCE(dp.department_id, u.department_id) = $${paramIndex}`;
       params.push(department_id);
       paramIndex++;
     }
@@ -652,7 +696,7 @@ class DNAProfile {
     let queryText = `
       SELECT dp.* FROM dna_profiles dp
       JOIN users u ON dp.user_id = u.id
-      WHERE dp.str_data = $1 AND dp.is_active = true AND u.department_id = $2
+      WHERE dp.str_data = $1 AND dp.is_active = true AND COALESCE(dp.department_id, u.department_id) = $2
     `;
     const params = [JSON.stringify(strData), departmentId];
 
@@ -892,17 +936,14 @@ class DNAProfile {
       for (const profileData of profilesData) {
         const { year, sampleName, internalNumber, importNumber, strData, taskId, notes } = profileData;
 
-        // Validate required fields
-        if (!year) {
-          throw new Error(`Year is required for profile: ${sampleName}`);
-        }
+        this.validateImportFields(profileData);
 
         this.validateSTRData(strData);
 
         // Add parameters
         params.push(
           userId,                                                    // $1, $8, $15...
-          year,                                                      // $2, $9, $16...
+          year ?? null,
           sampleName,                                                // $3, $10, $17...
           internalNumber || null,                                    // $4, $11, $18...
           importNumber || null,                                      // $5, $12, $19...
@@ -910,19 +951,20 @@ class DNAProfile {
           fileSource ? String(fileSource) : null,                    // $7, $14, $21...
           notes ? (typeof notes === 'object' ? JSON.stringify(notes) : String(notes)) : null, // $8, $15, $22...
           taskId || null,                                            // $9, $16, $23...
-          'user'                                                     // $10, $17, $24... (profile_type)
+          'user',
+          profileData.departmentId || null, profileData.organizationId || null, profileData.importFormat || 'emergency'
         );
 
         // Build VALUES clause
-        const valueClause = `($${paramIndex}, $${paramIndex + 1}, $${paramIndex + 2}, $${paramIndex + 3}, $${paramIndex + 4}, $${paramIndex + 5}, $${paramIndex + 6}, $${paramIndex + 7}, $${paramIndex + 8}, $${paramIndex + 9})`;
+        const valueClause = `($${paramIndex}, $${paramIndex + 1}, $${paramIndex + 2}, $${paramIndex + 3}, $${paramIndex + 4}, $${paramIndex + 5}, $${paramIndex + 6}, $${paramIndex + 7}, $${paramIndex + 8}, $${paramIndex + 9}, $${paramIndex + 10}, $${paramIndex + 11}, $${paramIndex + 12})`;
         values.push(valueClause);
-        paramIndex += 10;
+        paramIndex += 13;
       }
 
       const queryText = `
         INSERT INTO dna_profiles (
           user_id, year, sample_name, internal_number, import_number, 
-          str_data, file_source, notes, task_id, profile_type
+          str_data, file_source, notes, task_id, profile_type, department_id, organization_id, import_format
         )
         VALUES ${values.join(', ')}
         RETURNING *
@@ -1065,7 +1107,7 @@ class DNAProfile {
 
     try {
       // Get user's own profiles
-      const userProfiles = await this.findByUserId(userId, { limit, offset, profileType: 'user' });
+      const userProfiles = await this.findByUserId(userId, { limit, offset, profileType: 'user', departmentId: options.departmentId });
 
       let masterArrayProfiles = [];
       let departmentInfo = null;
@@ -1074,15 +1116,15 @@ class DNAProfile {
         // Get user's department and master array profiles
         const departmentResult = await query(`
           SELECT 
-            u.department_id,
+            d.id AS department_id,
             d.name as department_name,
             d.master_array_id,
             ma.name as master_array_name
           FROM users u
-          LEFT JOIN departments d ON u.department_id = d.id
+          LEFT JOIN departments d ON d.id = COALESCE($2::uuid, u.department_id)
           LEFT JOIN master_arrays ma ON d.master_array_id = ma.id
           WHERE u.id = $1 AND u.is_active = true
-        `, [userId]);
+        `, [userId, options.departmentId || null]);
 
         if (departmentResult.rows.length > 0 && departmentResult.rows[0].master_array_id) {
           const dept = departmentResult.rows[0];
@@ -1325,6 +1367,11 @@ class DNAProfile {
     return {
       id: this.id,
       userId: this.userId,
+      year: this.year,
+      importNumber: this.importNumber,
+      importFormat: this.importFormat,
+      departmentId: this.departmentId,
+      organizationId: this.organizationId,
       sampleName: this.sampleName,
       internalNumber: this.internalNumber, // Add internal number to JSON output
       strData: this.strData,

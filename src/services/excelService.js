@@ -4,6 +4,7 @@ const { LociTypeDetector, ALL_LOCI } = require('../utils/lociTypeDetector');
 const { logger } = require('../utils/logger');
 const DNAProfile = require('../models/DNAProfile');
 const User = require('../models/User');
+const { resolveProfileImportFormat, normalizeObjectName, geneticObjectKey, getGeneticHeaders, validateGeneticHeaders } = require('../utils/profileImportFormat');
 
 // Импортируем конвертер латинских символов
 const { LatinToCyrillicConverter } = require('./latinToCyrillicConverter');
@@ -84,9 +85,29 @@ class ExcelService {
    * @param {string} userContext.organizationId - User's organization ID
    * @returns {Object} Parsing result with profiles and metadata
    */
+  async resolveUserContext(context) {
+    const user = await User.findById(context.userId);
+    if (!user) throw new ExcelParsingError('Указан недопустимый пользователь.', 'INVALID_USER');
+    const departments = await user.getAccessibleDepartments();
+    const departmentId = context.departmentId || user.department_id;
+    const department = departments.find(item => item.id === departmentId);
+    if (!department) throw new ExcelParsingError('Нет доступа к активному отделению.', 'DEPARTMENT_ACCESS_DENIED');
+    return {
+      ...context,
+      departmentId: department.id,
+      organizationId: department.organization_id,
+      departmentName: department.name,
+      importFormat: resolveProfileImportFormat(department),
+      userRole: user.role,
+      username: user.username
+    };
+  }
+
   async parseExcelFileWithContext(fileBuffer, filename = 'unknown', userContext = {}, options = {}) {
     try {
-      const { userId, departmentId, organizationId } = userContext;
+      userContext = await this.resolveUserContext(userContext);
+      const { userId, departmentId, organizationId, importFormat } = userContext;
+      options = { ...options, importFormat };
       
       if (!userId) {
         throw new ExcelParsingError(
@@ -106,6 +127,8 @@ class ExcelService {
         departmentId,
         organizationId,
         fileSource: filename,
+        importFormat: importFormat || 'emergency',
+        metadata: { ...profile.metadata, departmentId, organizationId },
         uploadContext: {
           uploadedAt: new Date().toISOString(),
           uploadedBy: userId,
@@ -126,6 +149,7 @@ class ExcelService {
         profiles: profilesWithContext,
         metadata: {
           filename,
+          importFormat,
           profileCount: profilesWithContext.length,
           uploadedBy: userId,
           uploadedAt: new Date().toISOString(),
@@ -198,6 +222,7 @@ class ExcelService {
         const masterStartTime = Date.now();
         const accessibleProfiles = await DNAProfile.getAccessibleProfiles(userId, {
           includeMasterArray: true,
+          departmentId,
           limit: 1000
         });
         masterArrayProfiles = accessibleProfiles.masterArrayProfiles || [];
@@ -211,7 +236,9 @@ class ExcelService {
       let existingProfiles = [];
       let existingProfileKeys = new Set(); // Для быстрой проверки по ключу year-internal_number
       
-      if (performDeduplication) {
+      const isGenetic = profiles.some(profile => profile.importFormat === 'genetic');
+      const geneticChecks = isGenetic ? await DNAProfile.checkExistingProfiles(userId, profiles, userContext) : null;
+      if (performDeduplication && !isGenetic) {
         const dedupStartTime = Date.now();
         
         // Get all user's profiles that might be duplicates
@@ -242,7 +269,13 @@ class ExcelService {
         
         try {
           // Step 1: Check for duplicates using in-memory data
-          if (performDeduplication && !allowDuplicates) {
+          if (isGenetic && geneticChecks[i].action === 'conflict') {
+            result.duplicates.push({ sampleName: profile.sampleName, importFormat: 'genetic', lociCount: profile.totalLociCount,
+              reason: 'duplicate_object', existingProfiles: [geneticChecks[i].existing] });
+            result.summary.duplicateCount++;
+            continue;
+          }
+          if (!isGenetic && performDeduplication && !allowDuplicates) {
             const duplicateCheck = this.checkForDuplicatesInMemory(profile, existingProfiles, existingProfileKeys, userId);
             
             if (duplicateCheck.hasDuplicates) {
@@ -279,6 +312,9 @@ class ExcelService {
           profilesToCreate.push({
             userId,
             year: profile.year,
+            importFormat: profile.importFormat,
+            departmentId: userContext.departmentId,
+            organizationId: userContext.organizationId,
             sampleName: profile.sampleName,
             internalNumber: profile.internalNumber,
             importNumber: profile.importNumber,
@@ -315,6 +351,8 @@ class ExcelService {
             sampleName: profile.sampleName,
             internal_number: profile.internalNumber,
             year: profile.year,
+            importFormat: profile.importFormat,
+            rowNumber: profile.rowNumber,
             error: error.message,
             index: i
           });
@@ -335,11 +373,15 @@ class ExcelService {
         const insertStartTime = Date.now();
         logger.info('Starting batch insert', { count: profilesToCreate.length });
         
-        const createdProfiles = await DNAProfile.batchInsert(
-          profilesToCreate,
-          userId,
-          profilesToCreate[0].fileSource
-        );
+        let createdProfiles;
+        try {
+          createdProfiles = await DNAProfile.batchInsert(profilesToCreate, userId, profilesToCreate[0].fileSource);
+        } catch (error) {
+          if (error.code === '23505' && error.constraint === 'idx_dna_profiles_genetic_object') {
+            throw new ExcelParsingError('Объект уже загружен в активное отделение. Обновите предварительный просмотр и повторите загрузку.', 'OBJECT_CONFLICT');
+          }
+          throw error;
+        }
 
         logger.info('Batch insert completed', {
           count: createdProfiles.length,
@@ -566,23 +608,8 @@ class ExcelService {
         );
       }
 
-      // Get user information for validation
-      const user = await User.findById(userContext.userId);
-      if (!user) {
-        throw new ExcelParsingError(
-          'Указан недопустимый ID пользователя',
-          EXCEL_ERROR_CODES.INVALID_FILE_FORMAT,
-          { filename, userId: userContext.userId }
-        );
-      }
-
-      // Update user context with user's department and organization
-      const enrichedUserContext = {
-        ...userContext,
-        departmentId: user.department_id,
-        organizationId: user.organization_id,
-        userRole: user.role
-      };
+      // Сохраняем активное отделение и повторно проверяем доступ к нему.
+      const enrichedUserContext = await this.resolveUserContext(userContext);
 
       // Step 1: Parse Excel file
       const parseResult = await this.parseExcelFileWithContext(
@@ -603,8 +630,9 @@ class ExcelService {
       const finalResult = {
         uploadId: require('crypto').randomUUID(),
         filename,
-        uploadedBy: user.username,
+        uploadedBy: enrichedUserContext.username,
         uploadedAt: new Date().toISOString(),
+        importFormat: enrichedUserContext.importFormat,
         department: enrichedUserContext.departmentId,
         organization: enrichedUserContext.organizationId,
         parsing: {
@@ -764,7 +792,13 @@ class ExcelService {
 
       // Use first worksheet
       const worksheet = workbook.Sheets[workbook.SheetNames[0]];
-      const jsonData = XLSX.utils.sheet_to_json(worksheet, { header: 1 });
+      const isGenetic = options.importFormat === 'genetic';
+      const range = isGenetic && worksheet['!ref']
+        ? { s: { r: 0, c: 0 }, e: XLSX.utils.decode_range(worksheet['!ref']).e } : undefined;
+      const jsonData = XLSX.utils.sheet_to_json(worksheet, { header: 1, ...(range ? { range } : {}) });
+      if (range && jsonData.length) {
+        jsonData[0] = getGeneticHeaders(jsonData);
+      }
 
       if (!jsonData || jsonData.length === 0) {
         throw new ExcelParsingError(
@@ -836,7 +870,7 @@ class ExcelService {
     const nonEmptyRows = [];
     for (let i = 0; i < dataRows.length; i++) {
       const row = dataRows[i];
-      if (row && !row.every(cell => !cell || cell.toString().trim() === '')) {
+      if (row && (options.importFormat === 'genetic' ? row.some(cell => normalizeObjectName(cell) !== '') : !row.every(cell => !cell || cell.toString().trim() === ''))) {
         nonEmptyRows.push({ row, originalIndex: i });
       }
     }
@@ -854,7 +888,7 @@ class ExcelService {
       const rowNumber = originalIndex + 2; // +2 because we start from row 1 and skip header
 
       try {
-        const profile = this.extractProfileFromRow(
+        const profile = (options.importFormat === 'genetic' ? this.extractGeneticProfileFromRow : this.extractProfileFromRow).call(this,
           row, 
           headers, 
           rowNumber, 
@@ -909,14 +943,18 @@ class ExcelService {
       );
     }
     
+    if (options.importFormat === 'genetic' && profiles.length === 0) {
+      throw new ExcelParsingError('В файле отсутствуют строки с ДНК-профилями.', EXCEL_ERROR_CODES.EMPTY_FILE, { filename });
+    }
+
     // ПРОВЕРКА ДУБЛИКАТОВ ВНУТРИ ФАЙЛА
     // OPTIMIZATION: Use Map for O(1) lookup instead of array search
     const profileKeys = new Map(); // key -> {rowNumber, sampleName}
     const internalDuplicates = [];
     
     for (const profile of profiles) {
-      if (profile.year && profile.internalNumber) {
-        const key = `${profile.year}-${profile.internalNumber}`;
+      if (profile.importFormat === 'genetic' || (profile.year && profile.internalNumber)) {
+        const key = profile.importFormat === 'genetic' ? geneticObjectKey(profile.sampleName) : `${profile.year}-${profile.internalNumber}`;
         
         if (profileKeys.has(key)) {
           // Найден дубликат!
@@ -947,7 +985,9 @@ class ExcelService {
     // Если найдены дубликаты внутри файла - это критическая ошибка
     if (internalDuplicates.length > 0) {
       throw new ExcelParsingError(
-        `Обнаружены дубликаты внутри файла: ${internalDuplicates.length} повторяющихся номеров образцов`,
+        options.importFormat === 'genetic'
+          ? internalDuplicates.map(dup => `Обнаружен дубликат объекта «${dup.sampleName}»: первая строка ${dup.firstRow}, повторная строка ${dup.duplicateRow}.`).join('\n')
+          : `Обнаружены дубликаты внутри файла: ${internalDuplicates.length} повторяющихся номеров образцов`,
         EXCEL_ERROR_CODES.INTERNAL_DUPLICATES,
         { 
           filename, 
@@ -991,6 +1031,13 @@ class ExcelService {
    * @param {number} options.minRequiredLoci - Minimum required loci
    */
   validateHeaders(headers, filename, options = {}) {
+    if (options.importFormat === 'genetic') {
+      const result = validateGeneticHeaders(headers, options.minRequiredLoci || 3);
+      if (!result.valid) throw new ExcelParsingError(result.errors.map(e => e.message).join('\n'),
+        result.errors[0].code, { filename, errors: result.errors });
+      return { ...result, mode: COMPATIBILITY_MODES.AUTO_DETECT };
+    }
+
     const { 
       mode = COMPATIBILITY_MODES.AUTO_DETECT, 
       minRequiredLoci = 3 
@@ -1570,6 +1617,47 @@ class ExcelService {
    * @param {string} filename - Original filename
    * @returns {Object} Allele object with allele1 and allele2
    */
+  extractGeneticProfileFromRow(row, headers, rowNumber, filename, validationResult) {
+    const sampleName = normalizeObjectName(row[0]);
+    if (!sampleName) throw new ExcelParsingError(`Строка ${rowNumber}: не заполнено обязательное поле «Объект».`, 'MISSING_OBJECT', { rowNumber });
+    if (sampleName.length > 100) throw new ExcelParsingError(`Строка ${rowNumber}: значение «Объект» длиннее 100 символов.`, 'INVALID_OBJECT', { rowNumber });
+    const strData = {};
+    const lociTypes = {};
+    const priorityMarkers = {};
+    for (const { index, locus } of validationResult.columns) {
+      const type = this.lociTypeDetector.detectLocusType(locus);
+      strData[locus] = this.parseAlleleValue(row[index], locus, type, rowNumber, filename);
+      lociTypes[locus] = type;
+      if (EXTENDED_40_STR_SNP_MARKERS.includes(locus)) priorityMarkers[locus] = true;
+    }
+    const populatedLociCount = Object.values(strData).filter(alleles => alleles.length > 0).length;
+    if (!populatedLociCount) throw new ExcelParsingError(`Строка ${rowNumber}, объект «${sampleName}»: отсутствуют данные генетического профиля.`, 'EMPTY_GENETIC_PROFILE', { rowNumber });
+    const priorityMarkerCount = Object.keys(priorityMarkers).length;
+    const breakdown = this.getLociTypeBreakdown(strData);
+    return {
+      sampleName,
+      // Legacy-экраны используют internalNumber: это тот же объект, без генерации.
+      internalNumber: sampleName,
+      year: null,
+      importNumber: null,
+      importFormat: 'genetic',
+      strData,
+      lociData: strData,
+      lociTypes,
+      priorityMarkers,
+      priorityMarkerCount,
+      totalLociCount: Object.keys(strData).length,
+      strLociCount: Object.keys(strData).filter(locus => lociTypes[locus] === 'STR').length,
+      snpLociCount: Object.keys(strData).filter(locus => lociTypes[locus] === 'SNP').length,
+      metadata: {
+        importFormat: 'genetic', source: filename, rowNumber, populatedLociCount,
+        lociTypeBreakdown: breakdown,
+        compatibilityInfo: { totalLociCount: Object.keys(strData).length, priorityMarkerCount, mode: COMPATIBILITY_MODES.AUTO_DETECT },
+        qualityMetrics: { completeness: populatedLociCount / Object.keys(strData).length * 100, dataQuality: this.assessDataQuality(strData) }
+      }
+    };
+  }
+
   parseAlleleValue(cellValue, locusName, locusType, rowNumber, filename) {
     if (cellValue === null || cellValue === undefined || cellValue === '') {
       // Allow empty values - will be handled as no data
@@ -1624,7 +1712,7 @@ class ExcelService {
     } else if (locusName === 'AMEL' && cleanValue.toUpperCase() === 'XY') {
       // Специальная обработка для AMEL: "XY" → ["X", "Y"]
       alleles = ['X', 'Y'];
-    } else if (locusName === 'Yindel' || locusName === 'DYS391') {
+    } else if (locusName === 'Yindel' || locusType === 'Y_CHROMOSOME') {
       // Специальная обработка для Y-хромосомных маркеров (гаплоидные)
       // Одно значение не дублируется
       alleles = [cleanValue];
@@ -1647,7 +1735,7 @@ class ExcelService {
     
     if (alleles.length === 1) {
       // Для Y-хромосомных маркеров (гаплоидные) - не дублируем
-      if (locusName === 'Yindel' || locusName === 'DYS391') {
+      if (locusName === 'Yindel' || locusType === 'Y_CHROMOSOME') {
         finalAlleles = [alleles[0]];
       } else {
         // Homozygous - duplicate the allele
@@ -1658,7 +1746,7 @@ class ExcelService {
       finalAlleles = alleles;
       
       // Предупреждение для Y-хромосомных маркеров с двумя аллелями
-      if (locusName === 'Yindel' || locusName === 'DYS391') {
+      if (locusName === 'Yindel' || locusType === 'Y_CHROMOSOME') {
         warnings.push(`Potential contamination in Y-chromosome marker: 2 alleles found (${alleles.join(', ')})`);
         logger.warn('Potential contamination in Y-chromosome marker', {
           filename,

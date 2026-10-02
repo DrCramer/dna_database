@@ -1,4 +1,5 @@
 const { query, transaction } = require('../config/database');
+const { resolveProfileImportFormat, geneticObjectKey } = require('../utils/profileImportFormat');
 const { logger } = require('../utils/logger');
 const { STR_LOCI } = require('../services/excelService');
 
@@ -285,11 +286,17 @@ class MasterArray {
      * @param {Array<Object>} profilesData - Array of profile data objects
      * @returns {Promise<Object>} Result with success and error arrays
      */
+    async isGeneticDepartment() {
+        const result = await query('SELECT name FROM departments WHERE id = $1 AND is_active = true', [this.department_id]);
+        return resolveProfileImportFormat(result.rows[0]) === 'genetic';
+    }
+
     async addProfilesBatch(profilesData) {
         if (!Array.isArray(profilesData) || profilesData.length === 0) {
             throw new Error('Profiles data must be a non-empty array');
         }
 
+        const geneticDepartment = profilesData.some(p => p.metadata?.importFormat === 'genetic') && await this.isGeneticDepartment();
         const results = {
             success: [],
             errors: []
@@ -299,14 +306,14 @@ class MasterArray {
             await transaction(async (client) => {
                 // Получить существующие (year, internal_number) для проверки дубликатов
                 const existingResult = await client.query(
-                    'SELECT year, internal_number FROM master_array_profiles WHERE master_array_id = $1 AND is_active = true',
+                    'SELECT year, internal_number, sample_name, metadata FROM master_array_profiles WHERE master_array_id = $1 AND is_active = true',
                     [this.id]
                 );
                 
                 const existingKeys = new Set(
                     existingResult.rows
-                        .filter(r => r.year && r.internal_number)
-                        .map(r => `${r.year}-${r.internal_number}`)
+                        .filter(r => (r.metadata?.importFormat === 'genetic') || (r.year && r.internal_number))
+                        .map(r => r.metadata?.importFormat === 'genetic' ? `genetic:${geneticObjectKey(r.sample_name)}` : `${r.year}-${r.internal_number}`)
                 );
 
                 // Проверить доступ пользователя один раз
@@ -319,12 +326,12 @@ class MasterArray {
                     SELECT u.id, u.department_id, u.role
                     FROM users u
                     JOIN departments d ON u.department_id = d.id
-                    WHERE u.id = $1 AND u.is_active = true AND d.id = $2
+                    WHERE u.id = $1 AND u.is_active = true AND (d.id = $2 OR EXISTS (SELECT 1 FROM user_departments ud WHERE ud.user_id = u.id AND ud.department_id = $2))
                 `, [createdBy, this.department_id]);
 
                 if (userResult.rows.length === 0) {
                     const systemAdminResult = await client.query(
-                        'SELECT id FROM users WHERE id = $1 AND role = $2 AND is_active = true',
+                        "SELECT id FROM users WHERE id = $1 AND role IN ($2, 'admin') AND is_active = true",
                         [createdBy, 'system_administrator']
                     );
                     
@@ -360,23 +367,24 @@ class MasterArray {
                     }
 
                     // Валидация года (обязательное поле)
-                    if (!year) {
+                    const genetic = geneticDepartment && metadata.importFormat === 'genetic';
+                    if (!year && !genetic) {
                         results.errors.push({
                             sample_name,
                             internal_number,
-                            error: 'Year is required for master array profile'
+                            error: 'Год обязателен для профиля ЧС в мастер-массиве'
                         });
                         continue;
                     }
 
                     // Проверка дубликатов
-                    if (year && internal_number) {
-                        const profileKey = `${year}-${internal_number}`;
+                    if (genetic || (year && internal_number)) {
+                        const profileKey = genetic ? `genetic:${geneticObjectKey(sample_name)}` : `${year}-${internal_number}`;
                         if (existingKeys.has(profileKey)) {
                             results.errors.push({
                                 sample_name,
                                 internal_number,
-                                error: `Профиль с номером ${internal_number} за ${year} год уже существует в мастер массиве`
+                                error: genetic ? `Объект «${sample_name}» уже есть в мастер-массиве.` : `Профиль с номером ${internal_number} за ${year} год уже существует в мастер массиве`
                             });
                             continue;
                         }
@@ -494,7 +502,8 @@ class MasterArray {
         }
 
         // Validate year (required field)
-        if (!year) {
+        const genetic = metadata.importFormat === 'genetic' && await this.isGeneticDepartment();
+        if (!year && !genetic) {
             throw new Error('Year is required for master array profile');
         }
 
@@ -515,17 +524,21 @@ class MasterArray {
                     }
                 }
 
+                if (genetic) {
+                    const duplicate = await client.query(`SELECT id FROM master_array_profiles WHERE master_array_id = $1 AND is_active = true AND metadata->>'importFormat' = 'genetic' AND lower(btrim(sample_name)) = lower(btrim($2))`, [this.id, sample_name]);
+                    if (duplicate.rows.length) throw new Error(`Объект «${sample_name}» уже есть в мастер-массиве.`);
+                }
                 // Verify user exists and has access to this department
                 const userResult = await client.query(`
                     SELECT u.id, u.department_id, u.role
                     FROM users u
                     JOIN departments d ON u.department_id = d.id
-                    WHERE u.id = $1 AND u.is_active = true AND d.id = $2
+                    WHERE u.id = $1 AND u.is_active = true AND (d.id = $2 OR EXISTS (SELECT 1 FROM user_departments ud WHERE ud.user_id = u.id AND ud.department_id = $2))
                 `, [created_by, this.department_id]);
 
                 if (userResult.rows.length === 0) {
                     const systemAdminResult = await client.query(
-                        'SELECT id FROM users WHERE id = $1 AND role = $2 AND is_active = true',
+                        "SELECT id FROM users WHERE id = $1 AND role IN ($2, 'admin') AND is_active = true",
                         [created_by, 'system_administrator']
                     );
                     
@@ -550,7 +563,7 @@ class MasterArray {
                     RETURNING *
                 `, [
                     this.id,
-                    year,  // Year is required (NOT NULL)
+                    year ?? null,
                     sample_name.trim(),
                     JSON.stringify(str_data),
                     JSON.stringify(metadata),
@@ -895,13 +908,13 @@ class MasterArray {
                 SELECT u.id, u.role, u.department_id, u.organization_id
                 FROM users u
                 JOIN departments d ON u.department_id = d.id
-                WHERE u.id = $1 AND u.is_active = true AND d.id = $2
+                WHERE u.id = $1 AND u.is_active = true AND (d.id = $2 OR EXISTS (SELECT 1 FROM user_departments ud WHERE ud.user_id = u.id AND ud.department_id = $2))
             `, [userId, this.department_id]);
 
             if (result.rows.length === 0) {
                 // Check if user is system administrator
                 const adminResult = await query(
-                    'SELECT id FROM users WHERE id = $1 AND role = $2 AND is_active = true',
+                    "SELECT id FROM users WHERE id = $1 AND role IN ($2, 'admin') AND is_active = true",
                     [userId, 'system_administrator']
                 );
                 

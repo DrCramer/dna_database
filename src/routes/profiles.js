@@ -262,6 +262,15 @@ const handleMulterError = (err, req, res, next) => {
   next();
 };
 
+// Используем только контекст, уже проверенный authenticate.
+async function getImportContext(req) {
+  return excelService.resolveUserContext({
+    userId: req.user.id,
+    departmentId: req.activeDepartmentId || req.organizationalContext?.department_id,
+    taskId: req.body.taskId || null
+  });
+}
+
 // Preview endpoint - analyze file without saving to database
 router.post('/upload/preview', 
     authenticate, 
@@ -288,6 +297,8 @@ router.post('/upload/preview',
       userId
     });
 
+    const userContext = await getImportContext(req);
+
     // Parse file
     const parsingOptions = {
       mode,
@@ -297,21 +308,23 @@ router.post('/upload/preview',
     const parseResult = await excelService.parseExcelFileWithContext(
       buffer,
       originalname,
-      { userId },
-      { parsingOptions }
+      userContext,
+      parsingOptions
     );
 
     // Check for existing profiles (active and deactivated)
     const profileIdentifiers = parseResult.profiles.map(p => ({
       sampleName: p.sampleName,
       internalNumber: p.internalNumber,
-      year: p.year
+      year: p.year,
+      importFormat: p.importFormat
     }));
 
-    const existingChecks = await DNAProfile.checkExistingProfiles(userId, profileIdentifiers);
+    const existingChecks = await DNAProfile.checkExistingProfiles(userId, profileIdentifiers, userContext);
 
     // Build preview response
     const preview = {
+      importFormat: userContext.importFormat,
       totalProfiles: parseResult.profiles.length,
       breakdown: {
         create: 0,
@@ -327,6 +340,7 @@ router.post('/upload/preview',
 
       const previewItem = {
         index: i,
+        importFormat: profile.importFormat,
         sampleName: profile.sampleName,
         internalNumber: profile.internalNumber,
         year: profile.year,
@@ -460,12 +474,14 @@ router.post('/upload',
       mode
     });
 
+    const userContext = await getImportContext(req);
+
     // 1. Расширенная валидация файла
     console.log('🔍 DEBUG: Checking validation skip:', skipValidationBool);
     if (!skipValidationBool) {
       console.log('🔍 DEBUG: Running validation...');
       try {
-        const validationResult = fileValidationService.validateFile(buffer, originalname);
+        const validationResult = fileValidationService.validateFile(buffer, originalname, { importFormat: userContext.importFormat });
         
         if (!validationResult.valid) {
           logger.warn('File validation failed', {
@@ -530,7 +546,8 @@ router.post('/upload',
     }
 
     // Если включен режим "только валидация", возвращаем только результаты валидации
-    if (validationOnlyBool && !skipValidationBool) {
+    if (validationOnlyBool && (!skipValidationBool || userContext.importFormat === 'genetic')) {
+      if (userContext.importFormat === 'genetic') await excelService.parseExcelFileWithContext(buffer, originalname, userContext, { minRequiredLoci: 3 });
       logger.info('Validation-only mode: returning validation results without data processing', {
         filename: originalname,
         userId
@@ -559,15 +576,6 @@ router.post('/upload',
       allowDuplicates: allowDuplicatesBool
     });
 
-    const userContext = {
-      userId,
-      departmentId: req.user.department_id,
-      organizationId: req.user.organization_id,
-      userRole: req.user.role,
-      username: req.user.username,
-      taskId: taskId || null // Добавляем task_id для привязки генотипов к задаче
-    };
-
     const processingOptions = {
       performDeduplication: performDeduplicationBool,
       compareMasterArray: compareMasterArrayBool,
@@ -593,6 +601,7 @@ router.post('/upload',
     res.status(200).json({
       success: true,
       message: 'File processed successfully with validation and saved to database',
+      importFormat: result.importFormat,
       uploadId: result.uploadId,
       filename: originalname,
       uploadedBy: result.uploadedBy,
@@ -619,6 +628,9 @@ router.post('/upload',
       data: {
         createdProfiles: result.processing.created.map(item => ({
           id: item.profile.id,
+          importFormat: item.profile.importFormat,
+          year: item.profile.year,
+          lociCount: Object.keys(item.profile.strData || {}).length,
           sampleName: item.profile.sampleName,
           internal_number: item.profile.internalNumber, // Исправлено: используем camelCase из модели
           uploadDate: item.profile.uploadDate,
@@ -710,13 +722,7 @@ router.post('/bulk-upload-with-comparison',
     } = req.body;
 
     // Enhanced user context
-    const userContext = {
-      userId,
-      departmentId: req.user.department_id,
-      organizationId: req.user.organization_id,
-      userRole: req.user.role,
-      username: req.user.username
-    };
+    const userContext = await getImportContext(req);
 
     // Enhanced processing options
     const processingOptions = {
@@ -965,20 +971,21 @@ router.get('/', authenticate, async (req, res) => {
     let profiles;
     let totalCount;
 
-    if (include_master_array === 'true' && req.user.department_id) {
+    if (include_master_array === 'true' && req.activeDepartmentId) {
       // Include both user profiles and department master array profiles
-      profiles = await DNAProfile.findByUserWithDepartmentAccess(userId, req.user.department_id, {
+      profiles = await DNAProfile.findByUserWithDepartmentAccess(userId, req.activeDepartmentId, {
         limit: parseInt(limit),
         offset: parseInt(offset)
       });
-      totalCount = await DNAProfile.countByUserWithDepartmentAccess(userId, req.user.department_id);
+      totalCount = await DNAProfile.countByUserWithDepartmentAccess(userId, req.activeDepartmentId);
     } else {
       // Only user's own profiles
       profiles = await DNAProfile.findByUserId(userId, {
+        departmentId: req.activeDepartmentId,
         limit: parseInt(limit),
         offset: parseInt(offset)
       });
-      totalCount = await DNAProfile.countByUserId(userId);
+      totalCount = await DNAProfile.countByUserId(userId, { departmentId: req.activeDepartmentId });
     }
 
     res.json({
@@ -1000,7 +1007,7 @@ router.get('/', authenticate, async (req, res) => {
       },
       context: {
         organization_id: req.user.organization_id,
-        department_id: req.user.department_id,
+        department_id: req.activeDepartmentId,
         include_master_array: include_master_array === 'true'
       }
     });
@@ -1550,7 +1557,7 @@ router.get('/accessible', authenticate, async (req, res) => {
   try {
     const { limit = 100, offset = 0, profile_type } = req.query;
     const userId = req.user.id;
-    const departmentId = req.user.department_id;
+    const departmentId = req.activeDepartmentId;
     
     let profiles;
     let totalCount;
@@ -1615,7 +1622,7 @@ router.get('/accessible', authenticate, async (req, res) => {
       },
       context: {
         user_role: req.user.role,
-        user_department_id: req.user.department_id,
+        user_department_id: req.activeDepartmentId,
         access_level: (req.user.role === 'system_administrator' || req.user.role === 'admin') ? 'all' : 
                      req.user.role === 'department_head' ? 'department' : 'user_and_department'
       }

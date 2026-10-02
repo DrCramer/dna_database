@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
 import { useAuth } from '../../contexts/AuthContext';
+import { resolveProfileImportFormat } from '../../../../src/utils/profileImportFormat';
 
 
 // Функция склонения слова "профиль"
@@ -76,17 +77,17 @@ const ErrorDetailsSection = ({ errors }) => {
                   <div
                     key={index}
                     className="error-item error-item-card"
-                    title={`Строка ${error.index + 2}: ${error.sampleName}`}
+                    title={`Строка ${error.rowNumber ?? error.index + 2}: ${error.sampleName}`}
                   >
                     <div className="error-item-title">
-                      {error.sampleName || `Строка ${error.index + 2}`}
+                      {error.sampleName || `Строка ${error.rowNumber ?? error.index + 2}`}
                     </div>
                     <div className="error-item-meta">
-                      <div>📍 Строка: {error.index + 2}</div>
-                      {error.internal_number && (
+                      <div>📍 Строка: {error.rowNumber ?? error.index + 2}</div>
+                      {error.importFormat !== 'genetic' && error.internal_number && (
                         <div>🔢 Номер: {error.internal_number}</div>
                       )}
-                      {error.year && (
+                      {error.importFormat !== 'genetic' && error.year && (
                         <div>📅 Год: {error.year}</div>
                       )}
                     </div>
@@ -117,7 +118,18 @@ const FileUploader = ({ onNavigate, onUploadSuccess, selectedActiveTask }) => {
   const [showReplaceConfirm, setShowReplaceConfirm] = useState(false);
   const [autoReplaceDeactivated, setAutoReplaceDeactivated] = useState(true);
 
-  const { user } = useAuth();
+  const { user, activeDepartment, activeDepartmentId } = useAuth();
+  const isGenetic = resolveProfileImportFormat(activeDepartment) === 'genetic';
+  const uploadDepartmentRef = React.useRef(activeDepartmentId);
+
+  React.useEffect(() => {
+    setFile(null);
+    setPreviewData(null);
+    setShowReplaceConfirm(false);
+    setUploadResult(null);
+    setError(null);
+    if (fileInputRef.current) fileInputRef.current.value = '';
+  }, [activeDepartmentId]);
   const fileInputRef = React.useRef(null);
 
   const handleFileChange = (e) => {
@@ -135,6 +147,7 @@ const FileUploader = ({ onNavigate, onUploadSuccess, selectedActiveTask }) => {
       return;
     }
 
+    uploadDepartmentRef.current = activeDepartmentId;
     setUploading(true);
     setShowDnaLoading(true);
     setError(null);
@@ -178,7 +191,8 @@ const FileUploader = ({ onNavigate, onUploadSuccess, selectedActiveTask }) => {
       const previewResponse = await fetch('/api/profiles/upload/preview', {
         method: 'POST',
         headers: {
-          'Authorization': `Bearer ${token}`
+          'Authorization': `Bearer ${token}`,
+          'X-Active-Department-Id': uploadDepartmentRef.current
         },
         body: formData
       });
@@ -202,8 +216,10 @@ const FileUploader = ({ onNavigate, onUploadSuccess, selectedActiveTask }) => {
 
             duplicates.forEach((dup, index) => {
               message += `${index + 1}. Образец: ${dup.sampleName || 'N/A'}\n`;
-              message += `   Внутренний номер: ${dup.internalNumber || dup.key || 'N/A'}\n`;
-              message += `   Год: ${dup.year || 'N/A'}\n`;
+              if (!isGenetic) {
+                message += `   Внутренний номер: ${dup.internalNumber || dup.key || 'N/A'}\n`;
+                message += `   Год: ${dup.year || 'N/A'}\n`;
+              }
               message += `   Первое упоминание: строка ${dup.firstRow}\n`;
               message += `   Повторяется в строке: ${dup.duplicateRow}\n\n`;
             });
@@ -212,11 +228,12 @@ const FileUploader = ({ onNavigate, onUploadSuccess, selectedActiveTask }) => {
             throw new Error(message);
           }
 
-          // Другие типы ошибок
-          throw new Error(errorData.message || 'Ошибка при проверке файла');
+          const rowErrors = errorData.details?.validationErrors;
+          throw new Error(rowErrors?.length ? rowErrors.map(item => item.message).join('\n') : (errorData.message || 'Ошибка при проверке файла'));
         } catch (parseError) {
           // Если не удалось распарсить JSON, показываем как есть
-          if (parseError.message.includes('дубликаты')) {
+          if (parseError instanceof SyntaxError) throw new Error('Сервер вернул некорректный ответ при проверке файла.');
+          if (parseError.message) {
             throw parseError; // Пробрасываем наше форматированное сообщение
           }
           throw new Error(`Ошибка при проверке файла: ${errorText}`);
@@ -276,7 +293,8 @@ const FileUploader = ({ onNavigate, onUploadSuccess, selectedActiveTask }) => {
       const response = await fetch('/api/profiles/upload', {
         method: 'POST',
         headers: {
-          'Authorization': `Bearer ${token}`
+          'Authorization': `Bearer ${token}`,
+          'X-Active-Department-Id': uploadDepartmentRef.current
         },
         body: formData
       });
@@ -596,12 +614,14 @@ const FileUploader = ({ onNavigate, onUploadSuccess, selectedActiveTask }) => {
                           <div>
                             <span className="upload-muted-label">Строка:</span> {dup.firstRow}
                           </div>
+                          {isGenetic ? <div>Объект: {dup.sampleName}</div> : <>
                           <div>
                             <span className="upload-muted-label">Номер:</span> {dup.internalNumber}
                           </div>
                           <div>
                             <span className="upload-muted-label">Год:</span> {dup.year}
                           </div>
+                          </>}
                           <div className="upload-danger-text">
                             Дубликат на строке: {dup.duplicateRow}
                           </div>
@@ -709,12 +729,14 @@ const FileUploader = ({ onNavigate, onUploadSuccess, selectedActiveTask }) => {
                           {conflict.sampleName}
                         </div>
                         <div className="upload-duplicate-card-grid">
+                          {isGenetic ? <div>Объект: {conflict.sampleName}</div> : <>
                           <div>
                             <span className="upload-muted-label">Номер:</span> {conflict.internalNumber}
                           </div>
                           <div>
                             <span className="upload-muted-label">Год:</span> {conflict.year}
                           </div>
+                          </>}
                           {conflict.existingProfile && (
                             <>
                               <div className="upload-existing-profile-divider">
@@ -786,7 +808,7 @@ const FileUploader = ({ onNavigate, onUploadSuccess, selectedActiveTask }) => {
                               {dup.sampleName}
                             </div>
                             <div className="upload-result-row-subtitle">
-                              Год: {dup.year} | Номер: {dup.internalNumber}
+                              {isGenetic ? `Объект: ${dup.sampleName}` : `Год: ${dup.year} | Номер: ${dup.internalNumber}`}
                             </div>
                             {dup.existingProfiles && dup.existingProfiles.length > 0 && (
                               <div className="upload-result-row-meta">
@@ -801,6 +823,20 @@ const FileUploader = ({ onNavigate, onUploadSuccess, selectedActiveTask }) => {
                 );
               })()}
 
+              {uploadResult.importFormat === 'genetic' && uploadResult.data?.createdProfiles?.length > 0 && (
+                <details className="upload-detail-collapsible">
+                  <summary className="upload-detail-summary">Загруженные объекты ({uploadResult.data.createdProfiles.length})</summary>
+                  <div className="upload-detail-content upload-detail-content-tall">
+                    {uploadResult.data.createdProfiles.map(profile => (
+                      <div key={profile.id} className="upload-result-row">
+                        <div className="upload-result-row-title">Объект: {profile.sampleName}</div>
+                        <div className="upload-result-row-subtitle">Локусов: {profile.lociCount} · Статус: загружен</div>
+                      </div>
+                    ))}
+                  </div>
+                </details>
+              )}
+
               {/* Информация о пропущенных дубликатах */}
               {(() => {
                 const skippedDuplicates = uploadResult.data?.duplicates?.filter(d => d.action !== 'replace') || [];
@@ -814,7 +850,7 @@ const FileUploader = ({ onNavigate, onUploadSuccess, selectedActiveTask }) => {
                         {/* Заголовок таблицы */}
                         <div className="upload-duplicates-table-header">
                           <div>Образец</div>
-                          <div>Год / Номер</div>
+                          <div>{isGenetic ? 'Локусов' : 'Год / Номер'}</div>
                           <div>Причина</div>
                         </div>
 
@@ -871,7 +907,7 @@ const FileUploader = ({ onNavigate, onUploadSuccess, selectedActiveTask }) => {
                               {dup.sampleName}
                             </div>
                             <div className="upload-duplicates-meta">
-                              {dup.year && dup.internalNumber ? `${dup.year} / ${dup.internalNumber}` : '—'}
+                              {isGenetic ? dup.lociCount : (dup.year && dup.internalNumber ? `${dup.year} / ${dup.internalNumber}` : '—')}
                             </div>
                             <div className="upload-duplicates-reason">
                               {message}
@@ -899,6 +935,29 @@ const FileUploader = ({ onNavigate, onUploadSuccess, selectedActiveTask }) => {
           </p>
         </div>
 
+        {isGenetic ? (
+        <div className="upload-example-card upload-example-card-accent">
+          <h3 className="upload-example-title">📋 Формат для отделения «Генетические экспертизы»</h3>
+          <p className="upload-example-description">Первый столбец — «Объект», остальные — поддерживаемые генетические локусы.</p>
+          <div className="example-table-wrapper">
+            <table className="example-table example-table-compact">
+              <thead><tr>{['Объект', 'TH01', 'D5S818', 'D21S11', 'D18S51', 'AMEL', 'D3S1358', 'FGA', 'SE33'].map(name => <th key={name}>{name}</th>)}</tr></thead>
+              <tbody><tr>{['110-1', '7,9', '11,12', '29,30', '12,15', 'XY', '15,16', '21,23', '18,19'].map((value, index) => <td key={index}>{value}</td>)}</tr></tbody>
+            </table>
+          </div>
+          <div className="upload-requirements-box">
+            <h4 className="upload-requirements-title">Важные требования:</h4>
+            <ul className="upload-requirements-list-compact">
+              <li>Первая строка файла содержит заголовки; первый столбец обязательно называется «Объект».</li>
+              <li>После «Объект» нужны минимум 3 распознанных локуса. Набор зависит от используемой генетической системы.</li>
+              <li>Порядок столбцов генетических локусов может отличаться в зависимости от используемой системы. Локусы определяются автоматически по названиям столбцов.</li>
+              <li>Пустые значения отдельных локусов допускаются; полностью пустой генетический профиль не загружается.</li>
+              <li>Год, привоз и старые служебные столбцы не требуются.</li>
+              <li>Значение «Объект» обязательно и должно быть уникальным среди ваших профилей активного отделения.</li>
+            </ul>
+          </div>
+        </div>
+        ) : (<>
         {/* Блок с примером шапки Excel */}
         <div className="upload-example-card upload-example-card-accent">
           <h3 className="upload-example-title">
@@ -986,6 +1045,8 @@ const FileUploader = ({ onNavigate, onUploadSuccess, selectedActiveTask }) => {
             <strong>💡 Совет:</strong> Скопируйте заголовки из примера выше и вставьте в первую строку вашего Excel файла.
           </div>
         </div>
+
+        </>)}
 
         <div className="upload-format-card">
           <h3 className="upload-format-title">
@@ -1130,7 +1191,7 @@ const FileUploader = ({ onNavigate, onUploadSuccess, selectedActiveTask }) => {
                           {profile.sampleName}
                         </div>
                         <div className="upload-result-row-subtitle">
-                          Внутренний номер: {profile.internalNumber} | Год: {profile.year}
+                          {isGenetic ? `Объект: ${profile.sampleName} | Локусов: ${profile.lociCount}` : `Внутренний номер: ${profile.internalNumber} | Год: ${profile.year}`}
                         </div>
                         {profile.existingProfile && (
                           <div className="upload-result-row-meta">

@@ -1,5 +1,6 @@
 const XLSX = require('xlsx');
 const { logger } = require('../utils/logger');
+const { validateGeneticHeaders, normalizeObjectName, getGeneticHeaders } = require('../utils/profileImportFormat');
 
 /**
  * Типы экспертиз
@@ -147,7 +148,7 @@ class FileValidationService {
    * @param {string} filename - Имя файла
    * @returns {Object} Результат валидации
    */
-  validateExcelStructure(fileBuffer, filename) {
+  validateExcelStructure(fileBuffer, filename, options = {}) {
     const errors = [];
     
     try {
@@ -163,7 +164,10 @@ class FileValidationService {
       }
 
       const worksheet = workbook.Sheets[sheetName];
-      const data = XLSX.utils.sheet_to_json(worksheet, { header: 1 });
+      const range = options.importFormat === 'genetic' && worksheet['!ref']
+        ? { s: { r: 0, c: 0 }, e: XLSX.utils.decode_range(worksheet['!ref']).e } : undefined;
+      const data = XLSX.utils.sheet_to_json(worksheet, { header: 1, ...(range ? { range } : {}) });
+      if (range && data.length) data[0] = getGeneticHeaders(data);
       
       if (data.length === 0) {
         throw new FileValidationError(
@@ -176,19 +180,42 @@ class FileValidationService {
       const headers = data[0] || [];
       const dataRows = data.slice(1);
 
-      // Определяем тип экспертизы
-      const expertiseType = this.detectExpertiseType(headers);
+      if (options.importFormat === 'genetic') {
+        const validation = validateGeneticHeaders(headers, options.minRequiredLoci || 3);
+        errors.push(...validation.errors);
+        let actualDataRows = 0;
+        if (validation.valid) dataRows.forEach((row, index) => {
+          if (row.every(value => !normalizeObjectName(value))) return;
+          actualDataRows++;
+          const rowNumber = index + 2;
+          if (!normalizeObjectName(row[0])) errors.push({ type: 'data', code: 'MISSING_OBJECT', message: `Строка ${rowNumber}: не заполнено обязательное поле «Объект».`, details: { rowNumber } });
+          else if (!validation.columns.some(({ index: column }) => !['', '-'].includes(normalizeObjectName(row[column])))) {
+            errors.push({ type: 'data', code: 'EMPTY_GENETIC_PROFILE', message: `Строка ${rowNumber}, объект «${normalizeObjectName(row[0])}»: отсутствуют данные генетического профиля.`, details: { rowNumber } });
+          }
+        });
+        return { valid: errors.length === 0, errors, expertiseType: 'genetic', headers, dataRows: dataRows.length,
+          actualDataRows, skippedEmptyRows: dataRows.length - actualDataRows, requiredColumns: ['Объект'], recognizedMarkers: validation.recognizedMarkers };
+      }
+      // Для ЧС явно применяем существующую схему; legacy-эвристика остаётся для остальных отделений.
+      const expertiseType = options.importFormat || this.detectExpertiseType(headers);
       const requiredColumns = expertiseType === EXPERTISE_TYPES.EMERGENCY 
         ? this.emergencyColumns 
         : this.geneticColumns;
 
+      // Названия из существующего примера ЧС уже поддерживаются parser.
+      const validationHeaders = expertiseType === EXPERTISE_TYPES.EMERGENCY ? headers.map(header => {
+        const name = String(header || '').trim().toLowerCase();
+        if (name === 'наименование образца') return 'Sample Name';
+        if (name.startsWith('присвоенный в в/ч')) return Object.keys(this.emergencyColumns)[2];
+        return header;
+      }) : headers;
       // Валидация заголовков
-      const headerValidation = this.validateHeaders(headers, requiredColumns);
+      const headerValidation = this.validateHeaders(validationHeaders, requiredColumns);
       errors.push(...headerValidation.errors);
 
       // Валидация данных
       if (headerValidation.valid) {
-        const dataValidation = this.validateData(dataRows, headers, requiredColumns);
+        const dataValidation = this.validateData(dataRows, validationHeaders, requiredColumns);
         errors.push(...dataValidation.errors);
         
         // Добавляем информацию о реальном количестве строк с данными
@@ -584,7 +611,7 @@ class FileValidationService {
    * @param {string} filename - Имя файла
    * @returns {Object} Результат валидации
    */
-  validateFile(fileBuffer, filename) {
+  validateFile(fileBuffer, filename, options = {}) {
     const results = {
       valid: true,
       errors: [],
@@ -602,7 +629,7 @@ class FileValidationService {
       }
 
       // 2. Валидация структуры Excel
-      const structureValidation = this.validateExcelStructure(fileBuffer, filename);
+      const structureValidation = this.validateExcelStructure(fileBuffer, filename, options);
       
       results.expertiseType = structureValidation.expertiseType;
       results.summary = {

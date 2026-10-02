@@ -10,7 +10,8 @@
     "build:dev": "webpack --mode development",
     "frontend:dev": "webpack serve --mode development",
     "db:bootstrap": "node scripts/bootstrap-admin.js",
-    "check:ui": "node scripts/check-ui.js"
+    "check:ui": "node scripts/check-ui.js",
+    "test": "node --test tests/*.test.js"
   },
   "keywords": [
     "dna",

@@ -78,6 +78,7 @@ const ALL_LOCI = [
 class LociTypeDetector {
     constructor() {
         this.lociTypeMap = this.buildLociTypeMap();
+        this.canonicalNames = new Map(ALL_LOCI.map(name => [this.normalizeName(name), name]));
     }
 
     /**
@@ -154,33 +155,18 @@ class LociTypeDetector {
             return false;
         }
 
-        // Normalize the locus name (trim whitespace and normalize case)
-        let normalizedName = locusName.trim();
-        
-        // Специальная нормализация для Penta: добавляем пробел если его нет
-        // "PentaE" → "Penta E", "PentaD" → "Penta D", "PentaC" → "Penta C"
-        normalizedName = normalizedName.replace(/^Penta([EDC])$/i, 'Penta $1');
-        
-        // Check exact match first (preserving original case)
-        if (ALL_LOCI.includes(normalizedName)) {
-            return true;
-        }
-        
-        // Check if it's in the lociTypeMap (which uses uppercase keys)
-        if (this.lociTypeMap.has(normalizedName.toUpperCase())) {
-            return true;
-        }
-        
-        // Case-insensitive search in ALL_LOCI as fallback
-        const found = ALL_LOCI.some(locus => locus.toLowerCase() === normalizedName.toLowerCase());
-        
-        if (!found) {
-            // Debug: log the failed locus name for troubleshooting
-            console.log(`Locus not found: "${locusName}" (normalized: "${normalizedName}")`);
-            console.log('Available loci:', ALL_LOCI.slice(0, 10), '... (showing first 10)');
-        }
-        
-        return found;
+        return this.getCanonicalLocusName(locusName) !== null;
+    }
+
+    // Каноническое имя всегда берётся из ALL_LOCI.
+    normalizeName(name) {
+        return String(name).trim().replace(/\s+/g, ' ').toUpperCase()
+            .replace(/^PENTA\s*([EDC])$/, 'PENTA $1');
+    }
+
+    getCanonicalLocusName(name) {
+        if (typeof name !== 'string') return null;
+        return this.canonicalNames.get(this.normalizeName(name)) || null;
     }
 
     /**

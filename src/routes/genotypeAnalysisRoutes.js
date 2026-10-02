@@ -371,12 +371,12 @@ router.get('/profiles', authenticate, async (req, res) => {
     // Фильтрация по организации/отделу для не-админов
     if (req.user.role !== 'admin') {
       if (req.user.organization_id) {
-        query += ` AND u.organization_id = $${params.length + 1}`;
+        query += ` AND COALESCE(dp.organization_id, u.organization_id) = $${params.length + 1}`;
         params.push(req.user.organization_id);
       }
       
       if (req.user.role === 'user_analyst' && activeDepartmentId) {
-        query += ` AND u.department_id = $${params.length + 1}`;
+        query += ` AND COALESCE(dp.department_id, u.department_id) = $${params.length + 1}`;
         params.push(activeDepartmentId);
       }
     }
@@ -480,12 +480,12 @@ router.post('/search', authenticate, async (req, res) => {
     // Фильтрация по правам доступа
     if (req.user.role !== 'admin') {
       if (req.user.organization_id) {
-        query += ` AND u.organization_id = $${params.length + 1}`;
+        query += ` AND COALESCE(dp.organization_id, u.organization_id) = $${params.length + 1}`;
         params.push(req.user.organization_id);
       }
       
       if (req.user.role === 'user_analyst' && activeDepartmentId) {
-        query += ` AND u.department_id = $${params.length + 1}`;
+        query += ` AND COALESCE(dp.department_id, u.department_id) = $${params.length + 1}`;
         params.push(activeDepartmentId);
       }
     }
@@ -651,12 +651,12 @@ router.post('/mass-search', authenticate, async (req, res) => {
     // Фильтрация по правам доступа
     if (req.user.role !== 'admin') {
       if (req.user.organization_id) {
-        query += ` AND u.organization_id = $${params.length + 1}`;
+        query += ` AND COALESCE(dp.organization_id, u.organization_id) = $${params.length + 1}`;
         params.push(req.user.organization_id);
       }
       
       if (req.user.role === 'user_analyst' && activeDepartmentId) {
-        query += ` AND u.department_id = $${params.length + 1}`;
+        query += ` AND COALESCE(dp.department_id, u.department_id) = $${params.length + 1}`;
         params.push(activeDepartmentId);
       }
     }
