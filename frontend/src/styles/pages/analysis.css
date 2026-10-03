@@ -1176,10 +1176,6 @@
   border-top: 1px solid var(--border-subtle);
 }
 
-:where(.genotype-analysis-page) .table-header-fixed-clean {
-  overflow-x: hidden;
-}
-
 :where(.genotype-analysis-page) .drag-header-cell {
   cursor: move;
   user-select: none;
@@ -1191,21 +1187,7 @@
 }
 
 :where(.genotype-analysis-page) .table-actions-cell {
-  width: 100px;
   text-align: center;
-}
-
-:where(.genotype-analysis-page) .data-table-scroll {
-  flex: 1;
-  overflow: auto;
-}
-
-:where(.genotype-analysis-page) .data-table-viewport {
-  position: relative;
-}
-
-:where(.genotype-analysis-page) .data-table-virtual {
-  position: absolute;
 }
 
 :where(.genotype-analysis-page) .analysis-progress {
@@ -1249,91 +1231,80 @@
   display: flex;
   flex-direction: column;
   height: 100%;
-}
-
-:where(.genotype-analysis-page) .table-header-fixed {
-  position: sticky;
-  top: 0;
-  z-index: 10;
-  background: var(--bg-card);
-  border-bottom: 2px solid var(--border-color);
-  overflow: hidden;
-  /* Добавляем отступ справа для компенсации скроллбара */
-  padding-right: 6px;
-}
-
-:where(.genotype-analysis-page) .table-header-fixed .data-table {
-  margin-bottom: 0;
-  border-bottom: none;
+  min-height: 0;
+  min-width: 0;
 }
 
 :where(.genotype-analysis-page) .data-table-container {
   overflow: auto;
   position: relative;
   flex: 1;
+  min-height: 0;
+  min-width: 0;
+  border: 1px solid var(--border-default);
+  border-radius: var(--radius-md);
+}
+
+:where(.genotype-analysis-page) .data-table-container:focus-visible {
+  outline: 2px solid var(--brand-primary);
+  outline-offset: -2px;
 }
 
 :where(.genotype-analysis-page) .data-table {
   width: 100%;
-  border-collapse: collapse;
-  min-width: 1400px;
-  font-size: 10px;
-  table-layout: fixed; /* Возвращаем fixed для одинаковой ширины */
+  border-collapse: separate;
+  border-spacing: 0;
+  font-size: var(--font-size-lg);
+  line-height: 1.5;
+  font-variant-numeric: tabular-nums;
+  table-layout: fixed;
 }
 
 :where(.genotype-analysis-page) .data-table th,
 :where(.genotype-analysis-page) .data-table td {
-  border: 1px solid var(--border-color);
-  padding: 0rem;
-  text-align: left;
+  border-right: 1px solid var(--border-subtle);
+  border-bottom: 1px solid var(--border-subtle);
+  padding: 5px 12px;
+  text-align: center;
+  vertical-align: middle;
   color: var(--text-primary);
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
 }
 
-/* Ширина колонок по data-атрибутам (работает независимо от порядка) */
-
-:where(.genotype-analysis-page) .data-table th[data-column="year"],
-:where(.genotype-analysis-page) .data-table td[data-column="year"] {
-  width: 60px !important;
-  min-width: 60px;
-  max-width: 60px;
-}
-
 :where(.genotype-analysis-page) .data-table th[data-column="sample_name"],
-:where(.genotype-analysis-page) .data-table td[data-column="sample_name"] {
-  width: 80px !important;
-  min-width: 50px;
-}
-
+:where(.genotype-analysis-page) .data-table td[data-column="sample_name"],
 :where(.genotype-analysis-page) .data-table th[data-column="internal_number"],
 :where(.genotype-analysis-page) .data-table td[data-column="internal_number"] {
-  width: 80px !important;
-  min-width: 80px;
-}
-
-:where(.genotype-analysis-page) .data-table th[data-column="import_number"],
-:where(.genotype-analysis-page) .data-table td[data-column="import_number"] {
-  width: 80px !important;
-  min-width: 80px;
-  max-width: 80px;
-}
-
-/* Остальные столбцы (локусы) - равномерная ширина */
-
-:where(.genotype-analysis-page) .data-table th:not([data-column]),
-:where(.genotype-analysis-page) .data-table td:not([data-column]) {
-  width: 80px;
-  min-width: 80px;
+  text-align: left;
 }
 
 :where(.genotype-analysis-page) .data-table th {
-  background: var(--bg-tertiary);
-  font-weight: 600;
+  position: sticky;
+  top: 0;
+  z-index: 2;
+  height: 48px;
+  border-bottom: 2px solid var(--border-default);
+  background: var(--surface-muted);
+  font-weight: var(--font-weight-semibold);
   color: var(--text-secondary);
-  cursor: pointer;
-  font-size: 12px;
+  font-size: inherit;
+}
+
+:where(.genotype-analysis-page) .data-table-spacer td {
+  padding: 0;
+  border: 0;
+}
+
+:where(.genotype-analysis-page) .data-table-spacer {
+  pointer-events: none;
+}
+
+:where(.genotype-analysis-page) .data-table-empty td {
+  padding: 32px 12px;
+  text-align: left;
+  color: var(--text-secondary);
 }
 
 :where(.genotype-analysis-page) .data-table tbody tr {

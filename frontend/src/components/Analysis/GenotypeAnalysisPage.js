@@ -11,6 +11,13 @@ const ANALYSIS_LOCI = [
   'D10S1248', 'D1S1656', 'D12S391', 'D2S1338'
 ];
 
+const PROFILE_COLUMN_WIDTHS = { year: 88, import_number: 120, sample_name: 176, internal_number: 144 };
+const LOCUS_COLUMN_WIDTH = 112;
+const ACTIONS_COLUMN_WIDTH = 120;
+const ROW_HEIGHT = 48;
+const HEADER_HEIGHT = 48;
+const BUFFER_SIZE = 5;
+
 /**
  * Главный компонент страницы анализа генотипов
  */
@@ -78,10 +85,8 @@ const GenotypeAnalysisPage = ({ onNavigate, selectedActiveTask }) => {
 
   // Виртуализация
   const [scrollTop, setScrollTop] = useState(0);
+  const [tableHeight, setTableHeight] = useState(600);
   const tableContainerRef = useRef(null);
-  const tableHeaderRef = useRef(null);
-  const ROW_HEIGHT = 40;
-  const BUFFER_SIZE = 5;
 
   // Эталонные значения для поиска
   const [referenceValues, setReferenceValues] = useState({
@@ -320,6 +325,26 @@ const GenotypeAnalysisPage = ({ onNavigate, selectedActiveTask }) => {
 
   // Вычисляем список активных локусов (не игнорируемых) с учетом порядка
   const activeLoci = lociOrder.filter(locus => !ignoredLoci[locus]);
+  const tableColumnCount = baseColumnsOrder.length + activeLoci.length + 1;
+  const tableMinWidth = baseColumnsOrder.reduce((width, column) => width + PROFILE_COLUMN_WIDTHS[column.key], 0)
+    + activeLoci.length * LOCUS_COLUMN_WIDTH + ACTIONS_COLUMN_WIDTH;
+
+  // Размер области меняется при сворачивании эталона и изменении окна.
+  useEffect(() => {
+    const container = tableContainerRef.current;
+    if (!container) return;
+    const measure = () => setTableHeight(container.clientHeight);
+    measure();
+    setScrollTop(container.scrollTop);
+    const observer = new ResizeObserver(measure);
+    observer.observe(container);
+    return () => observer.disconnect();
+  }, [activeTab, loading]);
+
+  useEffect(() => {
+    if (tableContainerRef.current) tableContainerRef.current.scrollTop = 0;
+    setScrollTop(0);
+  }, [selectedActiveTask?.id, hideDeactivated, showOnlyWithComments]);
 
   // Фильтруем и сортируем профили
   const filteredProfiles = profiles
@@ -345,24 +370,19 @@ const GenotypeAnalysisPage = ({ onNavigate, selectedActiveTask }) => {
   const withCommentsCount = profiles.filter(p => p.expert_comment).length;
 
   // Вычисление видимых строк
-  const containerHeight = tableContainerRef.current?.clientHeight || 600;
-  const startIndex = Math.max(0, Math.floor(scrollTop / ROW_HEIGHT) - BUFFER_SIZE);
+  const bodyScrollTop = Math.max(0, scrollTop - HEADER_HEIGHT);
+  const startIndex = Math.min(Math.max(0, filteredProfiles.length - 1), Math.max(0, Math.floor(bodyScrollTop / ROW_HEIGHT) - BUFFER_SIZE));
   const endIndex = Math.min(
     filteredProfiles.length,
-    Math.ceil((scrollTop + containerHeight) / ROW_HEIGHT) + BUFFER_SIZE
+    Math.ceil((bodyScrollTop + tableHeight) / ROW_HEIGHT) + BUFFER_SIZE
   );
   const visibleProfiles = filteredProfiles.slice(startIndex, endIndex);
   const offsetY = startIndex * ROW_HEIGHT;
-  const totalHeight = filteredProfiles.length * ROW_HEIGHT;
+  const remainingHeight = (filteredProfiles.length - endIndex) * ROW_HEIGHT;
 
   // Обработчик скролла
   const handleScroll = (e) => {
     setScrollTop(e.target.scrollTop);
-
-    // Синхронизируем горизонтальный скролл заголовка
-    if (tableHeaderRef.current) {
-      tableHeaderRef.current.scrollLeft = e.target.scrollLeft;
-    }
   };
 
   // Загрузка профилей при монтировании и при изменении задачи
@@ -2605,15 +2625,26 @@ const GenotypeAnalysisPage = ({ onNavigate, selectedActiveTask }) => {
             {loading ? (
               <div className="loading">⏳ Загрузка профилей...</div>
             ) : (
-              <>
-                {/* Фиксированный заголовок */}
-                <div className="table-header-fixed table-header-fixed-clean" ref={tableHeaderRef}>
-                  <table className="data-table">
+                <div
+                  className="data-table-container"
+                  ref={tableContainerRef}
+                  onScroll={handleScroll}
+                  tabIndex={0}
+                  role="region"
+                  aria-label="Профили активной задачи: прокручиваемая таблица"
+                >
+                  <table className="data-table" style={{ minWidth: `${tableMinWidth}px` }} aria-rowcount={filteredProfiles.length + 1}>
+                    <colgroup>
+                      {baseColumnsOrder.map(column => <col key={column.key} style={{ width: `${PROFILE_COLUMN_WIDTHS[column.key]}px` }} />)}
+                      {activeLoci.map(locus => <col key={locus} style={{ width: `${LOCUS_COLUMN_WIDTH}px` }} />)}
+                      <col style={{ width: `${ACTIONS_COLUMN_WIDTH}px` }} />
+                    </colgroup>
                     <thead>
-                      <tr>
+                      <tr style={{ height: `${HEADER_HEIGHT}px` }}>
                         {baseColumnsOrder.map(column => (
                           <th
                             key={column.key}
+                            scope="col"
                             data-column={column.key}
                             draggable="true"
                             onDragStart={(e) => handleColumnDragStart(e, column.key)}
@@ -2630,6 +2661,7 @@ const GenotypeAnalysisPage = ({ onNavigate, selectedActiveTask }) => {
                         {activeLoci.map(locus => (
                           <th
                             key={locus}
+                            scope="col"
                             data-column={locus}
                             draggable="true"
                             onDragStart={(e) => handleDragStart(e, locus)}
@@ -2643,103 +2675,93 @@ const GenotypeAnalysisPage = ({ onNavigate, selectedActiveTask }) => {
                             {locus}
                           </th>
                         ))}
-                        <th data-column="actions" className="table-actions-cell">
+                        <th data-column="actions" scope="col" className="table-actions-cell">
                           Действия
                         </th>
                       </tr>
                     </thead>
-                  </table>
-                </div>
+                    <tbody>
+                      {offsetY > 0 && <tr className="data-table-spacer" aria-hidden="true"><td colSpan={tableColumnCount} style={{ height: `${offsetY}px` }} /></tr>}
+                      {visibleProfiles.map((profile, idx) => {
+                        const isSelected = selectedProfile?.id === profile.id;
+                        const isPrevious = previousProfile?.id === profile.id;
+                        const isDeactivated = profile.is_active === false;
 
-                {/* Прокручиваемое тело таблицы */}
-                <div
-                  className="data-table-container"
-                  ref={tableContainerRef}
-                  onScroll={handleScroll}
-                  className="data-table-scroll"
-                >
-                  <div className="data-table-viewport" style={{ height: `${totalHeight}px` }}>
-                    <table className="data-table data-table-virtual" style={{ top: `${offsetY}px` }}>
-                      <tbody>
-                        {visibleProfiles.map((profile, idx) => {
-                          const isSelected = selectedProfile?.id === profile.id;
-                          const isPrevious = previousProfile?.id === profile.id;
-                          const isDeactivated = profile.is_active === false;
-
-                          return (
-                            <tr
-                              key={profile.id}
-                              onClick={() => selectProfile(profile)}
-                              className={
-                                isDeactivated ? 'deactivated' :
-                                isSelected ? 'selected' :
-                                isPrevious ? 'previous' : ''
+                        return (
+                          <tr
+                            key={profile.id}
+                            aria-rowindex={startIndex + idx + 2}
+                            onClick={() => selectProfile(profile)}
+                            className={
+                              isDeactivated ? 'deactivated' :
+                              isSelected ? 'selected' :
+                              isPrevious ? 'previous' : ''
+                            }
+                            style={{ height: `${ROW_HEIGHT}px` }}
+                          >
+                            {baseColumnsOrder.map(column => {
+                              let value = '';
+                              switch(column.key) {
+                                case 'year':
+                                  value = profile.year || '';
+                                  break;
+                                case 'sample_name':
+                                  value = profile.sample_name;
+                                  break;
+                                case 'internal_number':
+                                  value = profile.internal_number;
+                                  break;
+                                case 'import_number':
+                                  value = profile.import_number || '';
+                                  break;
                               }
-                              style={{ height: `${ROW_HEIGHT}px` }}
-                            >
-                              {baseColumnsOrder.map(column => {
-                                let value = '';
-                                switch(column.key) {
-                                  case 'year':
-                                    value = profile.year || '';
-                                    break;
-                                  case 'sample_name':
-                                    value = profile.sample_name;
-                                    break;
-                                  case 'internal_number':
-                                    value = profile.internal_number;
-                                    break;
-                                  case 'import_number':
-                                    value = profile.import_number || '';
-                                    break;
-                                }
-                                return <td key={column.key} data-column={column.key}>{value}</td>;
-                              })}
-                              {activeLoci.map(locus => {
-                                // Проверяем совпадение с эталоном если он выбран
-                                let cellClass = '';
-                                let cellStyle = {};
-                                if (selectedProfile && selectedProfile.id !== profile.id && referenceValues.loci[locus]) {
-                                  const refValue = referenceValues.loci[locus];
-                                  const profileValue = formatLocusValue(profile.loci ? profile.loci[locus] : null);
+                              return <td key={column.key} data-column={column.key} title={String(value ?? '')}>{value}</td>;
+                            })}
+                            {activeLoci.map(locus => {
+                              // Проверяем совпадение с эталоном если он выбран
+                              let cellClass = '';
+                              let cellStyle = {};
+                              if (selectedProfile && selectedProfile.id !== profile.id && referenceValues.loci[locus]) {
+                                const refValue = referenceValues.loci[locus];
+                                const profileValue = formatLocusValue(profile.loci ? profile.loci[locus] : null);
 
-                                  if (refValue && profileValue) {
-                                    // Нормализуем значения для сравнения
-                                    const refNormalized = refValue.split(',').sort().join(',');
-                                    const profileNormalized = profileValue.split(',').sort().join(',');
+                                if (refValue && profileValue) {
+                                  // Нормализуем значения для сравнения
+                                  const refNormalized = refValue.split(',').sort().join(',');
+                                  const profileNormalized = profileValue.split(',').sort().join(',');
 
-                                    if (refNormalized === profileNormalized) {
-                                      cellClass = 'matched';
-                                      // Применяем цвет из настроек
-                                      cellStyle = {
-                                        background: contaminationSettings.colors?.fullMatch || '#90EE90',
-                                        fontWeight: 600
-                                      };
-                                    }
+                                  if (refNormalized === profileNormalized) {
+                                    cellClass = 'matched';
+                                    // Применяем цвет из настроек
+                                    cellStyle = {
+                                      background: contaminationSettings.colors?.fullMatch || '#90EE90',
+                                      fontWeight: 600
+                                    };
                                   }
                                 }
+                              }
 
-                                return (
-                                  <td key={locus} data-column={locus} className={cellClass} style={cellStyle}>
-                                    {profile.loci ? formatLocusValue(profile.loci[locus]) : ''}
-                                  </td>
-                                );
-                              })}
-                              <td data-column="actions" className="table-actions-cell">
-                                <ProfileActionButtons
-                                  profile={profile}
-                                  onToggleActive={handleToggleActive}
-                                  onOpenComment={handleOpenCommentModal}
-                                />
-                              </td>
-                            </tr>
-                          );
-                        })}
-                      </tbody>
+                              return (
+                                <td key={locus} data-column={locus} className={cellClass} style={cellStyle} title={profile.loci ? formatLocusValue(profile.loci[locus]) : ''}>
+                                  {profile.loci ? formatLocusValue(profile.loci[locus]) : ''}
+                                </td>
+                              );
+                            })}
+                            <td data-column="actions" className="table-actions-cell">
+                              <ProfileActionButtons
+                                profile={profile}
+                                onToggleActive={handleToggleActive}
+                                onOpenComment={handleOpenCommentModal}
+                              />
+                            </td>
+                          </tr>
+                        );
+                      })}
+                      {remainingHeight > 0 && <tr className="data-table-spacer" aria-hidden="true"><td colSpan={tableColumnCount} style={{ height: `${remainingHeight}px` }} /></tr>}
+                      {filteredProfiles.length === 0 && <tr className="data-table-empty"><td colSpan={tableColumnCount}>Нет профилей для отображения.</td></tr>}
+                    </tbody>
                     </table>
-                  </div>
                 </div>
-              </>
             )}
           </div>
         )}
