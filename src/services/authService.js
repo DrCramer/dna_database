@@ -271,7 +271,9 @@ class AuthService {
                 password, 
                 role = 'user_analyst',
                 organization_id = null,
-                department_id = null
+                department_id = null,
+                can_upload_with_task = true,
+                can_upload_without_task = false
             } = userData;
 
             // Check if user already exists
@@ -287,7 +289,9 @@ class AuthService {
                 password, 
                 role,
                 organization_id,
-                department_id
+                department_id,
+                can_upload_with_task,
+                can_upload_without_task
             });
 
             await user.getAccessibleDepartments();

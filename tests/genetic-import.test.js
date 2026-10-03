@@ -7,6 +7,19 @@ const { LociTypeDetector } = require('../src/utils/lociTypeDetector');
 const { resolveProfileImportFormat } = require('../src/utils/profileImportFormat');
 const DNAProfile = require('../src/models/DNAProfile');
 const User = require('../src/models/User');
+const { getProfileUploadBlockReason } = require('../src/utils/profileUploadPermissions');
+
+test('UI учитывает оба права, статус задачи и активное отделение', () => {
+  const user = { role: 'user_analyst', can_upload_with_task: true, can_upload_without_task: false };
+  const task = { id: 'task', department_id: 'genetic', status: 'in_progress', is_active: true };
+  assert.match(getProfileUploadBlockReason(user, null, 'genetic'), /выберите активную задачу/);
+  assert.equal(getProfileUploadBlockReason(user, task, 'genetic'), '');
+  assert.match(getProfileUploadBlockReason({ ...user, can_upload_with_task: false }, task, 'genetic'), /запрещена/);
+  assert.equal(getProfileUploadBlockReason({ ...user, can_upload_without_task: true }, null, 'genetic'), '');
+  assert.match(getProfileUploadBlockReason(user, { ...task, status: 'completed' }, 'genetic'), /В работе/);
+  assert.match(getProfileUploadBlockReason(user, task, 'emergency'), /другому отделению/);
+  assert.match(getProfileUploadBlockReason({ ...user, role: 'viewer' }, task, 'genetic'), /нет права/);
+});
 
 const excel = new ExcelService();
 const validation = new FileValidationService();
@@ -117,7 +130,7 @@ test('Дубликат Объекта обнаруживается до запи
 
 test('Смена активного отделения и bulkUpload не заменяют его основным', async t => {
   const departments = [{ id: 'emergency', organization_id: 'org', name: 'ЧС' }, { id: 'genetic', organization_id: 'org', name: 'Генетические экспертизы' }];
-  t.mock.method(User, 'findById', async () => ({ department_id: 'emergency', role: 'admin', getAccessibleDepartments: async () => departments }));
+  t.mock.method(User, 'findById', async () => ({ department_id: 'emergency', role: 'admin', can_upload_without_task: true, getAccessibleDepartments: async () => departments }));
   t.mock.method(DNAProfile, 'checkExistingProfiles', async (userId, profiles) => profiles.map(() => ({ action: 'create' })));
   t.mock.method(DNAProfile, 'batchInsert', async profiles => profiles.map(p => new DNAProfile(p)));
   const context = { userId: 'tester', departmentId: 'genetic' };

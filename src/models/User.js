@@ -1,6 +1,7 @@
 const { query, transaction } = require('../config/database');
 const bcrypt = require('bcryptjs');
 const { logger } = require('../utils/logger');
+const { getProfileUploadPermissions } = require('../utils/profileUploadPermissions');
 
 class User {
     constructor(userData) {
@@ -8,6 +9,7 @@ class User {
         this.username = userData.username;
         this.email = userData.email;
         this.role = userData.role;
+        Object.assign(this, getProfileUploadPermissions(userData));
         this.created_at = userData.created_at;
         this.last_login = userData.last_login;
         this.is_active = userData.is_active;
@@ -18,17 +20,17 @@ class User {
     }
 
     // Create a new user
-    static async create({ username, email, password, role = 'user_analyst', organization_id = null, department_id = null }) {
+    static async create({ username, email, password, role = 'user_analyst', organization_id = null, department_id = null, can_upload_with_task = true, can_upload_without_task = false }) {
         try {
             // Hash password
             const saltRounds = 12;
             const password_hash = await bcrypt.hash(password, saltRounds);
 
             const result = await query(
-                `INSERT INTO users (username, email, password_hash, role, organization_id, department_id) 
-                 VALUES ($1, $2, $3, $4, $5, $6) 
-                 RETURNING id, username, email, role, created_at, is_active, organization_id, department_id`,
-                [username, email, password_hash, role, organization_id, department_id]
+                `INSERT INTO users (username, email, password_hash, role, organization_id, department_id, can_upload_with_task, can_upload_without_task)
+                 VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
+                 RETURNING id, username, email, role, created_at, is_active, organization_id, department_id, can_upload_with_task, can_upload_without_task`,
+                [username, email, password_hash, role, organization_id, department_id, can_upload_with_task, can_upload_without_task]
             );
 
             logger.info(`User created: ${username} with role: ${role}, department: ${department_id}`);
@@ -134,7 +136,7 @@ class User {
         try {
             const result = await query(
                 `SELECT id, username, email, role, created_at, last_login, is_active, 
-                        organization_id, department_id 
+                        organization_id, department_id, can_upload_with_task, can_upload_without_task
                  FROM users ORDER BY created_at DESC`
             );
 
@@ -225,7 +227,8 @@ class User {
             is_active: this.is_active,
             organization_id: this.organization_id,
             department_id: this.department_id,
-            accessible_departments: this.accessible_departments
+            accessible_departments: this.accessible_departments,
+            ...getProfileUploadPermissions(this)
         };
     }
 

@@ -4,6 +4,7 @@ const { LociTypeDetector, ALL_LOCI } = require('../utils/lociTypeDetector');
 const { logger } = require('../utils/logger');
 const DNAProfile = require('../models/DNAProfile');
 const User = require('../models/User');
+const { assertProfileUploadAllowed } = require('./profileUploadPolicy');
 const { resolveProfileImportFormat, normalizeObjectName, geneticObjectKey, getGeneticHeaders, validateGeneticHeaders } = require('../utils/profileImportFormat');
 
 // Импортируем конвертер латинских символов
@@ -92,6 +93,7 @@ class ExcelService {
     const departmentId = context.departmentId || user.department_id;
     const department = departments.find(item => item.id === departmentId);
     if (!department) throw new ExcelParsingError('Нет доступа к активному отделению.', 'DEPARTMENT_ACCESS_DENIED');
+    await assertProfileUploadAllowed(user, { ...context, departmentId: department.id });
     return {
       ...context,
       departmentId: department.id,

@@ -1,6 +1,8 @@
 const express = require('express');
 const rateLimit = require('express-rate-limit');
 const authService = require('../services/authService');
+const User = require('../models/User');
+const { getProfileUploadPermissions, validateUploadPermissionFields } = require('../utils/profileUploadPermissions');
 const { authenticate, adminOnly } = require('../middleware/auth');
 const { logAuthOperation } = require('../middleware/operationLogger');
 const OperationHistory = require('../models/OperationHistory');
@@ -390,6 +392,10 @@ router.delete('/sessions/:sessionId', authenticate, async (req, res) => {
 router.post('/register-with-department', authenticate, adminOnly, async (req, res) => {
     try {
         const { username, email, password, role, department_id, department_ids, organization_id } = req.body;
+        if (!validateUploadPermissionFields(req.body)) {
+            return res.status(400).json({ code: 'INVALID_UPLOAD_PERMISSIONS', message: 'Права загрузки должны быть логическими значениями true/false.' });
+        }
+        const uploadPermissions = getProfileUploadPermissions(req.body);
         const clientInfo = getClientInfo(req);
         const requestedDepartmentIds = Array.isArray(department_ids)
             ? [...new Set(department_ids.filter(Boolean))]
@@ -448,7 +454,8 @@ router.post('/register-with-department', authenticate, adminOnly, async (req, re
                     password, 
                     role, 
                     organization_id: actualOrgId, 
-                    department_id: primaryDepartmentId
+                    department_id: primaryDepartmentId,
+                    ...uploadPermissions
                 },
                 clientInfo.ipAddress,
                 clientInfo.userAgent
@@ -475,7 +482,7 @@ router.post('/register-with-department', authenticate, adminOnly, async (req, re
         } else {
             // Register without organizational context
             const result = await authService.register(
-                { username, email, password, role },
+                { username, email, password, role, ...uploadPermissions },
                 clientInfo.ipAddress,
                 clientInfo.userAgent
             );

@@ -1,6 +1,10 @@
 import React, { useState, useEffect } from 'react';
+import { useAuth } from '../../contexts/AuthContext';
+import { getProfileUploadPermissions } from '../../../../src/utils/profileUploadPermissions';
 
 const UserManagement = ({ onBack }) => {
+  const { hasRole } = useAuth();
+  const canManageUploadPermissions = hasRole('admin');
   const [users, setUsers] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
@@ -225,6 +229,7 @@ const UserManagement = ({ onBack }) => {
       password: '',
       role: user?.role || 'user_analyst',
       organization_id: user?.organization_id || '',
+      ...getProfileUploadPermissions(user),
       department_ids: Array.isArray(user?.accessible_departments) && user.accessible_departments.length > 0
         ? user.accessible_departments.map((department) => department.id)
         : (user?.department_id ? [user.department_id] : [])
@@ -246,6 +251,20 @@ const UserManagement = ({ onBack }) => {
       }
 
       const submitData = { ...formData };
+      if (user) {
+        const previousDepartments = user.accessible_departments?.length
+          ? user.accessible_departments.map(department => department.id)
+          : (user.department_id ? [user.department_id] : []);
+        if (JSON.stringify(submitData.department_ids) === JSON.stringify(previousDepartments)) delete submitData.department_ids;
+        for (const field of ['username', 'email', 'role', 'organization_id']) {
+          if (submitData[field] === (user[field] || '')) delete submitData[field];
+        }
+      }
+      if (!canManageUploadPermissions) {
+        delete submitData.role;
+        delete submitData.can_upload_with_task;
+        delete submitData.can_upload_without_task;
+      }
       if (user && !formData.password) {
         delete submitData.password; // Не обновляем пароль если он не указан
       }
@@ -356,6 +375,7 @@ const UserManagement = ({ onBack }) => {
                           name="role"
                           value={role.value}
                           checked={formData.role === role.value}
+                          disabled={!canManageUploadPermissions}
                           onChange={(e) => setFormData({...formData, role: e.target.value})}
                         />
                         <div>
@@ -402,6 +422,27 @@ const UserManagement = ({ onBack }) => {
                   </div>
                 </div>
               </div>
+            </div>
+
+            <div className="form-section">
+              <h4 className="section-title">Права загрузки ДНК-профилей</h4>
+              <div className="form-group">
+                <label className="checkbox-label">
+                  <input type="checkbox" checked={formData.can_upload_with_task} disabled={!canManageUploadPermissions}
+                    onChange={e => setFormData(prev => ({ ...prev, can_upload_with_task: e.target.checked }))} />
+                  <span>Разрешить загрузку в активную задачу</span>
+                </label>
+                <p className="form-help">Задача должна быть доступна пользователю, относиться к активному отделению и иметь статус «В работе».</p>
+              </div>
+              <div className="form-group">
+                <label className="checkbox-label">
+                  <input type="checkbox" checked={formData.can_upload_without_task} disabled={!canManageUploadPermissions}
+                    onChange={e => setFormData(prev => ({ ...prev, can_upload_without_task: e.target.checked }))} />
+                  <span>Разрешить загрузку без задачи</span>
+                </label>
+                <p className="form-help">По умолчанию выключено. Такие профили сохраняются без привязки к задаче.</p>
+              </div>
+              {!canManageUploadPermissions && <p className="form-help">Права загрузки изменяет администратор.</p>}
             </div>
 
             {/* Кнопки действий */}
@@ -470,6 +511,8 @@ const UserManagement = ({ onBack }) => {
             <p><strong>Email:</strong> {user.email}</p>
             <p><strong>Роль:</strong> {roles.find(r => r.value === user.role)?.label || user.role}</p>
             <p><strong>Статус:</strong> {user.is_active ? 'Активен' : 'Неактивен'}</p>
+            <p><strong>Загрузка в задачу:</strong> {getProfileUploadPermissions(user).can_upload_with_task ? 'Разрешена' : 'Запрещена'}</p>
+            <p><strong>Загрузка без задачи:</strong> {getProfileUploadPermissions(user).can_upload_without_task ? 'Разрешена' : 'Запрещена'}</p>
             <p><strong>Дата создания:</strong> {new Date(user.created_at).toLocaleString('ru-RU')}</p>
             <p><strong>Последний вход:</strong> {user.last_login ? new Date(user.last_login).toLocaleString('ru-RU') : 'Никогда'}</p>
           </div>

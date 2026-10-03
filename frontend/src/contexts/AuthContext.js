@@ -166,6 +166,8 @@ export const AuthProvider = ({ children }) => {
         username: data.data.user.username,
         email: data.data.user.email,
         role: data.data.user.role,
+        can_upload_with_task: data.data.user.can_upload_with_task,
+        can_upload_without_task: data.data.user.can_upload_without_task,
         organization_id: data.data.user.organization_id,
         department_id: data.data.user.department_id,
         accessible_departments: data.data.user.accessible_departments || [],
@@ -190,6 +192,25 @@ export const AuthProvider = ({ children }) => {
   const clearError = React.useCallback(() => {
     setError(null);
   }, []);
+
+  const refreshUser = React.useCallback(async (signal) => {
+    const token = localStorage.getItem('token');
+    const savedUser = JSON.parse(localStorage.getItem('user') || 'null');
+    if (!token || !savedUser) throw new Error('Войдите в систему повторно.');
+    const response = await fetch('/api/auth/me', { signal, headers: {
+      Authorization: `Bearer ${token}`,
+      'X-Active-Department-Id': savedUser.active_department_id || savedUser.department_id
+    } });
+    const data = await response.json();
+    if (!response.ok) throw new Error(data.message || 'Не удалось проверить права загрузки.');
+    const nextUser = normalizeUser({ ...savedUser, ...data.data.user });
+    const currentUser = JSON.parse(localStorage.getItem('user') || 'null');
+    if (localStorage.getItem('token') === token && !signal?.aborted && currentUser?.active_department_id === savedUser.active_department_id) {
+      setUser(nextUser);
+      localStorage.setItem('user', JSON.stringify(nextUser));
+    }
+    return nextUser;
+  }, [normalizeUser]);
 
   const setActiveDepartment = React.useCallback((departmentId) => {
     setUser((prevUser) => {
@@ -245,6 +266,7 @@ export const AuthProvider = ({ children }) => {
     loading,
     error,
     clearError,
+    refreshUser,
     setActiveDepartment,
     hasRole,
     isAuthenticated: !!user,

@@ -9,6 +9,7 @@ const { ExcelService, ExcelParsingError, EXCEL_ERROR_CODES } = require('../servi
 const { FileValidationService, FileValidationError, VALIDATION_ERROR_CODES } = require('../services/fileValidationService');
 const DNAProfile = require('../models/DNAProfile');
 const PermissionService = require('../services/permissionService');
+const { ProfileUploadAccessError } = require('../services/profileUploadPolicy');
 const { query } = require('../config/database');
 const { logger } = require('../utils/logger');
 const router = express.Router();
@@ -374,6 +375,10 @@ router.post('/upload/preview',
       stack: error.stack
     });
 
+    if (error instanceof ProfileUploadAccessError) {
+      return res.status(error.status).json({ error: 'Profile upload denied', code: error.code, message: error.message });
+    }
+
     if (error instanceof ExcelParsingError) {
       return res.status(400).json({
         error: 'Excel parsing failed',
@@ -667,6 +672,10 @@ router.post('/upload',
       });
     }
 
+    if (error instanceof ProfileUploadAccessError) {
+      return res.status(error.status).json({ error: 'Profile upload denied', code: error.code, message: error.message });
+    }
+
     if (error instanceof ExcelParsingError) {
       return res.status(400).json({
         error: 'Excel parsing failed',
@@ -700,7 +709,7 @@ router.post('/bulk-upload-with-comparison',
     // auditDataAccess('dna_profiles', 'write', 'restricted'),
     // auditComplianceOperation('DNA_BULK_UPLOAD_WITH_COMPARISON', 'high'),
     upload.single('file'), 
-    logProfileOperation(OperationHistory.OPERATION_TYPES.PROFILE_BULK_UPLOAD), 
+    logProfileOperation(OperationHistory.OPERATION_TYPES.PROFILE_UPLOAD),
     async (req, res) => {
   try {
     if (!req.file) {
@@ -801,6 +810,10 @@ router.post('/bulk-upload-with-comparison',
       userId: req.user?.id,
       departmentId: req.user?.department_id
     });
+
+    if (error instanceof ProfileUploadAccessError) {
+      return res.status(error.status).json({ error: 'Profile upload denied', code: error.code, message: error.message });
+    }
 
     if (error instanceof ExcelParsingError) {
       return res.status(400).json({

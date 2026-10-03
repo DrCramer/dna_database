@@ -1,6 +1,8 @@
 import React, { useState } from 'react';
 import { useAuth } from '../../contexts/AuthContext';
 import { resolveProfileImportFormat } from '../../../../src/utils/profileImportFormat';
+import { getProfileUploadBlockReason } from '../../../../src/utils/profileUploadPermissions';
+import { getTaskNumberLabel } from '../../../../src/utils/taskLabels';
 
 
 // Функция склонения слова "профиль"
@@ -118,9 +120,31 @@ const FileUploader = ({ onNavigate, onUploadSuccess, selectedActiveTask }) => {
   const [showReplaceConfirm, setShowReplaceConfirm] = useState(false);
   const [autoReplaceDeactivated, setAutoReplaceDeactivated] = useState(true);
 
-  const { user, activeDepartment, activeDepartmentId } = useAuth();
+  const { user, activeDepartment, activeDepartmentId, refreshUser } = useAuth();
   const isGenetic = resolveProfileImportFormat(activeDepartment) === 'genetic';
   const uploadDepartmentRef = React.useRef(activeDepartmentId);
+  const uploadTaskRef = React.useRef(selectedActiveTask);
+  const [permissionLoading, setPermissionLoading] = useState(true);
+  const [permissionError, setPermissionError] = useState('');
+  const uploadBlockReason = permissionError || getProfileUploadBlockReason(user, selectedActiveTask, activeDepartmentId);
+
+  React.useEffect(() => {
+    const controller = new AbortController();
+    const checkPermissions = async () => {
+      setPermissionLoading(true);
+      try {
+        await refreshUser(controller.signal);
+        if (!controller.signal.aborted) setPermissionError('');
+      } catch (err) {
+        if (!controller.signal.aborted) setPermissionError(err.message);
+      } finally {
+        if (!controller.signal.aborted) setPermissionLoading(false);
+      }
+    };
+    checkPermissions();
+    window.addEventListener('focus', checkPermissions);
+    return () => { controller.abort(); window.removeEventListener('focus', checkPermissions); };
+  }, [activeDepartmentId, refreshUser]);
 
   React.useEffect(() => {
     setFile(null);
@@ -129,7 +153,7 @@ const FileUploader = ({ onNavigate, onUploadSuccess, selectedActiveTask }) => {
     setUploadResult(null);
     setError(null);
     if (fileInputRef.current) fileInputRef.current.value = '';
-  }, [activeDepartmentId]);
+  }, [activeDepartmentId, selectedActiveTask?.id]);
   const fileInputRef = React.useRef(null);
 
   const handleFileChange = (e) => {
@@ -148,6 +172,7 @@ const FileUploader = ({ onNavigate, onUploadSuccess, selectedActiveTask }) => {
     }
 
     uploadDepartmentRef.current = activeDepartmentId;
+    uploadTaskRef.current = selectedActiveTask;
     setUploading(true);
     setShowDnaLoading(true);
     setError(null);
@@ -155,6 +180,9 @@ const FileUploader = ({ onNavigate, onUploadSuccess, selectedActiveTask }) => {
     setUploadProgress({ current: 0, total: 0, stage: 'Анализ файла...' });
 
     try {
+      const freshUser = await refreshUser();
+      const reason = getProfileUploadBlockReason(freshUser, uploadTaskRef.current, uploadDepartmentRef.current);
+      if (reason) throw new Error(reason);
       // Get token from user context instead of localStorage
       const token = user?.accessToken || localStorage.getItem('token');
 
@@ -181,8 +209,8 @@ const FileUploader = ({ onNavigate, onUploadSuccess, selectedActiveTask }) => {
       formData.append('file', file);
 
       // Добавить taskId если задача выбрана
-      if (selectedActiveTask?.id) {
-        formData.append('taskId', selectedActiveTask.id);
+      if (uploadTaskRef.current?.id) {
+        formData.append('taskId', uploadTaskRef.current.id);
       }
 
       // ЭТАП 1: Preview - анализ файла без сохранения
@@ -419,8 +447,8 @@ const FileUploader = ({ onNavigate, onUploadSuccess, selectedActiveTask }) => {
       formData.append('file', file);
       formData.append('replaceDeactivated', 'true');
 
-      if (selectedActiveTask?.id) {
-        formData.append('taskId', selectedActiveTask.id);
+      if (uploadTaskRef.current?.id) {
+        formData.append('taskId', uploadTaskRef.current.id);
       }
 
       await performActualUpload(token, formData);
@@ -457,8 +485,8 @@ const FileUploader = ({ onNavigate, onUploadSuccess, selectedActiveTask }) => {
       formData.append('replaceDeactivated', 'false'); // НЕ заменять деактивированные
       formData.append('allowDuplicates', 'true'); // Разрешить дубликаты (загрузить как новые)
 
-      if (selectedActiveTask?.id) {
-        formData.append('taskId', selectedActiveTask.id);
+      if (uploadTaskRef.current?.id) {
+        formData.append('taskId', uploadTaskRef.current.id);
       }
 
       await performActualUpload(token, formData);
@@ -500,10 +528,17 @@ const FileUploader = ({ onNavigate, onUploadSuccess, selectedActiveTask }) => {
               📤 Загрузка профилей в задачу:
             </p>
             <p className="upload-task-banner-title">
-              "{selectedActiveTask.title}" (Привоз: {selectedActiveTask.internal_number_start || 'не указан'})
+              "{selectedActiveTask.title}" ({getTaskNumberLabel(activeDepartment)}: {selectedActiveTask.internal_number_start || 'не указан'})
             </p>
           </div>
         )}
+
+        {permissionLoading ? <p role="status">Проверяем права загрузки…</p> : uploadBlockReason ? (
+          <div className="alert alert-warning" role="alert">
+            <p>{uploadBlockReason}</p>
+            <button type="button" className="btn btn-secondary" onClick={() => onNavigate('/dashboard')}>Выбрать активную задачу</button>
+          </div>
+        ) : !selectedActiveTask && <p className="upload-subtitle">Профили будут загружены без привязки к задаче: это разрешено в настройках вашей учётной записи.</p>}
 
         {/* Upload Area */}
         <form onSubmit={handleUpload}>
@@ -518,14 +553,14 @@ const FileUploader = ({ onNavigate, onUploadSuccess, selectedActiveTask }) => {
               type="file"
               accept=".xlsx,.xls"
               onChange={handleFileChange}
-              disabled={uploading}
+              disabled={uploading || permissionLoading || !!uploadBlockReason}
               hidden
               ref={fileInputRef}
             />
             <button
               type="button"
               className="browse-btn btn btn-secondary btn-lg"
-              disabled={uploading}
+              disabled={uploading || permissionLoading || !!uploadBlockReason}
               onClick={() => fileInputRef.current?.click()}
             >
               {uploading ? '⏳ Загрузка...' : '📂 Выбрать файл'}
@@ -549,7 +584,7 @@ const FileUploader = ({ onNavigate, onUploadSuccess, selectedActiveTask }) => {
           <div className="upload-btn-container">
             <button
               type="submit"
-              disabled={!file || uploading}
+              disabled={!file || uploading || permissionLoading || !!uploadBlockReason}
               className="upload-file-btn btn btn-primary btn-lg btn-block"
             >
               {uploading ? '⏳ Загрузка...' : '📤 Загрузить файл'}

@@ -13,6 +13,7 @@ const {
     validateSearchUsers
 } = require('../middleware/validation');
 const { logger } = require('../utils/logger');
+const { UPLOAD_PERMISSION_FIELDS, validateUploadPermissionFields, getProfileUploadPermissions } = require('../utils/profileUploadPermissions');
 
 const router = express.Router();
 
@@ -77,6 +78,7 @@ router.get('/', authenticate, departmentHeadOrAdmin, validatePagination, async (
             SELECT users.id, users.username, users.email, users.role, 
                    users.created_at, users.last_login, users.is_active,
                    users.organization_id, users.department_id,
+                   users.can_upload_with_task, users.can_upload_without_task,
                    o.name as organization_name,
                    d.name as department_name,
                    COALESCE(
@@ -224,7 +226,7 @@ router.get('/department', authenticate, async (req, res) => {
         }
         
         let queryText = `
-            SELECT DISTINCT u.id, u.username, u.email, u.role, u.created_at, u.is_active
+            SELECT DISTINCT u.id, u.username, u.email, u.role, u.created_at, u.is_active, u.can_upload_with_task, u.can_upload_without_task
             FROM users u
             JOIN user_departments ud ON ud.user_id = u.id
             WHERE ud.department_id = $1 AND u.is_active = true
@@ -390,7 +392,7 @@ router.get('/search', authenticate, adminOnly, validateSearchUsers, async (req, 
 });
 
 // POST /api/users - Create new user (admin only)
-router.post('/', authenticate, departmentHeadOrAdmin, validateRegister, async (req, res) => {
+router.post('/', authenticate, adminOnly, validateRegister, async (req, res) => {
     try {
         const { username, email, password, role } = req.body;
         const clientInfo = getClientInfo(req);
@@ -865,6 +867,16 @@ router.put('/:id', authenticate, departmentHeadOrAdmin, validateUUID, async (req
     try {
         const { id } = req.params;
         const { username, email, role, organization_id, department_id, department_ids } = req.body;
+        const permissionChanges = UPLOAD_PERMISSION_FIELDS.filter(field => req.body[field] !== undefined);
+        if (role !== undefined && req.user.role !== 'admin') {
+            return res.status(403).json({ code: 'ROLE_ADMIN_ONLY', message: 'Роль пользователя может изменять только администратор.' });
+        }
+        if (permissionChanges.length && req.user.role !== 'admin') {
+            return res.status(403).json({ code: 'UPLOAD_PERMISSION_ADMIN_ONLY', message: 'Права загрузки может изменять только администратор.' });
+        }
+        if (!validateUploadPermissionFields(req.body)) {
+            return res.status(400).json({ code: 'INVALID_UPLOAD_PERMISSIONS', message: 'Права загрузки должны быть логическими значениями true/false.' });
+        }
         const clientInfo = getClientInfo(req);
         const requestedDepartmentIds = Array.isArray(department_ids)
             ? [...new Set(department_ids.filter(Boolean))]
@@ -925,6 +937,11 @@ router.put('/:id', authenticate, departmentHeadOrAdmin, validateUUID, async (req
             paramIndex++;
         }
 
+        for (const field of permissionChanges) {
+            updates.push(`${field} = $${paramIndex++}`);
+            values.push(req.body[field]);
+        }
+
         if (updates.length === 0) {
             if (requestedDepartmentIds === undefined) {
                 return res.status(400).json({
@@ -943,7 +960,7 @@ router.put('/:id', authenticate, departmentHeadOrAdmin, validateUUID, async (req
                 UPDATE users 
                 SET ${updates.join(', ')} 
                 WHERE id = $${paramIndex}
-                RETURNING id, username, email, role, organization_id, department_id, created_at, is_active
+                RETURNING id, username, email, role, organization_id, department_id, created_at, is_active, can_upload_with_task, can_upload_without_task
             `;
 
             const result = await query(updateQuery, values);
@@ -966,7 +983,11 @@ router.put('/:id', authenticate, departmentHeadOrAdmin, validateUUID, async (req
             ...clientInfo,
             targetUserId: id,
             targetUsername: user.username,
-            updatedFields: Object.keys(req.body)
+            updatedFields: Object.keys(req.body),
+            uploadPermissions: permissionChanges.length ? {
+                before: getProfileUploadPermissions(user),
+                after: getProfileUploadPermissions(updatedUser)
+            } : undefined
         });
 
         res.status(200).json({
