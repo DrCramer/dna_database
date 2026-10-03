@@ -991,6 +991,24 @@
   flex-wrap: wrap;
 }
 
+.task-page .task-priority-fieldset {
+  min-width: 0;
+  margin: 0 0 var(--space-5);
+  padding: 0;
+  border: 0;
+}
+
+:where(.task-page, .task-dashboard, .task-creator, .task-viewer) .task-priority-option:focus-within {
+  outline: 2px solid var(--brand-primary);
+  outline-offset: 3px;
+}
+
+:where(.task-page, .task-dashboard, .task-creator, .task-viewer) .task-priority-option:has(input:disabled) {
+  cursor: not-allowed;
+  opacity: 0.6;
+  transform: none;
+}
+
 :where(.task-page, .task-dashboard, .task-creator, .task-viewer) .task-priority-option {
   position: relative;
   display: inline-flex;
@@ -1026,6 +1044,11 @@
   border-color: color-mix(in srgb, var(--color-primary) 35%, var(--border-color));
   color: var(--color-primary);
   box-shadow: var(--shadow-sm);
+}
+
+:where(.task-page, .task-dashboard, .task-creator, .task-viewer) .task-priority-option.is-active::before {
+  content: '✓';
+  margin-right: var(--space-2);
 }
 
 :where(.task-page, .task-dashboard, .task-creator, .task-viewer) .task-priority-option--low.is-active {

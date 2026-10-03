@@ -18,6 +18,8 @@ test('Реальные PostgreSQL, authenticate, preview и upload', { skip: !da
   const authService = require('../src/services/authService');
   const profilesRouter = require('../src/routes/profiles');
   const genotypeRouter = require('../src/routes/genotypeAnalysisRoutes');
+  const usersRouter = require('../src/routes/users');
+  const tasksRouter = require('../src/routes/tasks');
   global.setInterval = originalInterval;
   const express = require('express');
   const bcrypt = require('bcryptjs');
@@ -26,6 +28,8 @@ test('Реальные PostgreSQL, authenticate, preview и upload', { skip: !da
   app.use(express.json());
   app.use('/api/genotype-analysis', genotypeRouter);
   app.use('/api/profiles', profilesRouter);
+  app.use('/api/users', usersRouter);
+  app.use('/api/tasks', tasksRouter);
   const server = app.listen(0, '127.0.0.1');
   await new Promise(resolve => server.once('listening', resolve));
   const baseUrl = `http://127.0.0.1:${server.address().port}/api/profiles`;
@@ -41,6 +45,10 @@ test('Реальные PostgreSQL, authenticate, preview и upload', { skip: !da
   const userId = (await query("INSERT INTO users (username, email, password_hash, role, organization_id, department_id) VALUES ($4, $5, $1, 'user_analyst', $2, $3) RETURNING id", [await bcrypt.hash('ImportFixture!123', 4), organization, emergency, username, `${username}@example.invalid`])).rows[0].id;
   await query('INSERT INTO user_departments (user_id, department_id, is_primary) VALUES ($1, $2, true), ($1, $3, false)', [userId, emergency, genetic]);
   const { accessToken } = await authService.login(username, 'ImportFixture!123', '127.0.0.1', 'integration-test');
+  const adminName = `task_admin_${fixtureId}`;
+  const adminId = (await query("INSERT INTO users (username, email, password_hash, role, organization_id, department_id) VALUES ($1, $2, $3, 'admin', $4, $5) RETURNING id", [adminName, `${adminName}@example.invalid`, await bcrypt.hash('TaskFixture!123', 4), organization, emergency])).rows[0].id;
+  await query('INSERT INTO user_departments (user_id, department_id, is_primary) VALUES ($1, $2, true), ($1, $3, false)', [adminId, emergency, genetic]);
+  const { accessToken: adminToken } = await authService.login(adminName, 'TaskFixture!123', '127.0.0.1', 'task-integration-test');
   const columns = ['Объект', 'TH01', 'D5S818', 'D21S11'];
   const values = ['7,9', '11,12', '29,30'];
 
@@ -152,6 +160,50 @@ test('Реальные PostgreSQL, authenticate, preview и upload', { skip: !da
     assert.equal(analysisResponse.status, 200, JSON.stringify(analysisBody));
     assert(analysisBody.profiles.some(p => p.sample_name === 'A-1'));
     assert(!analysisBody.profiles.some(p => p.sample_name === 'Я9700'));
+  });
+
+  await t.test('Admin получает массив исполнителей активного отделения с фильтром роли', async () => {
+    const endpoint = baseUrl.replace('/api/profiles', '/api/users/department?role=user_analyst');
+    const response = await fetch(endpoint, { headers: { Authorization: `Bearer ${adminToken}`, 'X-Active-Department-Id': genetic } });
+    const body = await response.json();
+    assert.equal(response.status, 200);
+    assert(Array.isArray(body.data), 'Исполнители возвращаются напрямую в data');
+    assert(body.data.some(user => user.id === userId), 'Аналитик доступен через дополнительное отделение');
+    assert(body.data.every(user => user.role === 'user_analyst' && user.is_active));
+    assert(!body.data.some(user => user.id === adminId));
+    const denied = await fetch(endpoint, { headers: { Authorization: `Bearer ${adminToken}`, 'X-Active-Department-Id': otherDepartment } });
+    assert.equal(denied.status, 403);
+  });
+
+  await t.test('Admin создаёт задачи с четырьмя приоритетами и правильным номером в уведомлении', async () => {
+    const endpoint = baseUrl.replace('/api/profiles', '/api/tasks');
+    async function create(priority, department) {
+      const response = await fetch(endpoint, {
+        method: 'POST',
+        headers: { Authorization: `Bearer ${adminToken}`, 'X-Active-Department-Id': department, 'Content-Type': 'application/json' },
+        body: JSON.stringify({ title: `Приоритет ${priority}`, description: 'Синтетическая проверка создания задачи', priority,
+          assigned_to_user: userId, internal_number_start: 'Э-2026/7', internal_number_end: null, target_sample: {}, data_source: 'new_array' })
+      });
+      const body = await response.json();
+      return { response, body };
+    }
+    for (const priority of ['low', 'medium', 'high', 'urgent']) {
+      const { response, body } = await create(priority, genetic);
+      assert.equal(response.status, 201, JSON.stringify(body));
+      assert.equal(body.data.task.priority, priority);
+      assert.equal(body.data.task.department_id, genetic);
+      assert.equal(body.data.task.assigned_to_user, userId);
+      assert.equal(body.data.task.internal_number_start, 'Э-2026/7');
+      const notification = (await query("SELECT message FROM task_notifications WHERE task_id = $1 AND user_id = $2 AND type = 'new_task'", [body.data.task.id, userId])).rows[0];
+      assert(notification, 'Уведомление исполнителю создано');
+      assert.match(notification.message, /Номер экспертизы: Э-2026\/7/);
+      assert(!notification.message.includes('Номер привоза'));
+    }
+    const emergencyTask = await create('medium', emergency);
+    assert.equal(emergencyTask.response.status, 201, JSON.stringify(emergencyTask.body));
+    const notification = (await query('SELECT message FROM task_notifications WHERE task_id = $1 AND user_id = $2', [emergencyTask.body.data.task.id, userId])).rows[0];
+    assert.match(notification.message, /Номер привоза: Э-2026\/7/);
+    assert.equal((await create('unsupported', genetic)).response.status, 400);
   });
 
   await t.test('Перенос задачи в мастер-массив сохраняет NULL-год и активное отделение', async () => {

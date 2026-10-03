@@ -5,8 +5,15 @@ const TaskNotification = require('../models/TaskNotification');
 const { logger } = require('../utils/logger');
 const { query } = require('../config/database');
 const { notificationService } = require('./notificationService');
+const { getTaskNumberLabel } = require('../utils/taskLabels');
 
 class TaskService {
+    async getTaskNumberDescription(task) {
+        if (!task.internal_number_start) return '';
+        const result = await query('SELECT name FROM departments WHERE id = $1', [task.department_id]);
+        return ` (${getTaskNumberLabel(result.rows[0])}: ${task.internal_number_start}${task.internal_number_end ? '-' + task.internal_number_end : ''})`;
+    }
+
     /**
      * Создать новую задачу
      * @param {Object} taskData - Данные для создания задачи
@@ -151,10 +158,7 @@ class TaskService {
 
             // Создать уведомления только для исполнителей (не для создателя)
             if (assigneeIds.length > 0) {
-                const message = `Вам назначена новая задача: "${task.title}"${task.internal_number_start
-                        ? ` (Номер привоза: ${task.internal_number_start}${task.internal_number_end ? '-' + task.internal_number_end : ''})`
-                        : ''
-                    }`;
+                const message = `Вам назначена новая задача: "${task.title}"${await this.getTaskNumberDescription(task)}`;
 
                 await TaskNotification.createBulk(
                     task.id,
@@ -311,9 +315,7 @@ class TaskService {
                 }
 
                 if (notifyUserIds.length > 0) {
-                    const message = `Задача "${task.title}" завершена и готова к подтверждению${task.internal_number_start 
-                        ? ` (Номер привоза: ${task.internal_number_start}${task.internal_number_end ? '-' + task.internal_number_end : ''})` 
-                        : ''}`;
+                    const message = `Задача "${task.title}" завершена и готова к подтверждению${await this.getTaskNumberDescription(task)}`;
 
                     await TaskNotification.createBulk(
                         task.id,

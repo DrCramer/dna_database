@@ -9,6 +9,11 @@ const LegacyCreateTaskPageView = ({
   isRangeMode,
   setIsRangeMode,
   analysts,
+  analystsLoading,
+  analystsError,
+  activeDepartmentId,
+  numberLabel,
+  numberRangeLabel,
   selectedPriority,
   setSelectedPriority
 }) => {
@@ -81,7 +86,7 @@ const LegacyCreateTaskPageView = ({
 
           {!isRangeMode && (
             <div className="form-group">
-              <label htmlFor="internalNumberStart" className="form-label required">Номер привоза/экспертизы</label>
+              <label htmlFor="internalNumberStart" className="form-label required">{numberLabel}</label>
               <input
                 type="text"
                 id="internalNumberStart"
@@ -102,13 +107,13 @@ const LegacyCreateTaskPageView = ({
                 onChange={(e) => setIsRangeMode(e.target.checked)}
                 disabled={loading}
               />
-              <span>Диапазон номеров</span>
+              <span>{numberRangeLabel}</span>
             </label>
           </div>
 
           {isRangeMode && (
             <div className="form-group">
-              <label className="form-label required">Диапазон номеров</label>
+              <label className="form-label required">{numberRangeLabel}</label>
               <div className="task-range-row">
                 <input
                   type="text"
@@ -136,73 +141,51 @@ const LegacyCreateTaskPageView = ({
           <div className="form-group">
             <label htmlFor="assignedTo" className="form-label required">Исполнитель</label>
             <select
+              key={activeDepartmentId}
               id="assignedTo"
               name="assignedTo"
               className="form-select"
               required
-              disabled={loading}
+              disabled={loading || analystsLoading || analysts.length === 0}
+              aria-describedby="assignee-status"
             >
-              <option value="">Выберите аналитика</option>
+              <option value="">{analystsLoading ? 'Загрузка исполнителей…' : 'Выберите аналитика'}</option>
               {analysts.map((analyst) => (
                 <option key={analyst.id} value={analyst.id}>
                   {analyst.username} ({analyst.email})
                 </option>
               ))}
             </select>
+            <p id="assignee-status" className="task-form-help" role={analystsError ? 'alert' : 'status'}>
+              {analystsError || (analystsLoading ? 'Загружаем аналитиков активного отделения…' :
+                analysts.length === 0 ? 'В активном отделении нет доступных аналитиков. Добавьте сотруднику доступ к отделению в управлении пользователями.' :
+                'Исполнитель получит задачу в активном отделении.')}
+            </p>
           </div>
 
-          <div className="priority-group">
-            <label className="form-label required">Приоритет</label>
-            <div className="priority-options">
-              <label className={`priority-option ${selectedPriority === 'low' ? 'selected' : ''}`}>
-                <input
-                  type="radio"
-                  name="priority"
-                  value="low"
-                  checked={selectedPriority === 'low'}
-                  onChange={(e) => setSelectedPriority(e.target.value)}
-                  disabled={loading}
-                />
-                <div className="priority-name priority-low">Низкий</div>
-              </label>
-
-              <label className={`priority-option ${selectedPriority === 'medium' ? 'selected' : ''}`}>
-                <input
-                  type="radio"
-                  name="priority"
-                  value="medium"
-                  checked={selectedPriority === 'medium'}
-                  onChange={(e) => setSelectedPriority(e.target.value)}
-                  disabled={loading}
-                />
-                <div className="priority-name priority-medium">Средний</div>
-              </label>
-
-              <label className={`priority-option ${selectedPriority === 'high' ? 'selected' : ''}`}>
-                <input
-                  type="radio"
-                  name="priority"
-                  value="high"
-                  checked={selectedPriority === 'high'}
-                  onChange={(e) => setSelectedPriority(e.target.value)}
-                  disabled={loading}
-                />
-                <div className="priority-name priority-high">Высокий</div>
-              </label>
-
-              <label className={`priority-option ${selectedPriority === 'urgent' ? 'selected' : ''}`}>
-                <input
-                  type="radio"
-                  name="priority"
-                  value="urgent"
-                  checked={selectedPriority === 'urgent'}
-                  onChange={(e) => setSelectedPriority(e.target.value)}
-                  disabled={loading}
-                />
-                <div className="priority-name priority-urgent">Срочный</div>
-              </label>
+          <fieldset className="task-priority-fieldset" disabled={loading}>
+            <legend className="form-label required">Приоритет</legend>
+            <div className="task-priority-row">
+              {[
+                { value: 'low', label: 'Низкий' },
+                { value: 'medium', label: 'Средний' },
+                { value: 'high', label: 'Высокий' },
+                { value: 'urgent', label: 'Срочный' }
+              ].map(option => (
+                <label key={option.value} className={`task-priority-option task-priority-option--${option.value} ${selectedPriority === option.value ? 'is-active' : ''}`}>
+                  <input
+                    type="radio"
+                    name="priority"
+                    value={option.value}
+                    checked={selectedPriority === option.value}
+                    onChange={e => setSelectedPriority(e.target.value)}
+                    required
+                  />
+                  <span>{option.label}</span>
+                </label>
+              ))}
             </div>
-          </div>
+          </fieldset>
 
           <div className="form-actions">
             <button
@@ -219,7 +202,7 @@ const LegacyCreateTaskPageView = ({
               type="submit"
               className="btn btn-primary"
               title="Создать задачу и назначить исполнителя"
-              disabled={loading}
+              disabled={loading || analystsLoading || analysts.length === 0 || !!analystsError}
             >
               <span>{loading ? '⏳' : '✅'}</span>
               <span>{loading ? 'Создание...' : 'Создать задачу'}</span>

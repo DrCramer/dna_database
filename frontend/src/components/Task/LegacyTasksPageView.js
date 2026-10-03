@@ -11,6 +11,7 @@ import {
 
 const LegacyTasksPageView = ({
   onNavigate,
+  numberLabel,
   isManager,
   stats,
   filterStatus,
@@ -114,7 +115,7 @@ const LegacyTasksPageView = ({
                     {isManager && (
                       <TaskSortableHeader field="assigned_user_name" currentField={sortField} currentDirection={sortDirection} onSort={handleSort}>Назначена</TaskSortableHeader>
                     )}
-                    <TaskSortableHeader field="internal_number_start" currentField={sortField} currentDirection={sortDirection} onSort={handleSort}>Экспертиза</TaskSortableHeader>
+                    <TaskSortableHeader field="internal_number_start" currentField={sortField} currentDirection={sortDirection} onSort={handleSort}>{numberLabel}</TaskSortableHeader>
                     <TaskSortableHeader field="profile_count" currentField={sortField} currentDirection={sortDirection} onSort={handleSort}>Генотипов</TaskSortableHeader>
                     <TaskSortableHeader field="priority" currentField={sortField} currentDirection={sortDirection} onSort={handleSort}>Приоритет</TaskSortableHeader>
                     <TaskSortableHeader field="status" currentField={sortField} currentDirection={sortDirection} onSort={handleSort}>Статус</TaskSortableHeader>
@@ -238,7 +239,7 @@ const LegacyTasksPageView = ({
 
             <div className="task-modal-meta-grid">
               <div>
-                <strong className="task-modal-strong">Номер экспертизы:</strong>
+                <strong className="task-modal-strong">{numberLabel}:</strong>
                 <p className="task-modal-code">
                   {selectedTask.internal_number_start}
                   {selectedTask.internal_number_end && ` - ${selectedTask.internal_number_end}`}

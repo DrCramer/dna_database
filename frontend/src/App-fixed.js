@@ -22,6 +22,7 @@ import LegacyCreateTaskPageView from './components/Task/LegacyCreateTaskPageView
 import LegacyDashboardView from './components/Dashboard/LegacyDashboardView';
 import LegacyBayesianShell from './components/Analysis/LegacyBayesianShell';
 import MasterObjectSearchPage from './components/Search/MasterObjectSearchPage';
+import { getTaskNumberLabel, getTaskNumberRangeLabel } from '../../src/utils/taskLabels';
 
 // Функция склонения слова "профиль"
 const pluralizeProfiles = (n) => {
@@ -501,7 +502,7 @@ const Dashboard = ({ onNavigate, selectedActiveTask, setSelectedActiveTask, onNo
 };
 
 const TasksPage = ({ onNavigate }) => {
-  const { user, hasRole, activeDepartmentId } = useAuth();
+  const { user, hasRole, activeDepartmentId, activeDepartment } = useAuth();
   const [tasks, setTasks] = React.useState([]);
   const [loading, setLoading] = React.useState(true);
   const [error, setError] = React.useState('');
@@ -1009,6 +1010,7 @@ const TasksPage = ({ onNavigate }) => {
 
   return (
     <LegacyTasksPageView
+      numberLabel={getTaskNumberLabel(activeDepartment)}
       onNavigate={onNavigate}
       isManager={hasRole('department_head') || hasRole('admin')}
       stats={stats}
@@ -1062,35 +1064,48 @@ const TasksPage = ({ onNavigate }) => {
 };
 
 const CreateTaskPage = ({ onNavigate }) => {
-  const { user, hasRole, activeDepartmentId } = useAuth();
+  const { hasRole, activeDepartmentId, activeDepartment } = useAuth();
   const [selectedPriority, setSelectedPriority] = React.useState('medium');
   const [isRangeMode, setIsRangeMode] = React.useState(false);
   const [loading, setLoading] = React.useState(false);
   const [error, setError] = React.useState('');
   const [success, setSuccess] = React.useState('');
   const [analysts, setAnalysts] = React.useState([]);
+  const [analystsLoading, setAnalystsLoading] = React.useState(true);
+  const [analystsError, setAnalystsError] = React.useState('');
 
-  // Загрузка списка аналитиков при монтировании
+  // Список относится к выбранному отделению; устаревший ответ не меняет форму.
   React.useEffect(() => {
+    const controller = new AbortController();
+    setAnalysts([]);
+    setAnalystsLoading(true);
+    setAnalystsError('');
+    setError('');
+    setSuccess('');
     const loadAnalysts = async () => {
       try {
         const token = localStorage.getItem('token');
         const response = await fetch('/api/users/department?role=user_analyst', {
           headers: {
-            'Authorization': `Bearer ${token}`
-          }
+            'Authorization': `Bearer ${token}`,
+            'X-Active-Department-Id': activeDepartmentId
+          },
+          signal: controller.signal
         });
 
-        if (response.ok) {
-          const data = await response.json();
-          setAnalysts(data.data?.users || []);
-        }
+        const data = await response.json();
+        if (!response.ok) throw new Error(data.message || 'Не удалось загрузить исполнителей');
+        if (!Array.isArray(data.data)) throw new Error('Сервер вернул некорректный список исполнителей');
+        if (!controller.signal.aborted) setAnalysts(data.data);
       } catch (err) {
-        console.error('Ошибка загрузки аналитиков:', err);
+        if (!controller.signal.aborted) setAnalystsError(err.message || 'Не удалось загрузить исполнителей');
+      } finally {
+        if (!controller.signal.aborted) setAnalystsLoading(false);
       }
     };
 
     loadAnalysts();
+    return () => controller.abort();
   }, [activeDepartmentId]);
 
   // Обработка отправки формы
@@ -1120,6 +1135,12 @@ const CreateTaskPage = ({ onNavigate }) => {
         return;
       }
 
+      if (!analysts.some(analyst => analyst.id === taskData.assigned_to_user)) {
+        setError('Выберите исполнителя из активного отделения');
+        setLoading(false);
+        return;
+      }
+
       if (isRangeMode && !taskData.internal_number_end) {
         setError('Укажите конечный номер для диапазона');
         setLoading(false);
@@ -1132,7 +1153,8 @@ const CreateTaskPage = ({ onNavigate }) => {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
-          'Authorization': `Bearer ${token}`
+          'Authorization': `Bearer ${token}`,
+          'X-Active-Department-Id': activeDepartmentId
         },
         body: JSON.stringify(taskData)
       });
@@ -1174,6 +1196,11 @@ const CreateTaskPage = ({ onNavigate }) => {
       isRangeMode={isRangeMode}
       setIsRangeMode={setIsRangeMode}
       analysts={analysts}
+      analystsLoading={analystsLoading}
+      analystsError={analystsError}
+      activeDepartmentId={activeDepartmentId}
+      numberLabel={getTaskNumberLabel(activeDepartment)}
+      numberRangeLabel={getTaskNumberRangeLabel(activeDepartment)}
       selectedPriority={selectedPriority}
       setSelectedPriority={setSelectedPriority}
     />
