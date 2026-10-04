@@ -7,6 +7,7 @@
  */
 
 import React, { useState, useEffect, useCallback, useRef } from 'react';
+import { useProfileFieldLabel } from '../../../frontend/src/hooks/useProfileFieldLabel';
 
 // Format date to user-friendly format
 const formatDate = (dateString) => {
@@ -91,6 +92,7 @@ const SampleSelector = ({
     excludeSample = null,
     filterType = "all" // "all", "reference", "regular"
 }) => {
+    const fieldLabel = useProfileFieldLabel();
     const [samples, setSamples] = useState([]);
     const [filteredSamples, setFilteredSamples] = useState([]);
     const [searchTerm, setSearchTerm] = useState('');
@@ -438,7 +440,7 @@ const SampleSelector = ({
                         ref={inputRef}
                         type="text"
                         className="selector-input form-input"
-                        placeholder={selectedSample ? selectedSample.name : placeholder}
+                        placeholder={selectedSample ? selectedSample.name : fieldLabel('internal_number', placeholder)}
                         value={searchTerm}
                         onChange={handleSearchChange}
                         onFocus={handleInputFocus}
@@ -516,7 +518,7 @@ const SampleSelector = ({
                                         </div>
                                         <div className="sample-meta">
                                             <span className="sample-id">
-                                                Номер: {searchTerm ? highlightSearchTerm(sample.internalNumber || sample.name, searchTerm) : (sample.internalNumber || sample.name)}
+                                                {fieldLabel('internal_number', 'Номер')}: {searchTerm ? highlightSearchTerm(sample.internalNumber || sample.name, searchTerm) : (sample.internalNumber || sample.name)}
                                             </span>
                                             {sample.sampleName && sample.sampleName.trim() && (
                                                 <span className="sample-name-tech" title="Техническое имя образца">

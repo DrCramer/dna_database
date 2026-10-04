@@ -1,4 +1,5 @@
 import React, { useEffect, useState } from 'react';
+import { useProfileFieldLabel } from '../../hooks/useProfileFieldLabel';
 
 const formatDateTime = (value) => {
   if (!value) return 'Нет данных';
@@ -74,6 +75,7 @@ const renderStrData = (strData) => {
 };
 
 const MasterObjectSearchPage = () => {
+  const fieldLabel = useProfileFieldLabel();
   const [query, setQuery] = useState('');
   const [submittedQuery, setSubmittedQuery] = useState('');
   const [results, setResults] = useState([]);
@@ -118,7 +120,7 @@ const MasterObjectSearchPage = () => {
 
     const trimmedQuery = query.trim();
     if (!trimmedQuery) {
-      setError('Введите название объекта, внутренний номер, привоз или фрагмент комментария.');
+      setError(`Введите название объекта, ${fieldLabel('internal_number', 'внутренний номер')}, привоз или фрагмент комментария.`);
       setResults([]);
       setSelectedObject(null);
       setSelectedObjectId(null);
@@ -171,7 +173,7 @@ const MasterObjectSearchPage = () => {
           <p className="master-object-search-eyebrow">Глобальный поиск</p>
           <h1>Поиск объектов мастер-массива</h1>
           <p className="master-object-search-subtitle">
-            Ищите объекты по названию, внутреннему номеру, привозу, комментариям и связанным метаданным.
+            Ищите объекты по названию, {fieldLabel('internal_number', 'внутреннему номеру')}, привозу, комментариям и связанным метаданным.
           </p>
         </div>
 
@@ -180,7 +182,7 @@ const MasterObjectSearchPage = () => {
             type="text"
             value={query}
             onChange={(event) => setQuery(event.target.value)}
-            placeholder="Например: объект, внутренний номер, привоз, комментарий..."
+            placeholder={`Например: объект, ${fieldLabel('internal_number', 'внутренний номер')}, привоз, комментарий...`}
             className="master-object-search-input form-input"
           />
           <button type="submit" className="master-object-search-button btn btn-primary" disabled={loading}>
@@ -228,7 +230,7 @@ const MasterObjectSearchPage = () => {
                     <span>{item.department_name || 'Без отдела'}</span>
                   </div>
                   <div className="master-object-search-result-meta">
-                    <span>Внутренний номер: {item.internal_number || 'Нет данных'}</span>
+                    <span>{fieldLabel('internal_number', 'Внутренний номер')}: {item.internal_number || 'Нет данных'}</span>
                     <span>Привоз: {item.import_number || 'Нет данных'}</span>
                     <span>Год: {item.year || 'Нет данных'}</span>
                     <span>Изменён: {formatDateTime(item.updated_at)}</span>
@@ -272,7 +274,7 @@ const MasterObjectSearchPage = () => {
 
               <div className="master-object-card-grid">
                 <div className="master-object-card-field">
-                  <span>Внутренний номер</span>
+                  <span>{fieldLabel('internal_number', 'Внутренний номер')}</span>
                   <strong>{selectedObject.internal_number || 'Нет данных'}</strong>
                 </div>
                 <div className="master-object-card-field">

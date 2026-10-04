@@ -1,6 +1,8 @@
 import React, { useState, useEffect } from 'react';
+import { useProfileFieldLabel } from '../../hooks/useProfileFieldLabel';
 
 const ProfileCommentModal = ({ isOpen, onClose, profile, onSave }) => {
+  const fieldLabel = useProfileFieldLabel();
   const [comment, setComment] = useState('');
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState(null);
@@ -96,7 +98,7 @@ const ProfileCommentModal = ({ isOpen, onClose, profile, onSave }) => {
         <div className="profile-comment-modal__body">
           {profile && (
             <div className="profile-comment-modal__sample">
-              <strong>Образец:</strong> {profile.sample_name || profile.sampleName}
+              <strong>{fieldLabel('sample_name', 'Образец')}:</strong> {profile.sample_name || profile.sampleName}
               {profile.year && profile.internal_number && (
                 <span> ({profile.year}/{profile.internal_number})</span>
               )}

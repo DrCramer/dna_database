@@ -1,7 +1,9 @@
 import React, { useState, useEffect } from 'react';
 import { BarChart, Bar, PieChart, Pie, Cell, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer } from 'recharts';
+import { useProfileFieldLabel } from '../../hooks/useProfileFieldLabel';
 
 const AdminDashboard = ({ onNavigate }) => {
+  const fieldLabel = useProfileFieldLabel();
   // Получаем user из контекста через window (так как useAuth недоступен здесь)
   // Альтернатива: передать user как prop или использовать контекст
   const [user, setUser] = useState(null);
@@ -424,7 +426,7 @@ const AdminDashboard = ({ onNavigate }) => {
                     <th>ID</th>
                     <th>Год</th>
                     <th>Привоз</th>
-                                        <th>Внутренний №</th>
+                                        <th>{fieldLabel('internal_number', 'Внутренний №')}</th>
                     <th>Статус ДНК-профиля</th>
                     <th>Данные RealTime</th>
                     <th>Действия</th>
@@ -489,9 +491,9 @@ const AdminDashboard = ({ onNavigate }) => {
         {activeTab === 'duplicates' && (
           <div className="duplicates-section">
             <div className="search-card">
-              <h3 className="section-title">🔍 Поиск дубликатов по номеру воинской части</h3>
+              <h3 className="section-title">🔍 Поиск дубликатов по {fieldLabel('sample_name', 'номеру воинской части')}</h3>
               <p className="section-description">
-                Введите номер воинской части для поиска всех профилей с этим номером
+                Введите {fieldLabel('sample_name', 'номер воинской части')} для поиска всех профилей с этим номером
               </p>
 
               <div className="search-row">
@@ -499,7 +501,7 @@ const AdminDashboard = ({ onNavigate }) => {
                   type="text"
                   value={duplicateSearch}
                   onChange={(e) => setDuplicateSearch(e.target.value)}
-                  placeholder="Введите № в в/ч"
+                  placeholder={`Введите ${fieldLabel('sample_name', '№ в в/ч')}`}
                   className="search-input form-input"
                   onKeyPress={(e) => e.key === 'Enter' && handleFindDuplicates()}
                 />
@@ -515,7 +517,7 @@ const AdminDashboard = ({ onNavigate }) => {
                 <div className="results-section">
                   <div className="results-header">
                     <h4>Найдено {duplicateResults.count} совпадений</h4>
-                    <p>Номер в/ч: <strong>{duplicateResults.military_unit_number}</strong></p>
+                    <p>{fieldLabel('sample_name', 'Номер в/ч')}: <strong>{duplicateResults.military_unit_number}</strong></p>
                   </div>
 
                   {duplicateResults.count > 0 && (
@@ -523,7 +525,7 @@ const AdminDashboard = ({ onNavigate }) => {
                       <table className="data-table table table-striped">
                         <thead>
                           <tr>
-                            <th>Внутренний №</th>
+                            <th>{fieldLabel('internal_number', 'Внутренний №')}</th>
                             <th>Год</th>
                             <th>Привоз</th>
                             <th>Статус</th>

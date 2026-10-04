@@ -1,7 +1,9 @@
 import React, { useEffect, useState } from 'react';
 import { dnaAnalysisService } from '../../services/dnaAnalysisService';
+import { useProfileFieldLabel } from '../../hooks/useProfileFieldLabel';
 
 const ProfileViewer = () => {
+  const fieldLabel = useProfileFieldLabel();
   const [profiles, setProfiles] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
@@ -107,7 +109,7 @@ const ProfileViewer = () => {
           <input
             type="text"
             className="form-input"
-            placeholder="Поиск по имени образца или источнику файла..."
+            placeholder={`Поиск по ${fieldLabel('sample_name', 'имени образца')} или источнику файла...`}
             value={searchTerm}
             onChange={(event) => setSearchTerm(event.target.value)}
           />
@@ -117,7 +119,7 @@ const ProfileViewer = () => {
             <label className="form-label">Сортировка</label>
             <select className="form-select" value={sortBy} onChange={(event) => setSortBy(event.target.value)}>
               <option value="upload_date">Дата загрузки</option>
-              <option value="sample_name">Имя образца</option>
+              <option value="sample_name">{fieldLabel('sample_name', 'Имя образца')}</option>
               <option value="file_source">Источник файла</option>
             </select>
           </div>
@@ -135,7 +137,7 @@ const ProfileViewer = () => {
         <table className="table">
           <thead>
             <tr>
-              <th>Имя образца</th>
+              <th>{fieldLabel('sample_name', 'Имя образца')}</th>
               <th>Дата загрузки</th>
               <th>Источник файла</th>
               <th>Число локусов STR/SNP</th>

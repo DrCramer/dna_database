@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import AlgorithmSettings from './AlgorithmSettings';
+import { useProfileFieldLabel } from '../../hooks/useProfileFieldLabel';
 
 // Локусы для анализа (24 основных) - порядок как в таблице данных
 const ANALYSIS_LOCI = [
@@ -13,6 +14,7 @@ const ANALYSIS_LOCI = [
  * Компонент для анализа контаминации сотрудников
  */
 const StaffContaminationPanel = ({ profiles }) => {
+  const fieldLabel = useProfileFieldLabel();
   const [selectedSample, setSelectedSample] = useState(null);
   const [analyzing, setAnalyzing] = useState(false);
   const [results, setResults] = useState(null);
@@ -166,7 +168,7 @@ const StaffContaminationPanel = ({ profiles }) => {
             <div className="selected-sample-info">
               <strong>Выбран:</strong> {selectedSample.sample_name}
               <br />
-              <strong>Внутренний номер:</strong> {selectedSample.internal_number || 'не указан'}
+              <strong>{fieldLabel('internal_number', 'Внутренний номер')}:</strong> {selectedSample.internal_number || 'не указан'}
             </div>
           )}
         </div>
@@ -302,7 +304,7 @@ const StaffContaminationPanel = ({ profiles }) => {
             <h3>📊 Результаты анализа</h3>
             <div className="results-summary">
               <div className="summary-item">
-                <span className="summary-label">Образец:</span>
+                <span className="summary-label">{fieldLabel('sample_name', 'Образец')}:</span>
                 <span className="summary-value">{results.sample_name}</span>
               </div>
               <div className="summary-item">

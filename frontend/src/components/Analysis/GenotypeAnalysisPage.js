@@ -2,6 +2,7 @@ import React, { useState, useEffect, useRef } from 'react';
 import ColorPicker from './ColorPicker';
 import ProfileActionButtons from './ProfileActionButtons';
 import ProfileCommentModal from './ProfileCommentModal';
+import { useProfileFieldLabel } from '../../hooks/useProfileFieldLabel';
 
 // Локусы для анализа (24 основных)
 const ANALYSIS_LOCI = [
@@ -22,6 +23,7 @@ const BUFFER_SIZE = 5;
  * Главный компонент страницы анализа генотипов
  */
 const GenotypeAnalysisPage = ({ onNavigate, selectedActiveTask }) => {
+  const fieldLabel = useProfileFieldLabel();
   // Состояния
   const [profiles, setProfiles] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -2385,22 +2387,22 @@ const GenotypeAnalysisPage = ({ onNavigate, selectedActiveTask }) => {
 
           <div className="reference-info">
             <div className="info-field">
-              <label>№ в в\ч:</label>
+              <label>{fieldLabel('sample_name', '№ в в\\ч')}:</label>
               <input
                 type="text"
                 value={referenceValues.sample_name}
                 onChange={(e) => setReferenceValues(prev => ({...prev, sample_name: e.target.value}))}
-                placeholder="№ присвоенный в в/ч"
+                placeholder={fieldLabel('sample_name', '№ присвоенный в в/ч')}
                 readOnly={!!selectedProfile}
                className="form-input"/>
             </div>
             <div className="info-field">
-              <label>№:</label>
+              <label>{fieldLabel('internal_number', '№')}:</label>
               <input
                 type="text"
                 value={referenceValues.internal_number}
                 onChange={(e) => setReferenceValues(prev => ({...prev, internal_number: e.target.value}))}
-                placeholder="Внутренний номер"
+                placeholder={fieldLabel('internal_number', 'Внутренний номер')}
                 readOnly={!!selectedProfile}
                className="form-input"/>
             </div>
@@ -2655,7 +2657,7 @@ const GenotypeAnalysisPage = ({ onNavigate, selectedActiveTask }) => {
                             className={`drag-header-cell ${dragOverColumn === column.key ? 'is-drag-target' : ''}`}
                             title="Перетащите для изменения порядка"
                           >
-                            {column.label}
+                            {fieldLabel(column.key, column.label)}
                           </th>
                         ))}
                         {activeLoci.map(locus => (
@@ -2795,8 +2797,8 @@ const GenotypeAnalysisPage = ({ onNavigate, selectedActiveTask }) => {
                     <tr>
                       <th>Год</th>
                       <th>Привоз</th>
-                      <th>№ в в\ч</th>
-                      <th>№</th>
+                      <th>{fieldLabel('sample_name', '№ в в\\ч')}</th>
+                      <th>{fieldLabel('internal_number', '№')}</th>
                       {searchResults.length > 0 && searchResults[0].searchMode === 'department_tasks' && (
                         <>
                           <th>Задача</th>
@@ -3074,8 +3076,8 @@ const GenotypeAnalysisPage = ({ onNavigate, selectedActiveTask }) => {
               <div className="column">
                 <h3>🧬 Образец</h3>
                 <div className="section-divider"></div>
-                <p><strong>№ в в\ч:</strong> {contaminationDetails.sample.sample_name}</p>
-                <p><strong>Номер:</strong> {contaminationDetails.sample.internal_number}</p>
+                <p><strong>{fieldLabel('sample_name', '№ в в\\ч')}:</strong> {contaminationDetails.sample.sample_name}</p>
+                <p><strong>{fieldLabel('internal_number', 'Номер')}:</strong> {contaminationDetails.sample.internal_number}</p>
                 <p><strong>Привоз:</strong> {contaminationDetails.sample.import_number || 'N/A'}</p>
                 {contaminationDetails.sample.year && (
                   <p><strong>Год:</strong> {contaminationDetails.sample.year}</p>
@@ -3274,8 +3276,8 @@ const GenotypeAnalysisPage = ({ onNavigate, selectedActiveTask }) => {
                                           <tr>
                                             <th>Год</th>
                                             <th>Привоз</th>
-                                            <th>№ в в/ч</th>
-                                            <th>№</th>
+                                            <th>{fieldLabel('sample_name', '№ в в/ч')}</th>
+                                            <th>{fieldLabel('internal_number', '№')}</th>
                                           </tr>
                                         </thead>
                                         <tbody>
@@ -3356,8 +3358,8 @@ const GenotypeAnalysisPage = ({ onNavigate, selectedActiveTask }) => {
                                           <tr>
                                             <th>Год</th>
                                             <th>Привоз</th>
-                                            <th>№ в в/ч</th>
-                                            <th>№</th>
+                                            <th>{fieldLabel('sample_name', '№ в в/ч')}</th>
+                                            <th>{fieldLabel('internal_number', '№')}</th>
                                           </tr>
                                         </thead>
                                         <tbody>
@@ -3466,8 +3468,8 @@ const GenotypeAnalysisPage = ({ onNavigate, selectedActiveTask }) => {
                                       <strong>👤 {item.staffProfile.full_name}</strong>
                                     </div>
                                     <div className="history-card-body">
-                                      <p><strong>№ в в\ч:</strong> {item.sample_name}</p>
-                                      <p><strong>Номер:</strong> {item.internal_number}</p>
+                                      <p><strong>{fieldLabel('sample_name', '№ в в\\ч')}:</strong> {item.sample_name}</p>
+                                      <p><strong>{fieldLabel('internal_number', 'Номер')}:</strong> {item.internal_number}</p>
                                       <p><strong>Привоз:</strong> {item.import_number || 'N/A'}</p>
                                       <p><strong>Балл:</strong> {typeof item.matchScore === 'number' ? item.matchScore.toFixed(1) : item.matchScore} / 30</p>
                                     </div>
@@ -3544,8 +3546,8 @@ const GenotypeAnalysisPage = ({ onNavigate, selectedActiveTask }) => {
                                           <tr>
                                             <th>Год</th>
                                             <th>Привоз</th>
-                                            <th>№ в в/ч</th>
-                                            <th>№</th>
+                                            <th>{fieldLabel('sample_name', '№ в в/ч')}</th>
+                                            <th>{fieldLabel('internal_number', '№')}</th>
                                           </tr>
                                         </thead>
                                         <tbody>
@@ -3626,8 +3628,8 @@ const GenotypeAnalysisPage = ({ onNavigate, selectedActiveTask }) => {
                                           <tr>
                                             <th>Год</th>
                                             <th>Привоз</th>
-                                            <th>№ в в/ч</th>
-                                            <th>№</th>
+                                            <th>{fieldLabel('sample_name', '№ в в/ч')}</th>
+                                            <th>{fieldLabel('internal_number', '№')}</th>
                                           </tr>
                                         </thead>
                                         <tbody>
@@ -3708,8 +3710,8 @@ const GenotypeAnalysisPage = ({ onNavigate, selectedActiveTask }) => {
                                           <tr>
                                             <th>Год</th>
                                             <th>Привоз</th>
-                                            <th>№ в в/ч</th>
-                                            <th>№</th>
+                                            <th>{fieldLabel('sample_name', '№ в в/ч')}</th>
+                                            <th>{fieldLabel('internal_number', '№')}</th>
                                             <th>Задача</th>
                                             <th>Эксперт</th>
                                           </tr>
@@ -4903,12 +4905,12 @@ const GenotypeAnalysisPage = ({ onNavigate, selectedActiveTask }) => {
             <div className="modal-body">
               <div className="modal-info-card">
                 <div className="info-row">
-                  <span className="info-label">Образец:</span>
+                  <span className="info-label">{fieldLabel('sample_name', 'Образец')}:</span>
                   <span className="info-value">{deactivateModalProfile.sample_name}</span>
                 </div>
                 {deactivateModalProfile.internal_number && (
                   <div className="info-row">
-                    <span className="info-label">Внутренний номер:</span>
+                    <span className="info-label">{fieldLabel('internal_number', 'Внутренний номер')}:</span>
                     <span className="info-value">{deactivateModalProfile.internal_number}</span>
                   </div>
                 )}

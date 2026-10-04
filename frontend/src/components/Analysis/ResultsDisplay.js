@@ -1,7 +1,9 @@
 import React, { useState } from 'react';
 import { dnaAnalysisService } from '../../services/dnaAnalysisService';
+import { useProfileFieldLabel } from '../../hooks/useProfileFieldLabel';
 
 const ResultsDisplay = ({ results, searchSettings }) => {
+  const fieldLabel = useProfileFieldLabel();
   const [selectedMatch, setSelectedMatch] = useState(null);
   const [exporting, setExporting] = useState(false);
   const [exportError, setExportError] = useState(null);
@@ -86,7 +88,7 @@ const ResultsDisplay = ({ results, searchSettings }) => {
           <table className="table">
             <thead>
               <tr>
-                <th>Имя образца</th>
+                <th>{fieldLabel('sample_name', 'Имя образца')}</th>
                 <th>Совпадение</th>
                 <th>Совпавшие локусы</th>
                 <th>Всего локусов</th>
@@ -187,7 +189,7 @@ const ResultsDisplay = ({ results, searchSettings }) => {
                   <h4 className="population-section-title">Информация о профиле</h4>
                   <div className="analysis-metrics-grid">
                     <div className="analysis-metric-card">
-                      <div className="analysis-mini-label">Имя образца</div>
+                      <div className="analysis-mini-label">{fieldLabel('sample_name', 'Имя образца')}</div>
                       <div className="analysis-main-value">{selectedMatch.profile.sample_name}</div>
                     </div>
                     <div className="analysis-metric-card">

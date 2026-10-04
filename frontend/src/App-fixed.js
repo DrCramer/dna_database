@@ -23,6 +23,7 @@ import LegacyDashboardView from './components/Dashboard/LegacyDashboardView';
 import LegacyBayesianShell from './components/Analysis/LegacyBayesianShell';
 import MasterObjectSearchPage from './components/Search/MasterObjectSearchPage';
 import { getTaskNumberLabel, getTaskNumberRangeLabel } from '../../src/utils/taskLabels';
+import { useProfileFieldLabel } from './hooks/useProfileFieldLabel';
 
 // Функция склонения слова "профиль"
 const pluralizeProfiles = (n) => {
@@ -110,6 +111,7 @@ const ProtectedRoute = ({ children, onNavigate, fluid = false }) => {
 // File Uploader Component
 // Profile Viewer Component
 const ProfileViewer = ({ onNavigate }) => {
+  const fieldLabel = useProfileFieldLabel();
   const { user } = useAuth();
   const [profiles, setProfiles] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -180,7 +182,7 @@ const ProfileViewer = ({ onNavigate }) => {
       <div className="profile-viewer-search">
         <input
           type="text"
-          placeholder="Поиск профилей по названию образца..."
+          placeholder={`Поиск профилей по ${fieldLabel('sample_name', 'названию образца')}...`}
           value={searchTerm}
           onChange={(e) => setSearchTerm(e.target.value)}
           className="form-input"
@@ -215,7 +217,7 @@ const ProfileViewer = ({ onNavigate }) => {
           <table className="profile-viewer-table table table-striped">
             <thead>
               <tr>
-                <th>Наименование образца</th>
+                <th>{fieldLabel('sample_name', 'Наименование образца')}</th>
                 <th>Привоз</th>
                 <th>Дата загрузки</th>
               </tr>

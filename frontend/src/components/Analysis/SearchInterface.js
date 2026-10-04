@@ -4,8 +4,10 @@ import { settingsService } from '../../services/settingsService';
 import { usePreventDuplicateSubmission } from '../../hooks/usePreventDuplicateSubmission';
 import { useAuth } from '../../contexts/AuthContext';
 import ResultsDisplay from './ResultsDisplay';
+import { useProfileFieldLabel } from '../../hooks/useProfileFieldLabel';
 
 const SearchInterface = () => {
+  const fieldLabel = useProfileFieldLabel();
   const { user } = useAuth();
   const [profiles, setProfiles] = useState([]);
   const [selectedProfile, setSelectedProfile] = useState('');
@@ -266,7 +268,7 @@ const SearchInterface = () => {
                 disabled={searching}
               >
                 <option value="match_percentage">Процент совпадения</option>
-                <option value="sample_name">Имя образца</option>
+                <option value="sample_name">{fieldLabel('sample_name', 'Имя образца')}</option>
                 <option value="upload_date">Дата загрузки</option>
               </select>
             </div>
