@@ -1,0 +1,13 @@
+# Optional local DNAEXCEL integration. Enable after creating dna_integration.
+services:
+  web:
+    networks:
+      default:
+      dna_integration:
+        aliases:
+          - dna-database-api
+
+networks:
+  dna_integration:
+    external: true
+    name: dna_integration

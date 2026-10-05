@@ -198,6 +198,11 @@ API проверяет права и `taskId`; настройки из тела 
 `500` с `requestId`; недоступное отделение или профиль — `403`.
 [Контракт legacy API, правила доступа и проверки](docs/LEGACY_PROFILE_ACCESS.md).
 
+Для DNAEXCEL рядом с основной базой предусмотрен необязательный
+`docker-compose.integration.yml`: backend получает alias `dna-database-api`
+в общей сети `dna_integration`. PostgreSQL и Redis сохраняют собственную сеть
+и хранилища. [Запуск и проверка локальной интеграции](docs/DNAEXCEL_LOCAL_INTEGRATION.md).
+
 ## Создание задач
 
 Администратор и руководитель могут назначать задачи аналитикам активного
