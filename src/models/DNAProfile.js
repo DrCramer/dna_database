@@ -64,6 +64,9 @@ class DNAProfile {
     if (data.year != null && (!Number.isInteger(Number(data.year)) || Number(data.year) < 1900 || Number(data.year) > 2100)) {
       throw new Error('Год должен быть целым числом от 1900 до 2100.');
     }
+    if (!data.departmentId || !data.organizationId) {
+      throw new Error('Для профиля требуется активное отделение и организация.');
+    }
   }
 
   static async create(profileData) {
@@ -140,7 +143,7 @@ class DNAProfile {
 
       return new DNAProfile(result.rows[0]);
     } catch (error) {
-      logger.error('Error creating DNA profile', { error: error.message, profileData });
+      logger.error('Error creating DNA profile', { error: error.message, userId, departmentId });
       throw error;
     }
   }
@@ -163,6 +166,31 @@ class DNAProfile {
       logger.error('Error finding DNA profile by ID', { error: error.message, id });
       throw error;
     }
+  }
+
+  static async findInAccessScope(scope, options = {}) {
+    const params = [...scope.params];
+    let clause = scope.clause;
+    if (options.profile_type && options.profile_type !== 'all') {
+      params.push(options.profile_type);
+      clause += ` AND dp.profile_type = $${params.length}`;
+    }
+    params.push(options.limit ?? 100, options.offset ?? 0);
+    const result = await query(`SELECT dp.* FROM dna_profiles dp WHERE ${clause}
+      ORDER BY dp.upload_date DESC, dp.id
+      LIMIT $${params.length - 1} OFFSET $${params.length}`, params);
+    return result.rows.map(row => new DNAProfile(row));
+  }
+
+  static async countInAccessScope(scope, options = {}) {
+    const params = [...scope.params];
+    let clause = scope.clause;
+    if (options.profile_type && options.profile_type !== 'all') {
+      params.push(options.profile_type);
+      clause += ` AND dp.profile_type = $${params.length}`;
+    }
+    const result = await query(`SELECT COUNT(*) AS count FROM dna_profiles dp WHERE ${clause}`, params);
+    return Number(result.rows[0].count);
   }
 
   /**
@@ -205,6 +233,10 @@ class DNAProfile {
             AND profile_type = 'user'
           ORDER BY is_active DESC, upload_date DESC
         `;
+        if (!genetic && context.departmentId) {
+          params.push(context.departmentId);
+          queryText = queryText.replace('ORDER BY', 'AND department_id = $4 ORDER BY');
+        }
         const result = await query(queryText, params);
 
         if (result.rows.length === 0) {
@@ -350,7 +382,7 @@ class DNAProfile {
     let paramIndex = 2;
 
     if (options.departmentId) {
-      queryText += ` AND COALESCE(dp.department_id, u.department_id) = $${paramIndex++}`;
+      queryText += ` AND dp.department_id = $${paramIndex++}`;
       params.push(options.departmentId);
     }
     // Filter by profile type
@@ -381,12 +413,12 @@ class DNAProfile {
   static async countByUserId(userId, options = {}) {
     const params = [userId];
     let sql = 'SELECT COUNT(*) AS count FROM dna_profiles dp JOIN users u ON u.id = dp.user_id WHERE dp.user_id = $1 AND dp.is_active = true AND u.is_active = true';
-    if (options.departmentId) { params.push(options.departmentId); sql += ` AND COALESCE(dp.department_id, u.department_id) = $${params.length}`; }
+    if (options.departmentId) { params.push(options.departmentId); sql += ` AND dp.department_id = $${params.length}`; }
     const result = await query(sql, params);
     return Number(result.rows[0].count);
   }
 
-  static async findDuplicates(strData, excludeId = null) {
+  static async findDuplicates(strData, excludeId = null, context = {}) {
     // Validate STR data
     this.validateSTRData(strData);
 
@@ -399,6 +431,11 @@ class DNAProfile {
     if (excludeId) {
       queryText += ' AND id != $2';
       params.push(excludeId);
+    }
+
+    if (context.departmentId) {
+      params.push(context.departmentId);
+      queryText += ` AND department_id = $${params.length}`;
     }
 
     try {
@@ -417,7 +454,7 @@ class DNAProfile {
    * @param {string} excludeId - Profile ID to exclude from search
    * @returns {Promise<Array<DNAProfile>>} Array of profiles with same sample name
    */
-  static async findBySampleName(sampleName, userId, excludeId = null) {
+  static async findBySampleName(sampleName, userId, excludeId = null, context = {}) {
     let queryText = `
       SELECT * FROM dna_profiles 
       WHERE sample_name = $1 AND user_id = $2 AND is_active = true
@@ -427,6 +464,11 @@ class DNAProfile {
     if (excludeId) {
       queryText += ' AND id != $3';
       params.push(excludeId);
+    }
+
+    if (context.departmentId) {
+      params.push(context.departmentId);
+      queryText += ` AND department_id = $${params.length}`;
     }
 
     try {
@@ -519,8 +561,8 @@ class DNAProfile {
       LEFT JOIN users u ON dp.user_id = u.id
       LEFT JOIN master_array_profiles map ON dp.id = map.id
       WHERE dp.is_active = true AND (
-        (dp.user_id = $1 AND COALESCE(dp.department_id, u.department_id) = $2) OR
-        (dp.profile_type = 'master' AND COALESCE(dp.department_id, u.department_id) = $2)
+        (dp.user_id = $1 AND dp.department_id = $2) OR
+        (dp.profile_type = 'master' AND dp.department_id = $2)
       )
     `;
     const params = [userId, departmentId];
@@ -564,8 +606,8 @@ class DNAProfile {
       SELECT COUNT(DISTINCT dp.id) as count FROM dna_profiles dp
       LEFT JOIN users u ON dp.user_id = u.id
       WHERE dp.is_active = true AND (
-        (dp.user_id = $1 AND COALESCE(dp.department_id, u.department_id) = $2) OR
-        (dp.profile_type = 'master' AND COALESCE(dp.department_id, u.department_id) = $2)
+        (dp.user_id = $1 AND dp.department_id = $2) OR
+        (dp.profile_type = 'master' AND dp.department_id = $2)
       )
     `;
     const params = [userId, departmentId];
@@ -611,7 +653,7 @@ class DNAProfile {
 
     // Filter by department if specified
     if (department_id) {
-      queryText += ` AND COALESCE(dp.department_id, u.department_id) = $${paramIndex}`;
+      queryText += ` AND dp.department_id = $${paramIndex}`;
       params.push(department_id);
       paramIndex++;
     }
@@ -658,7 +700,7 @@ class DNAProfile {
 
     // Filter by department if specified
     if (department_id) {
-      queryText += ` AND COALESCE(dp.department_id, u.department_id) = $${paramIndex}`;
+      queryText += ` AND dp.department_id = $${paramIndex}`;
       params.push(department_id);
       paramIndex++;
     }
@@ -696,7 +738,7 @@ class DNAProfile {
     let queryText = `
       SELECT dp.* FROM dna_profiles dp
       JOIN users u ON dp.user_id = u.id
-      WHERE dp.str_data = $1 AND dp.is_active = true AND COALESCE(dp.department_id, u.department_id) = $2
+      WHERE dp.str_data = $1 AND dp.is_active = true AND dp.department_id = $2
     `;
     const params = [JSON.stringify(strData), departmentId];
 
@@ -846,11 +888,12 @@ class DNAProfile {
           const profileData = profilesData[i];
           
           try {
+            this.validateImportFields(profileData);
             // Check for duplicates
-            const duplicates = await this.findDuplicates(profileData.strData);
+            const duplicates = await this.findDuplicates(profileData.strData, null, profileData);
             const sampleNameDuplicates = await this.findBySampleName(
               profileData.sampleName, 
-              userId
+              userId, null, profileData
             );
 
             if (duplicates.length > 0) {
@@ -881,6 +924,7 @@ class DNAProfile {
 
             // Create profile
             const profile = await this.create({
+              ...profileData,
               userId,
               sampleName: profileData.sampleName,
               strData: profileData.strData,
@@ -1255,32 +1299,13 @@ class DNAProfile {
    * @returns {Promise<Object|null>} Department info or null
    */
   async getDepartmentInfo() {
-    if (!this.userId) {
-      return null;
-    }
-
-    try {
-      const result = await query(`
-        SELECT 
-          u.department_id,
-          u.organization_id,
-          d.name as department_name,
-          o.name as organization_name
-        FROM users u
-        LEFT JOIN departments d ON u.department_id = d.id
-        LEFT JOIN organizations o ON u.organization_id = o.id
-        WHERE u.id = $1 AND u.is_active = true
-      `, [this.userId]);
-
-      return result.rows.length > 0 ? result.rows[0] : null;
-    } catch (error) {
-      logger.error('Error getting department info for profile', { 
-        error: error.message, 
-        profileId: this.id,
-        userId: this.userId 
-      });
-      return null;
-    }
+    const result = await query(`
+      SELECT d.id AS department_id, d.organization_id,
+             d.name AS department_name, o.name AS organization_name
+      FROM departments d JOIN organizations o ON o.id = d.organization_id
+      WHERE d.id = $1
+    `, [this.departmentId]);
+    return result.rows[0] || null;
   }
 
   /**
@@ -1288,38 +1313,11 @@ class DNAProfile {
    * @param {string} requestingUserId - ID of user requesting access
    * @returns {Promise<boolean>} True if access is allowed
    */
-  async validateDepartmentIsolation(requestingUserId) {
-    if (!requestingUserId) {
-      return false;
-    }
-
-    try {
-      // For master array profiles, check master array access
-      if (this.isMasterProfile()) {
-        const masterArrayResult = await query(`
-          SELECT ma.department_id
-          FROM master_arrays ma
-          WHERE ma.id = $1 AND ma.is_active = true
-        `, [this.masterArrayId]);
-
-        if (masterArrayResult.rows.length === 0) {
-          return false;
-        }
-
-        const departmentId = masterArrayResult.rows[0].department_id;
-        return await this.validateUserDepartmentAccess(requestingUserId, departmentId);
-      }
-
-      // For user profiles, validate access to the profile owner
-      return await DNAProfile.validateUserProfileAccess(requestingUserId, this.userId);
-    } catch (error) {
-      logger.error('Error validating department isolation', { 
-        error: error.message, 
-        profileId: this.id,
-        requestingUserId 
-      });
-      return false;
-    }
+  async validateDepartmentIsolation(requestingUserId, activeDepartmentId) {
+    const { ProfileAccessService } = require('../services/profileAccessService');
+    return ProfileAccessService.validateProfileAccess({
+      userId: requestingUserId, profileId: this.id, activeDepartmentId
+    });
   }
 
   /**

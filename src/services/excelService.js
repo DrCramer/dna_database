@@ -244,7 +244,7 @@ class ExcelService {
         const dedupStartTime = Date.now();
         
         // Get all user's profiles that might be duplicates
-        existingProfiles = await DNAProfile.findByUserId(userId, { limit: 10000 });
+        existingProfiles = await DNAProfile.findByUserId(userId, { limit: 10000, departmentId });
         
         // Build a Set of keys for O(1) lookup
         existingProfiles.forEach(profile => {

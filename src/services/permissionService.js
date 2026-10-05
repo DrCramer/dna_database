@@ -275,20 +275,23 @@ class PermissionService {
         }
     }
 
-    // Validate data access for department isolation
-    static async validateDataAccess(userId, dataType, dataId) {
-        try {
-            // Use the database function for validation
-            const result = await query(
-                'SELECT validate_department_isolation($1, $2)',
-                [userId, dataId]
-            );
-
-            return result.rows[0].validate_department_isolation;
-        } catch (error) {
-            logger.error('Error validating data access:', error);
-            return false;
+    // Не зависит от отсутствующей SQL-функции validate_department_isolation.
+    static async validateDataAccess(userId, dataType, dataId, activeDepartmentId, options = {}) {
+        if (dataType === 'dna_profile') {
+            const { ProfileAccessService } = require('./profileAccessService');
+            return ProfileAccessService.validateProfileAccess({
+                userId, profileId: dataId, activeDepartmentId, ...options
+            });
         }
+        if (dataType === 'department') {
+            const User = require('../models/User');
+            const user = await User.findById(userId);
+            if (!user) return false;
+            const departments = await user.getAccessibleDepartments();
+            return departments.some(department => department.id === dataId &&
+                (user.role === 'system_administrator' || department.organization_id === user.organization_id));
+        }
+        throw new Error(`Unsupported data access type: ${dataType}`);
     }
 
     // Get effective permissions for a user

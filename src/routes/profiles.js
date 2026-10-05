@@ -9,10 +9,40 @@ const { ExcelService, ExcelParsingError, EXCEL_ERROR_CODES } = require('../servi
 const { FileValidationService, FileValidationError, VALIDATION_ERROR_CODES } = require('../services/fileValidationService');
 const DNAProfile = require('../models/DNAProfile');
 const PermissionService = require('../services/permissionService');
+const { ProfileAccessService, ProfileAccessError } = require('../services/profileAccessService');
 const { ProfileUploadAccessError } = require('../services/profileUploadPolicy');
 const { query } = require('../config/database');
 const { logger } = require('../utils/logger');
 const router = express.Router();
+router.use(require('../middleware/requestContext').requestContext);
+
+function profileAccessContext(req, options = {}) {
+  return { userId: req.user.id, activeDepartmentId: req.activeDepartmentId, ...options };
+}
+
+function respondProfileAccessError(req, res, error) {
+  const denied = error instanceof ProfileAccessError;
+  const code = denied ? 'PROFILE_ACCESS_DENIED' : 'PROFILE_ACCESS_CHECK_ERROR';
+  const metadata = {
+    userId: req.user?.id, profileId: req.params.id || null,
+    activeDepartmentId: req.activeDepartmentId, requestId: req.requestId
+  };
+  if (denied) logger.warn(code, metadata);
+  else logger.error(code, { ...metadata, error: error.message, code: error.code });
+  return res.status(denied ? 403 : 500).json({
+    error: denied ? 'Access denied' : 'Internal server error',
+    message: denied ? error.message : 'Failed to check profile access',
+    code, requestId: req.requestId
+  });
+}
+
+async function requireProfileAccess(req, res, action = 'read', includeInactive = false) {
+  const allowed = await PermissionService.validateDataAccess(
+    req.user.id, 'dna_profile', req.params.id, req.activeDepartmentId, { action, includeInactive }
+  );
+  if (!allowed) respondProfileAccessError(req, res, new ProfileAccessError('You do not have permission to access this profile'));
+  return allowed;
+}
 
 /**
  * Извлечение номера привоза из профиля
@@ -1058,8 +1088,7 @@ router.get('/search', authenticate, async (req, res) => {
             offset: parseInt(offset)
         });
 
-        // Real database search - search across all profiles for admin users
-        const { query } = require('../config/database');
+        const scope = await ProfileAccessService.getScope(profileAccessContext(req));
         
         // Helper function to generate case variations for Cyrillic text
         const generateCaseVariations = (text) => {
@@ -1087,15 +1116,15 @@ router.get('/search', authenticate, async (req, res) => {
         
         // Build dynamic query with all pattern variations
         const whereConditions = [];
-        const queryParams = [];
-        let paramIndex = 1;
+        const queryParams = [...scope.params];
+        let paramIndex = queryParams.length + 1;
         
         // For each field, add all pattern variations
         const fields = ['internal_number', 'sample_name', 'notes'];
         
         fields.forEach(field => {
             patterns.forEach(pattern => {
-                whereConditions.push(`${field} LIKE $${paramIndex}`);
+                whereConditions.push(`dp.${field} LIKE $${paramIndex}`);
                 queryParams.push(pattern);
                 paramIndex++;
             });
@@ -1108,10 +1137,11 @@ router.get('/search', authenticate, async (req, res) => {
                 internal_number, 
                 notes, 
                 upload_date,
-                user_id
-            FROM dna_profiles 
-            WHERE 
-                ${whereConditions.join(' OR ')}
+                user_id,
+                import_number
+            FROM dna_profiles dp
+            WHERE ${scope.clause}
+                AND (${whereConditions.join(' OR ')})
             ORDER BY upload_date DESC 
             LIMIT $${paramIndex} OFFSET $${paramIndex + 1}
         `;
@@ -1150,16 +1180,7 @@ router.get('/search', authenticate, async (req, res) => {
         });
 
     } catch (error) {
-        logger.error('Profile search failed', {
-            error: error.message,
-            searchTerm: req.query.q,
-            userId: req.user?.id
-        });
-
-        res.status(500).json({
-            error: 'Internal server error',
-            message: 'Search failed'
-        });
+        respondProfileAccessError(req, res, error);
     }
 });
 
@@ -1569,51 +1590,10 @@ router.post('/compare', authenticate, async (req, res) => {
 router.get('/accessible', authenticate, async (req, res) => {
   try {
     const { limit = 100, offset = 0, profile_type } = req.query;
-    const userId = req.user.id;
-    const departmentId = req.activeDepartmentId;
-    
-    let profiles;
-    let totalCount;
-
-    // Get profiles accessible to the user based on their role and department
-    if (req.user.role === 'system_administrator' || req.user.role === 'admin') {
-      // System administrators and admins can see all profiles
-      const queryOptions = {
-        limit: parseInt(limit),
-        offset: parseInt(offset)
-      };
-      if (profile_type) queryOptions.profile_type = profile_type;
-      
-      profiles = await DNAProfile.findAllWithOrganizationalContext(queryOptions);
-      totalCount = await DNAProfile.countWithOrganizationalContext(queryOptions);
-    } else if ((req.user.role === 'department_head' || req.user.role === 'admin') && departmentId) {
-      // Department heads can see all profiles in their department
-      const queryOptions = {
-        department_id: departmentId,
-        limit: parseInt(limit),
-        offset: parseInt(offset)
-      };
-      if (profile_type) queryOptions.profile_type = profile_type;
-      
-      profiles = await DNAProfile.findAllWithOrganizationalContext(queryOptions);
-      totalCount = await DNAProfile.countWithOrganizationalContext(queryOptions);
-    } else if (departmentId) {
-      // Regular users can see their own profiles + department master array profiles
-      profiles = await DNAProfile.findByUserWithDepartmentAccess(userId, departmentId, {
-        limit: parseInt(limit),
-        offset: parseInt(offset),
-        profile_type
-      });
-      totalCount = await DNAProfile.countByUserWithDepartmentAccess(userId, departmentId, { profile_type });
-    } else {
-      // Users without department can only see their own profiles
-      profiles = await DNAProfile.findByUserId(userId, {
-        limit: parseInt(limit),
-        offset: parseInt(offset),
-        profile_type
-      });
-      totalCount = await DNAProfile.countByUserId(userId, { profile_type });
-    }
+    const scope = await ProfileAccessService.getScope(profileAccessContext(req));
+    const options = { limit: parseInt(limit), offset: parseInt(offset), profile_type };
+    const profiles = await DNAProfile.findInAccessScope(scope, options);
+    const totalCount = await DNAProfile.countInAccessScope(scope, options);
 
     res.json({
       profiles: profiles.map(p => {
@@ -1636,23 +1616,12 @@ router.get('/accessible', authenticate, async (req, res) => {
       context: {
         user_role: req.user.role,
         user_department_id: req.activeDepartmentId,
-        access_level: (req.user.role === 'system_administrator' || req.user.role === 'admin') ? 'all' : 
-                     req.user.role === 'department_head' ? 'department' : 'user_and_department'
+        access_level: scope.accessLevel
       }
     });
 
   } catch (error) {
-    logger.error('Error fetching accessible profiles', { 
-      error: error.message, 
-      userId: req.user?.id,
-      userRole: req.user?.role,
-      departmentId: req.user?.department_id
-    });
-
-    res.status(500).json({
-      error: 'Internal server error',
-      message: 'Failed to fetch accessible profiles'
-    });
+    respondProfileAccessError(req, res, error);
   }
 });
 
@@ -1726,30 +1695,12 @@ router.get('/:id', authenticate, async (req, res) => {
       });
     }
 
-    // Check if user has access to this profile with organizational context
-    const hasAccess = await PermissionService.validateDataAccess(req.user.id, 'dna_profile', id);
-    
-    if (!hasAccess) {
-      return res.status(403).json({
-        error: 'Access denied',
-        message: 'You do not have permission to view this profile'
-      });
-    }
+    if (!await requireProfileAccess(req, res, 'read')) return;
 
     res.json(profile.toJSON());
 
   } catch (error) {
-    logger.error('Error fetching profile by ID', { 
-      error: error.message, 
-      profileId: req.params.id,
-      userId: req.user?.id,
-      departmentId: req.user?.department_id
-    });
-
-    res.status(500).json({
-      error: 'Internal server error',
-      message: 'Failed to fetch profile'
-    });
+    respondProfileAccessError(req, res, error);
   }
 });
 
@@ -1758,7 +1709,7 @@ router.post('/check-duplicates', authenticate, adminOrAnalyst, async (req, res) 
   try {
     const { strData, sampleName } = req.body;
     const userId = req.user.id;
-    const departmentId = req.user.department_id;
+    const departmentId = req.activeDepartmentId;
 
     if (!strData) {
       return res.status(400).json({
@@ -1773,7 +1724,7 @@ router.post('/check-duplicates', authenticate, adminOrAnalyst, async (req, res) 
     // Check for sample name duplicates if provided (within user's own profiles)
     let sampleNameDuplicates = [];
     if (sampleName) {
-      sampleNameDuplicates = await DNAProfile.findBySampleName(sampleName, userId);
+      sampleNameDuplicates = await DNAProfile.findBySampleName(sampleName, userId, null, { departmentId });
     }
 
     res.json({
@@ -1897,15 +1848,7 @@ router.delete('/:id', authenticate, adminOrAnalyst, logProfileOperation(Operatio
             });
         }
 
-        // Check if user has access to this profile with organizational context
-        const hasAccess = await PermissionService.validateDataAccess(req.user.id, 'dna_profile', id);
-        
-        if (!hasAccess) {
-            return res.status(403).json({
-                error: 'Access denied',
-                message: 'You do not have permission to delete this profile'
-            });
-        }
+        if (!await requireProfileAccess(req, res, 'delete')) return;
 
         // Delete the profile (soft delete)
         const deleted = await DNAProfile.delete(id);
@@ -1940,16 +1883,7 @@ router.delete('/:id', authenticate, adminOrAnalyst, logProfileOperation(Operatio
         });
 
     } catch (error) {
-        logger.error('Error deleting profile', {
-            error: error.message,
-            profileId: req.params.id,
-            userId: req.user?.id
-        });
-
-        res.status(500).json({
-            error: 'Internal server error',
-            message: 'Failed to delete profile'
-        });
+        respondProfileAccessError(req, res, error);
     }
 });
 
@@ -1978,19 +1912,11 @@ router.put('/:id', authenticate, adminOrAnalyst, logProfileOperation(OperationHi
             });
         }
 
-        // Check if user has access to this profile with organizational context
-        const hasAccess = await PermissionService.validateDataAccess(req.user.id, 'dna_profile', id);
-        
-        if (!hasAccess) {
-            return res.status(403).json({
-                error: 'Access denied',
-                message: 'You do not have permission to update this profile'
-            });
-        }
+        if (!await requireProfileAccess(req, res, 'update')) return;
 
         // Check for duplicate sample name if updating sample name
         if (sampleName && sampleName !== profile.sampleName) {
-            const duplicates = await DNAProfile.findBySampleName(sampleName, profile.userId, id);
+            const duplicates = await DNAProfile.findBySampleName(sampleName, profile.userId, id, { departmentId: req.activeDepartmentId });
             if (duplicates.length > 0) {
                 return res.status(409).json({
                     error: 'Duplicate sample name',
@@ -2026,16 +1952,7 @@ router.put('/:id', authenticate, adminOrAnalyst, logProfileOperation(OperationHi
         });
 
     } catch (error) {
-        logger.error('Error updating profile', {
-            error: error.message,
-            profileId: req.params.id,
-            userId: req.user?.id
-        });
-
-        res.status(500).json({
-            error: 'Internal server error',
-            message: 'Failed to update profile'
-        });
+        respondProfileAccessError(req, res, error);
     }
 });
 
@@ -2065,6 +1982,8 @@ router.put('/:id/toggle-active', authenticate, async (req, res) => {
         }
         
         const profile = result.rows[0];
+
+        if (!await requireProfileAccess(req, res, 'update', true)) return;
 
         // Check permissions
         const canModify = req.user.role === 'admin' || 
@@ -2122,19 +2041,9 @@ router.put('/:id/toggle-active', authenticate, async (req, res) => {
             message: newStatus ? 'Profile activated' : 'Profile deactivated'
         });
     } catch (error) {
-        logger.error('Error toggling profile active status', {
-            error: error.message,
-            profileId: req.params.id,
-            userId: req.user?.id
-        });
-
-        res.status(500).json({
-            error: 'Internal server error',
-            message: 'Failed to toggle profile status'
-        });
+        respondProfileAccessError(req, res, error);
     }
 });
-
 /**
  * PUT /api/profiles/:id/comment
  * Add or update expert comment for a profile
@@ -2157,6 +2066,8 @@ router.put('/:id/comment', authenticate, async (req, res) => {
         }
         
         const profile = result.rows[0];
+
+        if (!await requireProfileAccess(req, res, 'update', true)) return;
 
         // Check permissions
         const canComment = req.user.role === 'admin' || 
@@ -2189,19 +2100,9 @@ router.put('/:id/comment', authenticate, async (req, res) => {
             message: 'Comment updated successfully'
         });
     } catch (error) {
-        logger.error('Error updating profile comment', {
-            error: error.message,
-            profileId: req.params.id,
-            userId: req.user?.id
-        });
-
-        res.status(500).json({
-            error: 'Internal server error',
-            message: 'Failed to update comment'
-        });
+        respondProfileAccessError(req, res, error);
     }
 });
-
 /**
  * GET /api/profiles/:id/comment
  * Get expert comment for a profile
@@ -2221,6 +2122,8 @@ router.get('/:id/comment', authenticate, async (req, res) => {
             return res.status(404).json({ error: 'Profile not found' });
         }
         
+        if (!await requireProfileAccess(req, res, 'read', true)) return;
+
         const profile = result.rows[0];
 
         res.json({
@@ -2229,18 +2132,9 @@ router.get('/:id/comment', authenticate, async (req, res) => {
             updated_by: profile.comment_updated_by || null
         });
     } catch (error) {
-        logger.error('Error fetching profile comment', {
-            error: error.message,
-            profileId: req.params.id
-        });
-
-        res.status(500).json({
-            error: 'Internal server error',
-            message: 'Failed to fetch comment'
-        });
+        respondProfileAccessError(req, res, error);
     }
 });
-
 /**
  * POST /api/tasks/:taskId/duplicate-groups/comment
  * Add or update comment for a duplicate group

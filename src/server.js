@@ -46,6 +46,7 @@ const contaminationStatsRoutes = require('./routes/contaminationStatsRoutes');
 const analyticsRoutes = require('./routes/analytics');
 
 const app = express();
+app.use(require('./middleware/requestContext').requestContext);
 const PORT = config.get('app.port');
 
 // Сделать app доступным глобально для SSE уведомлений

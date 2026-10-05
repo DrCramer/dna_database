@@ -4,6 +4,7 @@ const PermissionService = require('../services/permissionService');
 const auditService = require('../services/auditService');
 const { logger } = require('../utils/logger');
 const rateLimit = require('express-rate-limit');
+const { requestContext } = require('./requestContext');
 
 // Extract token from request headers or query params (for SSE)
 function extractToken(req) {
@@ -33,6 +34,9 @@ function extractActiveDepartmentId(req) {
 
 // Authentication middleware - verify JWT token
 async function authenticate(req, res, next) {
+    requestContext(req, res, () => {});
+    let checkingOrganizationalContext = false;
+    let authenticatedUserId = null;
     try {
         const token = extractToken(req);
         
@@ -80,6 +84,8 @@ async function authenticate(req, res, next) {
         }
 
         // Get fresh user data with organizational context
+        checkingOrganizationalContext = true;
+        authenticatedUserId = decoded.id;
         const user = await User.findById(decoded.id);
         if (!user) {
             // Log user not found
@@ -103,14 +109,20 @@ async function authenticate(req, res, next) {
         const accessibleDepartments = await user.getAccessibleDepartments();
         const activeDepartmentIdFromHeader = extractActiveDepartmentId(req);
         const fallbackDepartmentId = user.department_id || accessibleDepartments[0]?.id || null;
-        const allowedDepartmentIds = accessibleDepartments.map((department) => department.id);
+        const allowedDepartmentIds = accessibleDepartments
+            .filter(department => user.role === 'system_administrator' || department.organization_id === user.organization_id)
+            .map(department => department.id);
 
         let activeDepartmentId = fallbackDepartmentId;
 
         if (activeDepartmentIdFromHeader) {
             if (!allowedDepartmentIds.includes(activeDepartmentIdFromHeader)) {
+                logger.warn('PROFILE_ACCESS_DENIED', {
+                    userId: user.id, profileId: req.params.id || null,
+                    activeDepartmentId: activeDepartmentIdFromHeader, requestId: req.requestId
+                });
                 return res.status(403).json({
-                    error: 'Forbidden',
+                    error: 'Forbidden', code: 'PROFILE_ACCESS_DENIED', requestId: req.requestId,
                     message: 'Selected department is not available for this user'
                 });
             }
@@ -168,6 +180,17 @@ async function authenticate(req, res, next) {
 
         next();
     } catch (error) {
+        if (checkingOrganizationalContext) {
+            logger.error('PROFILE_ACCESS_CHECK_ERROR', {
+                userId: authenticatedUserId, profileId: req.params.id || null,
+                activeDepartmentId: extractActiveDepartmentId(req) || null,
+                requestId: req.requestId, error: error.message, code: error.code
+            });
+            return res.status(500).json({
+                error: 'Internal server error', message: 'Failed to check organizational access',
+                code: 'PROFILE_ACCESS_CHECK_ERROR', requestId: req.requestId
+            });
+        }
         logger.error('Authentication failed:', error.message);
         
         // Log authentication error
