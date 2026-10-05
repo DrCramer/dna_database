@@ -122,6 +122,19 @@ const FileUploader = ({ onNavigate, onUploadSuccess, selectedActiveTask }) => {
 
   const { user, activeDepartment, activeDepartmentId, refreshUser } = useAuth();
   const isGenetic = resolveProfileImportFormat(activeDepartment) === 'genetic';
+  const [panels, setPanels] = useState([]);
+  const [panelId, setPanelId] = useState('');
+  const [panelsError, setPanelsError] = useState('');
+  const [panelWarnings, setPanelWarnings] = useState([]);
+  React.useEffect(() => {
+    const controller = new AbortController();
+    setPanels([]); setPanelId(''); setPanelsError(''); setPanelWarnings([]);
+    if (isGenetic) fetch('/api/genotype-panels', { signal: controller.signal, headers: { Authorization: `Bearer ${localStorage.getItem('token')}`, 'X-Active-Department-Id': activeDepartmentId } })
+      .then(async response => { const body = await response.json(); if (!response.ok) throw new Error(body.message || 'Не удалось загрузить панели.'); return body.panels; })
+      .then(list => { if (!controller.signal.aborted) setPanels(list); })
+      .catch(err => { if (!controller.signal.aborted) setPanelsError(err.message); });
+    return () => controller.abort();
+  }, [activeDepartmentId, isGenetic]);
   const uploadDepartmentRef = React.useRef(activeDepartmentId);
   const uploadTaskRef = React.useRef(selectedActiveTask);
   const [permissionLoading, setPermissionLoading] = useState(true);
@@ -207,6 +220,7 @@ const FileUploader = ({ onNavigate, onUploadSuccess, selectedActiveTask }) => {
 
       const formData = new FormData();
       formData.append('file', file);
+      if (isGenetic && panelId) formData.append('panelId', panelId);
 
       // Добавить taskId если задача выбрана
       if (uploadTaskRef.current?.id) {
@@ -269,6 +283,7 @@ const FileUploader = ({ onNavigate, onUploadSuccess, selectedActiveTask }) => {
       }
 
       const previewResult = await previewResponse.json();
+      setPanelWarnings(previewResult.preview.panelWarnings || []);
       // Проверяем есть ли профили для замены
       const hasReplaceable = previewResult.preview.breakdown.replace > 0;
       const hasConflicts = previewResult.preview.breakdown.conflict > 0;
@@ -445,6 +460,7 @@ const FileUploader = ({ onNavigate, onUploadSuccess, selectedActiveTask }) => {
       const token = user?.accessToken || localStorage.getItem('token');
       const formData = new FormData();
       formData.append('file', file);
+      if (isGenetic && panelId) formData.append('panelId', panelId);
       formData.append('replaceDeactivated', 'true');
 
       if (uploadTaskRef.current?.id) {
@@ -482,6 +498,7 @@ const FileUploader = ({ onNavigate, onUploadSuccess, selectedActiveTask }) => {
       const token = user?.accessToken || localStorage.getItem('token');
       const formData = new FormData();
       formData.append('file', file);
+      if (isGenetic && panelId) formData.append('panelId', panelId);
       formData.append('replaceDeactivated', 'false'); // НЕ заменять деактивированные
       formData.append('allowDuplicates', 'true'); // Разрешить дубликаты (загрузить как новые)
 
@@ -542,6 +559,8 @@ const FileUploader = ({ onNavigate, onUploadSuccess, selectedActiveTask }) => {
 
         {/* Upload Area */}
         <form onSubmit={handleUpload}>
+          {isGenetic && <div className="form-group"><label className="form-label" htmlFor="upload-panel">Панель (необязательно)</label><select id="upload-panel" className="form-input" value={panelId} disabled={uploading} onChange={event => { setPanelId(event.target.value); setPanelWarnings([]); }}><option value="">Не указана</option>{panels.map(panel => <option key={panel.id} value={panel.id}>{panel.name}</option>)}</select>{panelsError && <p role="alert">{panelsError}</p>}</div>}
+          {isGenetic && panelWarnings.length > 0 && <div className="alert alert-warning" role="status"><strong>Проверка панели {panels.find(panel => panel.id === panelId)?.name}</strong><ul>{panelWarnings.map(warning => <li key={warning}>{warning}</li>)}</ul><p>Эти предупреждения не блокируют загрузку.</p></div>}
           <div className="upload-area">
             <div className="upload-icon">📁</div>
             <h3 className="upload-title">Выберите Excel файл</h3>
@@ -764,7 +783,7 @@ const FileUploader = ({ onNavigate, onUploadSuccess, selectedActiveTask }) => {
                           {conflict.sampleName}
                         </div>
                         <div className="upload-duplicate-card-grid">
-                          {isGenetic ? <div>Объект: {conflict.sampleName}</div> : <>
+                          {isGenetic ? <div>Объект: {conflict.internalNumber}</div> : <>
                           <div>
                             <span className="upload-muted-label">Номер:</span> {conflict.internalNumber}
                           </div>
@@ -843,7 +862,7 @@ const FileUploader = ({ onNavigate, onUploadSuccess, selectedActiveTask }) => {
                               {dup.sampleName}
                             </div>
                             <div className="upload-result-row-subtitle">
-                              {isGenetic ? `Объект: ${dup.sampleName}` : `Год: ${dup.year} | Номер: ${dup.internalNumber}`}
+                              {isGenetic ? `Объект: ${dup.internalNumber}` : `Год: ${dup.year} | Номер: ${dup.internalNumber}`}
                             </div>
                             {dup.existingProfiles && dup.existingProfiles.length > 0 && (
                               <div className="upload-result-row-meta">
@@ -864,8 +883,8 @@ const FileUploader = ({ onNavigate, onUploadSuccess, selectedActiveTask }) => {
                   <div className="upload-detail-content upload-detail-content-tall">
                     {uploadResult.data.createdProfiles.map(profile => (
                       <div key={profile.id} className="upload-result-row">
-                        <div className="upload-result-row-title">Объект: {profile.sampleName}</div>
-                        <div className="upload-result-row-subtitle">Локусов: {profile.lociCount} · Статус: загружен</div>
+                        <div className="upload-result-row-title">{`№ Экспертизы: ${profile.sampleName} · № Объекта: ${profile.internalNumber || profile.internal_number}`}</div>
+                        <div className="upload-result-row-subtitle">Локусов: {profile.lociCount} · Панель: {profile.panelName || 'Не указана'} · Статус: загружен</div>
                       </div>
                     ))}
                   </div>
@@ -988,6 +1007,8 @@ const FileUploader = ({ onNavigate, onUploadSuccess, selectedActiveTask }) => {
               <li>Порядок столбцов генетических локусов может отличаться в зависимости от используемой системы. Локусы определяются автоматически по названиям столбцов.</li>
               <li>Пустые значения отдельных локусов допускаются; полностью пустой генетический профиль не загружается.</li>
               <li>Год, привоз и старые служебные столбцы не требуются.</li>
+              <li>Из полного номера «258-11x» определяется № Экспертизы «258»; № Объекта сохраняется как «258-11x».</li>
+              <li>Панель выбирается необязательно; её порядок используется в анализе, а данные сопоставляются по заголовкам.</li>
               <li>Значение «Объект» обязательно и должно быть уникальным среди ваших профилей активного отделения.</li>
             </ul>
           </div>

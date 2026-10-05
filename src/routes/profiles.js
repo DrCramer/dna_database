@@ -7,6 +7,7 @@ const { backwardCompatibility } = require('../middleware/backwardCompatibility')
 const OperationHistory = require('../models/OperationHistory');
 const { ExcelService, ExcelParsingError, EXCEL_ERROR_CODES } = require('../services/excelService');
 const { FileValidationService, FileValidationError, VALIDATION_ERROR_CODES } = require('../services/fileValidationService');
+const { PanelError } = require('../models/GenotypePanel');
 const DNAProfile = require('../models/DNAProfile');
 const PermissionService = require('../services/permissionService');
 const { ProfileAccessService, ProfileAccessError } = require('../services/profileAccessService');
@@ -57,23 +58,10 @@ function extractImportNumber(profileData) {
   return null;
 }
 
-function getMasterArrayAccessScope(user) {
-  if (!user) {
-    return { clause: '1 = 0', params: [] };
-  }
-
-  if (user.role === 'admin') {
-    return { clause: '1 = 1', params: [] };
-  }
-
-  if (user.department_id) {
-    return {
-      clause: 'ma.department_id = $1',
-      params: [user.department_id]
-    };
-  }
-
-  return { clause: '1 = 0', params: [] };
+function getMasterArrayAccessScope(user, activeDepartmentId) {
+  const department = user?.accessible_departments?.find(item => item.id === activeDepartmentId);
+  if (!department) return { clause: '1 = 0', params: [] };
+  return { clause: 'ma.department_id = $1 AND d.organization_id = $2', params: [department.id, department.organization_id] };
 }
 
 function extractMasterObjectComment(metadata) {
@@ -164,6 +152,9 @@ function mapMasterObjectRow(row) {
     year: row.year,
     str_data: row.str_data,
     metadata,
+    panelId: metadata.panelId || null,
+    panelName: metadata.panelName || null,
+    panel: metadata.panelId ? { id: metadata.panelId, name: metadata.panelName, lociOrder: metadata.panelLociOrder || [] } : null,
     created_at: row.created_at,
     updated_at: row.updated_at,
     created_by: row.created_by,
@@ -298,7 +289,8 @@ async function getImportContext(req) {
   return excelService.resolveUserContext({
     userId: req.user.id,
     departmentId: req.activeDepartmentId || req.organizationalContext?.department_id,
-    taskId: req.body.taskId || null
+    taskId: req.body.taskId || null,
+    panelId: req.body.panelId || null
   });
 }
 
@@ -357,6 +349,8 @@ router.post('/upload/preview',
     const preview = {
       importFormat: userContext.importFormat,
       totalProfiles: parseResult.profiles.length,
+      panel: parseResult.panel,
+      panelWarnings: parseResult.panelWarnings,
       breakdown: {
         create: 0,
         replace: 0,
@@ -372,6 +366,8 @@ router.post('/upload/preview',
       const previewItem = {
         index: i,
         importFormat: profile.importFormat,
+        panelId: profile.panelId,
+        panelName: profile.panel?.name || null,
         sampleName: profile.sampleName,
         internalNumber: profile.internalNumber,
         year: profile.year,
@@ -405,6 +401,7 @@ router.post('/upload/preview',
       stack: error.stack
     });
 
+    if (error instanceof PanelError) return res.status(error.status).json({ code: error.code, message: error.message });
     if (error instanceof ProfileUploadAccessError) {
       return res.status(error.status).json({ error: 'Profile upload denied', code: error.code, message: error.message });
     }
@@ -667,6 +664,10 @@ router.post('/upload',
           year: item.profile.year,
           lociCount: Object.keys(item.profile.strData || {}).length,
           sampleName: item.profile.sampleName,
+          internalNumber: item.profile.internalNumber,
+          panelId: item.profile.panelId,
+          panelName: item.profile.panel?.name || null,
+          panel: item.profile.panel,
           internal_number: item.profile.internalNumber, // Исправлено: используем camelCase из модели
           uploadDate: item.profile.uploadDate,
           priorityMarkerCount: item.profile.priorityMarkerCount || 0,
@@ -702,6 +703,7 @@ router.post('/upload',
       });
     }
 
+    if (error instanceof PanelError) return res.status(error.status).json({ code: error.code, message: error.message });
     if (error instanceof ProfileUploadAccessError) {
       return res.status(error.status).json({ error: 'Profile upload denied', code: error.code, message: error.message });
     }
@@ -841,6 +843,7 @@ router.post('/bulk-upload-with-comparison',
       departmentId: req.user?.department_id
     });
 
+    if (error instanceof PanelError) return res.status(error.status).json({ code: error.code, message: error.message });
     if (error instanceof ProfileUploadAccessError) {
       return res.status(error.status).json({ error: 'Profile upload denied', code: error.code, message: error.message });
     }
@@ -1120,7 +1123,7 @@ router.get('/search', authenticate, async (req, res) => {
         let paramIndex = queryParams.length + 1;
         
         // For each field, add all pattern variations
-        const fields = ['internal_number', 'sample_name', 'notes'];
+        const fields = ['internal_number', 'sample_name', 'import_number', 'notes'];
         
         fields.forEach(field => {
             patterns.forEach(pattern => {
@@ -1132,13 +1135,15 @@ router.get('/search', authenticate, async (req, res) => {
         
         const searchQuery = `
             SELECT 
-                id, 
-                sample_name, 
+                dp.id,
+                dp.sample_name,
                 internal_number, 
                 notes, 
                 upload_date,
                 user_id,
-                import_number
+                import_number,
+                import_format,
+                panel_id
             FROM dna_profiles dp
             WHERE ${scope.clause}
                 AND (${whereConditions.join(' OR ')})
@@ -1149,11 +1154,13 @@ router.get('/search', authenticate, async (req, res) => {
         queryParams.push(parseInt(limit), parseInt(offset));
         const result = await query(searchQuery, queryParams);
         
-        const profiles = result.rows.map(profile => {
+        const enriched = await DNAProfile.fromRows(result.rows);
+        const profiles = result.rows.map((profile, index) => {
             // Extract import_number (with fallback to notes)
             const import_number = extractImportNumber(profile);
             
             return {
+                ...enriched[index].toJSON(),
                 id: profile.id,
                 sample_name: profile.sample_name,
                 sampleName: profile.sample_name, // For backward compatibility
@@ -1197,7 +1204,7 @@ router.get('/master-objects/search', authenticate, async (req, res) => {
         }
 
         const normalizedSearchTerm = searchTerm.trim();
-        const { clause: accessClause, params: accessParams } = getMasterArrayAccessScope(req.user);
+        const { clause: accessClause, params: accessParams } = getMasterArrayAccessScope(req.user, req.activeDepartmentId);
         const searchPattern = `%${normalizedSearchTerm}%`;
         const queryParams = [...accessParams, searchPattern];
         const searchParamIndex = queryParams.length;
@@ -1262,7 +1269,7 @@ router.get('/master-objects/search', authenticate, async (req, res) => {
 router.get('/master-objects/:id', authenticate, async (req, res) => {
     try {
         const { id } = req.params;
-        const { clause: accessClause, params: accessParams } = getMasterArrayAccessScope(req.user);
+        const { clause: accessClause, params: accessParams } = getMasterArrayAccessScope(req.user, req.activeDepartmentId);
         const queryParams = [id, ...accessParams];
 
         const result = await query(`
@@ -1283,7 +1290,7 @@ router.get('/master-objects/:id', authenticate, async (req, res) => {
               AND map.is_active = true
               AND ma.is_active = true
               AND d.is_active = true
-              AND (${accessClause.replace(/\$1/g, '$2')})
+              AND (${accessClause.replace(/\$(\d+)/g, (_, index) => `$${Number(index) + 1}`)})
             LIMIT 1
         `, queryParams);
 

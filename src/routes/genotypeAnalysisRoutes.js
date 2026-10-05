@@ -11,13 +11,9 @@ const { calculateContaminationScoreV5 } = require('../utils/contaminationAlgorit
 const { calculateDuplicateSimilarity, isDuplicate } = require('../services/duplicateDetectionService');
 const { calculateDuplicateSimilarityOptimized, isDuplicateOptimized } = require('../services/duplicateDetectionServiceOptimized');
 
-// Локусы для анализа (24 основных)
-const ANALYSIS_LOCI = [
-  'D3S1358', 'vWA', 'D16S539', 'CSF1PO', 'TPOX', 'Yindel', 'AMEL',
-  'D8S1179', 'D21S11', 'D18S51', 'DYS391', 'D2S441', 'D19S433',
-  'TH01', 'FGA', 'D22S1045', 'D5S818', 'D13S317', 'D7S820', 'SE33',
-  'D10S1248', 'D1S1656', 'D12S391', 'D2S1338'
-];
+const DNAProfile = require('../models/DNAProfile');
+const { ProfileAccessService } = require('../services/profileAccessService');
+const { getAnalysisLoci } = require('../utils/analysisLoci');
 
 // Веса локусов для алгоритма контаминации (v4.0)
 const LOCUS_WEIGHTS = {
@@ -210,7 +206,7 @@ function compareLocus(refProcessedLoci, compProcessedLoci, ignoredSet) {
   let totalLoci = 0;
   const matchedLociNames = [];
   
-  for (const locus of ANALYSIS_LOCI) {
+  for (const locus of getAnalysisLoci([{ loci: refProcessedLoci }, { loci: compProcessedLoci }])) {
     if (ignoredSet.has(locus)) continue;
     
     const refData = refProcessedLoci[locus];
@@ -259,7 +255,7 @@ function compareWithContaminationAlgorithm(refProcessedLoci, compProcessedLoci, 
     const refProfile = {};
     const compProfile = {};
 
-    for (const locus of ANALYSIS_LOCI) {
+    for (const locus of getAnalysisLoci([{ loci: refProcessedLoci }, { loci: compProcessedLoci }])) {
       if (ignoredSet.has(locus)) continue;
 
       if (refProcessedLoci[locus]) {
@@ -274,7 +270,7 @@ function compareWithContaminationAlgorithm(refProcessedLoci, compProcessedLoci, 
 
     return {
       matchingLoci: result.matchedLoci,
-      totalLoci: ANALYSIS_LOCI.length - ignoredSet.size,
+      totalLoci: getAnalysisLoci([{ loci: refProcessedLoci }, { loci: compProcessedLoci }]).filter(locus => !ignoredSet.has(locus)).length,
       matchedLoci: result.matchedLociNames,
       score: result.score,
       level: result.level,
@@ -291,7 +287,7 @@ function compareWithContaminationAlgorithm(refProcessedLoci, compProcessedLoci, 
   let matchCount = 0;
   const matchedLociNames = [];
 
-  for (const locus of ANALYSIS_LOCI) {
+  for (const locus of getAnalysisLoci([{ loci: refProcessedLoci }, { loci: compProcessedLoci }])) {
     if (ignoredSet.has(locus)) continue;
 
     const refData = refProcessedLoci[locus];
@@ -360,7 +356,7 @@ router.get('/profiles', authenticate, async (req, res) => {
         dp.notes,
         dp.str_data,
         dp.upload_date,
-        dp.profile_type
+        dp.profile_type, dp.import_format, dp.panel_id
       FROM dna_profiles dp
       LEFT JOIN users u ON dp.user_id = u.id
       WHERE dp.is_active = true
@@ -368,25 +364,18 @@ router.get('/profiles', authenticate, async (req, res) => {
     
     const params = [];
     
-    // Фильтрация по организации/отделу для не-админов
-    if (req.user.role !== 'admin') {
-      if (req.user.organization_id) {
-        query += ` AND COALESCE(dp.organization_id, u.organization_id) = $${params.length + 1}`;
-        params.push(req.user.organization_id);
-      }
-      
-      if (req.user.role === 'user_analyst' && activeDepartmentId) {
-        query += ` AND COALESCE(dp.department_id, u.department_id) = $${params.length + 1}`;
-        params.push(activeDepartmentId);
-      }
-    }
+    const scope = await ProfileAccessService.getScope({ userId: req.user.id, activeDepartmentId });
+    const shiftedScope = scope.clause.replace(/\$(\d+)/g, (_, index) => `$${Number(index) + params.length}`);
+    query += ` AND ${shiftedScope}`;
+    params.push(...scope.params);
     
     query += ` ORDER BY dp.upload_date DESC LIMIT 10000`;
     
     const result = await pool.query(query, params);
     
     // Форматируем данные для фронтенда
-    const profiles = result.rows.map(row => {
+    const enrichedProfiles = await DNAProfile.fromRows(result.rows);
+    const profiles = result.rows.map((row, index) => {
       if (!row.year) {
         logger.warn('Profile without year', {
           id: row.id,
@@ -398,6 +387,7 @@ router.get('/profiles', authenticate, async (req, res) => {
       }
       
       return {
+        ...enrichedProfiles[index].toJSON(),
         id: row.id,
         sample_name: row.sample_name,
         internal_number: row.internal_number || row.sample_name,
@@ -477,18 +467,10 @@ router.post('/search', authenticate, async (req, res) => {
       params.push(excludeProfileId);
     }
     
-    // Фильтрация по правам доступа
-    if (req.user.role !== 'admin') {
-      if (req.user.organization_id) {
-        query += ` AND COALESCE(dp.organization_id, u.organization_id) = $${params.length + 1}`;
-        params.push(req.user.organization_id);
-      }
-      
-      if (req.user.role === 'user_analyst' && activeDepartmentId) {
-        query += ` AND COALESCE(dp.department_id, u.department_id) = $${params.length + 1}`;
-        params.push(activeDepartmentId);
-      }
-    }
+    const scope = await ProfileAccessService.getScope({ userId: req.user.id, activeDepartmentId });
+    const shiftedScope = scope.clause.replace(/\$(\d+)/g, (_, index) => `$${Number(index) + params.length}`);
+    query += ` AND ${shiftedScope}`;
+    params.push(...scope.params);
     
     query += ` LIMIT 10000`;
     
@@ -515,7 +497,7 @@ router.post('/search', authenticate, async (req, res) => {
       const matchedLoci = [];
       
       // Сравниваем каждый локус
-      for (const locus of ANALYSIS_LOCI) {
+      for (const locus of getAnalysisLoci([{ loci: referenceLoci }, { loci: profileLoci }])) {
         // Пропускаем игнорируемые локусы
         if (ignoredLoci.includes(locus)) {
           continue;
@@ -635,10 +617,11 @@ router.post('/mass-search', authenticate, async (req, res) => {
         year,
         internal_number,
         import_number,
+        import_format,
         notes,
         str_data
-      FROM dna_profiles
-      WHERE is_active = true
+      FROM dna_profiles dp
+      WHERE dp.is_active = true
     `;
     
     const params = [];
@@ -648,18 +631,10 @@ router.post('/mass-search', authenticate, async (req, res) => {
       params.push(profileIds);
     }
     
-    // Фильтрация по правам доступа
-    if (req.user.role !== 'admin') {
-      if (req.user.organization_id) {
-        query += ` AND COALESCE(dp.organization_id, u.organization_id) = $${params.length + 1}`;
-        params.push(req.user.organization_id);
-      }
-      
-      if (req.user.role === 'user_analyst' && activeDepartmentId) {
-        query += ` AND COALESCE(dp.department_id, u.department_id) = $${params.length + 1}`;
-        params.push(activeDepartmentId);
-      }
-    }
+    const scope = await ProfileAccessService.getScope({ userId: req.user.id, activeDepartmentId });
+    const shiftedScope = scope.clause.replace(/\$(\d+)/g, (_, index) => `$${Number(index) + params.length}`);
+    query += ` AND ${shiftedScope}`;
+    params.push(...scope.params);
     
     query += ` LIMIT 10000`;
     
@@ -689,7 +664,7 @@ router.post('/mass-search', authenticate, async (req, res) => {
       const processedLoci = {};
       let validLociCount = 0;
       
-      for (const locus of ANALYSIS_LOCI) {
+      for (const locus of Object.keys(loci)) {
         if (ignoredSet.has(locus)) continue;
         
         const locusData = loci[locus];
@@ -711,6 +686,7 @@ router.post('/mass-search', authenticate, async (req, res) => {
       
       return {
         id: profile.id,
+        import_format: profile.import_format,
         sample_name: profile.sample_name,
         internal_number: profile.internal_number || profile.sample_name,
         import_number: extractImportNumber(profile),
@@ -798,7 +774,7 @@ router.post('/mass-search', authenticate, async (req, res) => {
           }
           
           // Проверка по sample_name (на случай дубликатов)
-          if (compareProfile.sample_name === referenceProfile.sample_name) {
+          if (referenceProfile.import_format !== 'genetic' && compareProfile.sample_name === referenceProfile.sample_name) {
             continue;
           }
           
@@ -1082,7 +1058,7 @@ router.post('/task-search', authenticate, async (req, res) => {
       const processedLoci = {};
       let validLociCount = 0;
       
-      for (const locus of ANALYSIS_LOCI) {
+      for (const locus of Object.keys(loci)) {
         if (ignoredSet.has(locus)) continue;
         
         const locusData = loci[locus];
@@ -1114,7 +1090,7 @@ router.post('/task-search', authenticate, async (req, res) => {
       const processedLoci = {};
       let validLociCount = 0;
       
-      for (const locus of ANALYSIS_LOCI) {
+      for (const locus of Object.keys(loci)) {
         if (ignoredSet.has(locus)) continue;
         
         const locusData = loci[locus];
@@ -1534,7 +1510,7 @@ router.post('/department-tasks-search', authenticate, async (req, res) => {
       const processedLoci = {};
       let validLociCount = 0;
       
-      for (const locus of ANALYSIS_LOCI) {
+      for (const locus of Object.keys(loci)) {
         if (ignoredSet.has(locus)) continue;
         
         const locusData = loci[locus];
@@ -1570,7 +1546,7 @@ router.post('/department-tasks-search', authenticate, async (req, res) => {
       const processedLoci = {};
       let validLociCount = 0;
       
-      for (const locus of ANALYSIS_LOCI) {
+      for (const locus of Object.keys(loci)) {
         if (ignoredSet.has(locus)) continue;
         
         const locusData = loci[locus];

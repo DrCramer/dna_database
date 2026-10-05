@@ -1,0 +1,13 @@
+:where(.panels-page) { display: grid; gap: 20px; min-width: 0; }
+:where(.panels-page) .table-container { overflow: auto; }
+:where(.panels-page) .panels-table { width: 100%; border-collapse: collapse; }
+:where(.panels-page) .panels-table th, :where(.panels-page) .panels-table td { padding: 12px; text-align: left; border-bottom: 1px solid var(--border-default); }
+:where(.panels-page) .panels-editor { padding: 24px; }
+:where(.panels-page) .panels-actions { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; }
+:where(.panels-page) .panels-active { display: flex; gap: 8px; align-items: center; margin: 16px 0; }
+:where(.panels-page) .panels-loci-list { display: grid; gap: 8px; list-style: none; padding: 0; }
+:where(.panels-page) .panels-loci-list li { display: flex; flex-wrap: wrap; justify-content: space-between; align-items: center; gap: 12px; padding: 8px 12px; border: 1px solid var(--border-default); border-radius: 8px; background: var(--surface-muted); }
+:where(.panels-page) .panels-loci-list li[draggable=true] { cursor: grab; }
+:where(.panels-page) .panels-locus-name { font-variant-numeric: tabular-nums; }
+:where(.panels-page) .panels-add { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 10px; margin: 20px 0; }
+:where(.panels-page) .panels-add label { grid-column: 1 / -1; }

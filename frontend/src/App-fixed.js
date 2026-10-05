@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { AuthProvider, useAuth } from './contexts/AuthContext';
 import { ThemeProvider } from './contexts/ThemeContext';
 import ThemeSwitcher from './components/Common/ThemeSwitcher';
+import GenotypePanelsPage from './components/Settings/GenotypePanelsPage';
 import GenotypeAnalysisPage from './components/Analysis/GenotypeAnalysisPage';
 import LoginPage from './components/Auth/LoginPage';
 import AdminDashboard from './components/Dashboard/AdminDashboard';
@@ -112,6 +113,7 @@ const ProtectedRoute = ({ children, onNavigate, fluid = false }) => {
 // Profile Viewer Component
 const ProfileViewer = ({ onNavigate }) => {
   const fieldLabel = useProfileFieldLabel();
+  const isGenetic = fieldLabel('sample_name', '') === '№ Экспертизы';
   const { user } = useAuth();
   const [profiles, setProfiles] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -218,7 +220,8 @@ const ProfileViewer = ({ onNavigate }) => {
             <thead>
               <tr>
                 <th>{fieldLabel('sample_name', 'Наименование образца')}</th>
-                <th>Привоз</th>
+                <th>{fieldLabel('import_number', 'Привоз')}</th>
+                {isGenetic && <th>Панель</th>}
                 <th>Дата загрузки</th>
               </tr>
             </thead>
@@ -238,6 +241,7 @@ const ProfileViewer = ({ onNavigate }) => {
                     <td className="profile-viewer-cell-mono">
                       {importNumber}
                     </td>
+                    {isGenetic && <td>{profile.panel?.name || profile.panelName || 'Не указана'}</td>}
                     <td className="profile-viewer-cell-muted">
                       {profile.uploadDate || profile.upload_date || profile.created_at ?
                         new Date(profile.uploadDate || profile.upload_date || profile.created_at).toLocaleDateString('ru-RU') :
@@ -279,7 +283,7 @@ import ToastWrapper from './components/Common/ToastWrapper';
 
 // Dashboard Component (simplified)
 const Dashboard = ({ onNavigate, selectedActiveTask, setSelectedActiveTask, onNotification }) => {
-  const { user, logout, hasRole, activeDepartmentId } = useAuth();
+  const { user, logout, hasRole, activeDepartmentId, activeDepartment } = useAuth();
   const [stats, setStats] = useState({
     taskProfiles: 0,        // Профили в текущей задаче
     uploaded30Days: 0,      // Загружено за 30 дней
@@ -480,6 +484,7 @@ const Dashboard = ({ onNavigate, selectedActiveTask, setSelectedActiveTask, onNo
 
   return (
     <LegacyDashboardView
+      numberLabel={getTaskNumberLabel(activeDepartment)}
       user={user}
       loading={loading}
       error={error}
@@ -1500,6 +1505,10 @@ function FixedApp() {
                   </PageTransition>
                 </ProtectedRoute>
               }
+            />
+            <Route
+              path="/settings/panels"
+              element={<ProtectedRoute onNavigate={navigate}><PageTransition><GenotypePanelsPage /></PageTransition></ProtectedRoute>}
             />
             <Route
               path="/admin-dashboard"

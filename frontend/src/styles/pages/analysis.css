@@ -1254,7 +1254,7 @@
   width: 100%;
   border-collapse: separate;
   border-spacing: 0;
-  font-size: var(--font-size-lg);
+  font-size: 12px;
   line-height: 1.5;
   font-variant-numeric: tabular-nums;
   table-layout: fixed;
@@ -1264,7 +1264,7 @@
 :where(.genotype-analysis-page) .data-table td {
   border-right: 1px solid var(--border-subtle);
   border-bottom: 1px solid var(--border-subtle);
-  padding: 5px 12px;
+  padding: 4px 5px;
   text-align: center;
   vertical-align: middle;
   color: var(--text-primary);
@@ -1284,12 +1284,12 @@
   position: sticky;
   top: 0;
   z-index: 2;
-  height: 48px;
+  height: 40px;
   border-bottom: 2px solid var(--border-default);
   background: var(--surface-muted);
   font-weight: var(--font-weight-semibold);
   color: var(--text-secondary);
-  font-size: inherit;
+  font-size: 11px;
 }
 
 :where(.genotype-analysis-page) .data-table-spacer td {

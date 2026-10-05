@@ -1,22 +1,19 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef, useMemo } from 'react';
 import ColorPicker from './ColorPicker';
 import ProfileActionButtons from './ProfileActionButtons';
 import ProfileCommentModal from './ProfileCommentModal';
 import { useProfileFieldLabel } from '../../hooks/useProfileFieldLabel';
 
-// Локусы для анализа (24 основных)
-const ANALYSIS_LOCI = [
-  'D3S1358', 'vWA', 'D16S539', 'CSF1PO', 'TPOX', 'Yindel', 'AMEL',
-  'D8S1179', 'D21S11', 'D18S51', 'DYS391', 'D2S441', 'D19S433',
-  'TH01', 'FGA', 'D22S1045', 'D5S818', 'D13S317', 'D7S820', 'SE33',
-  'D10S1248', 'D1S1656', 'D12S391', 'D2S1338'
-];
+import { useAuth } from '../../contexts/AuthContext';
+import { resolveProfileImportFormat } from '../../../../src/utils/profileImportFormat';
+import { ALL_LOCI } from '../../../../src/utils/lociTypeDetector';
+import { getAnalysisLoci, compareProfileNumbers } from '../../../../src/utils/analysisLoci';
 
-const PROFILE_COLUMN_WIDTHS = { year: 88, import_number: 120, sample_name: 176, internal_number: 144 };
-const LOCUS_COLUMN_WIDTH = 112;
-const ACTIONS_COLUMN_WIDTH = 120;
-const ROW_HEIGHT = 48;
-const HEADER_HEIGHT = 48;
+const PROFILE_COLUMN_WIDTHS = { year: 72, import_number: 144, sample_name: 104, internal_number: 120, panel: 150 };
+const LOCUS_COLUMN_WIDTH = 78;
+const ACTIONS_COLUMN_WIDTH = 84;
+const ROW_HEIGHT = 40;
+const HEADER_HEIGHT = 40;
 const BUFFER_SIZE = 5;
 
 /**
@@ -24,6 +21,15 @@ const BUFFER_SIZE = 5;
  */
 const GenotypeAnalysisPage = ({ onNavigate, selectedActiveTask }) => {
   const fieldLabel = useProfileFieldLabel();
+  const { activeDepartment } = useAuth();
+  const isGenetic = resolveProfileImportFormat(activeDepartment) === 'genetic';
+  // Номер экспертизы не идентифицирует отдельный genetic-объект.
+  const sameProfile = (a, b) => {
+    if (a.id && b.id && !a._isTemporary && !b._isTemporary) return a.id === b.id;
+    const number = b.internal_number || b.internalNumber;
+    if (number) return (a.internal_number || a.internalNumber) === number;
+    return !isGenetic && !!b.sample_name && a.sample_name === b.sample_name;
+  };
   // Состояния
   const [profiles, setProfiles] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -100,18 +106,14 @@ const GenotypeAnalysisPage = ({ onNavigate, selectedActiveTask }) => {
 
   // Чекбоксы игнорирования локусов (по умолчанию все включены)
   const [ignoredLoci, setIgnoredLoci] = useState(() => {
-    const saved = localStorage.getItem('ignoredLoci');
-    if (saved) {
-      try {
-        return JSON.parse(saved);
-      } catch (e) {
-        console.error('Error loading ignoredLoci:', e);
-      }
+    // Старые автоматические исключения сбрасываются один раз при переходе на v2.
+    if (localStorage.getItem('analysisLociSettingsVersion') !== '2') {
+      localStorage.setItem('analysisLociSettingsVersion', '2');
+      localStorage.setItem('ignoredLoci', '{}');
+      return {};
     }
-    return ANALYSIS_LOCI.reduce((acc, locus) => {
-      acc[locus] = ['Yindel', 'AMEL', 'DYS391'].includes(locus);
-      return acc;
-    }, {});
+    try { return JSON.parse(localStorage.getItem('ignoredLoci') || '{}'); }
+    catch { return {}; }
   });
 
   // Сохраняем ignoredLoci
@@ -287,15 +289,29 @@ const GenotypeAnalysisPage = ({ onNavigate, selectedActiveTask }) => {
   };
 
   // Порядок колонок локусов (можно перетаскивать)
-  const [lociOrder, setLociOrder] = useState([...ANALYSIS_LOCI]);
+  const displayLoci = useMemo(() => {
+    const data = [...profiles, ...searchResults];
+    if (referenceProfile) data.push(referenceProfile);
+    if (Object.keys(referenceValues.loci).length) data.push(referenceValues);
+    const loci = getAnalysisLoci(data);
+    return loci.length ? loci : ALL_LOCI;
+  }, [profiles, searchResults, referenceProfile, referenceValues]);
+  const displayLociKey = displayLoci.join('|');
+  const [lociOrder, setLociOrder] = useState([]);
+  useEffect(() => { setLociOrder(displayLoci); }, [displayLociKey]);
 
   // Порядок базовых колонок (можно перетаскивать)
-  const [baseColumnsOrder, setBaseColumnsOrder] = useState([
-    { key: 'year', label: 'Год' },
-    { key: 'import_number', label: 'Привоз' },
-    { key: 'sample_name', label: '№ в в\\ч' },
-    { key: 'internal_number', label: '№' }
-  ]);
+  const defaultBaseColumns = () => isGenetic ? [
+    { key: 'sample_name', label: '№ Экспертизы' },
+    { key: 'internal_number', label: '№ Объекта' },
+    { key: 'import_number', label: 'ФИО' },
+    { key: 'panel', label: 'Панель' }
+  ] : [
+    { key: 'year', label: 'Год' }, { key: 'import_number', label: 'Привоз' },
+    { key: 'sample_name', label: '№ в в\\ч' }, { key: 'internal_number', label: '№' }
+  ];
+  const [baseColumnsOrder, setBaseColumnsOrder] = useState(defaultBaseColumns);
+  useEffect(() => { setBaseColumnsOrder(defaultBaseColumns()); }, [isGenetic]);
 
   // Фильтрация деактивированных профилей
   const [hideDeactivated, setHideDeactivated] = useState(() => {
@@ -361,12 +377,7 @@ const GenotypeAnalysisPage = ({ onNavigate, selectedActiveTask }) => {
       }
       return true;
     })
-    .sort((a, b) => {
-      // Сортировка по internal_number от меньшего к большему
-      const numA = parseInt(a.internal_number) || 0;
-      const numB = parseInt(b.internal_number) || 0;
-      return numA - numB;
-    });
+    .sort((a, b) => isGenetic ? compareProfileNumbers(a, b) : String(a.internal_number || '').localeCompare(String(b.internal_number || ''), 'ru', { numeric: true }));
 
   const deactivatedCount = profiles.filter(p => p.is_active === false).length;
   const withCommentsCount = profiles.filter(p => p.expert_comment).length;
@@ -465,6 +476,9 @@ const GenotypeAnalysisPage = ({ onNavigate, selectedActiveTask }) => {
 
           return {
             id: profile.id,
+            panel: profile.panel,
+            panelId: profile.panelId,
+            panelName: profile.panelName,
             sample_name: profile.sampleName || profile.sample_name,
             internal_number: profile.internalNumber || profile.internal_number,
             import_number: profile.importNumber || profile.import_number,
@@ -510,7 +524,7 @@ const GenotypeAnalysisPage = ({ onNavigate, selectedActiveTask }) => {
     const formatProfile = (profile) => {
       const internal = (profile.internal_number || 'N/A').padEnd(INTERNAL_WIDTH);
       const sample = (profile.sample_name || 'N/A').padEnd(SAMPLE_WIDTH);
-      const importNum = profile.import_number ? `Привоз №${profile.import_number}` : 'Привоз N/A';
+      const importNum = `${fieldLabel('import_number', 'Привоз')}: ${profile.import_number || 'не указано'}`;
       const year = profile.year || 'N/A';
 
       return `${internal} | ${sample} | ${importNum} | ${year}`;
@@ -1218,7 +1232,7 @@ const GenotypeAnalysisPage = ({ onNavigate, selectedActiveTask }) => {
     // Формируем значения локусов для эталона
     const lociValues = {};
     if (profile.loci) {
-      ANALYSIS_LOCI.forEach(locus => {
+      Object.keys(profile.loci).forEach(locus => {
         const locusData = profile.loci[locus];
         if (locusData) {
           // Используем formatLocusValue для единообразного форматирования
@@ -1330,7 +1344,7 @@ const GenotypeAnalysisPage = ({ onNavigate, selectedActiveTask }) => {
    * Сброс порядка колонок к исходному
    */
   const resetLociOrder = () => {
-    setLociOrder([...ANALYSIS_LOCI]);
+    setLociOrder([...displayLoci]);
   };
 
   /**
@@ -1390,12 +1404,7 @@ const GenotypeAnalysisPage = ({ onNavigate, selectedActiveTask }) => {
    * Сброс порядка базовых колонок к исходному
    */
   const resetBaseColumnsOrder = () => {
-    setBaseColumnsOrder([
-      { key: 'year', label: 'Год' },
-      { key: 'sample_name', label: '№ в в\\ч' },
-      { key: 'internal_number', label: '№' },
-      { key: 'import_number', label: 'Привоз' }
-    ]);
+    setBaseColumnsOrder(defaultBaseColumns());
   };
 
   /**
@@ -1508,8 +1517,7 @@ const GenotypeAnalysisPage = ({ onNavigate, selectedActiveTask }) => {
     if (profile._isTemporary) {
       // Ищем в уже загруженных профилях
       const realProfile = profiles.find(p =>
-        (p.internal_number && p.internal_number === profile.internal_number) ||
-        (p.sample_name && p.sample_name === profile.sample_name)
+        sameProfile(p, profile)
       );
 
       if (realProfile) {
@@ -1626,9 +1634,7 @@ const GenotypeAnalysisPage = ({ onNavigate, selectedActiveTask }) => {
 
       // Обновляем эталонный профиль если это он
       setReferenceProfile(prev => {
-        if (prev && (prev.id === profileId ||
-            prev.sample_name === sampleName ||
-            prev.internal_number === internalNumber)) {
+        if (prev && (sameProfile(prev, { id: profileId, sample_name: sampleName, internal_number: internalNumber }))) {
           return { ...prev, ...updatedCommentData };
         }
         return prev;
@@ -1637,9 +1643,7 @@ const GenotypeAnalysisPage = ({ onNavigate, selectedActiveTask }) => {
       // Обновляем в результатах поиска если есть
       setSearchResults(prev => {
         const updated = prev.map(r => {
-          if (r.id === profileId ||
-              r.sample_name === sampleName ||
-              r.internal_number === internalNumber) {
+          if (sameProfile(r, { id: profileId, sample_name: sampleName, internal_number: internalNumber })) {
             return { ...r, ...updatedCommentData };
           }
           return r;
@@ -1653,9 +1657,7 @@ const GenotypeAnalysisPage = ({ onNavigate, selectedActiveTask }) => {
           // Обновляем в allProfiles если есть
           if (historyItem.allProfiles) {
             const updatedProfiles = historyItem.allProfiles.map(p => {
-              if (p.id === profileId ||
-                  p.sample_name === sampleName ||
-                  p.internal_number === internalNumber) {
+              if (sameProfile(p, { id: profileId, sample_name: sampleName, internal_number: internalNumber })) {
                 return { ...p, ...updatedCommentData };
               }
               return p;
@@ -1664,8 +1666,7 @@ const GenotypeAnalysisPage = ({ onNavigate, selectedActiveTask }) => {
           }
 
           // Обновляем если это сам профиль (для контаминации)
-          if (historyItem.sample_name === sampleName ||
-              historyItem.internal_number === internalNumber) {
+          if (sameProfile({ ...historyItem, id: historyItem.profile_id }, { id: profileId, sample_name: sampleName, internal_number: internalNumber })) {
             return { ...historyItem, ...updatedCommentData };
           }
 
@@ -2149,7 +2150,7 @@ const GenotypeAnalysisPage = ({ onNavigate, selectedActiveTask }) => {
         const matchesWithLoci = matches.map((match, idx) => {
           const matchedLoci = [];
           if (refProfile.loci && match.loci) {
-            ANALYSIS_LOCI.forEach(locus => {
+            getAnalysisLoci([refProfile, match]).forEach(locus => {
               if (ignoredLoci[locus]) return;
 
               const refData = refProfile.loci[locus];
@@ -2407,12 +2408,12 @@ const GenotypeAnalysisPage = ({ onNavigate, selectedActiveTask }) => {
                className="form-input"/>
             </div>
             <div className="info-field">
-              <label>Привоз:</label>
+              <label>{fieldLabel('import_number', 'Привоз')}:</label>
               <input
                 type="text"
                 value={referenceValues.import_number}
                 onChange={(e) => setReferenceValues(prev => ({...prev, import_number: e.target.value}))}
-                placeholder="Номер привоза"
+                placeholder={fieldLabel('import_number', 'Номер привоза')}
                 readOnly={!!selectedProfile}
                className="form-input"/>
             </div>
@@ -2713,6 +2714,9 @@ const GenotypeAnalysisPage = ({ onNavigate, selectedActiveTask }) => {
                                 case 'internal_number':
                                   value = profile.internal_number;
                                   break;
+                                case 'panel':
+                                  value = profile.panel?.name || profile.panelName || 'Не указана';
+                                  break;
                                 case 'import_number':
                                   value = profile.import_number || '';
                                   break;
@@ -2796,7 +2800,7 @@ const GenotypeAnalysisPage = ({ onNavigate, selectedActiveTask }) => {
                   <thead>
                     <tr>
                       <th>Год</th>
-                      <th>Привоз</th>
+                      <th>{fieldLabel('import_number', 'Привоз')}</th>
                       <th>{fieldLabel('sample_name', '№ в в\\ч')}</th>
                       <th>{fieldLabel('internal_number', '№')}</th>
                       {searchResults.length > 0 && searchResults[0].searchMode === 'department_tasks' && (
@@ -2906,8 +2910,7 @@ const GenotypeAnalysisPage = ({ onNavigate, selectedActiveTask }) => {
 
                       // Ищем профиль в загруженных данных для дополнительной информации
                       const loadedProfile = profiles.find(p =>
-                        (p.internal_number && p.internal_number === result.internal_number) ||
-                        (p.sample_name && p.sample_name === result.sample_name)
+                        sameProfile(p, result)
                       );
 
                       // Если нашли в загруженных, дополняем данными (но комментарий берём из result)
@@ -3078,7 +3081,7 @@ const GenotypeAnalysisPage = ({ onNavigate, selectedActiveTask }) => {
                 <div className="section-divider"></div>
                 <p><strong>{fieldLabel('sample_name', '№ в в\\ч')}:</strong> {contaminationDetails.sample.sample_name}</p>
                 <p><strong>{fieldLabel('internal_number', 'Номер')}:</strong> {contaminationDetails.sample.internal_number}</p>
-                <p><strong>Привоз:</strong> {contaminationDetails.sample.import_number || 'N/A'}</p>
+                <p><strong>{fieldLabel('import_number', 'Привоз')}:</strong> {contaminationDetails.sample.import_number || 'N/A'}</p>
                 {contaminationDetails.sample.year && (
                   <p><strong>Год:</strong> {contaminationDetails.sample.year}</p>
                 )}
@@ -3161,8 +3164,8 @@ const GenotypeAnalysisPage = ({ onNavigate, selectedActiveTask }) => {
                       </thead>
                       <tbody>
                         {[...contaminationDetails.detailedMatches].sort((a, b) => {
-                          const indexA = ANALYSIS_LOCI.indexOf(a.locus);
-                          const indexB = ANALYSIS_LOCI.indexOf(b.locus);
+                          const indexA = displayLoci.indexOf(a.locus);
+                          const indexB = displayLoci.indexOf(b.locus);
                           return indexA - indexB;
                         }).map((match, idx) => (
                           <tr
@@ -3275,7 +3278,7 @@ const GenotypeAnalysisPage = ({ onNavigate, selectedActiveTask }) => {
                                         <thead>
                                           <tr>
                                             <th>Год</th>
-                                            <th>Привоз</th>
+                                            <th>{fieldLabel('import_number', 'Привоз')}</th>
                                             <th>{fieldLabel('sample_name', '№ в в/ч')}</th>
                                             <th>{fieldLabel('internal_number', '№')}</th>
                                           </tr>
@@ -3357,7 +3360,7 @@ const GenotypeAnalysisPage = ({ onNavigate, selectedActiveTask }) => {
                                         <thead>
                                           <tr>
                                             <th>Год</th>
-                                            <th>Привоз</th>
+                                            <th>{fieldLabel('import_number', 'Привоз')}</th>
                                             <th>{fieldLabel('sample_name', '№ в в/ч')}</th>
                                             <th>{fieldLabel('internal_number', '№')}</th>
                                           </tr>
@@ -3470,7 +3473,7 @@ const GenotypeAnalysisPage = ({ onNavigate, selectedActiveTask }) => {
                                     <div className="history-card-body">
                                       <p><strong>{fieldLabel('sample_name', '№ в в\\ч')}:</strong> {item.sample_name}</p>
                                       <p><strong>{fieldLabel('internal_number', 'Номер')}:</strong> {item.internal_number}</p>
-                                      <p><strong>Привоз:</strong> {item.import_number || 'N/A'}</p>
+                                      <p><strong>{fieldLabel('import_number', 'Привоз')}:</strong> {item.import_number || 'N/A'}</p>
                                       <p><strong>Балл:</strong> {typeof item.matchScore === 'number' ? item.matchScore.toFixed(1) : item.matchScore} / 30</p>
                                     </div>
                                     <div className="timestamp">
@@ -3545,7 +3548,7 @@ const GenotypeAnalysisPage = ({ onNavigate, selectedActiveTask }) => {
                                         <thead>
                                           <tr>
                                             <th>Год</th>
-                                            <th>Привоз</th>
+                                            <th>{fieldLabel('import_number', 'Привоз')}</th>
                                             <th>{fieldLabel('sample_name', '№ в в/ч')}</th>
                                             <th>{fieldLabel('internal_number', '№')}</th>
                                           </tr>
@@ -3627,7 +3630,7 @@ const GenotypeAnalysisPage = ({ onNavigate, selectedActiveTask }) => {
                                         <thead>
                                           <tr>
                                             <th>Год</th>
-                                            <th>Привоз</th>
+                                            <th>{fieldLabel('import_number', 'Привоз')}</th>
                                             <th>{fieldLabel('sample_name', '№ в в/ч')}</th>
                                             <th>{fieldLabel('internal_number', '№')}</th>
                                           </tr>
@@ -3709,7 +3712,7 @@ const GenotypeAnalysisPage = ({ onNavigate, selectedActiveTask }) => {
                                         <thead>
                                           <tr>
                                             <th>Год</th>
-                                            <th>Привоз</th>
+                                            <th>{fieldLabel('import_number', 'Привоз')}</th>
                                             <th>{fieldLabel('sample_name', '№ в в/ч')}</th>
                                             <th>{fieldLabel('internal_number', '№')}</th>
                                             <th>Задача</th>

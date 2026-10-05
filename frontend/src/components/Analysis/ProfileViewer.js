@@ -4,6 +4,7 @@ import { useProfileFieldLabel } from '../../hooks/useProfileFieldLabel';
 
 const ProfileViewer = () => {
   const fieldLabel = useProfileFieldLabel();
+  const isGenetic = fieldLabel('sample_name', '') === '№ Экспертизы';
   const [profiles, setProfiles] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
@@ -138,7 +139,7 @@ const ProfileViewer = () => {
           <thead>
             <tr>
               <th>{fieldLabel('sample_name', 'Имя образца')}</th>
-              <th>Дата загрузки</th>
+              {isGenetic && <th>Панель</th>}<th>Дата загрузки</th>
               <th>Источник файла</th>
               <th>Число локусов STR/SNP</th>
               <th>Действия</th>
@@ -147,7 +148,7 @@ const ProfileViewer = () => {
           <tbody>
             {currentProfiles.map((profile) => (
               <tr key={profile.id}>
-                <td><strong>{profile.sample_name}</strong></td>
+                <td><strong>{profile.sample_name}</strong></td>{isGenetic && <td>{profile.panel?.name || profile.panelName || 'Не указана'}</td>}
                 <td>{new Date(profile.upload_date).toLocaleDateString('ru-RU')}</td>
                 <td>{profile.file_source || 'Нет данных'}</td>
                 <td>{Object.keys(profile.str_snp_data || profile.str_data || {}).length}</td>
@@ -196,6 +197,7 @@ const ProfileViewer = () => {
             </div>
             <div className="modal-body">
               <div className="analysis-metrics-grid">
+                {selectedProfile.panel && <div className="analysis-metric-card"><div className="analysis-mini-label">Панель</div><div className="analysis-main-value">{selectedProfile.panel.name}</div></div>}
                 <div className="analysis-metric-card">
                   <div className="analysis-mini-label">Дата загрузки</div>
                   <div className="analysis-main-value">{new Date(selectedProfile.upload_date).toLocaleString('ru-RU')}</div>

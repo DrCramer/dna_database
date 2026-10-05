@@ -390,7 +390,7 @@ const AdminDashboard = ({ onNavigate }) => {
               </div>
 
               <div className="filter-group">
-                <label>Привоз:</label>
+                <label>{fieldLabel('import_number', 'Привоз')}:</label>
                 <select
                   value={filters.import_number}
                   onChange={(e) => handleFilterChange('import_number', e.target.value)}
@@ -425,7 +425,7 @@ const AdminDashboard = ({ onNavigate }) => {
                   <tr>
                     <th>ID</th>
                     <th>Год</th>
-                    <th>Привоз</th>
+                    <th>{fieldLabel('import_number', 'Привоз')}</th>
                                         <th>{fieldLabel('internal_number', 'Внутренний №')}</th>
                     <th>Статус ДНК-профиля</th>
                     <th>Данные RealTime</th>
@@ -527,7 +527,7 @@ const AdminDashboard = ({ onNavigate }) => {
                           <tr>
                             <th>{fieldLabel('internal_number', 'Внутренний №')}</th>
                             <th>Год</th>
-                            <th>Привоз</th>
+                            <th>{fieldLabel('import_number', 'Привоз')}</th>
                             <th>Статус</th>
                             <th>Дата загрузки</th>
                           </tr>
@@ -577,7 +577,7 @@ const AdminDashboard = ({ onNavigate }) => {
                   <select className="form-control form-select">
                     <option>Сводный отчет по лаборатории</option>
                     <option>Отчет по дубликатам</option>
-                    <option>Отчет по привозам</option>
+                    <option>{fieldLabel('import_number', 'Привоз') === 'ФИО' ? 'Отчёт по ФИО' : 'Отчет по привозам'}</option>
                   </select>
                 </div>
 

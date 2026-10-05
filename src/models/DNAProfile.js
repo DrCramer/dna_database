@@ -1,5 +1,6 @@
 const { query, transaction } = require('../config/database');
 const { logger } = require('../utils/logger');
+const { GenotypePanel } = require('./GenotypePanel');
 const { ALL_LOCI } = require('../utils/lociTypeDetector');
 
 class DNAProfile {
@@ -34,6 +35,8 @@ class DNAProfile {
     // Master array support fields
     this.masterArrayId = data.master_array_id || data.masterArrayId;
     this.profileType = data.profile_type || data.profileType || 'user';
+    this.panelId = data.panel_id || data.panelId || data.metadata?.panelId || null;
+    this.panel = data.panel || (data.metadata?.panelId ? { id: data.metadata.panelId, name: data.metadata.panelName, lociOrder: data.metadata.panelLociOrder || [] } : null);
   }
 
   /**
@@ -51,12 +54,20 @@ class DNAProfile {
    * @param {string} profileData.taskId - Task ID (for task-related profiles)
    * @returns {Promise<DNAProfile>} Created profile
    */
+  // Один запрос справочника для всей страницы профилей, включая неактивные панели.
+  static async fromRows(rows) {
+    const ids = [...new Set(rows.map(row => row.panel_id || row.panelId).filter(Boolean))];
+    const panels = ids.length ? (await query('SELECT * FROM genotype_panels WHERE id = ANY($1::uuid[])', [ids])).rows : [];
+    const byId = new Map(panels.map(row => [row.id, GenotypePanel.toJSON(row)]));
+    return rows.map(row => new DNAProfile({ ...row, panel: byId.get(row.panel_id || row.panelId) || row.panel }));
+  }
+
   static validateImportFields(data) {
     const format = data.importFormat || 'emergency';
     if (!['emergency', 'genetic'].includes(format)) throw new Error('Неизвестный формат импорта.');
     if (format === 'genetic') {
       if (!data.departmentId || !data.organizationId) throw new Error('Для генетического профиля требуется активное отделение и организация.');
-      if (!data.sampleName || !String(data.sampleName).trim()) throw new Error('Не заполнено обязательное поле «Объект».');
+      if (!data.sampleName || !String(data.sampleName).trim() || !data.internalNumber || !String(data.internalNumber).trim()) throw new Error('Не заполнено обязательное поле «Объект».');
       if (!Object.values(data.strData || {}).some(alleles => Array.isArray(alleles) && alleles.length)) throw new Error('Отсутствуют данные генетического профиля.');
     } else if (!data.year) {
       throw new Error('Год обязателен для профиля ЧС.');
@@ -70,7 +81,7 @@ class DNAProfile {
   }
 
   static async create(profileData) {
-    const { userId, year, sampleName, internalNumber, importNumber, strData, fileSource, notes, masterArrayId, profileType = 'user', taskId, departmentId, organizationId, importFormat = 'emergency' } = profileData;
+    const { userId, year, sampleName, internalNumber, importNumber, strData, fileSource, notes, masterArrayId, profileType = 'user', taskId, departmentId, organizationId, importFormat = 'emergency', panelId = null } = profileData;
 
     this.validateImportFields(profileData);
 
@@ -93,8 +104,8 @@ class DNAProfile {
     }
 
     const queryText = `
-      INSERT INTO dna_profiles (user_id, year, sample_name, internal_number, import_number, str_data, file_source, notes, master_array_id, profile_type, task_id, department_id, organization_id, import_format)
-      VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14)
+      INSERT INTO dna_profiles (user_id, year, sample_name, internal_number, import_number, str_data, file_source, notes, master_array_id, profile_type, task_id, department_id, organization_id, import_format, panel_id)
+      VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15)
       RETURNING *
     `;
 
@@ -126,7 +137,7 @@ class DNAProfile {
         masterArrayId || null,
         profileType,
         taskId || null,
-        departmentId || null, organizationId || null, importFormat
+        departmentId || null, organizationId || null, importFormat, panelId
       ]);
 
       logger.info('DNA profile created', { 
@@ -141,7 +152,7 @@ class DNAProfile {
         taskId
       });
 
-      return new DNAProfile(result.rows[0]);
+      return (await this.fromRows(result.rows))[0];
     } catch (error) {
       logger.error('Error creating DNA profile', { error: error.message, userId, departmentId });
       throw error;
@@ -161,7 +172,7 @@ class DNAProfile {
 
     try {
       const result = await query(queryText, [id]);
-      return result.rows.length > 0 ? new DNAProfile(result.rows[0]) : null;
+      return result.rows.length > 0 ? (await this.fromRows(result.rows))[0] : null;
     } catch (error) {
       logger.error('Error finding DNA profile by ID', { error: error.message, id });
       throw error;
@@ -179,7 +190,7 @@ class DNAProfile {
     const result = await query(`SELECT dp.* FROM dna_profiles dp WHERE ${clause}
       ORDER BY dp.upload_date DESC, dp.id
       LIMIT $${params.length - 1} OFFSET $${params.length}`, params);
-    return result.rows.map(row => new DNAProfile(row));
+    return await this.fromRows(result.rows);
   }
 
   static async countInAccessScope(scope, options = {}) {
@@ -222,13 +233,13 @@ class DNAProfile {
         const genetic = (profile.importFormat || context.importFormat) === 'genetic';
         if (genetic && (!context.departmentId || !context.organizationId)) throw new Error('Не определено активное отделение для проверки объекта.');
         const params = genetic
-          ? [userId, profile.sampleName, context.departmentId, context.organizationId]
+          ? [userId, profile.internalNumber, context.departmentId, context.organizationId]
           : [userId, internalNumber, year];
         if (genetic) queryText = `
           SELECT id, sample_name, internal_number, year, is_active, upload_date,
                  deactivated_at, deactivation_reason
           FROM dna_profiles
-          WHERE user_id = $1 AND lower(btrim(sample_name)) = lower(btrim($2))
+          WHERE user_id = $1 AND lower(btrim(internal_number)) = lower(btrim($2))
             AND department_id = $3 AND organization_id = $4 AND import_format = 'genetic'
             AND profile_type = 'user'
           ORDER BY is_active DESC, upload_date DESC
@@ -312,7 +323,7 @@ class DNAProfile {
 
     try {
       const result = await query(queryText, [taskId]);
-      return result.rows.map(row => new DNAProfile(row));
+      return await this.fromRows(result.rows);
     } catch (error) {
       logger.error('Error finding DNA profiles by task ID', { error: error.message, taskId });
       throw error;
@@ -397,7 +408,7 @@ class DNAProfile {
 
     try {
       const result = await query(queryText, params);
-      return result.rows.map(row => new DNAProfile(row));
+      return await this.fromRows(result.rows);
     } catch (error) {
       logger.error('Error finding DNA profiles by user ID', { error: error.message, userId });
       throw error;
@@ -440,7 +451,7 @@ class DNAProfile {
 
     try {
       const result = await query(queryText, params);
-      return result.rows.map(row => new DNAProfile(row));
+      return await this.fromRows(result.rows);
     } catch (error) {
       logger.error('Error finding duplicate DNA profiles', { error: error.message });
       throw error;
@@ -459,7 +470,9 @@ class DNAProfile {
       SELECT * FROM dna_profiles 
       WHERE sample_name = $1 AND user_id = $2 AND is_active = true
     `;
-    const params = [sampleName, userId];
+    const genetic = context.importFormat === 'genetic';
+    if (genetic) queryText = queryText.replace('sample_name = $1', "lower(btrim(internal_number)) = lower(btrim($1)) AND import_format = 'genetic' AND profile_type = 'user'");
+    const params = [genetic ? context.internalNumber : sampleName, userId];
 
     if (excludeId) {
       queryText += ' AND id != $3';
@@ -471,9 +484,10 @@ class DNAProfile {
       queryText += ` AND department_id = $${params.length}`;
     }
 
+    if (genetic && context.organizationId) { params.push(context.organizationId); queryText += ` AND organization_id = $${params.length}`; }
     try {
       const result = await query(queryText, params);
-      return result.rows.map(row => new DNAProfile(row));
+      return await this.fromRows(result.rows);
     } catch (error) {
       logger.error('Error finding profiles by sample name', { error: error.message, sampleName, userId });
       throw error;
@@ -510,7 +524,7 @@ class DNAProfile {
 
     try {
       const result = await query(queryText, params);
-      return result.rows.map(row => new DNAProfile(row));
+      return await this.fromRows(result.rows);
     } catch (error) {
       logger.error('Error finding profiles by internal number', { error: error.message, internalNumber, userId });
       throw error;
@@ -536,7 +550,7 @@ class DNAProfile {
 
     try {
       const result = await query(queryText, [limit, offset]);
-      return result.rows.map(row => new DNAProfile(row));
+      return await this.fromRows(result.rows);
     } catch (error) {
       logger.error('Error finding all DNA profiles', { error: error.message });
       throw error;
@@ -580,7 +594,7 @@ class DNAProfile {
 
     try {
       const result = await query(queryText, params);
-      return result.rows.map(row => new DNAProfile(row));
+      return await this.fromRows(result.rows);
     } catch (error) {
       logger.error('Error finding profiles by user with department access', { 
         error: error.message, 
@@ -670,7 +684,7 @@ class DNAProfile {
 
     try {
       const result = await query(queryText, params);
-      return result.rows.map(row => new DNAProfile(row));
+      return await this.fromRows(result.rows);
     } catch (error) {
       logger.error('Error finding all profiles with organizational context', { 
         error: error.message, 
@@ -749,7 +763,7 @@ class DNAProfile {
 
     try {
       const result = await query(queryText, params);
-      return result.rows.map(row => new DNAProfile(row));
+      return await this.fromRows(result.rows);
     } catch (error) {
       logger.error('Error finding duplicate DNA profiles in department', { 
         error: error.message, 
@@ -813,7 +827,7 @@ class DNAProfile {
       }
 
       logger.info('DNA profile updated', { profileId: id, updates });
-      return new DNAProfile(result.rows[0]);
+      return (await this.fromRows(result.rows))[0];
     } catch (error) {
       logger.error('Error updating DNA profile', { error: error.message, id, updates });
       throw error;
@@ -890,7 +904,7 @@ class DNAProfile {
           try {
             this.validateImportFields(profileData);
             // Check for duplicates
-            const duplicates = await this.findDuplicates(profileData.strData, null, profileData);
+            const duplicates = profileData.importFormat === 'genetic' ? [] : await this.findDuplicates(profileData.strData, null, profileData);
             const sampleNameDuplicates = await this.findBySampleName(
               profileData.sampleName, 
               userId, null, profileData
@@ -996,19 +1010,19 @@ class DNAProfile {
           notes ? (typeof notes === 'object' ? JSON.stringify(notes) : String(notes)) : null, // $8, $15, $22...
           taskId || null,                                            // $9, $16, $23...
           'user',
-          profileData.departmentId || null, profileData.organizationId || null, profileData.importFormat || 'emergency'
+          profileData.departmentId || null, profileData.organizationId || null, profileData.importFormat || 'emergency', profileData.panelId || null
         );
 
         // Build VALUES clause
-        const valueClause = `($${paramIndex}, $${paramIndex + 1}, $${paramIndex + 2}, $${paramIndex + 3}, $${paramIndex + 4}, $${paramIndex + 5}, $${paramIndex + 6}, $${paramIndex + 7}, $${paramIndex + 8}, $${paramIndex + 9}, $${paramIndex + 10}, $${paramIndex + 11}, $${paramIndex + 12})`;
+        const valueClause = `($${paramIndex}, $${paramIndex + 1}, $${paramIndex + 2}, $${paramIndex + 3}, $${paramIndex + 4}, $${paramIndex + 5}, $${paramIndex + 6}, $${paramIndex + 7}, $${paramIndex + 8}, $${paramIndex + 9}, $${paramIndex + 10}, $${paramIndex + 11}, $${paramIndex + 12}, $${paramIndex + 13})`;
         values.push(valueClause);
-        paramIndex += 13;
+        paramIndex += 14;
       }
 
       const queryText = `
         INSERT INTO dna_profiles (
           user_id, year, sample_name, internal_number, import_number, 
-          str_data, file_source, notes, task_id, profile_type, department_id, organization_id, import_format
+          str_data, file_source, notes, task_id, profile_type, department_id, organization_id, import_format, panel_id
         )
         VALUES ${values.join(', ')}
         RETURNING *
@@ -1023,7 +1037,7 @@ class DNAProfile {
         profileCount: profilesData.length
       });
 
-      return result.rows.map(row => new DNAProfile(row));
+      return await this.fromRows(result.rows);
     } catch (error) {
       logger.error('Error in batch insert', {
         error: error.message,
@@ -1100,7 +1114,7 @@ class DNAProfile {
 
     try {
       const result = await query(queryText, [masterArrayId, limit, offset]);
-      return result.rows.map(row => new DNAProfile(row));
+      return await this.fromRows(result.rows);
     } catch (error) {
       logger.error('Error finding DNA profiles by master array ID', { error: error.message, masterArrayId });
       throw error;
@@ -1184,6 +1198,8 @@ class DNAProfile {
             SELECT 
               map.id,
               map.sample_name,
+              map.internal_number, map.import_number, map.year,
+              COALESCE(map.metadata->>'importFormat', 'emergency') AS import_format,
               map.str_data,
               map.metadata,
               map.created_at as upload_date,
@@ -1200,7 +1216,7 @@ class DNAProfile {
             LIMIT $2 OFFSET $3
           `, [dept.master_array_id, limit, offset]);
 
-          masterArrayProfiles = masterArrayResult.rows.map(row => new DNAProfile(row));
+          masterArrayProfiles = await this.fromRows(masterArrayResult.rows);
         }
       }
 
@@ -1371,7 +1387,11 @@ class DNAProfile {
       departmentId: this.departmentId,
       organizationId: this.organizationId,
       sampleName: this.sampleName,
-      internalNumber: this.internalNumber, // Add internal number to JSON output
+      internalNumber: this.internalNumber,
+      objectName: this.importFormat === 'genetic' ? this.internalNumber : this.sampleName,
+      panelId: this.panelId,
+      panelName: this.panel?.name || null,
+      panel: this.panel,
       strData: this.strData,
       uploadDate: this.uploadDate,
       fileSource: this.fileSource,

@@ -13,6 +13,7 @@ const NotificationBadge = ({ count }) => {
 
 const LegacyDashboardView = ({
   user,
+  numberLabel,
   loading,
   error,
   handleLogout,
@@ -92,7 +93,7 @@ const LegacyDashboardView = ({
                     <option value="">Выберите задачу из списка</option>
                     {activeTasks.map((task) => (
                       <option key={task.id} value={task.id}>
-                        {task.title} - Привоз: {task.internal_number_start || 'не указан'} ({task.profile_count || 0} {pluralizeProfiles(task.profile_count || 0)})
+                        {task.title} - {numberLabel}: {task.internal_number_start || 'не указан'} ({task.profile_count || 0} {pluralizeProfiles(task.profile_count || 0)})
                       </option>
                     ))}
                   </select>
@@ -106,7 +107,7 @@ const LegacyDashboardView = ({
                     <div>
                       <p className="dashboard-legacy-active-name">{selectedActiveTask.title}</p>
                       <p className="dashboard-legacy-active-meta">
-                        Привоз: <strong>{selectedActiveTask.internal_number_start || 'не указан'}</strong>
+                        {numberLabel}: <strong>{selectedActiveTask.internal_number_start || 'не указан'}</strong>
                         {' | '}
                         Создана: <strong>{new Date(selectedActiveTask.created_at).toLocaleDateString('ru-RU')}</strong>
                       </p>

@@ -32,6 +32,7 @@ test('Реальные PostgreSQL, authenticate, preview и upload', { skip: !da
   app.use('/api/users', usersRouter);
   app.use('/api/tasks', tasksRouter);
   app.use('/api/auth', authRouter);
+  app.use('/api/genotype-panels', require('../src/routes/genotypePanels'));
   const server = app.listen(0, '127.0.0.1');
   await new Promise(resolve => server.once('listening', resolve));
   const baseUrl = `http://127.0.0.1:${server.address().port}/api/profiles`;
@@ -74,20 +75,104 @@ test('Реальные PostgreSQL, authenticate, preview и upload', { skip: !da
     const migration = fs.readFileSync(path.join(__dirname, '../database/migrations/027_genetic_profile_import.sql'), 'utf8');
     await query(migration);
     await query(migration);
+    const next = fs.readFileSync(path.join(__dirname, '../database/migrations/029_genetic_expertise_panels.sql'), 'utf8');
+    await query(next);
+    await query(next);
     const column = await query("SELECT is_nullable FROM information_schema.columns WHERE table_name = 'dna_profiles' AND column_name = 'year'");
     assert.equal(column.rows[0].is_nullable, 'YES');
+  });
+
+  await t.test('029 выполняет backfill и сохраняет количество, полные номера и STR', async () => {
+    const oldProfiles = [];
+    for (const internalNumber of ['258-1', '258-2', '258-11x']) oldProfiles.push(await DNAProfile.create({ userId, departmentId: genetic, organizationId: organization, importFormat: 'genetic', sampleName: internalNumber, internalNumber, strData: { TH01: ['7', '9'], D5S818: ['11', '12'], D21S11: ['29', '30'] } }));
+    const before = oldProfiles[2];
+    await query("DROP INDEX idx_dna_profiles_genetic_object; CREATE UNIQUE INDEX idx_dna_profiles_genetic_object ON dna_profiles (organization_id,department_id,user_id,lower(btrim(sample_name))) WHERE is_active=true AND import_format='genetic' AND profile_type='user'");
+    const legacyMasterId = (await query("INSERT INTO master_arrays (name, department_id) VALUES ('Migration old master', $1) RETURNING id", [genetic])).rows[0].id;
+    await query("INSERT INTO master_array_profiles (master_array_id, sample_name, internal_number, str_data, metadata, created_by) VALUES ($1,'258-1','258-1',$2,'{\"importFormat\":\"genetic\"}',$3),($1,'258-2','258-2',$2,'{\"importFormat\":\"genetic\"}',$3)", [legacyMasterId, JSON.stringify(before.strData), userId]);
+    await query("DROP INDEX idx_master_array_genetic_object; CREATE UNIQUE INDEX idx_master_array_genetic_object ON master_array_profiles (master_array_id,lower(btrim(sample_name))) WHERE is_active=true AND metadata->>'importFormat'='genetic'");
+    const migration = fs.readFileSync(path.join(__dirname, '../database/migrations/029_genetic_expertise_panels.sql'), 'utf8');
+    const count = (await query('SELECT count(*) FROM dna_profiles')).rows[0].count;
+    await query(migration);
+    const after = await DNAProfile.findById(before.id);
+    assert.equal(after.sampleName, '258');
+    assert.equal(after.internalNumber, '258-11x');
+    assert.deepEqual(after.strData, before.strData);
+    assert.equal((await query('SELECT count(*) FROM dna_profiles')).rows[0].count, count);
+    const imported = await upload('/upload', genetic, [columns, ['258-3', ...values], ['258-4', ...values]]);
+    assert.equal(imported.body.processing.created, 2, JSON.stringify(imported.body));
+    const same = await query("SELECT sample_name, internal_number FROM dna_profiles WHERE user_id=$1 AND internal_number IN ('258-1','258-2','258-11x')", [userId]);
+    assert.equal(same.rows.length, 3); assert(same.rows.every(row => row.sample_name === '258'));
+    const masterRows = (await query('SELECT * FROM master_array_profiles WHERE master_array_id=$1 ORDER BY internal_number', [legacyMasterId])).rows;
+    assert.equal(masterRows.length, 2); assert(masterRows.every(row => row.sample_name === '258'));
+    assert.deepEqual(masterRows.map(row => row.internal_number), ['258-1', '258-2']);
+    assert(masterRows.every(row => JSON.stringify(row.str_data) === JSON.stringify(before.strData)));
+  });
+
+  await t.test('Панели: CRUD, scope, роли, валидация, назначение, порядок и soft-disable', async () => {
+    const endpoint = baseUrl.replace('/api/profiles', '/api/genotype-panels');
+    async function panelRequest(path = '', method = 'GET', body, token = adminToken, department = genetic) {
+      const response = await fetch(endpoint + path, { method, headers: { Authorization: `Bearer ${token}`, 'X-Active-Department-Id': department, 'Content-Type': 'application/json' }, ...(body ? { body: JSON.stringify(body) } : {}) });
+      return { status: response.status, body: await response.json() };
+    }
+    const definition = { name: 'TEST-PANEL', lociOrder: ['TH01', 'D5S818', 'AMEL', 'FGA', 'SRY'] };
+    assert.equal((await panelRequest('', 'POST', definition, accessToken)).status, 403);
+    const created = await panelRequest('', 'POST', definition);
+    assert.equal(created.status, 201, JSON.stringify(created.body));
+    const id = created.body.panel.id;
+    assert.equal((await panelRequest('', 'POST', { ...definition, name: 'test-panel' })).status, 409);
+    assert.equal((await panelRequest('', 'POST', { name: 'Invalid', lociOrder: ['TH01', 'th01'] })).status, 400);
+    assert.equal((await panelRequest('', 'POST', { name: 'Invalid', lociOrder: ['Typo'] })).status, 400);
+    assert.equal((await panelRequest('', 'GET', null, accessToken)).body.panels.length, 1);
+    assert.equal((await panelRequest(`/${id}`, 'GET', null, adminToken, emergency)).status, 403);
+    const edited = await panelRequest(`/${id}`, 'PUT', { ...definition, lociOrder: ['FGA', 'TH01', 'AMEL'] });
+    assert.deepEqual(edited.body.panel.lociOrder, ['FGA', 'TH01', 'AMEL']);
+    const rows = [['Объект', 'TH01', 'AMEL', 'FGA'], ['PANEL-1', '7,9', 'XY', '20,22'], ['PANEL-2', '8,8', 'XY', '21,23']];
+    const preview = await upload('/upload/preview', genetic, rows, { panelId: id });
+    assert.equal(preview.status, 200, JSON.stringify(preview.body));
+    assert(preview.body.preview.panelWarnings.some(warning => /Порядок/.test(warning)));
+    const imported = await upload('/upload', genetic, rows, { panelId: id });
+    assert.equal(imported.body.processing.created, 2, JSON.stringify(imported.body));
+    const stored = (await query("SELECT * FROM dna_profiles WHERE user_id=$1 AND internal_number IN ('PANEL-1','PANEL-2')", [userId])).rows;
+    assert.equal(stored.length, 2); assert(stored.every(row => row.panel_id === id));
+    assert.deepEqual(stored.find(row => row.internal_number === 'PANEL-1').str_data, { TH01: ['7', '9'], AMEL: ['X', 'Y'], FGA: ['20', '22'] });
+    const dto = await DNAProfile.findById(stored[0].id);
+    assert.equal(dto.toJSON().panelName, 'TEST-PANEL');
+    assert.deepEqual(require('../src/utils/analysisLoci').getAnalysisLoci([dto]), ['FGA', 'TH01', 'AMEL']);
+    assert.equal(dto.toJSON().objectName, dto.internalNumber);
+    const search = await fetch(baseUrl + '/search?q=PANEL-1', { headers: { Authorization: `Bearer ${accessToken}`, 'X-Active-Department-Id': genetic } });
+    assert.equal((await search.json()).profiles[0].panel.name, 'TEST-PANEL');
+    assert.equal((await panelRequest(`/${id}`, 'DELETE')).body.panel.isActive, false);
+    assert.equal((await panelRequest()).body.panels.length, 0);
+    assert.equal((await DNAProfile.findById(dto.id)).panel.name, 'TEST-PANEL');
+    assert.equal((await upload('/upload/preview', genetic, rows, { panelId: id })).status, 404);
+    assert.equal((await upload('/upload/preview', genetic, rows, { panelId: require('node:crypto').randomUUID() })).status, 404);
+  });
+
+  await t.test('Массовый поиск сравнивает все дополнительные STR, SNP и Y-маркеры', async () => {
+    const names = ['D6S1043', 'D4S2366', 'Rs2032678', 'SRY', 'Penta D', 'DYS392', 'Penta E', 'Rs771783753'];
+    const alleles = ['7,9', '11,12', 'A,T', '1', '20,22', '12', '21,23', 'C,G'];
+    const imported = await upload('/upload', genetic, [['Объект', ...names], ['DYNAMIC-1', ...alleles], ['DYNAMIC-2', ...alleles]]);
+    assert.equal(imported.body.processing.created, 2, JSON.stringify(imported.body));
+    const ids = (await query("SELECT id FROM dna_profiles WHERE user_id=$1 AND internal_number IN ('DYNAMIC-1','DYNAMIC-2')", [userId])).rows.map(row => row.id);
+    const response = await fetch(baseUrl.replace('/api/profiles', '/api/genotype-analysis/mass-search'), { method: 'POST', headers: { Authorization: `Bearer ${accessToken}`, 'X-Active-Department-Id': genetic, 'Content-Type': 'application/json' }, body: JSON.stringify({ minMatches: 8, profileIds: ids }) });
+    const body = await response.json();
+    assert.equal(response.status, 200, JSON.stringify(body));
+    assert.equal(body.totalAnalyzed, 2);
+    assert.equal(body.results.length, 1);
+    assert.equal(body.results[0].matches[0].matchCount, 8);
+    assert.deepEqual(new Set(body.results[0].matches[0].matchedLoci), new Set(names));
   });
 
   await t.test('Preview и upload используют активное, а не основное отделение', async () => {
     const preview = await upload('/upload/preview', genetic, [columns, ['A-1', ...values]]);
     assert.equal(preview.status, 200, JSON.stringify(preview.body));
-    assert.equal(preview.body.preview.profiles[0].sampleName, 'A-1');
+    assert.equal(preview.body.preview.profiles[0].sampleName, 'A');
     assert.equal(preview.body.preview.profiles[0].year, null);
     assert.equal(preview.body.preview.profiles[0].action, 'create');
     const saved = await upload('/upload', genetic, [['Объект', 'D21S11', 'TH01', 'D5S818'], ['A-1', '29,30', '7,9', '11,12']]);
     assert.equal(saved.status, 200, JSON.stringify(saved.body));
     assert.equal(saved.body.processing.created, 1);
-    const profile = (await query("SELECT * FROM dna_profiles WHERE sample_name = 'A-1' AND user_id = $1", [userId])).rows[0];
+    const profile = (await query("SELECT * FROM dna_profiles WHERE internal_number = 'A-1' AND user_id = $1", [userId])).rows[0];
     assert.equal(profile.department_id, genetic);
     assert.equal(profile.organization_id, organization);
     assert.equal(profile.internal_number, 'A-1');
@@ -105,7 +190,7 @@ test('Реальные PostgreSQL, authenticate, preview и upload', { skip: !da
     assert.equal(repeated.body.processing.duplicates, 1);
     const profile = { importFormat: 'genetic', departmentId: otherDepartment, organizationId: otherOrganization, userId, sampleName: 'A-1', internalNumber: 'A-1', strData: { TH01: ['7', '9'], D5S818: ['11', '12'], D21S11: ['29', '30'] } };
     await DNAProfile.create(profile);
-    const checks = await DNAProfile.checkExistingProfiles(userId, [{ ...profile, sampleName: 'A-2' }], { departmentId: genetic, organizationId: organization });
+    const checks = await DNAProfile.checkExistingProfiles(userId, [{ ...profile, sampleName: 'A', internalNumber: 'A-2' }], { departmentId: genetic, organizationId: organization });
     assert.equal(checks[0].action, 'create');
     await assert.rejects(DNAProfile.create(profile), error => error.code === '23505');
     const sameGenotype = await upload('/upload', genetic, [columns, ['A-2', ...values]]);
@@ -113,7 +198,7 @@ test('Реальные PostgreSQL, authenticate, preview и upload', { skip: !da
   });
 
   await t.test('Preview отличает деактивированный профиль от конфликта и допускает замену', async () => {
-    await query("UPDATE dna_profiles SET is_active = false WHERE sample_name = 'A-2' AND department_id = $1", [genetic]);
+    await query("UPDATE dna_profiles SET is_active = false WHERE internal_number = 'A-2' AND department_id = $1", [genetic]);
     const preview = await upload('/upload/preview', genetic, [columns, ['A-2', ...values]]);
     assert.equal(preview.body.preview.profiles[0].action, 'replace');
     const saved = await upload('/upload', genetic, [columns, ['A-2', ...values]], { replaceDeactivated: 'true' });
@@ -157,12 +242,12 @@ test('Реальные PostgreSQL, authenticate, preview и upload', { skip: !da
     const response = await fetch(baseUrl, { headers: { Authorization: `Bearer ${accessToken}`, 'X-Active-Department-Id': genetic } });
     const body = await response.json();
     assert.equal(response.status, 200, JSON.stringify(body));
-    assert(body.profiles.some(p => p.sampleName === 'A-1' && p.year === null));
+    assert(body.profiles.some(p => p.sampleName === 'A' && p.internalNumber === 'A-1' && p.year === null));
     assert(body.profiles.every(p => p.departmentId === genetic));
     const analysisResponse = await fetch(baseUrl.replace('/api/profiles', '/api/genotype-analysis/profiles'), { headers: { Authorization: `Bearer ${accessToken}`, 'X-Active-Department-Id': genetic } });
     const analysisBody = await analysisResponse.json();
     assert.equal(analysisResponse.status, 200, JSON.stringify(analysisBody));
-    assert(analysisBody.profiles.some(p => p.sample_name === 'A-1'));
+    assert(analysisBody.profiles.some(p => p.sample_name === 'A' && p.internal_number === 'A-1'));
     assert(!analysisBody.profiles.some(p => p.sample_name === 'Я9700'));
   });
 
@@ -200,7 +285,7 @@ test('Реальные PostgreSQL, authenticate, preview и upload', { skip: !da
       assert.equal(body.data.task.internal_number_start, 'Э-2026/7');
       const notification = (await query("SELECT message FROM task_notifications WHERE task_id = $1 AND user_id = $2 AND type = 'new_task'", [body.data.task.id, userId])).rows[0];
       assert(notification, 'Уведомление исполнителю создано');
-      assert.match(notification.message, /Номер экспертизы: Э-2026\/7/);
+      assert.match(notification.message, /№ Экспертизы: Э-2026\/7/);
       assert(!notification.message.includes('Номер привоза'));
     }
     const emergencyTask = await create('medium', emergency);
@@ -216,27 +301,33 @@ test('Реальные PostgreSQL, authenticate, preview и upload', { skip: !da
     await query('UPDATE departments SET master_array_id = $1 WHERE id = $2', [masterId, genetic]);
     await query('UPDATE departments SET master_array_id = $1 WHERE id = $2', [emergencyMasterId, emergency]);
     const taskId = (await query("INSERT INTO tasks (title, department_id, created_by, assigned_to_user, target_sample, data_source, status) VALUES ('Тест переноса', $1, $2, $2, '{}', 'new_array', 'completed') RETURNING id", [genetic, userId])).rows[0].id;
-    await query("UPDATE dna_profiles SET task_id = $1 WHERE user_id = $2 AND department_id = $3 AND sample_name = 'A-1'", [taskId, userId, genetic]);
+    await query("UPDATE dna_profiles SET task_id = $1, import_number = 'Тестовое ФИО', panel_id = (SELECT id FROM genotype_panels WHERE department_id=$3 LIMIT 1) WHERE user_id = $2 AND department_id = $3 AND internal_number = 'A-1'", [taskId, userId, genetic]);
     const taskService = require('../src/services/taskService');
     const transferred = await taskService.addToMasterArray(taskId, userId);
     assert.equal(transferred.errors.length, 0, JSON.stringify(transferred));
     assert.equal(transferred.success.length, 1);
     const stored = (await query('SELECT * FROM master_array_profiles WHERE master_array_id = $1', [masterId])).rows[0];
     assert.equal(stored.year, null);
-    assert.equal(stored.sample_name, 'A-1');
+    assert.equal(stored.sample_name, 'A');
     assert.equal(stored.metadata.importFormat, 'genetic');
+    assert.equal(stored.import_number, 'Тестовое ФИО');
+    assert.equal(stored.metadata.panelName, 'TEST-PANEL');
+    assert.deepEqual(stored.metadata.panelLociOrder, ['FGA', 'TH01', 'AMEL']);
     const MasterArray = require('../src/models/MasterArray');
     const master = await MasterArray.findById(masterId);
     const sample = { sample_name: 'M-2', internal_number: 'M-2', str_data: { TH01: ['7', '9'], D5S818: ['11', '12'], D21S11: ['29', '30'] }, metadata: { importFormat: 'genetic' }, created_by: userId };
     assert.equal((await master.addProfile(sample)).year, null);
-    const repeated = await master.addProfilesBatch([{ ...sample, sample_name: 'm-2' }]);
+    const second = await master.addProfile({ ...sample, sample_name: 'M', internal_number: 'M-3', import_number: 'Тестовое ФИО', metadata: { importFormat: 'genetic', panelId: 'synthetic-panel-reference', panelName: 'TEST-PANEL', panelLociOrder: ['FGA', 'TH01', 'AMEL'] } });
+    assert.equal(second.metadata.panelName, 'TEST-PANEL');
+    assert.equal(second.import_number, 'Тестовое ФИО');
+    const repeated = await master.addProfilesBatch([{ ...sample, sample_name: 'M', internal_number: 'm-2' }]);
     assert.equal(repeated.success.length, 0);
     assert.equal(repeated.errors.length, 1);
     const emergencyMaster = await MasterArray.findById(emergencyMasterId);
     await assert.rejects(emergencyMaster.addProfile({ ...sample, metadata: {} }), /Year|Год/);
     const accessible = await DNAProfile.getAccessibleProfiles(userId, { departmentId: genetic });
     assert.equal(accessible.departmentInfo.department_id, genetic);
-    assert.equal(accessible.masterArrayProfiles.length, 2);
+    assert.equal(accessible.masterArrayProfiles.length, 3);
   });
   await t.test('Права загрузки: API запрещает обход, администратор управляет обоими режимами', async t => {
     const restrictedName = `restricted_${fixtureId}`;
@@ -311,7 +402,7 @@ test('Реальные PostgreSQL, authenticate, preview и upload', { skip: !da
       await setPermissions(false, true);
       const free = await requestUpload('/upload', undefined, 'EXPLICITLY-ALLOWED');
       assert.equal(free.status, 200, JSON.stringify(free.body));
-      assert.equal((await query("SELECT task_id FROM dna_profiles WHERE user_id = $1 AND sample_name = 'EXPLICITLY-ALLOWED'", [restrictedId])).rows[0].task_id, null);
+      assert.equal((await query("SELECT task_id FROM dna_profiles WHERE user_id = $1 AND internal_number = 'EXPLICITLY-ALLOWED'", [restrictedId])).rows[0].task_id, null);
       await setPermissions(false, false);
       for (const endpoint of ['/upload/preview', '/upload', '/bulk-upload-with-comparison']) {
         assert.equal((await requestUpload(endpoint, taskId, 'NO-BYPASS', { can_upload_with_task: 'true' })).status, 403);

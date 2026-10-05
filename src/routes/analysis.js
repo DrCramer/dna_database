@@ -1,5 +1,6 @@
 const express = require('express');
 const Joi = require('joi');
+const { ALL_LOCI } = require('../utils/lociTypeDetector');
 const { authenticate, adminOrAnalyst } = require('../middleware/auth');
 const { validate } = require('../middleware/validation');
 const { 
@@ -39,8 +40,8 @@ const compareProfilesSchema = Joi.object({
   profile1Id: Joi.string().uuid().required(),
   profile2Id: Joi.string().uuid().required(),
   options: Joi.object({
-    ignoredLoci: Joi.array().items(Joi.string().valid(...EXTENDED_40_STR_SNP_LOCI)).default([]),
-    minNumericMatches: Joi.number().integer().min(1).max(40).default(15),
+    ignoredLoci: Joi.array().items(Joi.string().valid(...ALL_LOCI)).default([]),
+    minNumericMatches: Joi.number().integer().min(1).max(ALL_LOCI.length).default(15),
     enableBayesianAnalysis: Joi.boolean().default(true),
     populationId: Joi.string().default('caucasian'),
     analysisMode: Joi.string().valid(...Object.values(COMPATIBILITY_MODES)).default(COMPATIBILITY_MODES.AUTO_DETECT)
@@ -50,8 +51,8 @@ const compareProfilesSchema = Joi.object({
 const searchProfileSchema = Joi.object({
   targetProfileId: Joi.string().uuid().required(),
   options: Joi.object({
-    ignoredLoci: Joi.array().items(Joi.string().valid(...EXTENDED_40_STR_SNP_LOCI)).default([]),
-    minNumericMatches: Joi.number().integer().min(1).max(40).default(15),
+    ignoredLoci: Joi.array().items(Joi.string().valid(...ALL_LOCI)).default([]),
+    minNumericMatches: Joi.number().integer().min(1).max(ALL_LOCI.length).default(15),
     enableBayesianAnalysis: Joi.boolean().default(true),
     populationId: Joi.string().default('caucasian'),
     analysisMode: Joi.string().valid(...Object.values(COMPATIBILITY_MODES)).default(COMPATIBILITY_MODES.AUTO_DETECT),
@@ -68,8 +69,8 @@ const searchProfileSchema = Joi.object({
 
 const bulkSearchSchema = Joi.object({
   options: Joi.object({
-    ignoredLoci: Joi.array().items(Joi.string().valid(...EXTENDED_40_STR_SNP_LOCI)).default([]),
-    minNumericMatches: Joi.number().integer().min(1).max(40).default(15),
+    ignoredLoci: Joi.array().items(Joi.string().valid(...ALL_LOCI)).default([]),
+    minNumericMatches: Joi.number().integer().min(1).max(ALL_LOCI.length).default(15),
     enableBayesianAnalysis: Joi.boolean().default(true),
     populationId: Joi.string().default('caucasian'),
     analysisMode: Joi.string().valid(...Object.values(COMPATIBILITY_MODES)).default(COMPATIBILITY_MODES.AUTO_DETECT),
@@ -83,8 +84,8 @@ const bulkSearchSchema = Joi.object({
 const departmentSearchSchema = Joi.object({
   targetProfileId: Joi.string().uuid().required(),
   options: Joi.object({
-    ignoredLoci: Joi.array().items(Joi.string().valid(...EXTENDED_40_STR_SNP_LOCI)).default([]),
-    minNumericMatches: Joi.number().integer().min(1).max(40).default(15),
+    ignoredLoci: Joi.array().items(Joi.string().valid(...ALL_LOCI)).default([]),
+    minNumericMatches: Joi.number().integer().min(1).max(ALL_LOCI.length).default(15),
     enableBayesianAnalysis: Joi.boolean().default(true),
     populationId: Joi.string().default('caucasian'),
     includeMasterArray: Joi.boolean().default(true),
@@ -452,7 +453,7 @@ router.get('/supported-loci',
           supportedLoci = EXTENDED_40_STR_SNP_LOCI;
           break;
         default:
-          supportedLoci = EXTENDED_40_STR_SNP_LOCI;
+          supportedLoci = ALL_LOCI;
       }
 
       // Categorize loci by type

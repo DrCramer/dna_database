@@ -141,7 +141,7 @@ async function massSearchOptimized(req, res, pool, logger, ANALYSIS_LOCI, isNume
         const loci = profile.str_data || {};
         const processedLoci = {};
         
-        for (const locus of ANALYSIS_LOCI) {
+        for (const locus of Object.keys(loci)) {
           if (ignoredLoci.includes(locus)) continue;
           
           const locusData = loci[locus];

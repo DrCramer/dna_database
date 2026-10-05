@@ -5,6 +5,7 @@
  */
 
 const { logger } = require('../utils/logger');
+const { getAnalysisLoci } = require('../utils/analysisLoci');
 
 class StaffContaminationAnalyzer {
     constructor(pool) {
@@ -22,7 +23,7 @@ class StaffContaminationAnalyzer {
         };
         
         // Локусы, исключаемые из анализа количества аллелей
-        this.skipLoci = ['AMEL', 'Yindel', 'gender', 'DYS391'];
+        this.skipLoci = ['gender']; // Служебное поле; реальные локусы включены по умолчанию.
         
         // Дефолтные веса локусов (v4.0) - обновлено 2026-02-16
         this.defaultLocusWeights = {
@@ -194,8 +195,9 @@ class StaffContaminationAnalyzer {
             const opts = { ...this.defaultOptions, ...options };
             const results = [];
             const sampleData = sampleProfile.str_data || {};
-            const allLoci = Object.keys(sampleData).filter(locus => 
-                !this.skipLoci.includes(locus)
+            const ignored = Array.isArray(opts.ignoredLoci) ? opts.ignoredLoci : [];
+            const allLoci = getAnalysisLoci([sampleProfile, ...staffProfiles]).filter(locus =>
+                !this.skipLoci.includes(locus) && !ignored.includes(locus)
             );
 
             logger.info('Начало анализа контаминации (v4.0 с нормализацией)', {

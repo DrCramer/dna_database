@@ -92,7 +92,7 @@ const LegacyCreateTaskPageView = ({
                 id="internalNumberStart"
                 name="internalNumberStart"
                 className="form-input"
-                placeholder="Например: 2024-001"
+                placeholder={numberLabel === '№ Экспертизы' ? '258' : 'Например: 2024-001'}
                 required
                 disabled={loading}
               />
@@ -120,7 +120,7 @@ const LegacyCreateTaskPageView = ({
                   id="internalNumberStartRange"
                   name="internalNumberStart"
                   className="form-input"
-                  placeholder="Например: 2024-001"
+                  placeholder={numberLabel === '№ Экспертизы' ? '258' : 'Например: 2024-001'}
                   required={isRangeMode}
                   disabled={loading}
                 />
@@ -130,7 +130,7 @@ const LegacyCreateTaskPageView = ({
                   id="internalNumberEnd"
                   name="internalNumberEnd"
                   className="form-input"
-                  placeholder="Например: 2024-010"
+                  placeholder={numberLabel === '№ Экспертизы' ? '260' : 'Например: 2024-010'}
                   required={isRangeMode}
                   disabled={loading}
                 />

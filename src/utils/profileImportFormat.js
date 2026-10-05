@@ -19,6 +19,13 @@ function geneticObjectKey(value) {
   return normalizeObjectName(value).toLowerCase();
 }
 
+// Полный номер объекта сохраняется отдельно; экспертиза — префикс до первого дефиса.
+function extractExpertiseNumber(objectNumber) {
+  const normalized = normalizeObjectName(objectNumber);
+  const separator = normalized.indexOf('-');
+  return (separator < 0 ? normalized : normalized.slice(0, separator)).trim();
+}
+
 // Пустые форматированные колонки справа не являются частью шапки.
 // Колонка с данными, но без заголовка, при этом остаётся ошибкой.
 function getGeneticHeaders(data) {
@@ -56,4 +63,4 @@ function validateGeneticHeaders(headers, minRequiredLoci = 3) {
   return { valid: errors.length === 0, errors, columns, recognizedMarkers: seen.size };
 }
 
-module.exports = { IMPORT_FORMATS, resolveProfileImportFormat, normalizeObjectName, geneticObjectKey, getGeneticHeaders, validateGeneticHeaders };
+module.exports = { IMPORT_FORMATS, resolveProfileImportFormat, normalizeObjectName, extractExpertiseNumber, geneticObjectKey, getGeneticHeaders, validateGeneticHeaders };

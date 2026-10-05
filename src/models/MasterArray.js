@@ -313,7 +313,7 @@ class MasterArray {
                 const existingKeys = new Set(
                     existingResult.rows
                         .filter(r => (r.metadata?.importFormat === 'genetic') || (r.year && r.internal_number))
-                        .map(r => r.metadata?.importFormat === 'genetic' ? `genetic:${geneticObjectKey(r.sample_name)}` : `${r.year}-${r.internal_number}`)
+                        .map(r => r.metadata?.importFormat === 'genetic' ? `genetic:${geneticObjectKey(r.internal_number)}` : `${r.year}-${r.internal_number}`)
                 );
 
                 // Проверить доступ пользователя один раз
@@ -379,12 +379,12 @@ class MasterArray {
 
                     // Проверка дубликатов
                     if (genetic || (year && internal_number)) {
-                        const profileKey = genetic ? `genetic:${geneticObjectKey(sample_name)}` : `${year}-${internal_number}`;
+                        const profileKey = genetic ? `genetic:${geneticObjectKey(internal_number)}` : `${year}-${internal_number}`;
                         if (existingKeys.has(profileKey)) {
                             results.errors.push({
                                 sample_name,
                                 internal_number,
-                                error: genetic ? `Объект «${sample_name}» уже есть в мастер-массиве.` : `Профиль с номером ${internal_number} за ${year} год уже существует в мастер массиве`
+                                error: genetic ? `Объект «${internal_number}» уже есть в мастер-массиве.` : `Профиль с номером ${internal_number} за ${year} год уже существует в мастер массиве`
                             });
                             continue;
                         }
@@ -525,8 +525,8 @@ class MasterArray {
                 }
 
                 if (genetic) {
-                    const duplicate = await client.query(`SELECT id FROM master_array_profiles WHERE master_array_id = $1 AND is_active = true AND metadata->>'importFormat' = 'genetic' AND lower(btrim(sample_name)) = lower(btrim($2))`, [this.id, sample_name]);
-                    if (duplicate.rows.length) throw new Error(`Объект «${sample_name}» уже есть в мастер-массиве.`);
+                    const duplicate = await client.query(`SELECT id FROM master_array_profiles WHERE master_array_id = $1 AND is_active = true AND metadata->>'importFormat' = 'genetic' AND lower(btrim(internal_number)) = lower(btrim($2))`, [this.id, internal_number]);
+                    if (duplicate.rows.length) throw new Error(`Объект «${internal_number}» уже есть в мастер-массиве.`);
                 }
                 // Verify user exists and has access to this department
                 const userResult = await client.query(`

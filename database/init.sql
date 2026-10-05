@@ -317,7 +317,7 @@ ALTER TABLE dna_profiles
 ADD CONSTRAINT dna_profiles_import_format_check CHECK (import_format IN ('emergency', 'genetic')),
 ADD CONSTRAINT dna_profiles_import_year_check CHECK (year IS NOT NULL OR import_format = 'genetic'),
 ADD CONSTRAINT dna_profiles_genetic_scope_check CHECK (import_format <> 'genetic' OR (department_id IS NOT NULL AND organization_id IS NOT NULL));
-CREATE UNIQUE INDEX idx_dna_profiles_genetic_object ON dna_profiles (organization_id, department_id, user_id, lower(btrim(sample_name))) WHERE is_active = true AND import_format = 'genetic' AND profile_type = 'user';
+CREATE UNIQUE INDEX idx_dna_profiles_genetic_object ON dna_profiles (organization_id, department_id, user_id, lower(btrim(internal_number))) WHERE is_active = true AND import_format = 'genetic' AND profile_type = 'user';
 
 -- Add organizational context to operation_history
 ALTER TABLE operation_history 
@@ -655,4 +655,33 @@ GRANT EXECUTE ON ALL FUNCTIONS IN SCHEMA public TO dna_user;
 -- ============================================================================
 
 ALTER TABLE master_array_profiles ADD CONSTRAINT master_array_profiles_import_year_check CHECK (year IS NOT NULL OR COALESCE(metadata->>'importFormat', 'emergency') = 'genetic');
-CREATE UNIQUE INDEX idx_master_array_genetic_object ON master_array_profiles (master_array_id, lower(btrim(sample_name))) WHERE is_active = true AND metadata->>'importFormat' = 'genetic';
+CREATE UNIQUE INDEX idx_master_array_genetic_object ON master_array_profiles (master_array_id, lower(btrim(internal_number))) WHERE is_active = true AND metadata->>'importFormat' = 'genetic';
+
+-- Необязательные генетические панели (029), без фиктивных определений.
+CREATE TABLE IF NOT EXISTS genotype_panels (
+  id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+  organization_id uuid NOT NULL REFERENCES organizations(id),
+  department_id uuid NOT NULL REFERENCES departments(id),
+  name varchar(150) NOT NULL CHECK (btrim(name) <> ''),
+  description text,
+  loci_order jsonb NOT NULL CHECK (jsonb_typeof(loci_order) = 'array' AND jsonb_array_length(loci_order) > 0),
+  is_active boolean NOT NULL DEFAULT true,
+  created_by uuid REFERENCES users(id),
+  updated_by uuid REFERENCES users(id),
+  created_at timestamp without time zone NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  updated_at timestamp without time zone NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  UNIQUE (id, organization_id, department_id)
+);
+CREATE UNIQUE INDEX IF NOT EXISTS idx_genotype_panels_name
+  ON genotype_panels (organization_id, department_id, lower(btrim(name)));
+ALTER TABLE dna_profiles ADD COLUMN IF NOT EXISTS panel_id uuid;
+DO $$ BEGIN
+  IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'dna_profiles_panel_scope_fkey') THEN
+    ALTER TABLE dna_profiles ADD CONSTRAINT dna_profiles_panel_scope_fkey
+      FOREIGN KEY (panel_id, organization_id, department_id)
+      REFERENCES genotype_panels (id, organization_id, department_id);
+    ALTER TABLE dna_profiles ADD CONSTRAINT dna_profiles_panel_format_check
+      CHECK (panel_id IS NULL OR import_format = 'genetic');
+  END IF;
+END $$;
+CREATE INDEX IF NOT EXISTS idx_dna_profiles_panel ON dna_profiles(panel_id) WHERE panel_id IS NOT NULL;

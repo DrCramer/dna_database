@@ -3,12 +3,7 @@ import AlgorithmSettings from './AlgorithmSettings';
 import { useProfileFieldLabel } from '../../hooks/useProfileFieldLabel';
 
 // Локусы для анализа (24 основных) - порядок как в таблице данных
-const ANALYSIS_LOCI = [
-  'D3S1358', 'vWA', 'D16S539', 'CSF1PO', 'TPOX', 'Yindel', 'AMEL',
-  'D8S1179', 'D21S11', 'D18S51', 'DYS391', 'D2S441', 'D19S433',
-  'TH01', 'FGA', 'D22S1045', 'D5S818', 'D13S317', 'D7S820', 'SE33',
-  'D10S1248', 'D1S1656', 'D12S391', 'D2S1338'
-];
+import { ALL_LOCI } from '../../../../src/utils/lociTypeDetector';
 
 /**
  * Компонент для анализа контаминации сотрудников
@@ -423,8 +418,8 @@ const StaffContaminationPanel = ({ profiles }) => {
                             </thead>
                             <tbody>
                               {[...result.detailedMatches].sort((a, b) => {
-                                const indexA = ANALYSIS_LOCI.indexOf(a.locus);
-                                const indexB = ANALYSIS_LOCI.indexOf(b.locus);
+                                const indexA = ALL_LOCI.indexOf(a.locus);
+                                const indexB = ALL_LOCI.indexOf(b.locus);
                                 return indexA - indexB;
                               }).map((match, idx) => (
                                 <tr key={idx} className={match.isStrongCritical ? 'strong-critical-row' : match.isCritical ? 'critical-row' : ''}>

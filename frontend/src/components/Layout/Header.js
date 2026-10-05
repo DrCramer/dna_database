@@ -1,10 +1,15 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { useAuth } from '../../contexts/AuthContext';
 import DepartmentSwitcher from '../Common/DepartmentSwitcher';
+import { resolveProfileImportFormat } from '../../../../src/utils/profileImportFormat';
 import ThemeSwitcher from '../Common/ThemeSwitcher';
 
 const Header = ({ user, onNavigate, onLogout, hasRole }) => {
-  useAuth();
+  const { activeDepartment } = useAuth();
+  const isGenetic = resolveProfileImportFormat(activeDepartment) === 'genetic';
+  const [showSettingsMenu, setShowSettingsMenu] = useState(false);
+  const settingsMenuRef = useRef(null);
+  const navigate = path => { setShowUserMenu(false); setShowSystemMenu(false); setShowSettingsMenu(false); onNavigate(path); };
   const [showUserMenu, setShowUserMenu] = useState(false);
   const [showSystemMenu, setShowSystemMenu] = useState(false);
   const userMenuRef = useRef(null);
@@ -12,6 +17,7 @@ const Header = ({ user, onNavigate, onLogout, hasRole }) => {
 
   useEffect(() => {
     const handleClickOutside = (event) => {
+      if (settingsMenuRef.current && !settingsMenuRef.current.contains(event.target)) setShowSettingsMenu(false);
       if (userMenuRef.current && !userMenuRef.current.contains(event.target)) {
         setShowUserMenu(false);
       }
@@ -22,6 +28,7 @@ const Header = ({ user, onNavigate, onLogout, hasRole }) => {
 
     const handleEscape = (event) => {
       if (event.key === 'Escape') {
+        setShowSettingsMenu(false);
         setShowUserMenu(false);
         setShowSystemMenu(false);
       }
@@ -70,7 +77,7 @@ const Header = ({ user, onNavigate, onLogout, hasRole }) => {
               key={item.path}
               title={item.label}
               aria-current={isActive(item.path) ? "page" : undefined}
-              onClick={() => onNavigate(item.path)}
+              onClick={() => navigate(item.path)}
               className={`nav-link ${isActive(item.path) ? 'active' : ''}`}
             >
               <span className="nav-icon">{item.icon}</span>
@@ -99,7 +106,7 @@ const Header = ({ user, onNavigate, onLogout, hasRole }) => {
                     title={item.label}
                     aria-current={isActive(item.path) ? 'page' : undefined}
                     onClick={() => {
-                      onNavigate(item.path);
+                      navigate(item.path);
                       setShowSystemMenu(false);
                     }}
                     className={`dropdown-item ${isActive(item.path) ? 'active' : ''} ${item.path === '/staff-profiles' ? 'dropdown-item-multiline' : ''}`}
@@ -116,7 +123,7 @@ const Header = ({ user, onNavigate, onLogout, hasRole }) => {
             key={adminSearchItem.path}
             title={adminSearchItem.label}
             aria-current={isActive(adminSearchItem.path) ? "page" : undefined}
-            onClick={() => onNavigate(adminSearchItem.path)}
+            onClick={() => navigate(adminSearchItem.path)}
             className={`nav-link ${isActive(adminSearchItem.path) ? 'active' : ''}`}
           >
             <span className="nav-icon">{adminSearchItem.icon}</span>
@@ -131,7 +138,7 @@ const Header = ({ user, onNavigate, onLogout, hasRole }) => {
         key={item.path}
         title={item.label}
         aria-current={isActive(item.path) ? 'page' : undefined}
-        onClick={() => onNavigate(item.path)}
+        onClick={() => navigate(item.path)}
         className={`nav-link ${isActive(item.path) ? 'active' : ''}`}
       >
         <span className="nav-icon">{item.icon}</span>
@@ -143,7 +150,7 @@ const Header = ({ user, onNavigate, onLogout, hasRole }) => {
   return (
     <header className="app-header">
       <div className="header-left">
-        <button onClick={() => onNavigate('/dashboard')} className="logo-button">
+        <button onClick={() => navigate('/dashboard')} className="logo-button">
           <div className="hm-loader-container hm-loader-small">
             <div className="dna-loader">
               <div className="dna-row row-1">
@@ -194,6 +201,10 @@ const Header = ({ user, onNavigate, onLogout, hasRole }) => {
 
       <nav className="header-nav">
         {renderNavigation()}
+        {isGenetic && <div className="nav-dropdown" ref={settingsMenuRef}>
+          <button className="nav-link dropdown-trigger" title="Настройки" aria-expanded={showSettingsMenu} aria-controls="settings-menu" onClick={() => setShowSettingsMenu(!showSettingsMenu)}><span className="nav-icon">⚙️</span><span>Настройки</span><span className="dropdown-arrow">{showSettingsMenu ? '▲' : '▼'}</span></button>
+          {showSettingsMenu && <div className="dropdown-menu" id="settings-menu"><button className={`dropdown-item ${isActive('/settings/panels') ? 'active' : ''}`} onClick={() => navigate('/settings/panels')}><span className="nav-icon">🧬</span><span className="dropdown-item-label">Панели</span></button></div>}
+        </div>}
       </nav>
 
       <div className="header-right">

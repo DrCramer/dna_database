@@ -37,7 +37,7 @@ test('Стандартный порядок и тот же профиль с п�
   const [b] = await parse([['Объект', 'D21S11', 'TH01', 'D5S818'], ['A-1', '29,30', '7,9', '11,12']]);
   assert.deepEqual(a.strData, { TH01: ['7', '9'], D5S818: ['11', '12'], D21S11: ['29', '30'] });
   assert.deepEqual(b.strData, a.strData);
-  assert.equal(a.sampleName, 'A-1');
+  assert.equal(a.sampleName, 'A');
   assert.equal(a.internalNumber, 'A-1');
   assert.equal(a.year, null);
 });
@@ -102,7 +102,7 @@ test('Нулевые значения не теряются, пустое фор
   book.Sheets[book.SheetNames[0]]['!ref'] = 'A1:Z10';
   const buffer = XLSX.write(book, { type: 'buffer', bookType: 'xlsx' });
   const [p] = await excel.parseExcelFile(buffer, 'genetic.xlsx', options);
-  assert.equal(p.sampleName, 'A-1');
+  assert.equal(p.sampleName, 'A');
   assert.equal(validation.validateFile(buffer, 'genetic.xlsx', options).valid, true);
 });
 
@@ -167,7 +167,7 @@ test('Старый ЧС mapping, год и служебные поля сохр�
 test('Модель разрешает NULL-год только genetic-профилю с организационным scope', () => {
   assert.throws(() => DNAProfile.validateImportFields({ sampleName: 'A-1' }), /Год обязателен/);
   assert.throws(() => DNAProfile.validateImportFields({ importFormat: 'genetic', sampleName: 'A-1' }), /активное отделение/);
-  assert.doesNotThrow(() => DNAProfile.validateImportFields({ importFormat: 'genetic', sampleName: 'A-1', departmentId: 'dept', organizationId: 'org', strData: { TH01: ['7', '9'] } }));
+  assert.doesNotThrow(() => DNAProfile.validateImportFields({ importFormat: 'genetic', sampleName: 'A', internalNumber: 'A-1', departmentId: 'dept', organizationId: 'org', strData: { TH01: ['7', '9'] } }));
 });
 
 test('Конкурентный конфликт записи возвращает понятную русскую ошибку', async t => {

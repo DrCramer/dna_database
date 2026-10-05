@@ -398,7 +398,9 @@ router.get('/:id/profiles', authenticate, validateUUID, requireTaskAccess(), asy
             [id]
         );
 
-        const profiles = result.rows.map(row => ({
+        const enrichedProfiles = await require('../models/DNAProfile').fromRows(result.rows);
+        const profiles = result.rows.map((row, index) => ({
+            ...enrichedProfiles[index].toJSON(),
             id: row.id,
             sampleName: row.sample_name,
             internalNumber: row.internal_number,

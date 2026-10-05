@@ -1195,9 +1195,10 @@ class TaskService {
                 str_data: profile.strData,
                 year: profile.year,
                 internal_number: profile.internalNumber,
-                import_number: task.internal_number_start,
+                import_number: profile.importFormat === 'genetic' ? profile.importNumber : task.internal_number_start,
                 metadata: {
                     importFormat: profile.importFormat,
+                    ...(profile.panel ? { panelId: profile.panel.id, panelName: profile.panel.name, panelLociOrder: profile.panel.lociOrder } : {}),
                     source: 'task',
                     task_id: taskId,
                     internal_number: profile.internalNumber,

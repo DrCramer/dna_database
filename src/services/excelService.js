@@ -3,9 +3,10 @@ const Joi = require('joi');
 const { LociTypeDetector, ALL_LOCI } = require('../utils/lociTypeDetector');
 const { logger } = require('../utils/logger');
 const DNAProfile = require('../models/DNAProfile');
+const { GenotypePanel } = require('../models/GenotypePanel');
 const User = require('../models/User');
 const { assertProfileUploadAllowed } = require('./profileUploadPolicy');
-const { resolveProfileImportFormat, normalizeObjectName, geneticObjectKey, getGeneticHeaders, validateGeneticHeaders } = require('../utils/profileImportFormat');
+const { resolveProfileImportFormat, normalizeObjectName, extractExpertiseNumber, geneticObjectKey, getGeneticHeaders, validateGeneticHeaders } = require('../utils/profileImportFormat');
 
 // Импортируем конвертер латинских символов
 const { LatinToCyrillicConverter } = require('./latinToCyrillicConverter');
@@ -122,15 +123,20 @@ class ExcelService {
       // Parse Excel file using existing logic
       const profiles = await this.parseExcelFile(fileBuffer, filename, options);
 
+      const panel = await GenotypePanel.resolveAssignment({ ...userContext, panelId: options.panelId || userContext.panelId, detectedPanelId: options.detectedPanelId });
+      const panelWarnings = GenotypePanel.compareLoci(panel, Object.keys(profiles[0]?.strData || {}));
+
       // Add user context to each profile
       const profilesWithContext = profiles.map(profile => ({
         ...profile,
+        panelId: panel?.id || null,
+        panel,
         userId,
         departmentId,
         organizationId,
         fileSource: filename,
         importFormat: importFormat || 'emergency',
-        metadata: { ...profile.metadata, departmentId, organizationId },
+        metadata: { ...profile.metadata, departmentId, organizationId, ...(panel ? { panelId: panel.id, panelName: panel.name, panelLociOrder: panel.lociOrder } : {}) },
         uploadContext: {
           uploadedAt: new Date().toISOString(),
           uploadedBy: userId,
@@ -149,6 +155,8 @@ class ExcelService {
 
       return {
         profiles: profilesWithContext,
+        panel,
+        panelWarnings,
         metadata: {
           filename,
           importFormat,
@@ -272,7 +280,7 @@ class ExcelService {
         try {
           // Step 1: Check for duplicates using in-memory data
           if (isGenetic && geneticChecks[i].action === 'conflict') {
-            result.duplicates.push({ sampleName: profile.sampleName, importFormat: 'genetic', lociCount: profile.totalLociCount,
+            result.duplicates.push({ sampleName: profile.sampleName, internalNumber: profile.internalNumber, importFormat: 'genetic', lociCount: profile.totalLociCount,
               reason: 'duplicate_object', existingProfiles: [geneticChecks[i].existing] });
             result.summary.duplicateCount++;
             continue;
@@ -318,6 +326,7 @@ class ExcelService {
             departmentId: userContext.departmentId,
             organizationId: userContext.organizationId,
             sampleName: profile.sampleName,
+            panelId: profile.panelId || null,
             internalNumber: profile.internalNumber,
             importNumber: profile.importNumber,
             strData: profile.strData,
@@ -362,6 +371,7 @@ class ExcelService {
           
           logger.warn('Error processing individual profile', {
             sampleName: profile.sampleName,
+            panelId: profile.panelId || null,
             internalNumber: profile.internalNumber,
             year: profile.year,
             error: error.message,
@@ -956,7 +966,7 @@ class ExcelService {
     
     for (const profile of profiles) {
       if (profile.importFormat === 'genetic' || (profile.year && profile.internalNumber)) {
-        const key = profile.importFormat === 'genetic' ? geneticObjectKey(profile.sampleName) : `${profile.year}-${profile.internalNumber}`;
+        const key = profile.importFormat === 'genetic' ? geneticObjectKey(profile.internalNumber) : `${profile.year}-${profile.internalNumber}`;
         
         if (profileKeys.has(key)) {
           // Найден дубликат!
@@ -988,7 +998,7 @@ class ExcelService {
     if (internalDuplicates.length > 0) {
       throw new ExcelParsingError(
         options.importFormat === 'genetic'
-          ? internalDuplicates.map(dup => `Обнаружен дубликат объекта «${dup.sampleName}»: первая строка ${dup.firstRow}, повторная строка ${dup.duplicateRow}.`).join('\n')
+          ? internalDuplicates.map(dup => `Обнаружен дубликат объекта «${dup.internalNumber}»: первая строка ${dup.firstRow}, повторная строка ${dup.duplicateRow}.`).join('\n')
           : `Обнаружены дубликаты внутри файла: ${internalDuplicates.length} повторяющихся номеров образцов`,
         EXCEL_ERROR_CODES.INTERNAL_DUPLICATES,
         { 
@@ -1620,9 +1630,10 @@ class ExcelService {
    * @returns {Object} Allele object with allele1 and allele2
    */
   extractGeneticProfileFromRow(row, headers, rowNumber, filename, validationResult) {
-    const sampleName = normalizeObjectName(row[0]);
-    if (!sampleName) throw new ExcelParsingError(`Строка ${rowNumber}: не заполнено обязательное поле «Объект».`, 'MISSING_OBJECT', { rowNumber });
-    if (sampleName.length > 100) throw new ExcelParsingError(`Строка ${rowNumber}: значение «Объект» длиннее 100 символов.`, 'INVALID_OBJECT', { rowNumber });
+    const objectNumber = normalizeObjectName(row[0]);
+    const sampleName = extractExpertiseNumber(objectNumber);
+    if (!objectNumber || !sampleName) throw new ExcelParsingError(`Строка ${rowNumber}: не заполнено обязательное поле «Объект».`, 'MISSING_OBJECT', { rowNumber });
+    if (objectNumber.length > 100) throw new ExcelParsingError(`Строка ${rowNumber}: значение «Объект» длиннее 100 символов.`, 'INVALID_OBJECT', { rowNumber });
     const strData = {};
     const lociTypes = {};
     const priorityMarkers = {};
@@ -1638,8 +1649,8 @@ class ExcelService {
     const breakdown = this.getLociTypeBreakdown(strData);
     return {
       sampleName,
-      // Legacy-экраны используют internalNumber: это тот же объект, без генерации.
-      internalNumber: sampleName,
+      // Полный номер объекта, включая суффикс, сохраняется без сокращения.
+      internalNumber: objectNumber,
       year: null,
       importNumber: null,
       importFormat: 'genetic',

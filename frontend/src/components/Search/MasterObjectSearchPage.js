@@ -120,7 +120,7 @@ const MasterObjectSearchPage = () => {
 
     const trimmedQuery = query.trim();
     if (!trimmedQuery) {
-      setError(`Введите название объекта, ${fieldLabel('internal_number', 'внутренний номер')}, привоз или фрагмент комментария.`);
+      setError(`Введите название объекта, ${fieldLabel('internal_number', 'внутренний номер')}, ${fieldLabel('import_number', 'привоз')} или фрагмент комментария.`);
       setResults([]);
       setSelectedObject(null);
       setSelectedObjectId(null);
@@ -173,7 +173,7 @@ const MasterObjectSearchPage = () => {
           <p className="master-object-search-eyebrow">Глобальный поиск</p>
           <h1>Поиск объектов мастер-массива</h1>
           <p className="master-object-search-subtitle">
-            Ищите объекты по названию, {fieldLabel('internal_number', 'внутреннему номеру')}, привозу, комментариям и связанным метаданным.
+            Ищите объекты по названию, {fieldLabel('internal_number', 'внутреннему номеру')}, {fieldLabel('import_number', 'привозу')}, комментариям и связанным метаданным.
           </p>
         </div>
 
@@ -182,7 +182,7 @@ const MasterObjectSearchPage = () => {
             type="text"
             value={query}
             onChange={(event) => setQuery(event.target.value)}
-            placeholder={`Например: объект, ${fieldLabel('internal_number', 'внутренний номер')}, привоз, комментарий...`}
+            placeholder={`Например: объект, ${fieldLabel('internal_number', 'внутренний номер')}, ${fieldLabel('import_number', 'привоз')}, комментарий...`}
             className="master-object-search-input form-input"
           />
           <button type="submit" className="master-object-search-button btn btn-primary" disabled={loading}>
@@ -231,7 +231,8 @@ const MasterObjectSearchPage = () => {
                   </div>
                   <div className="master-object-search-result-meta">
                     <span>{fieldLabel('internal_number', 'Внутренний номер')}: {item.internal_number || 'Нет данных'}</span>
-                    <span>Привоз: {item.import_number || 'Нет данных'}</span>
+                    <span>{fieldLabel('import_number', 'Привоз')}: {item.import_number || 'Нет данных'}</span>
+                    {item.panelName && <span>Панель: {item.panelName}</span>}
                     <span>Год: {item.year || 'Нет данных'}</span>
                     <span>Изменён: {formatDateTime(item.updated_at)}</span>
                   </div>
@@ -278,7 +279,7 @@ const MasterObjectSearchPage = () => {
                   <strong>{selectedObject.internal_number || 'Нет данных'}</strong>
                 </div>
                 <div className="master-object-card-field">
-                  <span>Привоз</span>
+                  <span>{fieldLabel('import_number', 'Привоз')}</span>
                   <strong>{selectedObject.import_number || 'Нет данных'}</strong>
                 </div>
                 <div className="master-object-card-field">
