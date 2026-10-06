@@ -107,7 +107,7 @@ const ErrorDetailsSection = ({ errors }) => {
   );
 };
 
-const FileUploader = ({ onNavigate, onUploadSuccess, selectedActiveTask }) => {
+const FileUploader = ({ onNavigate, onUploadSuccess, selectedActiveTask, onSelectActiveTask }) => {
   const [file, setFile] = useState(null);
   const [uploading, setUploading] = useState(false);
   const [showDnaLoading, setShowDnaLoading] = useState(false);
@@ -137,9 +137,34 @@ const FileUploader = ({ onNavigate, onUploadSuccess, selectedActiveTask }) => {
   }, [activeDepartmentId, isGenetic]);
   const uploadDepartmentRef = React.useRef(activeDepartmentId);
   const uploadTaskRef = React.useRef(selectedActiveTask);
+  const uploadTargetRef = React.useRef('task');
+  const [uploadTarget, setUploadTarget] = useState('task');
+  const [activeTasks, setActiveTasks] = useState([]);
+  const [taskLoading, setTaskLoading] = useState(true);
+  const [taskError, setTaskError] = useState('');
   const [permissionLoading, setPermissionLoading] = useState(true);
   const [permissionError, setPermissionError] = useState('');
-  const uploadBlockReason = permissionError || getProfileUploadBlockReason(user, selectedActiveTask, activeDepartmentId);
+  const uploadBlockReason = (taskLoading ? 'Загружается список задач.' : taskError) || permissionError || getProfileUploadBlockReason(user, selectedActiveTask, activeDepartmentId, uploadTarget);
+
+  React.useEffect(() => { setUploadTarget('task'); }, [activeDepartmentId]);
+  React.useEffect(() => {
+    const controller = new AbortController();
+    setTaskLoading(true);
+    fetch('/api/tasks/my-active', { signal: controller.signal, headers: {
+      Authorization: `Bearer ${localStorage.getItem('token')}`,
+      'X-Active-Department-Id': activeDepartmentId
+    } }).then(async response => {
+      const body = await response.json();
+      if (!response.ok) throw new Error(body.message || 'Не удалось загрузить задачи.');
+      const tasks = (body.data || []).filter(task => task.department_id === activeDepartmentId && task.status === 'in_progress' && task.is_active !== false);
+      if (controller.signal.aborted) return;
+      setActiveTasks(tasks); setTaskError('');
+      if (selectedActiveTask?.id && !tasks.some(task => task.id === selectedActiveTask.id)) onSelectActiveTask?.(null);
+      else if (!selectedActiveTask?.id && uploadTarget === 'task' && tasks.length === 1) onSelectActiveTask?.(tasks[0]);
+    }).catch(err => { if (!controller.signal.aborted) setTaskError(err.message); })
+      .finally(() => { if (!controller.signal.aborted) setTaskLoading(false); });
+    return () => controller.abort();
+  }, [activeDepartmentId, selectedActiveTask?.id, uploadTarget, onSelectActiveTask]);
 
   React.useEffect(() => {
     const controller = new AbortController();
@@ -166,7 +191,7 @@ const FileUploader = ({ onNavigate, onUploadSuccess, selectedActiveTask }) => {
     setUploadResult(null);
     setError(null);
     if (fileInputRef.current) fileInputRef.current.value = '';
-  }, [activeDepartmentId, selectedActiveTask?.id]);
+  }, [activeDepartmentId, selectedActiveTask?.id, uploadTarget]);
   const fileInputRef = React.useRef(null);
 
   const handleFileChange = (e) => {
@@ -186,6 +211,7 @@ const FileUploader = ({ onNavigate, onUploadSuccess, selectedActiveTask }) => {
 
     uploadDepartmentRef.current = activeDepartmentId;
     uploadTaskRef.current = selectedActiveTask;
+    uploadTargetRef.current = selectedActiveTask?.id ? 'task' : uploadTarget;
     setUploading(true);
     setShowDnaLoading(true);
     setError(null);
@@ -194,7 +220,7 @@ const FileUploader = ({ onNavigate, onUploadSuccess, selectedActiveTask }) => {
 
     try {
       const freshUser = await refreshUser();
-      const reason = getProfileUploadBlockReason(freshUser, uploadTaskRef.current, uploadDepartmentRef.current);
+      const reason = getProfileUploadBlockReason(freshUser, uploadTaskRef.current, uploadDepartmentRef.current, uploadTargetRef.current);
       if (reason) throw new Error(reason);
       // Get token from user context instead of localStorage
       const token = user?.accessToken || localStorage.getItem('token');
@@ -220,6 +246,7 @@ const FileUploader = ({ onNavigate, onUploadSuccess, selectedActiveTask }) => {
 
       const formData = new FormData();
       formData.append('file', file);
+      formData.append('uploadTarget', uploadTargetRef.current);
       if (isGenetic && panelId) formData.append('panelId', panelId);
 
       // Добавить taskId если задача выбрана
@@ -283,6 +310,7 @@ const FileUploader = ({ onNavigate, onUploadSuccess, selectedActiveTask }) => {
       }
 
       const previewResult = await previewResponse.json();
+      if ((previewResult.preview.taskId || null) !== (uploadTaskRef.current?.id || null)) throw new Error('Сервер не подтвердил выбранную задачу. Загрузка отменена.');
       setPanelWarnings(previewResult.preview.panelWarnings || []);
       // Проверяем есть ли профили для замены
       const hasReplaceable = previewResult.preview.breakdown.replace > 0;
@@ -330,6 +358,10 @@ const FileUploader = ({ onNavigate, onUploadSuccess, selectedActiveTask }) => {
   // ЭТАП 2: Фактическая загрузка с сохранением в БД
   const performActualUpload = async (token, formData) => {
     try {
+      // Все варианты импорта используют назначение, зафиксированное до preview.
+      formData.set('uploadTarget', uploadTargetRef.current);
+      if (uploadTaskRef.current?.id) formData.set('taskId', uploadTaskRef.current.id);
+      else formData.delete('taskId');
       // Update progress: parsing file
       setUploadProgress({ current: 0, total: 0, stage: 'Чтение данных из файла...' });
 
@@ -423,6 +455,10 @@ const FileUploader = ({ onNavigate, onUploadSuccess, selectedActiveTask }) => {
   // Завершение функции performActualUpload - обработка успешного ответа
   const completePerformActualUpload = async (result) => {
     if (result.success) {
+      const expectedTaskId = uploadTaskRef.current?.id || null;
+      if ((result.taskId || null) !== expectedTaskId || (result.data?.createdProfiles || []).some(profile => (profile.taskId || null) !== expectedTaskId)) {
+        throw new Error('Сервер вернул профили с другим назначением. Проверьте задачу перед повторной загрузкой.');
+      }
       setUploadProgress({
         current: (result.processing?.created || 0) + (result.processing?.replaced || 0),
         total: (result.processing?.created || 0) + (result.processing?.replaced || 0),
@@ -536,6 +572,22 @@ const FileUploader = ({ onNavigate, onUploadSuccess, selectedActiveTask }) => {
               Назад к дашборду
             </button>
           </div>
+        </div>
+
+        <div className="form-group">
+          <label className="form-label" htmlFor="upload-task">Куда загрузить профили *</label>
+          <select id="upload-task" className="form-control" disabled={taskLoading || uploading || showReplaceConfirm}
+            value={selectedActiveTask?.id || (uploadTarget === 'without_task' ? '__without_task__' : '')}
+            onChange={event => {
+              const value = event.target.value;
+              setUploadTarget(value === '__without_task__' ? 'without_task' : 'task');
+              onSelectActiveTask?.(activeTasks.find(task => task.id === value) || null);
+            }}>
+            <option value="">Выберите задачу со статусом «В работе»</option>
+            {activeTasks.map(task => <option key={task.id} value={task.id}>{task.title}</option>)}
+            {user?.can_upload_without_task === true && <option value="__without_task__">Без задачи — отдельная загрузка</option>}
+          </select>
+          {uploadTarget === 'without_task' && <p>Профили будут загружены без привязки к задаче.</p>}
         </div>
 
         {/* Индикатор активной задачи */}

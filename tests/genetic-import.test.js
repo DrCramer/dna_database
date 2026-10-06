@@ -15,7 +15,8 @@ test('UI учитывает оба права, статус задачи и ак
   assert.match(getProfileUploadBlockReason(user, null, 'genetic'), /выберите активную задачу/);
   assert.equal(getProfileUploadBlockReason(user, task, 'genetic'), '');
   assert.match(getProfileUploadBlockReason({ ...user, can_upload_with_task: false }, task, 'genetic'), /запрещена/);
-  assert.equal(getProfileUploadBlockReason({ ...user, can_upload_without_task: true }, null, 'genetic'), '');
+  assert.match(getProfileUploadBlockReason({ ...user, can_upload_without_task: true }, null, 'genetic'), /явно/);
+  assert.equal(getProfileUploadBlockReason({ ...user, can_upload_without_task: true }, null, 'genetic', 'without_task'), '');
   assert.match(getProfileUploadBlockReason(user, { ...task, status: 'completed' }, 'genetic'), /В работе/);
   assert.match(getProfileUploadBlockReason(user, task, 'emergency'), /другому отделению/);
   assert.match(getProfileUploadBlockReason({ ...user, role: 'viewer' }, task, 'genetic'), /нет права/);
@@ -133,7 +134,7 @@ test('Смена активного отделения и bulkUpload не зам
   t.mock.method(User, 'findById', async () => ({ department_id: 'emergency', role: 'admin', can_upload_without_task: true, getAccessibleDepartments: async () => departments }));
   t.mock.method(DNAProfile, 'checkExistingProfiles', async (userId, profiles) => profiles.map(() => ({ action: 'create' })));
   t.mock.method(DNAProfile, 'batchInsert', async profiles => profiles.map(p => new DNAProfile(p)));
-  const context = { userId: 'tester', departmentId: 'genetic' };
+  const context = { userId: 'tester', departmentId: 'genetic', uploadTarget: 'without_task' };
   const result = await excel.parseExcelFileWithContext(workbook(standard), 'genetic.xlsx', context);
   assert.equal(result.profiles[0].departmentId, 'genetic');
   assert.equal(result.metadata.importFormat, 'genetic');

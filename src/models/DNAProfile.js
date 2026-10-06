@@ -980,7 +980,7 @@ class DNAProfile {
    * @param {string} fileSource - File source
    * @returns {Promise<Array>} Array of created profiles
    */
-  static async batchInsert(profilesData, userId, fileSource) {
+  static async batchInsert(profilesData, userId, fileSource, options = {}) {
     if (!profilesData || profilesData.length === 0) {
       return [];
     }
@@ -1028,7 +1028,23 @@ class DNAProfile {
         RETURNING *
       `;
 
-      const result = await query(queryText, params);
+      const result = options.uploadContext ? await transaction(async client => {
+        const context = options.uploadContext;
+        const { assertProfileUploadAllowed, ProfileUploadAccessError } = require('../services/profileUploadPolicy');
+        const userResult = await client.query('SELECT * FROM users WHERE id = $1 AND is_active = true FOR SHARE', [userId]);
+        if (!userResult.rows[0]) throw new ProfileUploadAccessError('Учётная запись недоступна.', 'UPLOAD_FORBIDDEN');
+        await assertProfileUploadAllowed(userResult.rows[0], context, { query: client.query.bind(client), lockTask: true });
+        const expectedTaskId = context.taskId || null;
+        const matchesContext = row => (row.task_id || null) === expectedTaskId && row.user_id === userId && row.department_id === context.departmentId && row.organization_id === context.organizationId;
+        if (profilesData.some(profile => (profile.taskId || null) !== expectedTaskId || profile.departmentId !== context.departmentId || profile.organizationId !== context.organizationId)) {
+          throw new ProfileUploadAccessError('Назначение профилей не соответствует выбранной задаче.', 'TASK_BINDING_MISMATCH', 409);
+        }
+        const inserted = await client.query(queryText, params);
+        if (inserted.rows.length !== profilesData.length || !inserted.rows.every(matchesContext)) {
+          throw new ProfileUploadAccessError('Не удалось подтвердить привязку всех профилей. Загрузка отменена.', 'TASK_BINDING_MISMATCH', 409);
+        }
+        return inserted;
+      }) : await query(queryText, params);
 
       logger.info('Batch insert completed', {
         userId,

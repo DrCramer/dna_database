@@ -387,7 +387,7 @@ class ExcelService {
         
         let createdProfiles;
         try {
-          createdProfiles = await DNAProfile.batchInsert(profilesToCreate, userId, profilesToCreate[0].fileSource);
+          createdProfiles = await DNAProfile.batchInsert(profilesToCreate, userId, profilesToCreate[0].fileSource, { uploadContext: userContext });
         } catch (error) {
           if (error.code === '23505' && error.constraint === 'idx_dna_profiles_genetic_object') {
             throw new ExcelParsingError('Объект уже загружен в активное отделение. Обновите предварительный просмотр и повторите загрузку.', 'OBJECT_CONFLICT');
@@ -641,6 +641,7 @@ class ExcelService {
       // Step 3: Compile final result
       const finalResult = {
         uploadId: require('crypto').randomUUID(),
+        taskId: enrichedUserContext.taskId || null,
         filename,
         uploadedBy: enrichedUserContext.username,
         uploadedAt: new Date().toISOString(),

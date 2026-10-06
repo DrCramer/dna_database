@@ -18,6 +18,7 @@ node_modules
 !/scripts/update_server.sh
 !/scripts/bootstrap-admin.js
 !/scripts/check-ui.js
+!/scripts/attach-profiles-to-task.js
 *.backup*.js
 npm-debug.log
 .git

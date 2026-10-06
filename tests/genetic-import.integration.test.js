@@ -65,6 +65,7 @@ test('Реальные PostgreSQL, authenticate, preview и upload', { skip: !da
   async function upload(endpoint, department, rows, fields = {}) {
     const form = new FormData();
     form.append('file', new Blob([buffer(rows)]), 'fixture.xlsx');
+    form.append('uploadTarget', fields.taskId || fields.task_id ? 'task' : 'without_task');
     Object.entries(fields).forEach(([key, value]) => form.append(key, value));
     const response = await fetch(`${baseUrl}${endpoint}`, { method: 'POST', headers: { Authorization: `Bearer ${accessToken}`, 'X-Active-Department-Id': department }, body: form });
     const body = await response.json();
@@ -393,14 +394,111 @@ test('Реальные PostgreSQL, authenticate, preview и upload', { skip: !da
       assert.equal((await requestUpload('/upload/preview', groupTask)).body.code, 'TASK_ACCESS_DENIED');
     });
 
+    await t.test('Принятие → preview → все варианты импорта → профили задачи → анализ', async () => {
+      const acceptedTaskId = await task('assigned');
+      const accepted = await fetch(`${apiUrl}/tasks/${acceptedTaskId}/status`, { method: 'PUT', headers: headers(restrictedToken), body: JSON.stringify({ status: 'in_progress' }) });
+      const acceptedBody = await accepted.json();
+      assert.equal(accepted.status, 200, JSON.stringify(acceptedBody));
+      assert.equal(acceptedBody.data.task.id, acceptedTaskId);
+      assert.equal(acceptedBody.data.task.status, 'in_progress');
+      const preview = await requestUpload('/upload/preview', acceptedTaskId, 'ACCEPTED-1');
+      assert.equal(preview.status, 200, JSON.stringify(preview.body));
+      assert.equal(preview.body.preview.taskId, acceptedTaskId);
+      const normal = await requestUpload('/upload', acceptedTaskId, 'ACCEPTED-1');
+      assert.equal(normal.status, 200, JSON.stringify(normal.body));
+      assert.equal(normal.body.taskId, acceptedTaskId);
+      assert.equal(normal.body.data.createdProfiles[0].taskId, acceptedTaskId);
+      const alias = await requestUpload('/upload', undefined, 'ACCEPTED-2', { task_id: acceptedTaskId });
+      assert.equal(alias.status, 200, JSON.stringify(alias.body));
+      assert.equal(alias.body.taskId, acceptedTaskId);
+      const bulk = await requestUpload('/bulk-upload-with-comparison', acceptedTaskId, 'ACCEPTED-3', { compareMasterArray: 'false' });
+      assert.equal(bulk.status, 200, JSON.stringify(bulk.body));
+      assert.equal(bulk.body.taskId, acceptedTaskId);
+      const stored = (await query("SELECT task_id, department_id, organization_id FROM dna_profiles WHERE user_id=$1 AND internal_number LIKE 'ACCEPTED-%'", [restrictedId])).rows;
+      assert.equal(stored.length, 3);
+      assert(stored.every(p => p.task_id === acceptedTaskId && p.department_id === genetic && p.organization_id === organization));
+      const listing = await fetch(`${apiUrl}/tasks/${acceptedTaskId}/profiles`, { headers: headers(restrictedToken) });
+      assert.equal((await listing.json()).data.count, 3);
+      const search = await fetch(`${apiUrl}/genotype-analysis/task-search`, { method: 'POST', headers: headers(restrictedToken), body: JSON.stringify({ taskId: acceptedTaskId, minMatches: 3, searchMode: 'task' }) });
+      const searchBody = await search.json();
+      assert.equal(search.status, 200, JSON.stringify(searchBody));
+      assert.equal(searchBody.totalAnalyzed, 3);
+      assert.equal(searchBody.results.length, 3);
+    });
+
+    await t.test('Несогласованные назначения и пропущенная задача отклоняются без записи', async () => {
+      await setPermissions(true, true);
+      for (const endpoint of ['/upload/preview', '/upload', '/bulk-upload-with-comparison']) {
+        const missing = await requestUpload(endpoint, undefined, 'MISSING-TASK');
+        assert.equal(missing.status, 409, JSON.stringify(missing.body));
+        assert.equal(missing.body.code, 'UPLOAD_TARGET_REQUIRED');
+        assert.equal((await requestUpload(endpoint, taskId, 'TARGET-CONFLICT', { uploadTarget: 'without_task' })).body.code, 'UPLOAD_TARGET_CONFLICT');
+        assert.equal((await requestUpload(endpoint, taskId, 'ID-CONFLICT', { task_id: require('node:crypto').randomUUID() })).body.code, 'TASK_ID_CONFLICT');
+        assert.equal((await requestUpload(endpoint, undefined, 'BAD-TARGET', { uploadTarget: 'typo' })).status, 400);
+      }
+      assert.equal((await query("SELECT count(*)::int AS count FROM dna_profiles WHERE user_id=$1 AND internal_number IN ('MISSING-TASK','TARGET-CONFLICT','ID-CONFLICT','BAD-TARGET')", [restrictedId])).rows[0].count, 0);
+      await setPermissions(true, false);
+    });
+
+    await t.test('Изменение статуса и отзыв права между preview и INSERT не оставляют профили', async t => {
+      const original = DNAProfile.batchInsert;
+      const preview = await requestUpload('/upload/preview', taskId, 'RACE-STATUS');
+      assert.equal(preview.status, 200);
+      let revokePermission = false;
+      t.mock.method(DNAProfile, 'batchInsert', async (...args) => {
+        if (revokePermission) await query('UPDATE users SET can_upload_with_task=false WHERE id=$1', [restrictedId]);
+        else await query("UPDATE tasks SET status='completed' WHERE id=$1", [taskId]);
+        return original.apply(DNAProfile, args);
+      });
+      try {
+        assert.equal((await requestUpload('/upload', taskId, 'RACE-STATUS')).body.code, 'TASK_NOT_IN_PROGRESS');
+        await query("UPDATE tasks SET status='in_progress' WHERE id=$1", [taskId]);
+        revokePermission = true;
+        assert.equal((await requestUpload('/upload', taskId, 'RACE-PERMISSION')).body.code, 'TASK_UPLOAD_FORBIDDEN');
+        assert.equal((await query("SELECT count(*)::int AS count FROM dna_profiles WHERE user_id=$1 AND internal_number LIKE 'RACE-%'", [restrictedId])).rows[0].count, 0);
+      } finally { await query('UPDATE users SET can_upload_with_task=true WHERE id=$1', [restrictedId]); }
+    });
+
+    await t.test('Потеря task_id на INSERT откатывает всю загрузку', async () => {
+      await query("CREATE FUNCTION test_lose_upload_task() RETURNS trigger LANGUAGE plpgsql AS $$ BEGIN IF NEW.internal_number = 'LOST-BINDING' THEN NEW.task_id := NULL; END IF; RETURN NEW; END $$; CREATE TRIGGER test_lose_upload_task BEFORE INSERT ON dna_profiles FOR EACH ROW EXECUTE FUNCTION test_lose_upload_task()");
+      try {
+        const lost = await requestUpload('/upload', taskId, 'LOST-BINDING');
+        assert.equal(lost.status, 409, JSON.stringify(lost.body));
+        assert.equal(lost.body.code, 'TASK_BINDING_MISMATCH');
+        assert.equal((await query("SELECT count(*)::int AS count FROM dna_profiles WHERE user_id=$1 AND internal_number='LOST-BINDING'", [restrictedId])).rows[0].count, 0);
+      } finally { await query('DROP TRIGGER test_lose_upload_task ON dna_profiles; DROP FUNCTION test_lose_upload_task()'); }
+    });
+
+    await t.test('Восстановление привязывает только одну выбранную загрузку, сохраняя STR и метаданные', async () => {
+      const { attachOrphanProfiles } = require('../src/services/profileTaskRecoveryService');
+      const repairTask = await task();
+      const original = await DNAProfile.create({ userId: restrictedId, departmentId: genetic, organizationId: organization, importFormat: 'genetic', sampleName: 'REPAIR', internalNumber: 'REPAIR-1', strData: { TH01: ['7', '9'], D5S818: ['11', '12'], D21S11: ['29', '30'] }, fileSource: 'repair.xlsx', notes: 'Сохранить комментарий' });
+      const second = await DNAProfile.create({ userId: restrictedId, departmentId: genetic, organizationId: organization, importFormat: 'genetic', sampleName: 'OTHER', internalNumber: 'OTHER-1', strData: original.strData, fileSource: 'other.xlsx' });
+      const before = (await query('SELECT to_jsonb(p) AS snapshot FROM dna_profiles p WHERE id=$1', [original.id])).rows[0].snapshot;
+      const options = { task: repairTask, username: restrictedName };
+      const preview = await attachOrphanProfiles(options);
+      assert.equal(preview.orphanCount, 2); assert.equal(preview.attached, 0);
+      await assert.rejects(attachOrphanProfiles({ ...options, apply: true, saveUndo: async () => 'unused' }), /несколько загрузок/);
+      let undo;
+      const report = await attachOrphanProfiles({ ...options, file: 'repair.xlsx', apply: true, saveUndo: async record => { undo = record; return 'test-private-undo.json'; } });
+      assert.equal(report.attached, 1); assert.equal(undo.profiles[0].id, original.id);
+      const after = (await query('SELECT to_jsonb(p) AS snapshot FROM dna_profiles p WHERE id=$1', [original.id])).rows[0].snapshot;
+      assert.deepEqual(after, { ...before, task_id: repairTask });
+      assert.equal((await query('SELECT task_id FROM dna_profiles WHERE id=$1', [second.id])).rows[0].task_id, null);
+      assert.equal((await attachOrphanProfiles({ ...options, file: 'repair.xlsx', apply: true })).attached, 0);
+      assert.equal((await query("SELECT count(*)::int AS count FROM operation_history WHERE operation_type='PROFILE_TASK_BINDING_REPAIR' AND operation_details->>'taskId'=$1", [repairTask])).rows[0].count, 1);
+      await assert.rejects(attachOrphanProfiles({ task: repairTask, username }), /не найдена/);
+    });
+
     await t.test('Четыре сочетания прав и отзыв доступа проверяются с тем же JWT', async () => {
       for (const [withTask, withoutTask] of [[true, false], [false, false], [false, true], [true, true]]) {
         await setPermissions(withTask, withoutTask);
         assert.equal((await requestUpload('/upload/preview', taskId)).status, withTask ? 200 : 403);
-        assert.equal((await requestUpload('/upload/preview')).status, withoutTask ? 200 : 403);
+        assert.equal((await requestUpload('/upload/preview')).status, withoutTask ? 409 : 403);
+        assert.equal((await requestUpload('/upload/preview', undefined, 'PERMISSION-PROFILE', { uploadTarget: 'without_task' })).status, withoutTask ? 200 : 403);
       }
       await setPermissions(false, true);
-      const free = await requestUpload('/upload', undefined, 'EXPLICITLY-ALLOWED');
+      const free = await requestUpload('/upload', undefined, 'EXPLICITLY-ALLOWED', { uploadTarget: 'without_task' });
       assert.equal(free.status, 200, JSON.stringify(free.body));
       assert.equal((await query("SELECT task_id FROM dna_profiles WHERE user_id = $1 AND internal_number = 'EXPLICITLY-ALLOWED'", [restrictedId])).rows[0].task_id, null);
       await setPermissions(false, false);

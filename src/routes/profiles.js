@@ -286,10 +286,14 @@ const handleMulterError = (err, req, res, next) => {
 
 // Используем только контекст, уже проверенный authenticate.
 async function getImportContext(req) {
+  if (req.body.taskId && req.body.task_id && req.body.taskId !== req.body.task_id) {
+    throw new ProfileUploadAccessError('Переданы разные идентификаторы задачи.', 'TASK_ID_CONFLICT', 400);
+  }
   return excelService.resolveUserContext({
     userId: req.user.id,
     departmentId: req.activeDepartmentId || req.organizationalContext?.department_id,
-    taskId: req.body.taskId || null,
+    taskId: req.body.taskId || req.body.task_id || null,
+    uploadTarget: req.body.uploadTarget,
     panelId: req.body.panelId || null
   });
 }
@@ -347,6 +351,8 @@ router.post('/upload/preview',
 
     // Build preview response
     const preview = {
+      taskId: userContext.taskId || null,
+      uploadTarget: userContext.taskId ? 'task' : 'without_task',
       importFormat: userContext.importFormat,
       totalProfiles: parseResult.profiles.length,
       panel: parseResult.panel,
@@ -635,6 +641,8 @@ router.post('/upload',
       message: 'File processed successfully with validation and saved to database',
       importFormat: result.importFormat,
       uploadId: result.uploadId,
+      taskId: result.taskId,
+      uploadTarget: result.taskId ? 'task' : 'without_task',
       filename: originalname,
       uploadedBy: result.uploadedBy,
       uploadedAt: result.uploadedAt,
@@ -660,6 +668,7 @@ router.post('/upload',
       data: {
         createdProfiles: result.processing.created.map(item => ({
           id: item.profile.id,
+          taskId: item.profile.taskId || null,
           importFormat: item.profile.importFormat,
           year: item.profile.year,
           lociCount: Object.keys(item.profile.strData || {}).length,
@@ -795,6 +804,8 @@ router.post('/bulk-upload-with-comparison',
 
     // Enhanced analysis of results
     const analysisResults = {
+      taskId: result.taskId,
+      uploadTarget: result.taskId ? 'task' : 'without_task',
       uploadSummary: {
         uploadId: result.uploadId,
         filename: originalname,
@@ -824,7 +835,7 @@ router.post('/bulk-upload-with-comparison',
       qualityMetrics: {
         averageCompleteness: calculateAverageCompleteness(result.processing.created),
         recommendedAnalysisTypes: getRecommendedAnalysisTypes(result.processing.created),
-        dataQualityDistribution: this.getDataQualityDistribution(result.processing.created)
+        dataQualityDistribution: getDataQualityDistribution(result.processing.created)
       },
       recommendations: result.recommendations
     };

@@ -508,7 +508,7 @@ const Dashboard = ({ onNavigate, selectedActiveTask, setSelectedActiveTask, onNo
   );
 };
 
-const TasksPage = ({ onNavigate }) => {
+const TasksPage = ({ onNavigate, onSelectActiveTask }) => {
   const { user, hasRole, activeDepartmentId, activeDepartment } = useAuth();
   const [tasks, setTasks] = React.useState([]);
   const [loading, setLoading] = React.useState(true);
@@ -701,6 +701,8 @@ const TasksPage = ({ onNavigate }) => {
       });
 
       if (response.ok) {
+        const data = await response.json();
+        if (newStatus === 'in_progress' && data.data?.task) onSelectActiveTask?.(data.data.task);
         loadTasks();
         setShowModal(false);
       } else {
@@ -1220,6 +1222,14 @@ function FixedApp() {
 
   // Глобальный state для активной задачи (для передачи между компонентами)
   const [selectedActiveTask, setSelectedActiveTask] = useState(null);
+  const handleSelectActiveTask = React.useCallback((task) => {
+    const savedUser = JSON.parse(localStorage.getItem('user') || 'null');
+    const departmentId = task?.department_id || savedUser?.active_department_id || savedUser?.department_id;
+    const storageKey = getSelectedActiveTaskStorageKey(departmentId);
+    if (task) localStorage.setItem(storageKey, task.id);
+    else localStorage.removeItem(storageKey);
+    setSelectedActiveTask(task || null);
+  }, []);
 
   // Глобальный state для Toast уведомлений
   const [toastNotification, setToastNotification] = useState(null);
@@ -1388,6 +1398,7 @@ function FixedApp() {
                     <FileUploader
                       onNavigate={navigate}
                       selectedActiveTask={selectedActiveTask}
+                      onSelectActiveTask={handleSelectActiveTask}
                     />
                   </PageTransition>
                 </ProtectedRoute>
@@ -1448,7 +1459,7 @@ function FixedApp() {
               element={
                 <ProtectedRoute onNavigate={navigate}>
                   <PageTransition>
-                    <TasksPage onNavigate={navigate} />
+                    <TasksPage onNavigate={navigate} onSelectActiveTask={handleSelectActiveTask} />
                   </PageTransition>
                 </ProtectedRoute>
               }
