@@ -14,7 +14,8 @@ exports/
 
 # Generated output and local tools
 node_modules/
-public/
+# Generated webpack output at the repository root; frontend/public is source.
+/public/
 frontend/src/consolidated/
 coverage/
 .nyc_output/
