@@ -17,6 +17,7 @@ class SystemParameters {
         this.parameterDefinitions = {
             drop_out_probability: {
                 type: 'number',
+                storageType: 'probability',
                 description: 'Probability of allele drop-out during PCR amplification',
                 minValue: 0.001,
                 maxValue: 0.1,
@@ -24,6 +25,7 @@ class SystemParameters {
             },
             false_allele_probability: {
                 type: 'number', 
+                storageType: 'probability',
                 description: 'Probability of false allele detection',
                 minValue: 0.001,
                 maxValue: 0.05,
@@ -31,6 +33,7 @@ class SystemParameters {
             },
             inbreeding_coefficient: {
                 type: 'number',
+                storageType: 'coefficient',
                 description: 'Population inbreeding coefficient for Hardy-Weinberg calculations',
                 minValue: 0.0,
                 maxValue: 0.3,
@@ -38,6 +41,7 @@ class SystemParameters {
             },
             contamination_threshold: {
                 type: 'number',
+                storageType: 'threshold',
                 description: 'Threshold for flagging potential contamination',
                 minValue: 0.01,
                 maxValue: 0.5,
@@ -45,6 +49,7 @@ class SystemParameters {
             },
             degradation_threshold: {
                 type: 'number',
+                storageType: 'threshold',
                 description: 'Threshold for flagging potential degradation',
                 minValue: 0.5,
                 maxValue: 0.9,
@@ -52,6 +57,7 @@ class SystemParameters {
             },
             duplicate_probability_threshold: {
                 type: 'number',
+                storageType: 'threshold',
                 description: 'Threshold for flagging potential duplicates',
                 minValue: 0.8,
                 maxValue: 0.999,
@@ -406,7 +412,6 @@ class SystemParameters {
                         // Insert default parameter
                         await client.query(`
                             INSERT INTO system_parameters (
-                                parameter_key,
                                 parameter_name, 
                                 parameter_value, 
                                 parameter_type, 
@@ -414,12 +419,12 @@ class SystemParameters {
                                 valid_range_min,
                                 valid_range_max,
                                 updated_by
-                            ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
+                            ) VALUES ($1, $2, $3, $4, $5, $6, $7)
+                            ON CONFLICT (parameter_name) DO NOTHING
                         `, [
                             parameterName,
-                            parameterName,
                             definition.defaultValue,
-                            definition.type,
+                            definition.storageType,
                             definition.description,
                             definition.minValue,
                             definition.maxValue,

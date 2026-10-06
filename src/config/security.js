@@ -26,6 +26,11 @@ class SecurityConfig {
                     logger.info('Loaded existing encryption key');
                     return key;
                 }
+                throw new Error('Encryption key must be exactly 32 bytes; the existing file was not changed');
+            }
+
+            if (process.env.NODE_ENV === 'production') {
+                throw new Error('Persistent encryption key is missing');
             }
             
             // Generate new key if not exists or invalid
@@ -46,8 +51,12 @@ class SecurityConfig {
             logger.error('Failed to handle encryption key:', error);
             // Fallback to environment variable or generate temporary key
             const envKey = process.env.ENCRYPTION_KEY;
-            if (envKey && envKey.length === KEY_LENGTH * 2) { // hex encoded
+            if (envKey && /^[0-9a-f]{64}$/i.test(envKey)) {
                 return Buffer.from(envKey, 'hex');
+            }
+
+            if (process.env.NODE_ENV === 'production') {
+                throw new Error(`Cannot load persistent encryption key: ${error.message}`);
             }
             
             // Generate temporary key (not persistent)

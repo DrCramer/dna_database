@@ -44,7 +44,9 @@ if [[ -n "$schema_changes" ]]; then
 fi
 
 docker compose config --quiet
-docker compose up -d --build
+docker compose build web
+./scripts/prepare-runtime.sh
+docker compose up -d
 for _attempt in {1..30}; do
     web_container="$(docker compose ps -q web)"
     health="$(docker inspect "$web_container" --format '{{if .State.Health}}{{.State.Health.Status}}{{end}}' 2>/dev/null || true)"

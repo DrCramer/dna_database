@@ -242,6 +242,7 @@ class DataPersistenceService {
             
             // Test failed transaction (should rollback)
             const failTestId = randomUUID();
+            const expectedRollback = new Error('Intentional transaction failure');
             
             try {
                 await transaction(async (client) => {
@@ -251,10 +252,10 @@ class DataPersistenceService {
                     `, [failTestId, { test: 'fail' }]);
                     
                     // Force an error to trigger rollback
-                    throw new Error('Intentional transaction failure');
-                });
+                    throw expectedRollback;
+                }, { expectedError: expectedRollback });
             } catch (error) {
-                // Expected to fail
+                if (error !== expectedRollback) throw error;
             }
             
             // Verify rollback worked (record should not exist)

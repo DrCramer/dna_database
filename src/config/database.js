@@ -164,7 +164,8 @@ async function transaction(callback, options = {}) {
             const isRetryableError = isRetryable(error);
             
             if (attempt === maxRetries || !isRetryableError) {
-                logger.error('Transaction failed:', {
+                const logFailure = error === options.expectedError ? logger.debug.bind(logger) : logger.error.bind(logger);
+                logFailure('Transaction failed:', {
                     error: error.message,
                     attempt,
                     code: error.code

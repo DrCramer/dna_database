@@ -39,6 +39,7 @@ async function main() {
             ['Генетические экспертизы', 'Отдел генетических экспертиз']
         ];
         let adminDepartmentId;
+        const departmentIds = [];
         for (const [name, description] of departments) {
             const department = await client.query(
                 `INSERT INTO departments (organization_id, name, description)
@@ -48,14 +49,21 @@ async function main() {
                 [organizationId, name, description]
             );
             adminDepartmentId ||= department.rows[0].id;
+            departmentIds.push(department.rows[0].id);
         }
 
         const passwordHash = await bcrypt.hash(password, 12);
-        await client.query(
+        const administrator = await client.query(
             `INSERT INTO users (organization_id, department_id, username, email, password_hash, role, is_active)
-             VALUES ($1, $2, 'admin', 'admin@sme.local', $3, 'admin', true)`,
+             VALUES ($1, $2, 'admin', 'admin@sme.local', $3, 'admin', true) RETURNING id`,
             [organizationId, adminDepartmentId, passwordHash]
         );
+        for (const departmentId of departmentIds) {
+            await client.query(
+                'INSERT INTO user_departments (user_id, department_id, is_primary) VALUES ($1, $2, $3)',
+                [administrator.rows[0].id, departmentId, departmentId === adminDepartmentId]
+            );
+        }
         await client.query('COMMIT');
         console.log('Administrator and organization created.');
     } catch (error) {
