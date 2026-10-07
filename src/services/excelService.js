@@ -813,7 +813,7 @@ class ExcelService {
         for (const profile of profiles) {
           const entry = metadata?.get(geneticObjectKey(profile.internalNumber));
           const sourceLoci = entry?.sourceLoci || fallback;
-          if (sourceLoci.length < 3) throw new ExcelParsingError('Недостаточно реально присутствующих локусов источника.', 'MISSING_STR_COLUMNS');
+          // Минимум три заголовка уже проверен; без метаданных заполненных локусов может быть меньше.
           profile.strData = Object.fromEntries(sourceLoci.map(locus => [locus, profile.strData[locus] || []]));
           profile.lociData = profile.strData;
           profile.lociTypes = Object.fromEntries(sourceLoci.map(locus => [locus, this.lociTypeDetector.detectLocusType(locus)]));

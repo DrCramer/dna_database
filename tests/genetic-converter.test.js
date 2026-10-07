@@ -215,3 +215,11 @@ test('Неполные генотипы исключаются из настоя
   assert.deepEqual(new DNAAnalysisService().convertToBayesianFormat({strData:{TH01:['11','?']}}).loci.get('TH01').alleles,[]);
   assert.equal(normalize('1 2','DYS392').hard,true);
 });
+
+
+test('Без метаданных повторно импортируется и профиль с двумя заполненными локусами', async () => {
+  const result=converter.convert([file([headers,['SPARSE-1','7,9','','29,30']])]);
+  const book=XLSX.read(converter.export(result),{type:'buffer'}); delete book.Sheets._DNA_META; book.SheetNames=book.SheetNames.filter(name=>name!=='_DNA_META');
+  const [profile]=await new ExcelService().parseExcelFile(XLSX.write(book,{type:'buffer',bookType:'xlsx'}),'no-metadata.xlsx',{importFormat:'genetic'});
+  assert.equal(profile.totalLociCount,2); assert.deepEqual(profile.strData.TH01,['7','9']); assert.deepEqual(profile.strData.D21S11,['29','30']);
+});

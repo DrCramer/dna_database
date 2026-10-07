@@ -11,6 +11,11 @@ class ConversionError extends Error {
   constructor(message, code = 'CONVERSION_ERROR', status = 400) { super(message); this.code = code; this.status = status; }
 }
 
+function exportMetadata(payload) {
+  try { return metadataSheet(payload); }
+  catch (error) { throw new ConversionError(error.message, 'CONVERSION_EXPORT_LIMIT', 413); }
+}
+
 const hard = status => ['ERROR', 'NEEDS_REVIEW', 'CONFLICT'].includes(status);
 const sameAlleles = (a, b) => JSON.stringify([...a].sort()) === JSON.stringify([...b].sort());
 
@@ -187,7 +192,7 @@ class GeneticExcelConverterService {
     }
     const profiles = result.profiles.map(profile => ({ objectNumber: profile.objectNumber, sourceLoci: profile.sourceLoci, detectedPanelId: profile.detectedPanelId, sources: profile.sources, audit: [...profile.audit, ...[...new Set(profile.sources.map(source => source.fileId))].flatMap(fileId => fileDecisions.get(fileId) || [])] }));
     if (profiles.some(profile => JSON.stringify(profile).length > 1024 * 1024)) throw new ConversionError('Журнал одного объекта слишком большой. Разделите исходные файлы.');
-    XLSX.utils.book_append_sheet(book, metadataSheet({ createdAt: new Date().toISOString(), converterVersion: '1.0', sourceLoci: result.sourceLoci, sourceFiles: result.files.map(file => ({ name: file.name, sheet: file.sheet, headerRow: file.headerRow, objectColumn: file.objectColumn, sourceLoci: file.sourceLoci, detectedPanelId: file.detectedPanelId })), decisions: result.issues.filter(issue => ['COLUMN_DECISION','IGNORED_ROW'].includes(issue.code)), profiles }), CONVERSION_META_SHEET);
+    XLSX.utils.book_append_sheet(book, exportMetadata({ createdAt: new Date().toISOString(), converterVersion: '1.0', sourceLoci: result.sourceLoci, sourceFiles: result.files.map(file => ({ name: file.name, sheet: file.sheet, headerRow: file.headerRow, objectColumn: file.objectColumn, sourceLoci: file.sourceLoci, detectedPanelId: file.detectedPanelId })), decisions: result.issues.filter(issue => ['COLUMN_DECISION','IGNORED_ROW'].includes(issue.code)), profiles }), CONVERSION_META_SHEET);
     book.Workbook = { Sheets: book.SheetNames.map(name => ({ name, Hidden: name === CONVERSION_META_SHEET ? 1 : 0 })) };
     return XLSX.write(book, { type: 'buffer', bookType: 'xlsx', compression: true });
   }
