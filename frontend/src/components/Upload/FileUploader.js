@@ -107,7 +107,7 @@ const ErrorDetailsSection = ({ errors }) => {
   );
 };
 
-const FileUploader = ({ onNavigate, onUploadSuccess, selectedActiveTask, onSelectActiveTask }) => {
+const FileUploader = ({ onNavigate, onUploadSuccess, selectedActiveTask, onSelectActiveTask, preparedFile, onPreparedFileConsumed }) => {
   const [file, setFile] = useState(null);
   const [uploading, setUploading] = useState(false);
   const [showDnaLoading, setShowDnaLoading] = useState(false);
@@ -194,7 +194,14 @@ const FileUploader = ({ onNavigate, onUploadSuccess, selectedActiveTask, onSelec
   }, [activeDepartmentId, selectedActiveTask?.id, uploadTarget]);
   const fileInputRef = React.useRef(null);
 
+  React.useEffect(() => {
+    if (!preparedFile) return;
+    if (preparedFile.departmentId !== activeDepartmentId || preparedFile.ownerId !== user?.id) { onPreparedFileConsumed?.(); return; }
+    setFile(preparedFile.file);
+  }, [preparedFile, activeDepartmentId, selectedActiveTask?.id, uploadTarget, user?.id]);
+
   const handleFileChange = (e) => {
+    onPreparedFileConsumed?.();
     const selectedFile = e.target.files[0];
     setFile(selectedFile);
     setError(null);
@@ -209,6 +216,7 @@ const FileUploader = ({ onNavigate, onUploadSuccess, selectedActiveTask, onSelec
       return;
     }
 
+    onPreparedFileConsumed?.();
     uploadDepartmentRef.current = activeDepartmentId;
     uploadTaskRef.current = selectedActiveTask;
     uploadTargetRef.current = selectedActiveTask?.id ? 'task' : uploadTarget;
@@ -611,6 +619,7 @@ const FileUploader = ({ onNavigate, onUploadSuccess, selectedActiveTask, onSelec
 
         {/* Upload Area */}
         <form onSubmit={handleUpload}>
+          {isGenetic && <button type="button" className="btn btn-secondary" onClick={() => onNavigate('/excel-converter')}>Конвертер старых Excel-файлов</button>}
           {isGenetic && <div className="form-group"><label className="form-label" htmlFor="upload-panel">Панель (необязательно)</label><select id="upload-panel" className="form-input" value={panelId} disabled={uploading} onChange={event => { setPanelId(event.target.value); setPanelWarnings([]); }}><option value="">Не указана</option>{panels.map(panel => <option key={panel.id} value={panel.id}>{panel.name}</option>)}</select>{panelsError && <p role="alert">{panelsError}</p>}</div>}
           {isGenetic && panelWarnings.length > 0 && <div className="alert alert-warning" role="status"><strong>Проверка панели {panels.find(panel => panel.id === panelId)?.name}</strong><ul>{panelWarnings.map(warning => <li key={warning}>{warning}</li>)}</ul><p>Эти предупреждения не блокируют загрузку.</p></div>}
           <div className="upload-area">

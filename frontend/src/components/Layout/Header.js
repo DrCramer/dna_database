@@ -51,6 +51,8 @@ const Header = ({ user, onNavigate, onLogout, hasRole }) => {
     { path: '/upload', label: 'Загрузка профилей', icon: '📁' }
   ];
 
+  if (isGenetic) analystMenu.push({ path: '/excel-converter', label: 'Конвертер Excel', icon: '📑' });
+
   const adminMainMenu = [
     { path: '/dashboard', label: 'Главная', icon: '🏠' },
     { path: '/tasks', label: 'Задачи', icon: '📋' },
@@ -203,7 +205,7 @@ const Header = ({ user, onNavigate, onLogout, hasRole }) => {
         {renderNavigation()}
         {isGenetic && <div className="nav-dropdown" ref={settingsMenuRef}>
           <button className="nav-link dropdown-trigger" title="Настройки" aria-expanded={showSettingsMenu} aria-controls="settings-menu" onClick={() => setShowSettingsMenu(!showSettingsMenu)}><span className="nav-icon">⚙️</span><span>Настройки</span><span className="dropdown-arrow">{showSettingsMenu ? '▲' : '▼'}</span></button>
-          {showSettingsMenu && <div className="dropdown-menu" id="settings-menu"><button className={`dropdown-item ${isActive('/settings/panels') ? 'active' : ''}`} onClick={() => navigate('/settings/panels')}><span className="nav-icon">🧬</span><span className="dropdown-item-label">Панели</span></button></div>}
+          {showSettingsMenu && <div className="dropdown-menu" id="settings-menu"><button className={`dropdown-item ${isActive('/settings/panels') ? 'active' : ''}`} onClick={() => navigate('/settings/panels')}><span className="nav-icon">🧬</span><span className="dropdown-item-label">Панели</span></button><button className="dropdown-item" onClick={() => navigate('/excel-converter')}><span className="nav-icon">📑</span><span className="dropdown-item-label">Конвертер Excel</span></button></div>}
         </div>}
       </nav>
 

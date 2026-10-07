@@ -1,3 +1,4 @@
+const { informativeAlleles, isSpecialAllele } = require('../utils/alleleTokens');
 /**
  * API маршруты для анализа генотипов и поиска дубликатов
  * ОПТИМИЗИРОВАННАЯ ОДНОПОТОЧНАЯ ВЕРСИЯ
@@ -57,32 +58,7 @@ function getActiveDepartmentId(req) {
 /**
  * Парсит аллели в массив
  */
-function parseAlleles(value) {
-  if (!value || value === '.' || value === '*' || value === '**' || value === '?' || value === '') return [];
-  
-  if (Array.isArray(value)) {
-    return value.map(a => String(a).trim())
-      .filter(a => a !== '' && a !== '.' && a !== '*' && a !== '**' && a !== '?');
-  }
-  
-  if (typeof value === 'object') {
-    if (value.allele1 !== undefined || value.allele2 !== undefined) {
-      const alleles = [];
-      if (value.allele1 && value.allele1 !== '' && value.allele1 !== '.' && value.allele1 !== '*' && value.allele1 !== '**' && value.allele1 !== '?') {
-        alleles.push(String(value.allele1).trim());
-      }
-      if (value.allele2 && value.allele2 !== '' && value.allele2 !== '.' && value.allele2 !== '*' && value.allele2 !== '**' && value.allele2 !== '?') {
-        alleles.push(String(value.allele2).trim());
-      }
-      return alleles.filter(a => a !== '');
-    }
-  }
-  
-  const separators = /[,;/\s]+/;
-  return String(value).split(separators)
-    .map(a => a.trim())
-    .filter(a => a !== '' && a !== '.' && a !== '*' && a !== '**' && a !== '?');
-}
+function parseAlleles(value) { return informativeAlleles(value); }
 
 /**
  * Вычисляет пересечение двух массивов с учетом количества повторений
@@ -119,8 +95,8 @@ function isMatch(inputValue, cellValue) {
   const cellParts = cellStr.split(',').map(p => p.trim());
   
   // Проверяем что нет пустых значений или специальных символов в частях
-  if (inputParts.some(p => !p || p === '*' || p === 'F' || p === '?')) return false;
-  if (cellParts.some(p => !p || p === '*' || p === 'F' || p === '?')) return false;
+  if (inputParts.some(p => !p || isSpecialAllele(p) || p.includes('?'))) return false;
+  if (cellParts.some(p => !p || isSpecialAllele(p) || p.includes('?'))) return false;
   
   const cellSet = new Set(cellParts);
   

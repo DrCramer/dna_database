@@ -7,6 +7,7 @@ import GenotypeAnalysisPage from './components/Analysis/GenotypeAnalysisPage';
 import LoginPage from './components/Auth/LoginPage';
 import AdminDashboard from './components/Dashboard/AdminDashboard';
 import FileUploader from './components/Upload/FileUploader';
+import GeneticExcelConverterPage from './components/Converter/GeneticExcelConverterPage';
 import { useNotifications } from './hooks/useNotifications';
 import PageTransition from './components/Common/PageTransition';
 import { Navigate, Route, SimpleRouter } from './components/Common/SimpleRouter';
@@ -1222,6 +1223,7 @@ function FixedApp() {
 
   // Глобальный state для активной задачи (для передачи между компонентами)
   const [selectedActiveTask, setSelectedActiveTask] = useState(null);
+  const [preparedImport, setPreparedImport] = useState(null);
   const handleSelectActiveTask = React.useCallback((task) => {
     const savedUser = JSON.parse(localStorage.getItem('user') || 'null');
     const departmentId = task?.department_id || savedUser?.active_department_id || savedUser?.department_id;
@@ -1399,10 +1401,16 @@ function FixedApp() {
                       onNavigate={navigate}
                       selectedActiveTask={selectedActiveTask}
                       onSelectActiveTask={handleSelectActiveTask}
+                      preparedFile={preparedImport}
+                      onPreparedFileConsumed={() => setPreparedImport(null)}
                     />
                   </PageTransition>
                 </ProtectedRoute>
               }
+            />
+            <Route
+              path="/excel-converter"
+              element={<ProtectedRoute onNavigate={navigate} fluid><PageTransition><GeneticExcelConverterPage onPreparedFile={prepared => { setPreparedImport(prepared); navigate('/upload'); }} /></PageTransition></ProtectedRoute>}
             />
             <Route
               path="/profiles"

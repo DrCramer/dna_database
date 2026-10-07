@@ -243,7 +243,7 @@ class FileValidationService {
       };
 
     } catch (error) {
-      logger.error('Error validating Excel structure:', error);
+      logger.error('Error validating Excel structure:', {  });
       
       if (error instanceof FileValidationError) {
         throw error;
@@ -651,7 +651,7 @@ class FileValidationService {
       });
 
     } catch (error) {
-      logger.error('File validation failed:', error);
+      logger.error('File validation failed:', {  });
       results.valid = false;
       results.errors.push({
         type: 'system',

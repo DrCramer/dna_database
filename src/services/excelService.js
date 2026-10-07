@@ -6,6 +6,8 @@ const DNAProfile = require('../models/DNAProfile');
 const { GenotypePanel } = require('../models/GenotypePanel');
 const User = require('../models/User');
 const { assertProfileUploadAllowed } = require('./profileUploadPolicy');
+const { readConversionMetadata, CONVERSION_META_SHEET } = require('../utils/geneticConversionMetadata');
+const { informativeAlleles, amelogeninTokens, normalizeSpecialAllele, isSpecialAllele, isMissingAllele } = require('../utils/alleleTokens');
 const { resolveProfileImportFormat, normalizeObjectName, extractExpertiseNumber, geneticObjectKey, getGeneticHeaders, validateGeneticHeaders } = require('../utils/profileImportFormat');
 
 // Импортируем конвертер латинских символов
@@ -123,20 +125,30 @@ class ExcelService {
       // Parse Excel file using existing logic
       const profiles = await this.parseExcelFile(fileBuffer, filename, options);
 
-      const panel = await GenotypePanel.resolveAssignment({ ...userContext, panelId: options.panelId || userContext.panelId, detectedPanelId: options.detectedPanelId });
-      const panelWarnings = GenotypePanel.compareLoci(panel, Object.keys(profiles[0]?.strData || {}));
+      const assignments = new Map();
+      const panelsForProfiles = [];
+      for (const profile of profiles) {
+        const panelId = options.panelId || userContext.panelId;
+        const detectedPanelId = options.detectedPanelId || profile.metadata?.conversion?.detectedPanelId;
+        const key = panelId || detectedPanelId || '';
+        if (!assignments.has(key)) assignments.set(key, await GenotypePanel.resolveAssignment({ ...userContext, panelId, detectedPanelId }));
+        panelsForProfiles.push(assignments.get(key));
+      }
+      const uniquePanels = [...new Set(panelsForProfiles.map(panel => panel?.id || null))];
+      const panel = uniquePanels.length === 1 ? panelsForProfiles[0] : null;
+      const panelWarnings = [...new Set(profiles.flatMap((profile, index) => GenotypePanel.compareLoci(panelsForProfiles[index], profile.metadata.sourceLoci || Object.keys(profile.strData))))];
 
       // Add user context to each profile
-      const profilesWithContext = profiles.map(profile => ({
+      const profilesWithContext = profiles.map((profile, index) => ({
         ...profile,
-        panelId: panel?.id || null,
-        panel,
+        panelId: panelsForProfiles[index]?.id || null,
+        panel: panelsForProfiles[index],
         userId,
         departmentId,
         organizationId,
         fileSource: filename,
         importFormat: importFormat || 'emergency',
-        metadata: { ...profile.metadata, departmentId, organizationId, ...(panel ? { panelId: panel.id, panelName: panel.name, panelLociOrder: panel.lociOrder } : {}) },
+        metadata: { ...profile.metadata, departmentId, organizationId, panelLoci: panelsForProfiles[index]?.lociOrder || [], ...(panelsForProfiles[index] ? { panelId: panelsForProfiles[index].id, panelName: panelsForProfiles[index].name, panelLociOrder: panelsForProfiles[index].lociOrder } : {}) },
         uploadContext: {
           uploadedAt: new Date().toISOString(),
           uploadedBy: userId,
@@ -168,11 +180,7 @@ class ExcelService {
         }
       };
     } catch (error) {
-      logger.error('Error parsing Excel file with context', {
-        error: error.message,
-        filename,
-        userContext
-      });
+      logger.error('Error parsing Excel file with context', { errorCode: error.code || 'IMPORT_ERROR', filename });
       throw error;
     }
   }
@@ -369,14 +377,7 @@ class ExcelService {
           });
           result.summary.errorCount++;
           
-          logger.warn('Error processing individual profile', {
-            sampleName: profile.sampleName,
-            panelId: profile.panelId || null,
-            internalNumber: profile.internalNumber,
-            year: profile.year,
-            error: error.message,
-            userId
-          });
+          logger.warn('Error processing individual profile', { panelId: profile.panelId || null, year: profile.year, errorCode: error.code || 'IMPORT_ERROR', userId });
         }
       }
 
@@ -421,11 +422,7 @@ class ExcelService {
 
       return result;
     } catch (error) {
-      logger.error('Error processing profiles with context', {
-        error: error.message,
-        userId,
-        profileCount: profiles.length
-      });
+      logger.error('Error processing profiles with context', { errorCode: error.code || 'IMPORT_ERROR', userId, profileCount: profiles.length });
       throw error;
     }
   }
@@ -532,11 +529,7 @@ class ExcelService {
         existingProfiles: []
       };
     } catch (error) {
-      logger.error('Error checking for duplicates', {
-        error: error.message,
-        sampleName: profile.sampleName,
-        userId
-      });
+      logger.error('Error checking for duplicates', { errorCode: error.code || 'IMPORT_ERROR', userId });
       throw error;
     }
   }
@@ -580,11 +573,7 @@ class ExcelService {
             });
           }
         } catch (comparisonError) {
-          logger.warn('Error comparing with master profile', {
-            profileSample: profile.sampleName,
-            masterSample: masterProfile.sampleName,
-            error: comparisonError.message
-          });
+          logger.warn('Error comparing with master profile', { errorCode: comparisonError.code || 'IMPORT_ERROR' });
         }
       }
 
@@ -593,10 +582,7 @@ class ExcelService {
 
       return matches;
     } catch (error) {
-      logger.error('Error comparing with master array', {
-        error: error.message,
-        sampleName: profile.sampleName
-      });
+      logger.error('Error comparing with master array', { errorCode: error.code || 'IMPORT_ERROR' });
       return [];
     }
   }
@@ -671,11 +657,7 @@ class ExcelService {
 
       return finalResult;
     } catch (error) {
-      logger.error('Error in bulk upload with context', {
-        error: error.message,
-        filename,
-        userContext
-      });
+      logger.error('Error in bulk upload with context', { errorCode: error.code || 'IMPORT_ERROR', filename });
       throw error;
     }
   }
@@ -822,7 +804,32 @@ class ExcelService {
       }
 
       // Validate and extract profiles with enhanced 40 STR/SNP support
-      return this.extractProfiles(jsonData, filename, options);
+      const profiles = this.extractProfiles(jsonData, filename, { ...options, converted: isGenetic && !!workbook.Sheets[CONVERSION_META_SHEET] });
+      if (isGenetic) {
+        const columns = validateGeneticHeaders(jsonData[0]).columns.map(column => column.locus);
+        const metadata = readConversionMetadata(workbook, profiles, columns);
+        const fullCatalog = columns.length === ALL_LOCI.length && ALL_LOCI.every(locus => columns.includes(locus));
+        const fallback = fullCatalog ? columns.filter(locus => profiles.some(profile => profile.strData[locus]?.length)) : columns;
+        for (const profile of profiles) {
+          const entry = metadata?.get(geneticObjectKey(profile.internalNumber));
+          const sourceLoci = entry?.sourceLoci || fallback;
+          if (sourceLoci.length < 3) throw new ExcelParsingError('Недостаточно реально присутствующих локусов источника.', 'MISSING_STR_COLUMNS');
+          profile.strData = Object.fromEntries(sourceLoci.map(locus => [locus, profile.strData[locus] || []]));
+          profile.lociData = profile.strData;
+          profile.lociTypes = Object.fromEntries(sourceLoci.map(locus => [locus, this.lociTypeDetector.detectLocusType(locus)]));
+          profile.priorityMarkers = Object.fromEntries(sourceLoci.filter(locus => EXTENDED_40_STR_SNP_MARKERS.includes(locus)).map(locus => [locus, true]));
+          profile.priorityMarkerCount = Object.keys(profile.priorityMarkers).length;
+          profile.totalLociCount = sourceLoci.length;
+          profile.strLociCount = sourceLoci.filter(locus => this.lociTypeDetector.detectLocusType(locus) === 'STR').length;
+          profile.snpLociCount = sourceLoci.filter(locus => this.lociTypeDetector.detectLocusType(locus) === 'SNP').length;
+          profile.metadata = { ...profile.metadata, catalogLoci: [...ALL_LOCI], sourceLoci, populatedLoci: sourceLoci.filter(locus => profile.strData[locus].length),
+            populatedLociCount: sourceLoci.filter(locus => profile.strData[locus].length).length, lociTypeBreakdown: this.getLociTypeBreakdown(profile.strData),
+            compatibilityInfo: { ...profile.metadata.compatibilityInfo, totalLociCount: sourceLoci.length, priorityMarkerCount: profile.priorityMarkerCount },
+            qualityMetrics: { ...profile.metadata.qualityMetrics, completeness: sourceLoci.filter(locus => informativeAlleles(profile.strData[locus]).length).length / sourceLoci.length * 100, dataQuality: this.assessDataQuality(Object.fromEntries(sourceLoci.map(locus => [locus, informativeAlleles(profile.strData[locus])]))) },
+            ...(entry ? { conversion: entry } : {}) };
+        }
+      }
+      return profiles;
     } catch (error) {
       if (error instanceof ExcelParsingError) {
         throw error;
@@ -848,12 +855,7 @@ class ExcelService {
   extractProfiles(jsonData, filename, options = {}) {
     const startTime = Date.now();
     
-    console.log('🔍 DEBUG extractProfiles:', {
-      filename,
-      skipValidation: options.skipValidation,
-      optionsKeys: Object.keys(options),
-      rowCount: jsonData.length - 1
-    });
+
     
     if (jsonData.length < 2) {
       throw new ExcelParsingError(
@@ -1108,7 +1110,7 @@ class ExcelService {
     );
 
     if (presentOriginalMarkers.length < 30) {
-      console.warn(`Warning: Only ${presentOriginalMarkers.length} of 39 original markers found in ${filename}`);
+
     }
 
     return {
@@ -1144,7 +1146,7 @@ class ExcelService {
     );
 
     if (presentExtendedMarkers.length < 30) {
-      console.warn(`Warning: Only ${presentExtendedMarkers.length} of 40 extended markers found in ${filename}`);
+
     }
 
     // Check for SNP markers specifically
@@ -1191,7 +1193,7 @@ class ExcelService {
     );
 
     if (unrecognizedLoci.length > 0) {
-      console.warn(`Warning: Unrecognized loci in ${filename}: ${unrecognizedLoci.join(', ')}`);
+
     }
 
     return {
@@ -1235,7 +1237,7 @@ class ExcelService {
 
     // Warn about unrecognized loci but don't fail
     if (unrecognizedLoci.length > 0) {
-      console.warn(`Warning: Unrecognized loci in ${filename}: ${unrecognizedLoci.join(', ')}`);
+
     }
 
     // Check if we have enough recognized loci
@@ -1326,7 +1328,7 @@ class ExcelService {
     };
     
     if (isNewStructure) {
-      console.log('🔍 DEBUG: Detected NEW file structure (check_7-107_edit.xlsx format)');
+
       
       // НОВАЯ СТРУКТУРА (обновленная):
       // Столбец 1: № ПРИСВОЕННЫЙ... → sample_name (второстепенный)
@@ -1364,24 +1366,10 @@ class ExcelService {
       );
       internalNumber = internalNumberResult.normalized; // Основной номер
       
-      console.log('🔍 DEBUG NEW structure mapping:', {
-        column1_assigned: sampleName,    // Второстепенный номер
-        column2_privoz: privozData,      // Привоз
-        column3_year: yearData,          // Год
-        column4_internal: internalNumber, // Основной номер
-        yearSearched: {
-          fromColumn3: extractYear(row[2]),
-          fromHeaderSearch: (() => {
-            const yearIndex = headers.findIndex(header => 
-              header && header.toString().toLowerCase().includes('год')
-            );
-            return yearIndex !== -1 ? { index: yearIndex, value: row[yearIndex], extracted: extractYear(row[yearIndex]) } : null;
-          })()
-        }
-      });
+
       
     } else {
-      console.log('🔍 DEBUG: Detected OLD file structure (test-correct-structure.xlsx format)');
+
       
       // СТАРАЯ СТРУКТУРА (для обратной совместимости):
       // Столбец 1: Sample Name → internal_number (основной)
@@ -1434,12 +1422,7 @@ class ExcelService {
         yearData = extractYear(row[yearIndex]);
       }
       
-      console.log('🔍 DEBUG OLD structure mapping:', {
-        column1_sample_name: internalNumber, // Основной номер
-        assigned_column: sampleName,         // Второстепенный номер
-        privoz_column: privozData,          // Привоз
-        year: yearData                       // Год
-      });
+
     }
     
     // Валидация основного номера
@@ -1503,14 +1486,9 @@ class ExcelService {
       const random = Math.random().toString(36).substring(2, 8).toUpperCase();
       sampleName = `GEN_${internalNumber}_${timestamp}_${random}`;
       
-      logger.info('Generated fallback sample name', {
-        filename,
-        rowNumber,
-        internalNumber,
-        generatedSampleName: sampleName
-      });
+      logger.info('Generated fallback sample name', { filename, rowNumber });
+
       
-      console.log('🔍 DEBUG: Generated fallback sample_name:', sampleName);
     }
 
     // Определяем начальный индекс для генетических данных
@@ -1594,15 +1572,7 @@ class ExcelService {
     };
 
     // Финальное логирование
-    console.log('🔍 DEBUG Final profile extraction result:', {
-      rowNumber,
-      fileStructure: isNewStructure ? 'NEW' : 'OLD',
-      internalNumber,    // Основной номер (уникальный в году)
-      sampleName,        // Второстепенный номер (может повторяться)
-      year: yearData,    // Год
-      privozFound: !!privozData,
-      lociCount: presentLoci.length
-    });
+
 
     return {
       sampleName: sampleName,        // Второстепенный номер (может повторяться)
@@ -1630,7 +1600,7 @@ class ExcelService {
    * @param {string} filename - Original filename
    * @returns {Object} Allele object with allele1 and allele2
    */
-  extractGeneticProfileFromRow(row, headers, rowNumber, filename, validationResult) {
+  extractGeneticProfileFromRow(row, headers, rowNumber, filename, validationResult, options = {}) {
     const objectNumber = normalizeObjectName(row[0]);
     const sampleName = extractExpertiseNumber(objectNumber);
     if (!objectNumber || !sampleName) throw new ExcelParsingError(`Строка ${rowNumber}: не заполнено обязательное поле «Объект».`, 'MISSING_OBJECT', { rowNumber });
@@ -1640,7 +1610,7 @@ class ExcelService {
     const priorityMarkers = {};
     for (const { index, locus } of validationResult.columns) {
       const type = this.lociTypeDetector.detectLocusType(locus);
-      strData[locus] = this.parseAlleleValue(row[index], locus, type, rowNumber, filename);
+      strData[locus] = this.parseAlleleValue(row[index], locus, type, rowNumber, filename, { genetic: true, preserveAlleleCount: options.converted });
       lociTypes[locus] = type;
       if (EXTENDED_40_STR_SNP_MARKERS.includes(locus)) priorityMarkers[locus] = true;
     }
@@ -1672,7 +1642,7 @@ class ExcelService {
     };
   }
 
-  parseAlleleValue(cellValue, locusName, locusType, rowNumber, filename) {
+  parseAlleleValue(cellValue, locusName, locusType, rowNumber, filename, options = {}) {
     if (cellValue === null || cellValue === undefined || cellValue === '') {
       // Allow empty values - will be handled as no data
       return [];
@@ -1681,6 +1651,14 @@ class ExcelService {
     // УЛУЧШЕНИЕ: Удаляем ВСЕ пробелы из значения для обработки человеческих ошибок
     // Примеры: "12 , 13" → "12,13", "X , Y" → "X,Y", "17 ?" → "17?"
     let valueStr = cellValue.toString().replace(/\s+/g, '').trim();
+
+    if (isMissingAllele(valueStr)) return [];
+    if (locusType === 'AMELOGENIN' || options.preserveAlleleCount) {
+      const alleles = locusType === 'AMELOGENIN' ? amelogeninTokens(valueStr) : valueStr.split(/[,;/]/).map(token => normalizeSpecialAllele(token) || token);
+      const validation = this.lociTypeDetector.validateAlleles(locusName, alleles);
+      if (!validation.isValid) throw new ExcelParsingError(`Недопустимые значения аллелей для ${locusName}.`, EXCEL_ERROR_CODES.INVALID_ALLELE_VALUE, { filename, rowNumber, locusName });
+      return alleles;
+    }
     
     // Удаляем дефис "-" (пустое значение)
     if (valueStr === '-') {
@@ -1716,7 +1694,9 @@ class ExcelService {
       return [];
     }
     
-    if (cleanValue.includes(',')) {
+    if (options.genetic && isSpecialAllele(cleanValue)) {
+      alleles = [normalizeSpecialAllele(cleanValue)];
+    } else if (cleanValue.includes(',')) {
       alleles = cleanValue.split(',').map(a => a.trim()).filter(a => a !== '-');
     } else if (cleanValue.includes('/')) {
       alleles = cleanValue.split('/').map(a => a.trim()).filter(a => a !== '-');
@@ -1749,7 +1729,7 @@ class ExcelService {
     
     if (alleles.length === 1) {
       // Для Y-хромосомных маркеров (гаплоидные) - не дублируем
-      if (locusName === 'Yindel' || locusType === 'Y_CHROMOSOME') {
+      if (locusName === 'Yindel' || locusType === 'Y_CHROMOSOME' || (options.genetic && isSpecialAllele(alleles[0]))) {
         finalAlleles = [alleles[0]];
       } else {
         // Homozygous - duplicate the allele
@@ -1762,27 +1742,14 @@ class ExcelService {
       // Предупреждение для Y-хромосомных маркеров с двумя аллелями
       if (locusName === 'Yindel' || locusType === 'Y_CHROMOSOME') {
         warnings.push(`Potential contamination in Y-chromosome marker: 2 alleles found (${alleles.join(', ')})`);
-        logger.warn('Potential contamination in Y-chromosome marker', {
-          filename,
-          rowNumber,
-          locusName,
-          originalValue: valueStr,
-          alleles: alleles.join(', ')
-        });
+        logger.warn('Potential contamination in Y-chromosome marker', { filename, rowNumber, locusName });
       }
     } else if (alleles.length > 2) {
       // Contamination or mixture - СОХРАНЯЕМ ВСЕ АЛЛЕЛИ
       finalAlleles = alleles;
       warnings.push(`Potential contamination detected: ${alleles.length} alleles found (${alleles.join(', ')})`);
       
-      logger.warn('Potential contamination detected in DNA profile', {
-        filename,
-        rowNumber,
-        locusName,
-        originalValue: valueStr,
-        alleleCount: alleles.length,
-        alleles: alleles.join(', ')
-      });
+      logger.warn('Potential contamination detected in DNA profile', { filename, rowNumber, locusName, alleleCount: alleles.length });
     } else {
       throw new ExcelParsingError(
         `Недопустимый формат аллеля для ${locusName}: не найдено валидных аллелей`,
@@ -1799,7 +1766,7 @@ class ExcelService {
       // Нормализация знаков вопроса (уже без пробелов)
       cleanedAllele = cleanedAllele.replace(/\?+/g, '?'); // Множественные ? в один
       
-      return cleanedAllele;
+      return options.genetic ? normalizeSpecialAllele(cleanedAllele) || cleanedAllele : cleanedAllele;
     });
 
     // Validate allele values using loci type detector

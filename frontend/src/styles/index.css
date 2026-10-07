@@ -28,6 +28,7 @@
 @import 'pages/profiles.css';
 @import 'pages/master-object-search.css';
 @import 'pages/genotype-panels.css';
+@import 'pages/genetic-converter.css';
 @import '../components/Common/DepartmentSwitcher.css';
 @import '../components/Common/ThemeSwitcher.css';
 @import '../components/Common/PageTransition.css';

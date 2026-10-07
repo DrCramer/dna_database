@@ -33,6 +33,7 @@ test('Реальные PostgreSQL, authenticate, preview и upload', { skip: !da
   app.use('/api/tasks', tasksRouter);
   app.use('/api/auth', authRouter);
   app.use('/api/genotype-panels', require('../src/routes/genotypePanels'));
+  app.use('/api/genetic-excel-converter', require('../src/routes/geneticExcelConverter'));
   const server = app.listen(0, '127.0.0.1');
   await new Promise(resolve => server.once('listening', resolve));
   const baseUrl = `http://127.0.0.1:${server.address().port}/api/profiles`;
@@ -71,6 +72,7 @@ test('Реальные PostgreSQL, authenticate, preview и upload', { skip: !da
     const body = await response.json();
     return { status: response.status, body };
   }
+
 
   await t.test('Миграция повторяется безопасно и снимает NOT NULL с year', async () => {
     const migration = fs.readFileSync(path.join(__dirname, '../database/migrations/027_genetic_profile_import.sql'), 'utf8');
@@ -545,5 +547,44 @@ test('Реальные PostgreSQL, authenticate, preview и upload', { skip: !da
       assert.deepEqual((await query('SELECT can_upload_with_task,can_upload_without_task FROM users WHERE id=$1', [body.data.user.id])).rows[0], { can_upload_with_task: false, can_upload_without_task: true });
     });
   });
+
+  await t.test('Конвертер API: scope, блокировка конфликтов, полный roundtrip и привязка задачи', async () => {
+    const endpoint = baseUrl.replace('/profiles', '/genetic-excel-converter');
+    const panelId = (await query("INSERT INTO genotype_panels (organization_id,department_id,name,loci_order,created_by,updated_by) VALUES ($1,$2,'Converter fixture',$3,$4,$4) RETURNING id", [organization,genetic,JSON.stringify(['TH01','D5S818','D21S11','AMEL','DYS392']),userId])).rows[0].id;
+    const taskId = (await query("INSERT INTO tasks (title,status,department_id,assigned_to_user,created_by,target_sample,data_source,is_active) VALUES ('Converter accepted task','in_progress',$1,$2,$3,'{}','new_array',true) RETURNING id", [genetic,userId,adminId])).rows[0].id;
+    const original = buffer([[], ['Локус/Объект','TH01','D5S818','D21S11','AMEL','DYS392'], ['CONV-11x','11.12','OL,15','29,30,31.2','XX','12']]);
+    const convert = (operation, options = {}, department = genetic, token = accessToken) => {
+      const form = new FormData(); form.append('files',new Blob([original]),'dirty.xlsx'); form.append('options',JSON.stringify(options));
+      return fetch(`${endpoint}/${operation}`, { method:'POST', headers:{ Authorization:`Bearer ${token}`, 'X-Active-Department-Id':department },body:form });
+    };
+    assert.equal((await convert('preview',{},emergency)).status,403);
+    assert.equal((await convert('preview',{},otherDepartment)).status,403);
+    assert.equal((await convert('preview',{},genetic,'invalid')).status,401);
+    assert.equal((await convert('export',{canImport:true})).status,409);
+    const preview = await convert('preview'); assert.equal(preview.status,200); const dirty = await preview.json(); assert.equal(dirty.canImport,false);
+    assert.equal(dirty.profiles[0].detectedPanelId,panelId);
+    const issue = dirty.issues.find(issue => issue.code === 'AMBIGUOUS_DOT');
+    const converted = await convert('export',{cells:{[issue.id]:{action:'split_dot'}}}); assert.equal(converted.status,200);
+    const normalized = Buffer.from(await converted.arrayBuffer());
+    assert.equal((await query('SELECT count(*)::int AS count FROM dna_profiles WHERE task_id=$1',[taskId])).rows[0].count,0);
+    const uploadConverted = async (path, extra = {}) => {
+      const form = new FormData(); form.append('file',new Blob([normalized]),'normalized.xlsx'); form.append('taskId',taskId); form.append('uploadTarget','task');
+      for (const [key,value] of Object.entries(extra)) form.append(key,value);
+      const response = await fetch(`${baseUrl}${path}`,{method:'POST',headers:{Authorization:`Bearer ${accessToken}`,'X-Active-Department-Id':genetic},body:form}); return {status:response.status,body:await response.json()};
+    };
+    const ready = await uploadConverted('/upload/preview'); assert.equal(ready.status,200,JSON.stringify(ready.body));
+    assert.deepEqual(ready.body.preview.panelWarnings,[]);
+    const imported = await uploadConverted('/upload'); assert.equal(imported.status,200,JSON.stringify(imported.body)); assert.equal(imported.body.processing.created,1);
+    const row = (await query("SELECT id,task_id,panel_id,notes FROM dna_profiles WHERE internal_number='CONV-11x' AND user_id=$1",[userId])).rows[0];
+    assert.equal(row.task_id,taskId); assert.equal(row.panel_id,panelId);
+    const notes = typeof row.notes === 'string' ? JSON.parse(row.notes) : row.notes;
+    assert.equal(notes.sourceLoci.length,5); assert.equal(notes.qualityMetrics.completeness,100); assert(notes.conversion.audit.some(item => item.userDecision?.action === 'split_dot'));
+    const saved = await DNAProfile.findById(row.id); assert.deepEqual(saved.strData.TH01,['11','12']); assert.deepEqual(saved.strData.AMEL,['X','X']); assert.deepEqual(saved.strData.DYS392,['12']); assert.deepEqual(saved.strData.D5S818,['?','15']); assert.deepEqual(saved.strData.D21S11,['29','30','31.2']);
+    const duplicate = await uploadConverted('/upload/preview'); assert.equal(duplicate.status,200); assert(duplicate.body.preview.breakdown.conflict > 0);
+    await query('UPDATE users SET can_upload_with_task=false WHERE id=$1',[userId]);
+    assert.equal((await uploadConverted('/upload')).status,403);
+    await query('UPDATE users SET can_upload_with_task=true WHERE id=$1',[userId]);
+  });
+
 
 });

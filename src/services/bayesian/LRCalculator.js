@@ -1,3 +1,4 @@
+const { informativeAlleles, alleleTokens, isSpecialAllele, isMissingAllele } = require('../../utils/alleleTokens');
 /**
  * LR Calculator - Compute Likelihood Ratios using Bayesian inference
  * 
@@ -744,11 +745,11 @@ class LRCalculator {
         // Handle different profile formats
         if (profile.loci && profile.loci instanceof Map) {
             // Already in Map format
-            return profile.loci;
+            return new Map([...profile.loci].map(([name, data]) => [name, { ...data, alleles: informativeAlleles(data.alleles).length === alleleTokens(data.alleles).length ? informativeAlleles(data.alleles) : [] }]));
         } else if (profile.loci && typeof profile.loci === 'object') {
             // Convert object to Map
             Object.entries(profile.loci).forEach(([locusName, locusData]) => {
-                lociMap.set(locusName, locusData);
+                lociMap.set(locusName, { ...locusData, alleles: informativeAlleles(locusData.alleles).length === alleleTokens(locusData.alleles).length ? informativeAlleles(locusData.alleles) : [] });
             });
         } else if (profile.str_data) {
             // Convert STR data format
@@ -758,14 +759,14 @@ class LRCalculator {
                     lociMap.set(locusName, {
                         locusName: locusName,
                         locusType: 'STR',
-                        alleles: locusData.filter(a => a && a !== '')
+                        alleles: informativeAlleles(locusData).length === locusData.length ? informativeAlleles(locusData) : []
                     });
                 } else if (locusData && locusData.allele1 && locusData.allele2) {
                     // Handle object format (старый формат)
                     lociMap.set(locusName, {
                         locusName: locusName,
                         locusType: 'STR',
-                        alleles: [locusData.allele1, locusData.allele2]
+                        alleles: informativeAlleles(locusData).length === 2 ? informativeAlleles(locusData) : []
                     });
                 }
             });
@@ -799,13 +800,14 @@ class LRCalculator {
      * @returns {boolean} True if alleles match (excluding null alleles)
      */
     compareAlleles(alleles1, alleles2) {
+        if (informativeAlleles(alleles1).length !== alleleTokens(alleles1).length || informativeAlleles(alleles2).length !== alleleTokens(alleles2).length) return false;
         if (!alleles1 || !alleles2) {
             return false;
         }
         
         // Фильтруем null аллели (*) из обеих наборов
-        const filtered1 = alleles1.filter(allele => allele !== '*' && allele !== '**');
-        const filtered2 = alleles2.filter(allele => allele !== '*' && allele !== '**');
+        const filtered1 = informativeAlleles(alleles1);
+        const filtered2 = informativeAlleles(alleles2);
         
         // Если один из профилей имеет только null аллели, это не совпадение
         if (filtered1.length === 0 || filtered2.length === 0) {
@@ -859,6 +861,7 @@ class LRCalculator {
      * @returns {number} Genotype probability
      */
     calculateHardyWeinbergProbability(alleles, frequencies, inbreedingCoeff = 0.0) {
+        if (informativeAlleles(alleles).length !== alleleTokens(alleles).length) throw new Error('Incomplete genotype is excluded from LR');
         try {
             if (!alleles || alleles.length === 0) {
                 throw new Error('Alleles array is required');
@@ -932,7 +935,7 @@ class LRCalculator {
      * @returns {Array} Processed alleles array
      */
     processSpecialAlleles(alleles, frequencies) {
-        return alleles.map(allele => {
+        return informativeAlleles(alleles).map(allele => {
             const alleleStr = String(allele).trim();
             
             // Обработка специальных аллелей
@@ -964,6 +967,7 @@ class LRCalculator {
      * @returns {number|null} Frequency or null if not found
      */
     getAlleleFrequency(allele, frequencies) {
+        if (isSpecialAllele(allele) || isMissingAllele(allele) || String(allele).includes('?')) return null;
         const alleleStr = String(allele).trim();
         
         // Прямой поиск частоты

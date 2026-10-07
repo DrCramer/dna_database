@@ -1,3 +1,4 @@
+const { isSpecialAllele } = require('./alleleTokens');
 /**
  * Loci Type Detection Utility
  * Provides classification and validation for all 80 genetic loci types
@@ -246,7 +247,7 @@ class LociTypeDetector {
 
         for (const allele of alleles) {
             // Allow *, **, ?, F, empty values, numeric alleles, decimal alleles, alleles with parentheses, and alleles with ? suffix (NO spaces allowed)
-            if (allele !== '*' && allele !== '**' && allele !== '?' && allele !== 'F' && allele !== '' && 
+            if (!isSpecialAllele(allele) && allele !== '' &&
                 !/^\d+(\.\d+)?(\?)?(\(\d+(\.\d+)?\))?$/.test(allele)) {
                 result.errors.push(`Недопустимый формат STR аллеля: ${allele}`);
                 result.isValid = false;
@@ -268,7 +269,7 @@ class LociTypeDetector {
 
         for (const allele of alleles) {
             // Allow *, **, ?, F, empty values, numeric alleles, alleles with ? suffix (NO spaces allowed), and alleles with parentheses (e.g., "10(11)")
-            if (allele !== '*' && allele !== '**' && allele !== '?' && allele !== 'F' && allele !== '' && 
+            if (!isSpecialAllele(allele) && allele !== '' &&
                 !/^\d+(\?)?(\(\d+\))?$/.test(allele)) {
                 result.errors.push(`Недопустимый формат Y-хромосомного аллеля: ${allele}`);
                 result.isValid = false;
@@ -286,7 +287,7 @@ class LociTypeDetector {
 
         for (const allele of alleles) {
             // Allow *, **, ?, F, empty values, numeric alleles, and alleles with ? suffix (NO spaces allowed)
-            if (allele !== '*' && allele !== '**' && allele !== '?' && allele !== 'F' && allele !== '' && !/^\d+(\.\d+)?(\?)?$/.test(allele)) {
+            if (!isSpecialAllele(allele) && allele !== '' && !/^\d+(\.\d+)?(\?)?$/.test(allele)) {
                 result.errors.push(`Недопустимый формат X-хромосомного аллеля: ${allele}`);
                 result.isValid = false;
             }
@@ -307,7 +308,7 @@ class LociTypeDetector {
 
         for (const allele of alleles) {
             // Allow *, **, ?, F, empty values, A/T/C/G nucleotides, and any numeric values
-            if (allele !== '*' && allele !== '**' && allele !== '?' && allele !== 'F' && allele !== '' && 
+            if (!isSpecialAllele(allele) && allele !== '' &&
                 !/^[ATCG]$/.test(allele.toUpperCase()) && !/^\d+(\.\d+)?$/.test(allele)) {
                 result.errors.push(`Недопустимый SNP аллель: ${allele} (должен быть A, T, C, G, числовое значение, *, **, ?, F или пустым)`);
                 result.isValid = false;
@@ -325,7 +326,7 @@ class LociTypeDetector {
 
         for (const allele of alleles) {
             // Allow *, **, ?, F, empty values, X, Y, XY (combined), XX, YY, and patterns like X?, Y?, ?X, ?Y
-            if (allele !== '*' && allele !== '**' && allele !== '?' && allele !== 'F' && allele !== '' && 
+            if (!isSpecialAllele(allele) && allele !== '' &&
                 !this.isValidAmelogeninPattern(allele)) {
                 result.errors.push(`Недопустимый Amelogenin аллель: ${allele} (должен быть X, Y, XY, XX, YY, X?, Y?, ?X, ?Y, *, **, ?, F или пустым)`);
                 result.isValid = false;
@@ -365,7 +366,7 @@ class LociTypeDetector {
 
         for (const allele of alleles) {
             // Allow *, **, ?, F, empty values, and INDEL format
-            if (allele !== '*' && allele !== '**' && allele !== '?' && allele !== 'F' && allele !== '' && !/^[+-]?\d*[ATCG]*$/.test(allele.toUpperCase())) {
+            if (!isSpecialAllele(allele) && allele !== '' && !/^[+-]?\d*[ATCG]*$/.test(allele.toUpperCase())) {
                 result.errors.push(`Недопустимый формат INDEL аллеля: ${allele}`);
                 result.isValid = false;
             }

@@ -1,3 +1,4 @@
+const { informativeAlleles, isSpecialAllele } = require('../utils/alleleTokens');
 /**
  * Алгоритм выявления контаминации сотрудников через анализ STR-профилей
  * Адаптирован для интеграции с DNA Analysis Web Application
@@ -76,35 +77,7 @@ class StaffContaminationAnalyzer {
      * - "14.2" - дробный аллель (обрабатывается как строка)
      * - "14,16,18" - многоаллельность (разделяется на массив)
      */
-    parseAlleles(value) {
-        if (!value || value === '.' || value === '*' || value === '**' || value === '?' || value === '') return [];
-        
-        if (Array.isArray(value)) {
-            return value.map(a => String(a).trim())
-                .filter(a => a !== '' && a !== '.' && a !== '*' && a !== '**' && a !== '?');
-        }
-        
-        if (typeof value === 'object') {
-            // Старый формат { allele1: '15', allele2: '16' } (для обратной совместимости)
-            if (value.allele1 || value.allele2) {
-                const alleles = [];
-                if (value.allele1 && value.allele1 !== '*' && value.allele1 !== '**' && value.allele1 !== '?') {
-                    alleles.push(value.allele1);
-                }
-                if (value.allele2 && value.allele2 !== '*' && value.allele2 !== '**' && value.allele2 !== '?') {
-                    alleles.push(value.allele2);
-                }
-                return alleles.map(a => String(a).trim())
-                    .filter(a => a !== '' && a !== '.');
-            }
-        }
-        
-        // Поддержка разных разделителей: запятая, слэш, точка с запятой, пробел
-        const separators = /[,;/\s]+/;
-        return String(value).split(separators)
-            .map(a => a.trim())
-            .filter(a => a !== '' && a !== '.' && a !== '*' && a !== '**' && a !== '?');
-    }
+    parseAlleles(value) { return informativeAlleles(value); }
 
     /**
      * Вычисляет пересечение двух массивов

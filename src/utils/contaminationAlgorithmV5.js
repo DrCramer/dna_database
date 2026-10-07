@@ -1,3 +1,4 @@
+const { informativeAlleles } = require('./alleleTokens');
 /**
  * Алгоритм контаминации v5.0
  * Поддержка LCN (Low Copy Number) и деградированных образцов
@@ -168,6 +169,7 @@ function arraysEqual(arr1, arr2) {
  * @returns {Object} - Результат сравнения
  */
 function compareLocusV5(sampleAlleles, staffAlleles, locus) {
+  sampleAlleles = informativeAlleles(sampleAlleles); staffAlleles = informativeAlleles(staffAlleles);
   // Пропускаем пустые локусы
   if (sampleAlleles.length === 0 || staffAlleles.length === 0) {
     return {
@@ -286,8 +288,8 @@ function calculateContaminationScoreV5(sampleProfile, staffProfile, ignoredLoci 
     // Пропускаем игнорируемые локусы
     if (ignoredLoci.has(locus)) continue;
     
-    const sampleAlleles = sampleProfile[locus] || [];
-    const staffAlleles = staffProfile[locus] || [];
+    const sampleAlleles = informativeAlleles(sampleProfile[locus]);
+    const staffAlleles = informativeAlleles(staffProfile[locus]);
     
     // Пропускаем, если нет данных
     if (sampleAlleles.length === 0 || staffAlleles.length === 0) continue;

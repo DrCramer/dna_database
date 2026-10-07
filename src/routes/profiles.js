@@ -242,10 +242,10 @@ const getRecommendedAnalysisTypes = (createdProfiles) => {
 
 // Middleware для обработки ошибок multer
 const handleMulterError = (err, req, res, next) => {
-  console.log('🔍 DEBUG: Multer error handler called!');
-  console.log('🔍 DEBUG: Error:', err);
-  console.log('🔍 DEBUG: Error message:', err.message);
-  console.log('🔍 DEBUG: Error code:', err.code);
+
+
+
+
   
   if (err) {
     logger.error('Multer error', {
@@ -400,12 +400,7 @@ router.post('/upload/preview',
     });
 
   } catch (error) {
-    logger.error('Error generating file preview', { 
-      error: error.message, 
-      filename: req.file?.originalname,
-      userId: req.user?.id,
-      stack: error.stack
-    });
+    logger.error('Error generating file preview', { errorCode: error.code || 'IMPORT_ERROR', filename: req.file?.originalname, userId: req.user?.id });
 
     if (error instanceof PanelError) return res.status(error.status).json({ code: error.code, message: error.message });
     if (error instanceof ProfileUploadAccessError) {
@@ -439,18 +434,12 @@ router.post('/upload',
     handleMulterError,
     logProfileOperation(OperationHistory.OPERATION_TYPES.PROFILE_UPLOAD), 
     async (req, res) => {
-  console.log('🔍 DEBUG: Upload route called!');
-  console.log('🔍 DEBUG: req.file =', req.file);
-  console.log('🔍 DEBUG: req.body =', req.body);
-  console.log('🔍 DEBUG: req.body keys =', Object.keys(req.body || {}));
   
-  logger.info('Upload route called with debug info', {
-    bodyKeys: Object.keys(req.body || {}),
-    hasFile: !!req.file,
-    filename: req.file?.originalname,
-    fileSize: req.file?.size,
-    fileMimeType: req.file?.mimetype
-  });
+
+
+
+
+  logger.info('Upload started', { filename: req.file?.originalname, fileSize: req.file?.size });
   try {
     if (!req.file) {
       return res.status(400).json({
@@ -479,29 +468,9 @@ router.post('/upload',
     const compareMasterArrayBool = validationOnlyBool ? false : (compareMasterArray === 'true' || compareMasterArray === true);
     const allowDuplicatesBool = validationOnlyBool ? true : (allowDuplicates === 'true' || allowDuplicates === true);
 
-    console.log('🔍 DEBUG: Processing parameters:', {
-      skipValidation,
-      skipValidationBool,
-      validationOnly,
-      validationOnlyBool,
-      performDeduplication: performDeduplicationBool,
-      compareMasterArray: compareMasterArrayBool,
-      allowDuplicates: allowDuplicatesBool,
-      originalSkipValidation: req.body.skipValidation,
-      type: typeof skipValidation
-    });
     
-    logger.info('Processing parameters debug', {
-      skipValidation,
-      skipValidationBool,
-      validationOnly,
-      validationOnlyBool,
-      performDeduplication: performDeduplicationBool,
-      compareMasterArray: compareMasterArrayBool,
-      allowDuplicates: allowDuplicatesBool,
-      originalSkipValidation: req.body.skipValidation,
-      type: typeof skipValidation
-    });
+
+    logger.info('Upload parameters', {  });
 
     logger.info('Processing Excel file upload with validation and data processing', { 
       filename: originalname, 
@@ -515,18 +484,14 @@ router.post('/upload',
     const userContext = await getImportContext(req);
 
     // 1. Расширенная валидация файла
-    console.log('🔍 DEBUG: Checking validation skip:', skipValidationBool);
+
     if (!skipValidationBool) {
-      console.log('🔍 DEBUG: Running validation...');
+
       try {
         const validationResult = fileValidationService.validateFile(buffer, originalname, { importFormat: userContext.importFormat });
         
         if (!validationResult.valid) {
-          logger.warn('File validation failed', {
-            filename: originalname,
-            errors: validationResult.errors,
-            warnings: validationResult.warnings
-          });
+          logger.warn('File validation failed', { filename: originalname, warningCount: (validationResult.warnings || []).length });
 
           return res.status(400).json({
             error: 'File validation failed',
@@ -543,25 +508,14 @@ router.post('/upload',
         }
 
         // Логируем успешную валидацию
-        logger.info('File validation successful', {
-          filename: originalname,
-          expertiseType: validationResult.expertiseType,
-          warnings: validationResult.warnings.length
-        });
+        logger.info('File validation successful', { filename: originalname, expertiseType: validationResult.expertiseType, warnings: validationResult.warnings.length });
 
         // Если есть предупреждения, включаем их в ответ
         if (validationResult.warnings.length > 0) {
-          logger.warn('File validation warnings', {
-            filename: originalname,
-            warnings: validationResult.warnings
-          });
+          logger.warn('File validation warnings', { filename: originalname, warningCount: (validationResult.warnings || []).length });
         }
       } catch (validationError) {
-        logger.error('File validation error', {
-          filename: originalname,
-          error: validationError.message,
-          details: validationError.details
-        });
+        logger.error('File validation error', { filename: originalname, errorCode: validationError.code || 'IMPORT_ERROR' });
 
         if (validationError instanceof FileValidationError) {
           return res.status(400).json({
@@ -580,7 +534,7 @@ router.post('/upload',
         });
       }
     } else {
-      console.log('🔍 DEBUG: Validation skipped!');
+
     }
 
     // Если включен режим "только валидация", возвращаем только результаты валидации
@@ -695,14 +649,7 @@ router.post('/upload',
     });
 
   } catch (error) {
-    logger.error('Error processing Excel file upload with enhanced validation', { 
-      error: error.message, 
-      filename: req.file?.originalname,
-      userId: req.user?.id,
-      departmentId: req.user?.department_id,
-      organizationId: req.user?.organization_id,
-      stack: error.stack
-    });
+    logger.error('Error processing Excel file upload with enhanced validation', { errorCode: error.code || 'IMPORT_ERROR', filename: req.file?.originalname, userId: req.user?.id, departmentId: req.user?.department_id, organizationId: req.user?.organization_id });
 
     if (error.code === 'LIMIT_FILE_SIZE') {
       return res.status(413).json({
@@ -787,12 +734,7 @@ router.post('/bulk-upload-with-comparison',
       }
     };
 
-    logger.info('Processing bulk upload with master array comparison', {
-      filename: originalname,
-      userId,
-      departmentId: req.user.department_id,
-      processingOptions
-    });
+    logger.info('Processing bulk upload with master array comparison', { filename: originalname, userId, departmentId: req.user.department_id });
 
     // Use enhanced bulk upload service
     const result = await excelService.bulkUploadWithContext(
@@ -847,12 +789,7 @@ router.post('/bulk-upload-with-comparison',
     });
 
   } catch (error) {
-    logger.error('Error in bulk upload with master array comparison', {
-      error: error.message,
-      filename: req.file?.originalname,
-      userId: req.user?.id,
-      departmentId: req.user?.department_id
-    });
+    logger.error('Error in bulk upload with master array comparison', { errorCode: error.code || 'IMPORT_ERROR', filename: req.file?.originalname, userId: req.user?.id, departmentId: req.user?.department_id });
 
     if (error instanceof PanelError) return res.status(error.status).json({ code: error.code, message: error.message });
     if (error instanceof ProfileUploadAccessError) {
@@ -1359,10 +1296,10 @@ router.post('/compare', authenticate, async (req, res) => {
 
         try {
             // Try to load Bayesian Engine for real analysis
-            console.log('🔍 DEBUG: Attempting to load Bayesian Engine...');
+
             const BayesianEngine = require('../services/bayesian/BayesianEngine');
             const LRCalculator = require('../services/bayesian/LRCalculator');
-            console.log('🔍 DEBUG: Bayesian modules loaded successfully');
+
             
             // Create mock profiles for demonstration (since database is not fully configured)
             const mockProfile1 = {
@@ -1439,20 +1376,16 @@ router.post('/compare', authenticate, async (req, res) => {
             };
 
             const lrCalculator = new LRCalculator(mockPopulationManager, mockSystemParameters);
-            console.log('🔍 DEBUG: LRCalculator instantiated successfully');
+
 
             // Perform Bayesian LR calculation
-            console.log('🔍 DEBUG: Starting LR calculation...');
+
             const lrResult = await lrCalculator.calculateProfileLR(
                 mockProfile1, 
                 mockProfile2, 
                 mockPopulationData
             );
-            console.log('🔍 DEBUG: LR calculation completed:', {
-                overallLR: lrResult.overallLR,
-                significance: lrResult.significance,
-                locusCount: lrResult.locusLRs ? lrResult.locusLRs.size : 0
-            });
+
 
             // Helper function to interpret LR values
             const interpretLR = (lr) => {
@@ -1533,8 +1466,8 @@ router.post('/compare', authenticate, async (req, res) => {
 
         } catch (bayesianError) {
             // Fallback to mock data if Bayesian analysis fails
-            console.log('🔍 DEBUG: Bayesian analysis error:', bayesianError.message);
-            console.log('🔍 DEBUG: Stack trace:', bayesianError.stack);
+
+
             logger.warn('Bayesian analysis failed, falling back to mock comparison', {
                 error: bayesianError.message,
                 profile1Id,

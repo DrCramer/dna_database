@@ -1,3 +1,4 @@
+const { informativeAlleles, isSpecialAllele } = require('../utils/alleleTokens');
 /**
  * DNA Duplicate Detection Service v5.0 - ОПТИМИЗИРОВАННАЯ ВЕРСИЯ
  * Работает напрямую с форматом БД: { allele1: "20", allele2: "21" }
@@ -13,6 +14,7 @@ const logger = require('../utils/logger');
  * @returns {Object} { score, status }
  */
 const compareLocusArrays = (locusA, locusB) => {
+  locusA = informativeAlleles(locusA); locusB = informativeAlleles(locusB);
   // Проверка на no call
   if (!locusA || locusA.length === 0 || !locusB || locusB.length === 0) {
     return { score: 0, status: 'no_call' };
@@ -105,6 +107,7 @@ const compareLocusObjects = (locusA, locusB) => {
     allelesB = [];
   }
   
+  allelesA = informativeAlleles(allelesA); allelesB = informativeAlleles(allelesB);
   // Проверка на no call
   if (allelesA.length === 0 || allelesB.length === 0) {
     return { score: 0, status: 'no_call' };

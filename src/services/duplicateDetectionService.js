@@ -1,3 +1,4 @@
+const { informativeAlleles, isSpecialAllele } = require('../utils/alleleTokens');
 /**
  * DNA Duplicate Detection Service v5.0
  * Оптимизирован для поиска дубликатов с учетом:
@@ -11,13 +12,7 @@ const logger = require('../utils/logger');
 // Утилиты для работы с множествами
 const utils = {
   // Парсинг строки "14, 15.2" -> Set(["14", "15.2"])
-  parseAlleles: (str) => {
-    if (!str || typeof str !== 'string') return new Set();
-    // Удаляем спецсимволы *, ?, F и пробелы
-    const cleanStr = str.replace(/[?*F]/g, '').trim();
-    if (!cleanStr) return new Set();
-    return new Set(cleanStr.split(',').map(s => s.trim()).filter(Boolean));
-  },
+  parseAlleles: value => new Set(informativeAlleles(value)),
 
   eqSet: (as, bs) => as.size === bs.size && [...as].every((x) => bs.has(x)),
   isSubset: (subset, superset) => [...subset].every((x) => superset.has(x)),

@@ -1,0 +1,37 @@
+:where(.converter-page) { display: grid; gap: 20px; min-width: 0; }
+:where(.converter-page) .converter-card { padding: 20px; border: 1px solid var(--border-default); border-radius: var(--radius-md); background: var(--surface-card); min-width: 0; }
+:where(.converter-page) .converter-card h2 { margin-bottom: 16px; }
+:where(.converter-page) .converter-drop { border-style: dashed; }
+:where(.converter-page) .converter-drop label { display: block; font-weight: 600; margin-bottom: 12px; }
+:where(.converter-page) .converter-summary { display: grid; grid-template-columns: repeat(auto-fit, minmax(140px, 1fr)); gap: 12px; }
+:where(.converter-page) .converter-counter { display: grid; gap: 6px; padding: 16px; background: var(--surface-card); border: 1px solid var(--border-default); border-radius: var(--radius-md); }
+:where(.converter-page) .converter-counter strong { font-size: 24px; }
+:where(.converter-page) .converter-actions { display: flex; flex-wrap: wrap; align-items: end; gap: 12px; margin: 12px 0; }
+:where(.converter-page) .converter-actions label { display: grid; gap: 6px; }
+:where(.converter-page) .converter-source-controls { display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 16px; margin: 16px 0; }
+:where(.converter-page) .converter-source-controls label { display: grid; gap: 6px; min-width: 0; }
+:where(.converter-page) details { margin: 12px 0; padding: 12px; border: 1px solid var(--border-default); border-radius: var(--radius-sm); }
+:where(.converter-page) summary { cursor: pointer; font-weight: 600; overflow-wrap: anywhere; }
+:where(.converter-page) .converter-mapping { display: flex; flex-wrap: wrap; align-items: center; gap: 12px; padding: 12px 0; }
+:where(.converter-page) .converter-mapping select { width: min(100%, 340px); }
+:where(.converter-page) .converter-scroll { overflow: auto; max-width: 100%; border: 1px solid var(--border-default); border-radius: var(--radius-sm); }
+:where(.converter-page) .converter-issue-table { width: 100%; min-width: 1100px; border-collapse: collapse; font-size: 14px; }
+:where(.converter-page) .converter-issue-table th, :where(.converter-page) .converter-issue-table td { padding: 12px; text-align: left; vertical-align: top; border-bottom: 1px solid var(--border-default); }
+:where(.converter-page) .converter-issue-table th { background: var(--surface-muted); }
+:where(.converter-page) .converter-value { white-space: pre-wrap; overflow-wrap: anywhere; max-width: 160px; font-variant-numeric: tabular-nums; }
+:where(.converter-page) .converter-decisions { display: grid; gap: 8px; min-width: 290px; }
+:where(.converter-page) .converter-manual { display: flex; gap: 8px; }
+:where(.converter-page) .converter-status { font-weight: 600; }
+:where(.converter-page) .converter-status-ERROR, :where(.converter-page) .converter-status-CONFLICT { color: var(--status-danger); }
+:where(.converter-page) .converter-status-WARNING, :where(.converter-page) .converter-status-NEEDS_REVIEW { color: var(--status-warning); }
+:where(.converter-page) .converter-status-AUTO_FIXED { color: var(--status-success); }
+:where(.converter-page) .converter-grid-scroll { max-height: 560px; }
+:where(.converter-page) .converter-genotypes { width: max-content; min-width: 100%; border-collapse: separate; border-spacing: 0; font-size: 14px; font-variant-numeric: tabular-nums; }
+:where(.converter-page) .converter-genotypes th, :where(.converter-page) .converter-genotypes td { padding: 12px; min-width: 100px; text-align: center; white-space: nowrap; border-bottom: 1px solid var(--border-default); border-right: 1px solid var(--border-subtle); background: var(--surface-card); }
+:where(.converter-page) .converter-genotypes thead th { position: sticky; top: 0; z-index: 2; background: var(--surface-muted); }
+:where(.converter-page) .converter-genotypes tr > :first-child { position: sticky; left: 0; z-index: 1; min-width: 170px; text-align: left; }
+:where(.converter-page) .converter-genotypes thead th:first-child { z-index: 3; }
+:where(.converter-page) .converter-genotypes .converter-problem-cell { background: var(--status-warning-bg); }
+
+:where(.converter-page) .converter-cell-button { font: inherit; color: inherit; background: transparent; border: 0; padding: 2px; min-width: 64px; cursor: pointer; }
+:where(.converter-page) .converter-cell-button:disabled { cursor: default; opacity: 1; }

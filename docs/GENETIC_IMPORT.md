@@ -178,3 +178,13 @@ Preview вернул `year = NULL`, четыре локуса и действи�
 - `frontend/src/components/Upload/FileUploader.js`, `frontend/src/contexts/AuthContext.js`
 - `database/migrations/027_genetic_profile_import.sql`, `database/{schema,init}.sql`
 - `tests/genetic-import{,.integration}.test.js`, `package.json`, `Dockerfile`, `README.md`
+
+## Старые Excel-файлы
+
+Файлы с листом SBT_horizont, заголовками ниже первой строки, служебными колонками,
+разными обозначениями объектов и неоднозначными аллелями сначала подготовьте
+через [Конвертер Excel](GENETIC_EXCEL_CONVERTER.md). Его результат передаётся
+в этот же загрузчик: задача и права проверяются как при обычной загрузке.
+Полная раскладка каталога в экспортированном файле не увеличивает число
+исследованных локусов; проверенные метаданные сохраняют состав источника,
+назначенную панель и журнал существенных изменений.

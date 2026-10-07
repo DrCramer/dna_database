@@ -1,3 +1,4 @@
+const { informativeAlleles, isSpecialAllele } = require('../utils/alleleTokens');
 const { logger } = require('../utils/logger');
 const DNAProfile = require('../models/DNAProfile');
 const User = require('../models/User');
@@ -797,7 +798,7 @@ class DNAAnalysisService {
       lociMap.set(locusName, {
         locusName,
         locusType,
-        alleles: alleles.filter(a => a && a !== '' && !this.isSpecialSymbol(a))
+        alleles: informativeAlleles(alleles).length === alleles.length ? informativeAlleles(alleles) : []
       });
     });
 
@@ -1161,10 +1162,7 @@ class DNAAnalysisService {
    * @param {string} value - Value to check
    * @returns {boolean} True if special symbol
    */
-  isSpecialSymbol(value) {
-    if (!value) return false;
-    return /^[*?F]$/i.test(value.trim());
-  }
+  isSpecialSymbol(value) { return isSpecialAllele(value); }
 
   /**
    * Perform bulk search - compare target profile against database
