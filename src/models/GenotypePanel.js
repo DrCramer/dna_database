@@ -1,8 +1,10 @@
-const { query } = require('../config/database');
+const { query, transaction } = require('../config/database');
 const { ALL_LOCI, LociTypeDetector } = require('../utils/lociTypeDetector');
 const { resolveProfileImportFormat } = require('../utils/profileImportFormat');
 const detector = new LociTypeDetector();
 const uuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+const referenceIds = `COALESCE((SELECT array_agg(r.reference_set_id ORDER BY r.reference_set_id)
+  FROM genotype_panel_references r WHERE r.panel_id=p.id), '{}') AS reference_set_ids`;
 
 class PanelError extends Error {
   constructor(message, status = 400, code = 'INVALID_PANEL') {
@@ -14,7 +16,7 @@ class GenotypePanel {
   static toJSON(row) {
     return row ? {
       id: row.id, name: row.name, description: row.description,
-      lociOrder: row.loci_order, isActive: row.is_active,
+      lociOrder: row.loci_order, isActive: row.is_active, referenceSetIds: row.reference_set_ids || [],
       organizationId: row.organization_id, departmentId: row.department_id,
       createdAt: row.created_at, updatedAt: row.updated_at
     } : null;
@@ -34,7 +36,8 @@ class GenotypePanel {
     });
     if (new Set(lociOrder).size !== lociOrder.length) throw new PanelError('Локусы в панели не должны повторяться.');
     if (data.isActive !== undefined && typeof data.isActive !== 'boolean') throw new PanelError('Активность панели должна быть логическим значением.');
-    return { name: data.name.trim(), description: data.description?.trim() || null, lociOrder, isActive: data.isActive ?? true };
+    if (data.referenceSetIds != null && (!Array.isArray(data.referenceSetIds) || data.referenceSetIds.length > 100 || data.referenceSetIds.some(id => !uuid.test(id)) || new Set(data.referenceSetIds).size !== data.referenceSetIds.length)) throw new PanelError('Некорректный список референсных наборов.');
+    return { name: data.name.trim(), description: data.description?.trim() || null, lociOrder, isActive: data.isActive ?? true, referenceSetIds: data.referenceSetIds };
   }
 
   static async scope(context) {
@@ -48,34 +51,50 @@ class GenotypePanel {
   }
 
   static async list(scope, includeInactive = false) {
-    const result = await query(`SELECT * FROM genotype_panels WHERE organization_id = $1 AND department_id = $2 ${includeInactive ? '' : 'AND is_active = true'} ORDER BY lower(name), id`, [scope.organizationId, scope.departmentId]);
+    const result = await query(`SELECT p.*, ${referenceIds} FROM genotype_panels p WHERE organization_id = $1 AND department_id = $2 ${includeInactive ? '' : 'AND is_active = true'} ORDER BY lower(name), id`, [scope.organizationId, scope.departmentId]);
     return result.rows.map(this.toJSON);
   }
 
   static async find(id, scope, activeOnly = false) {
     if (!uuid.test(id || '')) throw new PanelError('Некорректный идентификатор панели.');
-    const result = await query(`SELECT * FROM genotype_panels WHERE id = $1 AND organization_id = $2 AND department_id = $3 ${activeOnly ? 'AND is_active = true' : ''}`, [id, scope.organizationId, scope.departmentId]);
+    const result = await query(`SELECT p.*, ${referenceIds} FROM genotype_panels p WHERE id = $1 AND organization_id = $2 AND department_id = $3 ${activeOnly ? 'AND is_active = true' : ''}`, [id, scope.organizationId, scope.departmentId]);
     if (!result.rows.length) throw new PanelError('Панель не найдена в активном отделении или недоступна.', 404, 'PANEL_NOT_FOUND');
     return this.toJSON(result.rows[0]);
   }
 
   static async create(data, scope, userId) {
     const value = this.validate(data);
-    const result = await query(`INSERT INTO genotype_panels (organization_id, department_id, name, description, loci_order, created_by, updated_by, is_active) VALUES ($1,$2,$3,$4,$5,$6,$6,$7) RETURNING *`, [scope.organizationId, scope.departmentId, value.name, value.description, JSON.stringify(value.lociOrder), userId, value.isActive]);
-    return this.toJSON(result.rows[0]);
+    return transaction(async client => {
+      const result = await client.query(`INSERT INTO genotype_panels (organization_id, department_id, name, description, loci_order, created_by, updated_by, is_active) VALUES ($1,$2,$3,$4,$5,$6,$6,$7) RETURNING *`, [scope.organizationId, scope.departmentId, value.name, value.description, JSON.stringify(value.lociOrder), userId, value.isActive]);
+      await this.linkReferences(client, result.rows[0].id, value.referenceSetIds || [], scope, userId);
+      return this.toJSON({ ...result.rows[0], reference_set_ids: value.referenceSetIds || [] });
+    });
   }
 
   static async update(id, data, scope, userId) {
-    await this.find(id, scope);
+    const previous = await this.find(id, scope);
     const value = this.validate(data);
-    const result = await query(`UPDATE genotype_panels SET name=$4, description=$5, loci_order=$6, is_active=$7, updated_by=$8, updated_at=CURRENT_TIMESTAMP WHERE id=$1 AND organization_id=$2 AND department_id=$3 RETURNING *`, [id, scope.organizationId, scope.departmentId, value.name, value.description, JSON.stringify(value.lociOrder), value.isActive, userId]);
-    return this.toJSON(result.rows[0]);
+    return transaction(async client => {
+      const result = await client.query(`UPDATE genotype_panels SET name=$4, description=$5, loci_order=$6, is_active=$7, updated_by=$8, updated_at=CURRENT_TIMESTAMP WHERE id=$1 AND organization_id=$2 AND department_id=$3 RETURNING *`, [id, scope.organizationId, scope.departmentId, value.name, value.description, JSON.stringify(value.lociOrder), value.isActive, userId]);
+      if (value.referenceSetIds !== undefined) await this.linkReferences(client, id, value.referenceSetIds, scope, userId);
+      return this.toJSON({ ...result.rows[0], reference_set_ids: value.referenceSetIds ?? previous.referenceSetIds });
+    });
+  }
+
+  static async linkReferences(client, id, ids, scope, userId) {
+    if (ids.length) {
+      const available = await client.query('SELECT id FROM allele_reference_sets WHERE id=ANY($1::uuid[]) AND organization_id=$2 AND department_id=$3 FOR SHARE', [ids, scope.organizationId, scope.departmentId]);
+      if (available.rows.length !== ids.length) throw new PanelError('Справочник недоступен в активном отделении.', 404, 'REFERENCE_NOT_FOUND');
+    }
+    await client.query('DELETE FROM genotype_panel_references WHERE panel_id=$1', [id]);
+    if (ids.length) await client.query(`INSERT INTO genotype_panel_references (panel_id,reference_set_id,organization_id,department_id,linked_by)
+      SELECT $1, unnest($2::uuid[]), $3, $4, $5`, [id, ids, scope.organizationId, scope.departmentId, userId]);
   }
 
   static async deactivate(id, scope, userId) {
-    await this.find(id, scope);
+    const previous = await this.find(id, scope);
     const result = await query(`UPDATE genotype_panels SET is_active=false, updated_by=$4, updated_at=CURRENT_TIMESTAMP WHERE id=$1 AND organization_id=$2 AND department_id=$3 RETURNING *`, [id, scope.organizationId, scope.departmentId, userId]);
-    return this.toJSON(result.rows[0]);
+    return this.toJSON({ ...result.rows[0], reference_set_ids: previous.referenceSetIds });
   }
 
   // Ручной выбор сейчас и detectedPanelId будущего парсера используют один путь.

@@ -7,7 +7,6 @@
 
 const { logger } = require('../../utils/logger');
 const { query, transaction } = require('../../config/database');
-const ConnectionPoolService = require('../connectionPoolService');
 
 class PopulationManager {
     constructor(bayesianEngine = null) {
@@ -277,6 +276,17 @@ class PopulationManager {
      * @param {string} allele - Allele value
      * @returns {Promise<number|null>} Allele frequency or null if not found
      */
+    // Только реальные строки для конвертера; резервные оценки здесь не применяются.
+    async loadObservedRecords(loci, populationIds = []) {
+        const result = await query(`SELECT locus_name, allele, frequency, population_id, population_name, updated_at
+            FROM population_data WHERE locus_name = ANY($1::text[])
+            AND (cardinality($2::text[]) = 0 OR population_id = ANY($2::text[]))
+            ORDER BY population_id, locus_name, allele`, [loci, populationIds]);
+        return result.rows.map(row => ({ locus: row.locus_name, allele: row.allele,
+            frequency: Number(row.frequency), populationId: row.population_id,
+            populationName: row.population_name, updatedAt: row.updated_at }));
+    }
+
     async getAlleleFrequency(populationId, locusName, allele) {
         try {
             const populationData = await this.loadPopulationData(populationId);

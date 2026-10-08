@@ -98,10 +98,10 @@ class PopulationFrequencies {
     async loadFrequencyFromDatabase(locus, allele) {
         const result = await query(`
             SELECT frequency 
-            FROM population_frequencies 
+            FROM population_data
             WHERE population_id = $1 
             AND locus_name = $2 
-            AND allele_value = $3
+            AND allele = $3
         `, [this.populationId, locus, allele]);
 
         if (result.rows.length > 0) {
@@ -126,8 +126,8 @@ class PopulationFrequencies {
      */
     async loadAllFrequenciesForLocus(locus) {
         const result = await query(`
-            SELECT allele_value, frequency 
-            FROM population_frequencies 
+            SELECT allele AS allele_value, frequency
+            FROM population_data
             WHERE population_id = $1 
             AND locus_name = $2
             ORDER BY frequency DESC
@@ -179,12 +179,12 @@ class PopulationFrequencies {
      */
     async findNearbyNumericAlleleFrequency(locus, targetValue) {
         const result = await query(`
-            SELECT allele_value, frequency 
-            FROM population_frequencies 
+            SELECT allele AS allele_value, frequency
+            FROM population_data
             WHERE population_id = $1 
             AND locus_name = $2
-            AND allele_value ~ '^[0-9]+(\\.[0-9]+)?$'
-            ORDER BY ABS(CAST(allele_value AS NUMERIC) - $3)
+            AND allele ~ '^[0-9]+(\\.[0-9]+)?$'
+            ORDER BY ABS(CAST(allele AS NUMERIC) - $3)
             LIMIT 1
         `, [this.populationId, locus, targetValue]);
 
@@ -373,8 +373,9 @@ class PopulationFrequencies {
     async getAvailablePopulations() {
         try {
             const result = await query(`
-                SELECT DISTINCT population_id, population_name, description
-                FROM population_metadata
+                SELECT population_id, population_name, NULL::text AS description
+                FROM population_data
+                GROUP BY population_id, population_name
                 ORDER BY population_name
             `);
             
@@ -396,10 +397,11 @@ class PopulationFrequencies {
     async getPopulationMetadata() {
         try {
             const result = await query(`
-                SELECT population_name, description, sample_size, 
-                       creation_date, last_updated, source
-                FROM population_metadata
+                SELECT population_name, NULL::text AS description, max(sample_size) AS sample_size,
+                       min(created_at) AS creation_date, max(updated_at) AS last_updated, NULL::text AS source
+                FROM population_data
                 WHERE population_id = $1
+                GROUP BY population_name
             `, [this.populationId]);
             
             if (result.rows.length > 0) {
@@ -424,7 +426,7 @@ class PopulationFrequencies {
             // Проверка суммы частот для каждого локуса
             const result = await query(`
                 SELECT locus_name, SUM(frequency) as total_frequency
-                FROM population_frequencies
+                FROM population_data
                 WHERE population_id = $1
                 GROUP BY locus_name
                 HAVING SUM(frequency) < 0.95 OR SUM(frequency) > 1.05
@@ -441,10 +443,10 @@ class PopulationFrequencies {
             
             // Проверка на дублирующиеся аллели
             const duplicates = await query(`
-                SELECT locus_name, allele_value, COUNT(*) as count
-                FROM population_frequencies
+                SELECT locus_name, allele AS allele_value, COUNT(*) as count
+                FROM population_data
                 WHERE population_id = $1
-                GROUP BY locus_name, allele_value
+                GROUP BY locus_name, allele
                 HAVING COUNT(*) > 1
             `, [this.populationId]);
             
@@ -478,8 +480,8 @@ class PopulationFrequencies {
     async exportPopulationData() {
         try {
             const result = await query(`
-                SELECT locus_name, allele_value, frequency
-                FROM population_frequencies
+                SELECT locus_name, allele AS allele_value, frequency
+                FROM population_data
                 WHERE population_id = $1
                 ORDER BY locus_name, frequency DESC
             `, [this.populationId]);
@@ -507,4 +509,6 @@ class PopulationFrequencies {
     }
 }
 
+// Совместимый адаптер схемы population_data. Резервные оценки предназначены только для расчётов.
 module.exports = PopulationFrequencies;
+module.exports.PopulationFrequencies = PopulationFrequencies;

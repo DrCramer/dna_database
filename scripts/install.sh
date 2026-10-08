@@ -111,6 +111,15 @@ if [[ "$(db_sql -c "SELECT EXISTS (SELECT 1 FROM pg_trigger WHERE tgname = 'trig
     docker compose exec -T db psql -U dna_user -d dna_analysis -v ON_ERROR_STOP=1 -q < database/migrations/030_restore_department_master_arrays.sql
 fi
 
+# Ранее установленная схема получает только новые таблицы справочников (031).
+if [[ "$(db_sql -c "SELECT to_regclass('allele_reference_sets') IS NOT NULL AND to_regclass('allele_reference_values') IS NOT NULL AND to_regclass('genotype_panel_references') IS NOT NULL")" != t ]]; then
+    backup_file="runtime/backups/before_install_031_$(date -u +%Y%m%d_%H%M%S).sql"
+    docker compose exec -T db pg_dump -U dna_user -d dna_analysis > "$backup_file"
+    test -s "$backup_file"
+    echo "Database backup saved: $backup_file"
+    docker compose exec -T db psql -U dna_user -d dna_analysis -v ON_ERROR_STOP=1 -q < database/migrations/031_allele_references.sql
+fi
+
 user_count="$(db_sql -c 'SELECT COUNT(*) FROM users')"
 if [[ "$user_count" == 0 ]]; then
     docker compose run --rm --no-deps web node scripts/bootstrap-admin.js

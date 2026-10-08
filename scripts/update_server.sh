@@ -37,10 +37,25 @@ old_revision="$(git rev-parse HEAD)"
 git pull --ff-only origin main
 schema_changes="$(git diff --name-only "$old_revision" HEAD -- database/schema.sql database/migrations/)"
 if [[ -n "$schema_changes" ]]; then
-    echo 'Database schema files changed. Review the release migration instructions before starting new code:' >&2
-    echo "$schema_changes" >&2
-    echo "Backup is saved at $backup_file" >&2
-    exit 1
+    known_reference_release=false
+    if [[ "$schema_changes" == *database/migrations/031_allele_references.sql* ]]; then
+        known_reference_release=true
+        while IFS= read -r changed_file; do
+            case "$changed_file" in
+                database/schema.sql|database/migrations/031_allele_references.sql) ;;
+                *) known_reference_release=false ;;
+            esac
+        done <<< "$schema_changes"
+    fi
+    if [[ "$known_reference_release" == true ]]; then
+        echo 'Applying additive allele reference migration 031.'
+        docker compose exec -T db psql -U dna_user -d dna_analysis -v ON_ERROR_STOP=1 -q < database/migrations/031_allele_references.sql
+    else
+        echo 'Database schema files changed. Review the release migration instructions before starting new code:' >&2
+        echo "$schema_changes" >&2
+        echo "Backup is saved at $backup_file" >&2
+        exit 1
+    fi
 fi
 
 docker compose config --quiet

@@ -253,6 +253,7 @@ app.use('/api/database-encryption', databaseEncryptionRoutes);
 app.use('/api/staff-profiles', staffProfileRoutes);
 app.use('/api/genotype-analysis', genotypeAnalysisRoutes);
 app.use('/api/genotype-panels', require('./routes/genotypePanels'));
+app.use('/api/allele-references', require('./routes/alleleReferences'));
 app.use('/api/genetic-excel-converter', require('./routes/geneticExcelConverter'));
 app.use('/api/staff-contamination', staffContaminationRoutes);
 app.use('/api/contamination-stats', contaminationStatsRoutes);

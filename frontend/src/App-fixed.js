@@ -3,6 +3,7 @@ import { AuthProvider, useAuth } from './contexts/AuthContext';
 import { ThemeProvider } from './contexts/ThemeContext';
 import ThemeSwitcher from './components/Common/ThemeSwitcher';
 import GenotypePanelsPage from './components/Settings/GenotypePanelsPage';
+import AlleleReferencesPage from './components/Settings/AlleleReferencesPage';
 import GenotypeAnalysisPage from './components/Analysis/GenotypeAnalysisPage';
 import LoginPage from './components/Auth/LoginPage';
 import AdminDashboard from './components/Dashboard/AdminDashboard';
@@ -1528,6 +1529,10 @@ function FixedApp() {
             <Route
               path="/settings/panels"
               element={<ProtectedRoute onNavigate={navigate}><PageTransition><GenotypePanelsPage /></PageTransition></ProtectedRoute>}
+            />
+            <Route
+              path="/settings/allele-references"
+              element={<ProtectedRoute onNavigate={navigate}><PageTransition><AlleleReferencesPage /></PageTransition></ProtectedRoute>}
             />
             <Route
               path="/admin-dashboard"

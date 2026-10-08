@@ -22,7 +22,7 @@ const sameAlleles = (a, b) => JSON.stringify([...a].sort()) === JSON.stringify([
 class GeneticExcelConverterService {
   constructor() { this.detector = new LociTypeDetector(); }
 
-  convert(files, options = {}, panels = []) {
+  convert(files, options = {}, panels = [], referenceService = null) {
     if (!Array.isArray(files) || !files.length || files.length > 100) throw new ConversionError('Выберите от 1 до 100 Excel-файлов.');
     if (files.some(file => !Buffer.isBuffer(file?.buffer))) throw new ConversionError('Некорректные файлы.');
     if (files.reduce((sum, file) => sum + file.buffer.length, 0) > 50 * 1024 * 1024) throw new ConversionError('Общий размер файлов превышает 50 МиБ.');
@@ -92,6 +92,7 @@ class GeneticExcelConverterService {
       const exact = info.panelCandidates.filter(panel => panel.exact);
       if (settings.panelId && !panels.some(panel => panel.id === settings.panelId)) throw new ConversionError('Выбранная панель недоступна в активном отделении.', 'PANEL_NOT_FOUND', 404);
       info.detectedPanelId = settings.panelId === '' ? null : settings.panelId || (exact.length === 1 ? exact[0].id : null);
+      if (referenceService) info.reference = referenceService.describe(info.detectedPanelId, settings.referenceSetId);
       info.panelLoci = panels.find(panel => panel.id === info.detectedPanelId)?.lociOrder || [];
       for (let index = info.headerRow; index < rows.length; index++) {
         const row = rows[index];
@@ -124,9 +125,14 @@ class GeneticExcelConverterService {
           const decision = options.cells?.[cellId] || rule?.decision;
           const normalized = decision ? normalizeAlleleValue(rawValue, locus, decision) : original;
           const cell = { ...source, id: cellId, locus, column: column.index, rawValue, normalizedValue: normalized.normalizedValue, status: normalized.status, hard: normalized.hard, code: normalized.events.find(event => event.hard)?.code || normalized.events[0]?.code || 'OK', reason: normalized.events.map(event => event.reason).join(' '), events: normalized.events, alleles: normalized.alleles, userDecision: decision || null };
+          if (referenceService) {
+            cell.reference = { ...referenceService.evaluate(rawValue, locus, info.detectedPanelId, settings.referenceSetId), decision: decision || null, appliedValue: cell.normalizedValue };
+            if (cell.status === 'OK' && cell.reference.status === 'NO_REFERENCE_EVIDENCE') Object.assign(cell, { status: 'WARNING', code: 'NO_REFERENCE_EVIDENCE', reason: cell.reference.reason });
+          }
           if (actualCell?.f && actualCell.v == null) Object.assign(cell, { status: 'ERROR', hard: true, code: 'FORMULA_WITHOUT_RESULT', reason: 'Формула не содержит сохранённого результата. Пересчитайте исходный файл или задайте значение вручную.' });
           if (decision && actualCell?.f && actualCell.v == null && !normalized.hard) Object.assign(cell, { status: normalized.status, hard: false, code: 'USER_DECISION', reason: 'Пользователь явно задал результат вместо формулы.' });
-          if (cell.status === 'OK') unchanged++; else { issue(cell); object.audit.push(cell); if (cell.events.some(event => event.status === 'AUTO_FIXED')) fixed++; }
+          if (cell.status === 'OK') { unchanged++; if (cell.reference?.hasData) object.audit.push(cell); }
+          else { issue(cell); object.audit.push(cell); if (cell.events.some(event => event.status === 'AUTO_FIXED')) fixed++; }
           if (!object.variants.has(locus)) object.variants.set(locus, []);
           object.variants.get(locus).push(cell);
         }
@@ -155,6 +161,7 @@ class GeneticExcelConverterService {
             else manualError = normalized.events.map(event => event.reason).join(' ');
           }
           const conflict = { id: conflictId, objectNumber: object.objectNumber, locus, status: resolved ? 'AUTO_FIXED' : 'CONFLICT', hard: !resolved, code: conflicting.length ? 'REPEATED_RESULT' : 'MANUAL_RESULT', reason: manualError || (resolved ? (conflicting.length ? 'Конфликт повторного исследования разрешён пользователем.' : 'Итоговое значение изменено пользователем.') : 'Разные результаты повторного исследования: выберите источник или введите значение.'), variants: variants.filter(cell => cell.alleles.length), normalizedValue: selected.join(','), userDecision: decision || null, sourceFile: '', sourceSheet: '', sourceRow: null, rawValue: '' };
+          if (referenceService && decision?.action === 'manual') conflict.reference = { ...referenceService.evaluate(decision.value, locus, object.panelIds.size === 1 ? [...object.panelIds][0] : null), decision, appliedValue: conflict.normalizedValue };
           result.conflicts.push(conflict); issue(conflict); object.audit.push(conflict);
         } else if (variants.length > 1 && variants.some(cell => cell.alleles.length)) {
           const entry = { id: conflictId, objectNumber: object.objectNumber, locus, status: 'AUTO_FIXED', hard: false, code: 'MERGE', reason: variants.every(cell => sameAlleles(cell.alleles, best.alleles)) ? 'Одинаковые результаты объединены; сохранены все источники.' : 'Значение дополнено полноценным результатом из другого источника.', variants, normalizedValue: selected.join(','), sourceFile: best.sourceFile, sourceSheet: best.sourceSheet, sourceRow: best.sourceRow, rawValue: variants.map(cell => cell.rawValue).join(' → ') };
@@ -175,6 +182,11 @@ class GeneticExcelConverterService {
     result.summary = { files: files.length, sheets: result.files.filter(file => file.sheet).length, originalRows, uniqueObjects: result.profiles.length, sourceLoci: result.sourceLoci.length, unchanged, autoFixed: fixed,
       warnings: result.issues.filter(item => item.status === 'WARNING').length, unresolved: result.issues.filter(item => item.hard && item.status !== 'CONFLICT').length, conflicts: result.conflicts.filter(item => item.hard).length };
     result.canImport = result.profiles.length > 0 && !result.issues.some(item => item.hard);
+    const ambiguous = result.profiles.flatMap(profile => profile.audit).filter(item => item.reference?.ambiguous);
+    result.referenceSummary = { ambiguous: ambiguous.length, high: ambiguous.filter(item => item.reference.suggestedValue && item.reference.confidence === 'HIGH').length,
+      medium: ambiguous.filter(item => item.reference.suggestedValue && item.reference.confidence === 'MEDIUM').length,
+      insufficient: ambiguous.filter(item => !item.reference.suggestedValue || ['LOW', 'UNKNOWN'].includes(item.reference.confidence)).length };
+    if (referenceService) result.referenceSets = referenceService.sets.map(({ index, values, ...set }) => set);
     return result;
   }
 
@@ -182,8 +194,10 @@ class GeneticExcelConverterService {
     if (!result.canImport) throw new ConversionError('Сначала разрешите все ошибки и конфликты.', 'UNRESOLVED_CONVERSION', 409);
     const book = XLSX.utils.book_new();
     XLSX.utils.book_append_sheet(book, XLSX.utils.aoa_to_sheet([['Объект', ...result.catalogLoci], ...result.profiles.map(profile => [profile.objectNumber, ...result.catalogLoci.map(locus => profile.strData[locus].join(','))])]), 'Импорт');
-    const auditHeaders = ['Файл', 'Лист', 'Строка', 'Объект', 'Локус', 'Исходное', 'Результат', 'Статус', 'Причина', 'Решение пользователя'];
-    const auditRows = result.issues.flatMap(item => item.variants ? item.variants.map(variant => [variant.sourceFile, variant.sourceSheet, variant.sourceRow, item.objectNumber, item.locus, variant.rawValue, item.normalizedValue, item.status, item.reason, item.userDecision ? JSON.stringify(item.userDecision) : '']) : [[item.sourceFile || '', item.sourceSheet || '', item.sourceRow || '', item.objectNumber || '', item.locus || '', item.rawValue || '', item.normalizedValue || '', item.status, item.reason, item.userDecision ? JSON.stringify(item.userDecision) : '']]);
+    const auditHeaders = ['Файл', 'Лист', 'Строка', 'Объект', 'Локус', 'Исходное', 'Результат', 'Статус', 'Причина', 'Решение пользователя', 'Предложение', 'Уверенность', 'Референсные основания'];
+    const entries = new Map([...result.issues, ...result.profiles.flatMap(profile => profile.audit)].map(item => [item.id, item]));
+    const referenceColumns = item => [item.reference?.suggestedValue || '', item.reference?.confidence || '', item.reference ? JSON.stringify(item.reference).slice(0, 32000) : ''];
+    const auditRows = [...entries.values()].flatMap(item => item.variants ? item.variants.map(variant => [variant.sourceFile, variant.sourceSheet, variant.sourceRow, item.objectNumber, item.locus, variant.rawValue, item.normalizedValue, item.status, item.reason, item.userDecision ? JSON.stringify(item.userDecision) : '', ...referenceColumns(variant)]) : [[item.sourceFile || '', item.sourceSheet || '', item.sourceRow || '', item.objectNumber || '', item.locus || '', item.rawValue || '', item.normalizedValue || '', item.status, item.reason, item.userDecision ? JSON.stringify(item.userDecision) : '', ...referenceColumns(item)]]);
     XLSX.utils.book_append_sheet(book, XLSX.utils.aoa_to_sheet([auditHeaders, ...auditRows]), 'Проверка');
     const fileDecisions = new Map();
     for (const issue of result.issues) if (['COLUMN_DECISION', 'IGNORED_ROW'].includes(issue.code)) {
@@ -192,7 +206,7 @@ class GeneticExcelConverterService {
     }
     const profiles = result.profiles.map(profile => ({ objectNumber: profile.objectNumber, sourceLoci: profile.sourceLoci, detectedPanelId: profile.detectedPanelId, sources: profile.sources, audit: [...profile.audit, ...[...new Set(profile.sources.map(source => source.fileId))].flatMap(fileId => fileDecisions.get(fileId) || [])] }));
     if (profiles.some(profile => JSON.stringify(profile).length > 1024 * 1024)) throw new ConversionError('Журнал одного объекта слишком большой. Разделите исходные файлы.');
-    XLSX.utils.book_append_sheet(book, exportMetadata({ createdAt: new Date().toISOString(), converterVersion: '1.0', sourceLoci: result.sourceLoci, sourceFiles: result.files.map(file => ({ name: file.name, sheet: file.sheet, headerRow: file.headerRow, objectColumn: file.objectColumn, sourceLoci: file.sourceLoci, detectedPanelId: file.detectedPanelId })), decisions: result.issues.filter(issue => ['COLUMN_DECISION','IGNORED_ROW'].includes(issue.code)), profiles }), CONVERSION_META_SHEET);
+    XLSX.utils.book_append_sheet(book, exportMetadata({ createdAt: new Date().toISOString(), converterVersion: '1.1', sourceLoci: result.sourceLoci, sourceFiles: result.files.map(file => ({ name: file.name, sheet: file.sheet, headerRow: file.headerRow, objectColumn: file.objectColumn, sourceLoci: file.sourceLoci, detectedPanelId: file.detectedPanelId, reference: file.reference })), decisions: result.issues.filter(issue => ['COLUMN_DECISION','IGNORED_ROW'].includes(issue.code)), profiles }), CONVERSION_META_SHEET);
     book.Workbook = { Sheets: book.SheetNames.map(name => ({ name, Hidden: name === CONVERSION_META_SHEET ? 1 : 0 })) };
     return XLSX.write(book, { type: 'buffer', bookType: 'xlsx', compression: true });
   }

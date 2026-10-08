@@ -1,0 +1,11 @@
+:where(.references-page) { display: grid; gap: 20px; min-width: 0; }
+:where(.references-page) .references-card { padding: 24px; min-width: 0; }
+:where(.references-page) .references-fields { display: grid; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); gap: 16px; }
+:where(.references-page) .references-fields label { display: grid; gap: 8px; }
+:where(.references-page) .references-actions { display: flex; flex-wrap: wrap; align-items: end; gap: 12px; margin: 16px 0; }
+:where(.references-page) .references-actions label { display: grid; gap: 8px; }
+:where(.references-page) .references-content { min-height: 220px; font-family: monospace; }
+:where(.references-page) .references-preview { overflow: auto; max-height: 320px; padding: 16px; background: var(--surface-muted); border-radius: var(--radius-sm); font-size: 14px; }
+:where(.references-page) .references-links { display: flex; flex-wrap: wrap; gap: 16px; margin: 16px 0; }
+:where(.references-page) .references-confirm { display: flex; gap: 12px; align-items: center; margin-top: 16px; }
+:where(.references-page) .references-hash { overflow-wrap: anywhere; font-family: monospace; }

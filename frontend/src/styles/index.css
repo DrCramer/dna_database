@@ -29,6 +29,7 @@
 @import 'pages/master-object-search.css';
 @import 'pages/genotype-panels.css';
 @import 'pages/genetic-converter.css';
+@import 'pages/allele-references.css';
 @import '../components/Common/DepartmentSwitcher.css';
 @import '../components/Common/ThemeSwitcher.css';
 @import '../components/Common/PageTransition.css';

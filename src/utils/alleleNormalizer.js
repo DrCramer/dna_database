@@ -73,4 +73,15 @@ function finish(alleles, events) {
   return { alleles, normalizedValue: alleles.join(','), events, status: priority.find(status => events.some(event => event.status === status)) || 'OK', hard: events.some(event => event.hard) };
 }
 
-module.exports = { normalizeAlleleValue };
+// Синтаксические кандидаты: референсы и частоты оцениваются отдельным сервисом.
+function alleleCandidates(rawValue, locus) {
+  const normalized = normalizeAlleleValue(rawValue, locus);
+  const ambiguous = normalized.events.some(event => event.code === 'AMBIGUOUS_DOT');
+  if (ambiguous) {
+    const value = String(rawValue).trim();
+    return [{ value, alleles: [value], decision: { action: 'keep' } },
+      { value: value.replace('.', ','), alleles: value.split('.'), decision: { action: 'split_dot' } }];
+  }
+  return [{ value: normalized.normalizedValue, alleles: normalized.alleles, decision: null }];
+}
+module.exports = { normalizeAlleleValue, alleleCandidates };

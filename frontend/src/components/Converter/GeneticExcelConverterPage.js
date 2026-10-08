@@ -4,17 +4,28 @@ import { resolveProfileImportFormat } from '../../../../src/utils/profileImportF
 import ConverterSources from './ConverterSources';
 import ConverterIssues from './ConverterIssues';
 import ConverterGrid from './ConverterGrid';
+import ConverterReferenceSettings from './ConverterReferenceSettings';
 const counters = { files: 'Файлов', sheets: 'Листов', originalRows: 'Исходных строк', uniqueObjects: 'Объектов', sourceLoci: 'Локусов источника', unchanged: 'Без изменений', autoFixed: 'Исправлено автоматически', warnings: 'Предупреждений', unresolved: 'Нерешённых', conflicts: 'Конфликтов' };
 export default function GeneticExcelConverterPage({ onPreparedFile }) {
   const { activeDepartment, activeDepartmentId, user } = useAuth();
   const [files, setFiles] = useState([]), [options, setOptions] = useState({}), [result, setResult] = useState(null);
   const [busy, setBusy] = useState(false), [error, setError] = useState('');
+  const [references, setReferences] = useState([]), [populations, setPopulations] = useState([]);
   const request = useRef(null), input = useRef(null);
   const allowed = resolveProfileImportFormat(activeDepartment) === 'genetic';
   useEffect(() => { request.current?.abort(); setFiles([]); setOptions({}); setResult(null); setError(''); setBusy(false); if (input.current) input.current.value = ''; return () => request.current?.abort(); }, [activeDepartmentId]);
+  useEffect(() => {
+    const controller = new AbortController(); setReferences([]); setPopulations([]);
+    if (allowed) Promise.all(['', '/populations'].map(async path => {
+      const response = await fetch(`/api/allele-references${path}`, { signal: controller.signal, headers: { Authorization: `Bearer ${user?.accessToken || localStorage.getItem('token')}`, 'X-Active-Department-Id': activeDepartmentId } });
+      if (!response.ok) throw new Error('Не удалось загрузить справочники.');
+      return response.json();
+    })).then(([refs, populations]) => { if (!controller.signal.aborted) { setReferences(refs.references); setPopulations(populations.populations); } }).catch(error => { if (!controller.signal.aborted) setError(error.message); });
+    return () => controller.abort();
+  }, [activeDepartmentId, allowed]);
   const select = incoming => {
     if (incoming.length > 100 || incoming.some(file => !/\.(xlsx|xls)$/i.test(file.name) || file.size > 10 * 1024 * 1024) || incoming.reduce((sum, file) => sum + file.size, 0) > 50 * 1024 * 1024) { setError('Выберите до 100 файлов .xlsx/.xls: до 10 МиБ каждый и 50 МиБ всего.'); return; }
-    request.current?.abort(); setBusy(false); setFiles(incoming); setOptions({}); setResult(null); setError('');
+    request.current?.abort(); setBusy(false); setFiles(incoming); setOptions(previous => ({ reference: previous.reference })); setResult(null); setError('');
   };
   const perform = async (operation, settings = options) => {
     request.current?.abort(); const controller = new AbortController(); request.current = controller;
@@ -36,6 +47,7 @@ export default function GeneticExcelConverterPage({ onPreparedFile }) {
   };
   if (!allowed) return <div className="alert alert-info">Конвертер доступен в отделении «Генетические экспертизы».</div>;
   return <div className="converter-page" aria-busy={busy}><header className="page-header"><div><h1>Конвертер Excel</h1><p>Объединение старых генотипов, проверка значений и подготовка к загрузке.</p></div></header>
+    <ConverterReferenceSettings references={references} populations={populations} options={options} result={result} disabled={busy} update={settings => result ? update(settings) : setOptions(settings)} />
     <section className="converter-card converter-drop" onDragOver={event => event.preventDefault()} onDrop={event => { event.preventDefault(); if (!busy) select(Array.from(event.dataTransfer.files)); }}>
       <label htmlFor="converter-files">Перетащите Excel-файлы или выберите их</label><input ref={input} id="converter-files" type="file" multiple accept=".xlsx,.xls" disabled={busy} onChange={event => select(Array.from(event.target.files))} /><p>До 100 файлов, 10 МиБ каждый, 50 МиБ всего. Исходные файлы сохраняются без изменений.</p>
       <ul>{files.map((file, index) => <li key={`${index}-${file.name}`}>{file.name}</li>)}</ul><button className="btn btn-primary" disabled={busy || !files.length} onClick={() => perform('preview')}>{busy ? 'Обработка…' : 'Проверить и объединить'}</button>

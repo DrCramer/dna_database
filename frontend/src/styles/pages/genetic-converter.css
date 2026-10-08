@@ -35,3 +35,6 @@
 
 :where(.converter-page) .converter-cell-button { font: inherit; color: inherit; background: transparent; border: 0; padding: 2px; min-width: 64px; cursor: pointer; }
 :where(.converter-page) .converter-cell-button:disabled { cursor: default; opacity: 1; }
+:where(.converter-page) .converter-actions .converter-reference-toggle { display: flex; align-items: center; gap: 8px; }
+:where(.converter-page) .converter-reference-evidence { min-width: 260px; max-width: 480px; overflow-wrap: anywhere; }
+:where(.converter-page) .converter-reference-evidence ul { padding-left: 20px; }

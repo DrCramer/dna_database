@@ -38,7 +38,7 @@ function readConversionMetadata(workbook, profiles, columns) {
     if (entry.detectedPanelId != null && !/^[\da-f]{8}(?:-[\da-f]{4}){3}-[\da-f]{12}$/i.test(entry.detectedPanelId)) throw new Error('Некорректная панель в метаданных конвертации.');
     if (!Array.isArray(entry.audit) || entry.audit.length > 20000 || !Array.isArray(entry.sources) || entry.sources.length > 20000) throw new Error('Некорректный журнал конвертации.');
     if (JSON.stringify(entry).length > 1024 * 1024) throw new Error('Журнал одного объекта слишком большой.');
-    const statuses = new Set(['AUTO_FIXED', 'WARNING', 'NEEDS_REVIEW', 'CONFLICT', 'ERROR']);
+    const statuses = new Set(['OK', 'AUTO_FIXED', 'WARNING', 'NEEDS_REVIEW', 'CONFLICT', 'ERROR']);
     for (const source of entry.sources) if (!source || typeof source.file !== 'string' || source.file.length > 255 || typeof source.sheet !== 'string' || source.sheet.length > 31 || !Number.isInteger(source.row) || source.row < 1 || source.row > 20000) throw new Error('Некорректный источник в журнале конвертации.');
     for (const audit of entry.audit) {
       if (!audit || !statuses.has(audit.status) || typeof audit.code !== 'string' || audit.code.length > 100 || typeof audit.reason !== 'string' || audit.reason.length > 4000 || (audit.locus && !detector.getCanonicalLocusName(audit.locus))) throw new Error('Некорректная запись журнала конвертации.');

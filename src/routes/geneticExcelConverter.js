@@ -4,6 +4,9 @@ const { authenticate } = require('../middleware/auth');
 const { GenotypePanel, PanelError } = require('../models/GenotypePanel');
 const { GeneticExcelConverterService, ConversionError } = require('../services/geneticExcelConverterService');
 const { logger } = require('../utils/logger');
+const { AlleleReferenceService } = require('../services/alleleReferenceService');
+const { ReferenceError } = require('../utils/alleleReferenceImport');
+const { ALL_LOCI } = require('../utils/lociTypeDetector');
 const converter = new GeneticExcelConverterService();
 // Busboy сообщает partsLimit при достижении порога: 100 файлов + options должны проходить целиком.
 const upload = multer({ storage: multer.memoryStorage(), limits: { files: 100, fileSize: 10 * 1024 * 1024, fieldSize: 2 * 1024 * 1024, fields: 1, parts: 102 } }).array('files', 100);
@@ -15,7 +18,7 @@ router.use(async (req, res, next) => {
   } catch (error) { respond(req, res, error); }
 });
 function respond(req, res, error) {
-  if (error instanceof PanelError || error instanceof ConversionError) return res.status(error.status).json({ code: error.code, message: error.message });
+  if (error instanceof PanelError || error instanceof ConversionError || error instanceof ReferenceError) return res.status(error.status).json({ code: error.code, message: error.message });
   if (error instanceof multer.MulterError) return res.status(400).json({ code: error.code, message: 'Превышены ограничения файлов или настроек конвертации.' });
   logger.error('Ошибка конвертера Excel', { code: 'CONVERSION_FAILED', requestId: req.requestId });
   res.status(500).json({ code: 'CONVERSION_FAILED', message: 'Не удалось обработать Excel-файлы.' });
@@ -27,11 +30,14 @@ for (const operation of ['preview', 'export']) router.post(`/${operation}`, (req
       if (error) throw error;
       let options;
       try { options = JSON.parse(req.body.options || '{}'); } catch { throw new ConversionError('Некорректные настройки конвертации.'); }
+      if (!options || typeof options !== 'object' || Array.isArray(options)) throw new ConversionError('Некорректные настройки конвертации.');
       for (const file of req.files || []) {
         const decoded = Buffer.from(file.originalname, 'latin1').toString('utf8');
         if (/[ÐÑÃÂ]/.test(file.originalname) && !decoded.includes('\uFFFD')) file.originalname = decoded;
       }
-      const result = converter.convert(req.files, options, await GenotypePanel.list(req.converterScope));
+      const panels = await GenotypePanel.list(req.converterScope);
+      const references = await AlleleReferenceService.load(req.converterScope, options.reference, panels, ALL_LOCI);
+      const result = converter.convert(req.files, options, panels, references);
       res.set('Cache-Control', 'private, no-store');
       if (operation === 'preview') return res.json(result);
       const buffer = converter.export(result);

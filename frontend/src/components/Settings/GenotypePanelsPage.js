@@ -4,7 +4,7 @@ import { resolveProfileImportFormat } from '../../../../src/utils/profileImportF
 import { LociTypeDetector } from '../../../../src/utils/lociTypeDetector';
 
 const detector = new LociTypeDetector();
-const emptyPanel = () => ({ name: '', description: '', lociOrder: [], isActive: true });
+const emptyPanel = () => ({ name: '', description: '', lociOrder: [], isActive: true, referenceSetIds: [] });
 
 export default function GenotypePanelsPage() {
   const { user, activeDepartment, activeDepartmentId } = useAuth();
@@ -12,6 +12,7 @@ export default function GenotypePanelsPage() {
   const canEdit = ['admin', 'system_administrator', 'department_head'].includes(user?.role);
   const [panels, setPanels] = useState([]);
   const [catalog, setCatalog] = useState([]);
+  const [references, setReferences] = useState([]);
   const [draft, setDraft] = useState(null);
   const [locusInput, setLocusInput] = useState('');
   const [loading, setLoading] = useState(false);
@@ -38,8 +39,8 @@ export default function GenotypePanelsPage() {
     setPanels([]); setCatalog([]); setDraft(null); setError(''); setMessage('');
     if (!isGenetic) return;
     setLoading(true);
-    Promise.all([request('?includeInactive=true', { signal: controller.signal }), request('/loci', { signal: controller.signal })])
-      .then(([list, loci]) => { if (!controller.signal.aborted) { setPanels(list.panels); setCatalog(loci.loci); } })
+    Promise.all([request('?includeInactive=true', { signal: controller.signal }), request('/loci', { signal: controller.signal }), fetch('/api/allele-references?includeInactive=true', { signal: controller.signal, headers: { Authorization: `Bearer ${localStorage.getItem('token')}`, 'X-Active-Department-Id': activeDepartmentId } }).then(async response => { const body = await response.json(); if (!response.ok) throw new Error(body.message || 'Ошибка справочников.'); return body; })])
+      .then(([list, loci, refs]) => { if (!controller.signal.aborted) { setPanels(list.panels); setCatalog(loci.loci); setReferences(refs.references); } })
       .catch(err => { if (!controller.signal.aborted) setError(err.message); })
       .finally(() => { if (!controller.signal.aborted) setLoading(false); });
     return () => controller.abort();
@@ -92,6 +93,9 @@ export default function GenotypePanelsPage() {
         <div className="form-group"><label className="form-label" htmlFor="panel-name">Название панели</label><input id="panel-name" className="form-input" value={draft.name} maxLength={150} required disabled={!canEdit || saving} onChange={e => setDraft({ ...draft, name: e.target.value })} /></div>
         <div className="form-group"><label className="form-label" htmlFor="panel-description">Описание</label><textarea id="panel-description" className="form-input" value={draft.description || ''} maxLength={10000} disabled={!canEdit || saving} onChange={e => setDraft({ ...draft, description: e.target.value })} /></div>
         <label className="panels-active"><input type="checkbox" checked={draft.isActive} disabled={!canEdit || saving} onChange={e => setDraft({ ...draft, isActive: e.target.checked })} /> Активная панель</label>
+        <h3>Подтверждённые референсные наборы</h3><p>Выберите соответствующие источники вручную. Если активных лестниц несколько, версия выбирается в конвертере.</p>
+        {references.map(reference => <label className="panels-active" key={reference.id}><input type="checkbox" disabled={!canEdit || saving} checked={(draft.referenceSetIds || []).includes(reference.id)} onChange={event => setDraft({ ...draft, referenceSetIds: event.target.checked ? [...(draft.referenceSetIds || []), reference.id] : draft.referenceSetIds.filter(id => id !== reference.id) })} />{reference.name} · {reference.sourceVersion}{!reference.isActive && ' (неактивен)'}</label>)}
+        {!references.length && <p>Справочники пока не загружены. <a href="/settings/allele-references">Открыть справочники</a></p>}
         <h3>Порядок локусов</h3><p>Перетащите локус или используйте кнопки перемещения.</p>
         <ol className="panels-loci-list">{draft.lociOrder.map((name, index) => <li key={name} draggable={canEdit && !saving}
           onDragStart={event => { draggedIndex.current = index; event.dataTransfer.setData('text/plain', name); event.dataTransfer.effectAllowed = 'move'; }}
