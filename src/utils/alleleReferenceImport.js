@@ -75,13 +75,21 @@ function validateReferenceImport(data) {
     if (set.type === 'Y_STR_REFERENCE' && type !== LOCI_TYPES.Y_CHROMOSOME) throw new ReferenceError('Y-справочник может содержать только Y-хромосомные локусы.');
     const classification = row.classification || (set.type === 'KIT_LADDER' ? 'IN_LADDER' : set.type === 'OBSERVED_REFERENCE' ? 'OBSERVED' : 'KNOWN_VARIANT');
     if (!['IN_LADDER', 'KNOWN_VARIANT', 'OFF_LADDER', 'TRIALLELIC_VARIANT', 'OBSERVED'].includes(classification) || (set.type === 'KIT_LADDER') !== (classification === 'IN_LADDER')) throw new ReferenceError(`Классификация не соответствует типу справочника в записи ${index + 1}.`);
-    for (const [field, expected] of [['kit', set.kitName], ['source', set.sourceUrl], ['version', set.sourceVersion]]) if (row[field] && row[field] !== expected) throw new ReferenceError(`Поле ${field} CSV не совпадает с настройками источника.`);
+    for (const [field, expected] of [['kit', set.kitName], ['version', set.sourceVersion]]) if (row[field] && row[field] !== expected) throw new ReferenceError(`Поле ${field} CSV не совпадает с настройками источника.`);
+    let sourceLabel = null;
+    if (row.source) {
+      if (/^https?:\/\//i.test(row.source.trim())) {
+        if (row.source.trim() !== set.sourceUrl) throw new ReferenceError('Ссылка в колонке Source CSV не совпадает с настройками источника.');
+      } else {
+        sourceLabel = text(row.source, 'Происхождение записи', 300);
+      }
+    }
     const key = `${locus}:${allele}`;
     if (keys.has(key)) throw new ReferenceError(`Повторная запись ${key}.`);
     keys.add(key);
     const metadata = row.metadata || {};
     if (typeof metadata !== 'object' || Array.isArray(metadata) || JSON.stringify(metadata).length > 4000) throw new ReferenceError('Некорректные сведения о записи.');
-    return { locus, allele, classification, metadata };
+    return { locus, allele, classification, metadata: sourceLabel ? { ...metadata, sourceLabel } : metadata };
   }).sort((a, b) => a.locus.localeCompare(b.locus) || a.allele.localeCompare(b.allele));
   set.metadata = { ...set.metadata, confirmed: true };
   set.contentHash = createHash('sha256').update(JSON.stringify(set)).digest('hex');

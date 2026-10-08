@@ -9,7 +9,7 @@ export default function ReferenceEvidence({ reference }) {
     {reference.suggestedValue && <p><strong>Предполагаемое исправление: {reference.suggestedValue}</strong></p>}
     {reference.candidates.map((candidate, index) => <div key={index}><strong>Вариант: {candidate.value || '—'} · {confidenceNames[candidate.confidence]}</strong>
       {!candidate.evidence.length && <p>Подходящих референсных данных нет.</p>}
-      <ul>{candidate.evidence.map((item, index) => <li key={index}>{item.allele}: {resultNames[item.result] || item.result} · {item.referenceName} · версия {item.referenceVersion?.slice(0, item.sourceType === 'POPULATION_DATA' ? 12 : 150)}{item.frequency != null && ` · частота ${item.frequency}`}{item.sourceUrl && <> · <a href={item.sourceUrl} target="_blank" rel="noopener noreferrer">Источник</a></>}</li>)}</ul>
+      <ul>{candidate.evidence.map((item, index) => <li key={index}>{item.allele}: {resultNames[item.result] || item.result} · {item.referenceName} · версия {item.referenceVersion?.slice(0, item.sourceType === 'POPULATION_DATA' ? 12 : 150)}{item.frequency != null && ` · частота ${item.frequency}`}{item.details?.sourceLabel && ` · происхождение: ${item.details.sourceLabel}`}{item.sourceUrl && <> · <a href={item.sourceUrl} target="_blank" rel="noopener noreferrer">Источник</a></>}</li>)}</ul>
     </div>)}
   </details>;
 }

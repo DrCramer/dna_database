@@ -80,6 +80,17 @@ class LociTypeDetector {
     constructor() {
         this.lociTypeMap = this.buildLociTypeMap();
         this.canonicalNames = new Map(ALL_LOCI.map(name => [this.normalizeName(name), name]));
+        // Дополнительные локусы допускаются в справочниках и конвертере,
+        // но не добавляются в стандартный набор колонок анализа.
+        for (const [alias, canonical] of Object.entries({
+            APO: 'APOAI1',
+            APOAI1: 'APOAI1',
+            D11S554: 'D11S554',
+            D17S906: 'D17S906',
+            D22GATA198B05: 'D22-GATA198B05',
+            'D22-GATA198B05': 'D22-GATA198B05'
+        })) this.canonicalNames.set(this.normalizeName(alias), canonical);
+        ['APOAI1', 'D11S554', 'D17S906', 'D22-GATA198B05'].forEach(locus => this.lociTypeMap.set(locus, LOCI_TYPES.STR));
     }
 
     /**
@@ -159,7 +170,8 @@ class LociTypeDetector {
         return this.getCanonicalLocusName(locusName) !== null;
     }
 
-    // Каноническое имя всегда берётся из ALL_LOCI.
+    // Основной список колонок анализа остаётся в ALL_LOCI; справочники
+    // и конвертер также принимают явно перечисленные дополнительные локусы.
     normalizeName(name) {
         return String(name).trim().replace(/\s+/g, ' ').toUpperCase()
             .replace(/^PENTA\s*([EDC])$/, 'PENTA $1');
