@@ -58,6 +58,14 @@ if [[ -n "$schema_changes" ]]; then
     fi
 fi
 
+# После отдельного git pull (или остановки прежнего скрипта на изменении схемы)
+# diff может быть пустым. Наличие таблиц проверяем перед запуском нового кода.
+reference_tables_ready="$(docker compose exec -T db psql -U dna_user -d dna_analysis -Atq -v ON_ERROR_STOP=1 -c "SELECT to_regclass('allele_reference_sets') IS NOT NULL AND to_regclass('allele_reference_values') IS NOT NULL AND to_regclass('genotype_panel_references') IS NOT NULL")"
+if [[ "$reference_tables_ready" != t ]]; then
+    echo 'Installing missing allele reference tables (migration 031).'
+    docker compose exec -T db psql -U dna_user -d dna_analysis -v ON_ERROR_STOP=1 -q < database/migrations/031_allele_references.sql
+fi
+
 docker compose config --quiet
 docker compose build web
 ./scripts/prepare-runtime.sh
