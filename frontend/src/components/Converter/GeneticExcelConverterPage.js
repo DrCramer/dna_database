@@ -13,7 +13,7 @@ export default function GeneticExcelConverterPage({ onPreparedFile }) {
   const allowed = resolveProfileImportFormat(activeDepartment) === 'genetic';
   useEffect(() => { request.current?.abort(); setFiles([]); setOptions({}); setResult(null); setError(''); setBusy(false); if (input.current) input.current.value = ''; return () => request.current?.abort(); }, [activeDepartmentId]);
   const select = incoming => {
-    if (incoming.length > 20 || incoming.some(file => !/\.(xlsx|xls)$/i.test(file.name) || file.size > 10 * 1024 * 1024) || incoming.reduce((sum, file) => sum + file.size, 0) > 50 * 1024 * 1024) { setError('Выберите до 20 файлов .xlsx/.xls: до 10 МиБ каждый и 50 МиБ всего.'); return; }
+    if (incoming.length > 100 || incoming.some(file => !/\.(xlsx|xls)$/i.test(file.name) || file.size > 10 * 1024 * 1024) || incoming.reduce((sum, file) => sum + file.size, 0) > 50 * 1024 * 1024) { setError('Выберите до 100 файлов .xlsx/.xls: до 10 МиБ каждый и 50 МиБ всего.'); return; }
     request.current?.abort(); setBusy(false); setFiles(incoming); setOptions({}); setResult(null); setError('');
   };
   const perform = async (operation, settings = options) => {
@@ -37,7 +37,7 @@ export default function GeneticExcelConverterPage({ onPreparedFile }) {
   if (!allowed) return <div className="alert alert-info">Конвертер доступен в отделении «Генетические экспертизы».</div>;
   return <div className="converter-page" aria-busy={busy}><header className="page-header"><div><h1>Конвертер Excel</h1><p>Объединение старых генотипов, проверка значений и подготовка к загрузке.</p></div></header>
     <section className="converter-card converter-drop" onDragOver={event => event.preventDefault()} onDrop={event => { event.preventDefault(); if (!busy) select(Array.from(event.dataTransfer.files)); }}>
-      <label htmlFor="converter-files">Перетащите Excel-файлы или выберите их</label><input ref={input} id="converter-files" type="file" multiple accept=".xlsx,.xls" disabled={busy} onChange={event => select(Array.from(event.target.files))} /><p>До 20 файлов, 10 МиБ каждый, 50 МиБ всего. Исходные файлы сохраняются без изменений.</p>
+      <label htmlFor="converter-files">Перетащите Excel-файлы или выберите их</label><input ref={input} id="converter-files" type="file" multiple accept=".xlsx,.xls" disabled={busy} onChange={event => select(Array.from(event.target.files))} /><p>До 100 файлов, 10 МиБ каждый, 50 МиБ всего. Исходные файлы сохраняются без изменений.</p>
       <ul>{files.map((file, index) => <li key={`${index}-${file.name}`}>{file.name}</li>)}</ul><button className="btn btn-primary" disabled={busy || !files.length} onClick={() => perform('preview')}>{busy ? 'Обработка…' : 'Проверить и объединить'}</button>
     </section>
     {error && <div className="alert alert-danger" role="alert">{error}</div>}

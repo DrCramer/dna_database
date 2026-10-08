@@ -548,6 +548,36 @@ test('Реальные PostgreSQL, authenticate, preview и upload', { skip: !da
     });
   });
 
+  await t.test('Конвертер API принимает 100 файлов с настройками и отклоняет 101 файл', async () => {
+    const endpoint = baseUrl.replace('/profiles', '/genetic-excel-converter');
+    const files = Array.from({ length: 101 }, (_, index) => buffer([columns, [`BATCH-${index + 1}`, ...values]]));
+    const convertBatch = (operation, count, optionsFirst) => {
+      const form = new FormData();
+      if (optionsFirst) form.append('options', '{}');
+      files.slice(0, count).forEach((file, index) => form.append('files', new Blob([file]), `batch-${index + 1}.xlsx`));
+      if (!optionsFirst) form.append('options', '{}');
+      return fetch(`${endpoint}/${operation}`, { method: 'POST', headers: { Authorization: `Bearer ${accessToken}`, 'X-Active-Department-Id': genetic }, body: form });
+    };
+    for (const optionsFirst of [false, true]) {
+      const preview = await convertBatch('preview', 100, optionsFirst);
+      assert.equal(preview.status, 200);
+      const result = await preview.json();
+      assert.equal(result.canImport, true);
+      assert.equal(result.files.length, 100);
+      assert.equal(result.profiles.length, 100);
+      assert.deepEqual(result.profiles.map(profile => profile.objectNumber), Array.from({ length: 100 }, (_, index) => `BATCH-${index + 1}`));
+    }
+    const exported = await convertBatch('export', 100, false);
+    assert.equal(exported.status, 200);
+    const book = XLSX.read(Buffer.from(await exported.arrayBuffer()), { type: 'buffer' });
+    assert.equal(XLSX.utils.sheet_to_json(book.Sheets['Импорт'], { header: 1 }).length, 101);
+    for (const operation of ['preview', 'export']) {
+      const rejected = await convertBatch(operation, 101, false);
+      assert.equal(rejected.status, 400);
+      assert.equal((await rejected.json()).code, 'LIMIT_FILE_COUNT');
+    }
+  });
+
   await t.test('Конвертер API: scope, блокировка конфликтов, полный roundtrip и привязка задачи', async () => {
     const endpoint = baseUrl.replace('/profiles', '/genetic-excel-converter');
     const panelId = (await query("INSERT INTO genotype_panels (organization_id,department_id,name,loci_order,created_by,updated_by) VALUES ($1,$2,'Converter fixture',$3,$4,$4) RETURNING id", [organization,genetic,JSON.stringify(['TH01','D5S818','D21S11','AMEL','DYS392']),userId])).rows[0].id;

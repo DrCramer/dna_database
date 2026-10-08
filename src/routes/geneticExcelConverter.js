@@ -5,7 +5,8 @@ const { GenotypePanel, PanelError } = require('../models/GenotypePanel');
 const { GeneticExcelConverterService, ConversionError } = require('../services/geneticExcelConverterService');
 const { logger } = require('../utils/logger');
 const converter = new GeneticExcelConverterService();
-const upload = multer({ storage: multer.memoryStorage(), limits: { files: 20, fileSize: 10 * 1024 * 1024, fieldSize: 2 * 1024 * 1024, fields: 1, parts: 21 } }).array('files', 20);
+// Busboy сообщает partsLimit при достижении порога: 100 файлов + options должны проходить целиком.
+const upload = multer({ storage: multer.memoryStorage(), limits: { files: 100, fileSize: 10 * 1024 * 1024, fieldSize: 2 * 1024 * 1024, fields: 1, parts: 102 } }).array('files', 100);
 router.use(authenticate);
 router.use(async (req, res, next) => {
   try {

@@ -23,7 +23,7 @@ class GeneticExcelConverterService {
   constructor() { this.detector = new LociTypeDetector(); }
 
   convert(files, options = {}, panels = []) {
-    if (!Array.isArray(files) || !files.length || files.length > 20) throw new ConversionError('Выберите от 1 до 20 Excel-файлов.');
+    if (!Array.isArray(files) || !files.length || files.length > 100) throw new ConversionError('Выберите от 1 до 100 Excel-файлов.');
     if (files.some(file => !Buffer.isBuffer(file?.buffer))) throw new ConversionError('Некорректные файлы.');
     if (files.reduce((sum, file) => sum + file.buffer.length, 0) > 50 * 1024 * 1024) throw new ConversionError('Общий размер файлов превышает 50 МиБ.');
     if (!options || typeof options !== 'object' || Array.isArray(options) || JSON.stringify(options).length > 2 * 1024 * 1024) throw new ConversionError('Некорректные или слишком большие настройки конвертации.');
