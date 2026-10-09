@@ -4,6 +4,7 @@ const XLSX = require('xlsx');
 const { AlleleReferenceService } = require('../src/services/alleleReferenceService');
 const { validateReferenceImport } = require('../src/utils/alleleReferenceImport');
 const { normalizeAlleleValue, alleleCandidates } = require('../src/utils/alleleNormalizer');
+const { LociTypeDetector, LOCI_TYPES, STR_LOCI, Y_INDEL_LOCI } = require('../src/utils/lociTypeDetector');
 const { GeneticExcelConverterService } = require('../src/services/geneticExcelConverterService');
 const { ExcelService } = require('../src/services/excelService');
 const id = 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa', panelId = 'bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb';
@@ -14,6 +15,79 @@ function set(loci, overrides = {}) {
 }
 function service(sets, observations = [], settings = {}) { return new AlleleReferenceService({ sets, observations, settings, panels: [{ id: panelId, referenceSetIds: sets.filter(set => set.type === 'KIT_LADDER').map(set => set.id) }] }); }
 const frequencies = alleles => alleles.map((allele, index) => ({ locus: 'D5S818', allele, frequency: index ? 0.0001 : 0.5, populationId: 'test', populationName: 'Synthetic test', updatedAt: '2026-01-01' }));
+const detector = new LociTypeDetector();
+
+test('Три зарегистрированных Y-InDel регистронезависимы, гаплоидны и не интерпретируются как SNP', () => {
+  const cases = [
+    ['rs199815934', 'RS199815934', 'rs199815934'],
+    ['Rs771783753', 'RS771783753', 'rs771783753'],
+    ['rs759551978', 'RS759551978', 'rs759551978']
+  ];
+  for (const [canonical, upper, lower] of cases) {
+    for (const alias of [canonical, upper, lower]) {
+      assert.equal(detector.getCanonicalLocusName(alias), canonical);
+      assert.equal(detector.detectLocusType(alias), LOCI_TYPES.Y_INDEL);
+      for (const allele of ['1', '2']) {
+        const result = normalizeAlleleValue(allele, alias);
+        assert.deepEqual(result.alleles, [allele]);
+        assert.equal(result.status, 'OK');
+        assert(!result.events.some(event => event.code === 'SINGLE_DIPLOID'));
+        assert(detector.validateAlleles(alias, [allele]).isValid);
+        assert.deepEqual(alleleCandidates(allele, alias).map(candidate => candidate.value), [allele]);
+      }
+      const mixture = normalizeAlleleValue('1,2', alias);
+      assert.deepEqual(mixture.alleles, ['1', '2']);
+      assert(mixture.events.some(event => event.code === 'MULTI_Y_ALLELIC'));
+        assert(normalizeAlleleValue('1', alias, { action: 'homozygous' }).events.some(event => event.code === 'INVALID_DECISION'));
+    }
+  }
+  assert.equal(detector.detectLocusType('Rs2032678'), LOCI_TYPES.SNP);
+  assert.equal(detector.detectLocusType('rs000000000'), LOCI_TYPES.OTHER);
+  assert.deepEqual(Y_INDEL_LOCI, ['Rs771783753', 'rs199815934', 'rs759551978']);
+  assert.equal(normalizeAlleleValue('1', 'YINDEL').normalizedValue, '1');
+});
+
+test('Y-InDel не получает аутосомные частоты и исключён из диплоидного LR', async () => {
+  const observation = { locus: 'rs199815934', allele: '1', frequency: 0.9, populationId: 'test', populationName: 'Synthetic' };
+  const reference = service([], [observation]).evaluate('1', 'RS199815934', panelId);
+  assert.equal(reference.genotypeRule, 'HAPLOID_REFERENCE_ONLY');
+  assert(!reference.candidates[0].evidence.some(item => item.sourceType === 'POPULATION_DATA'));
+
+  const LRCalculator = require('../src/services/bayesian/LRCalculator');
+  const calculator = new LRCalculator(null, { getBayesianParameters: async () => ({}) });
+  const profiles = [
+    { id: 'sample-a', str_data: { rs199815934: ['1'] } },
+    { id: 'sample-b', str_data: { RS199815934: ['1'] } }
+  ];
+  const result = await calculator.calculateProfileLR(...profiles, { populationId: 'test', locusFrequencies: new Map([['rs199815934', { frequencies: new Map([['1', 0.9]]) }]]) });
+  assert.equal(Object.keys(result.locusLRs).length, 0);
+  assert.equal(result.overallLR, 1);
+  assert(result.calculationMetadata.warnings.some(message => /Y-InDel.*не включается/.test(message)));
+});
+
+test('Импорт общего JSON на 1157 записей принимает новые Y-InDel в позиции 1152–1157', () => {
+  const ordinary = Array.from({ length: 1151 }, (_, index) => ({ locus: STR_LOCI[index % 52], allele: String(Math.floor(index / 52) + 1) }));
+  const values = [...ordinary,
+    { locus: 'rs199815934', allele: '1' }, { locus: 'RS199815934', allele: '2' },
+    { locus: 'rs771783753', allele: '1' }, { locus: 'RS771783753', allele: '2' },
+    { locus: 'rs759551978', allele: '1' }, { locus: 'RS759551978', allele: '2' }
+  ];
+  const imported = validateReferenceImport({ name: 'Generic fixture', type: 'OBSERVED_REFERENCE', sourceTitle: 'Synthetic test', sourceUrl: 'https://example.invalid/combined', sourceVersion: 'fixture-1', confirmed: true, format: 'json', content: JSON.stringify({ values }) });
+  assert.equal(imported.values.length, 1157);
+  assert.equal(new Set(imported.values.map(value => value.locus)).size, 55);
+  assert.deepEqual(imported.values.filter(value => Y_INDEL_LOCI.includes(value.locus)).map(value => [value.locus, value.allele]).sort(), [
+    ['rs199815934', '1'], ['rs199815934', '2'],
+    ['Rs771783753', '1'], ['Rs771783753', '2'],
+    ['rs759551978', '1'], ['rs759551978', '2']
+  ].sort());
+  assert.equal(new Set(imported.values.map(value => `${value.locus}:${value.allele}`)).size, 1157);
+  assert.throws(() => validateReferenceImport({ name: 'Duplicate aliases', type: 'OBSERVED_REFERENCE', sourceTitle: 'Synthetic test', sourceUrl: 'https://example.invalid/combined', sourceVersion: 'fixture-1', confirmed: true, format: 'json', content: JSON.stringify({ values: [{ locus: 'RS199815934', allele: '1' }, { locus: 'rs199815934', allele: '1' }] }) }), /Повторная запись.*каноническому виду/);
+});
+
+test('Предварительная проверка перечисляет локус и причину по нескольким ошибочным строкам', () => {
+  const data = { name: 'Invalid fixture', type: 'OBSERVED_REFERENCE', sourceTitle: 'Synthetic test', sourceUrl: 'https://example.invalid/combined', sourceVersion: 'fixture-1', confirmed: true, format: 'json', content: JSON.stringify({ values: [{ locus: 'rs000000000', allele: '1' }, { locus: 'rs199815934', allele: '3' }] }) };
+  assert.throws(() => validateReferenceImport(data), error => error.code === 'INVALID_REFERENCE_ROWS' && /локус «rs000000000» в записи 1/.test(error.message) && /аллели «3» для локуса «rs199815934» в записи 2/.test(error.message));
+});
 
 test('Синтаксические кандидаты отделены от референсов; настоящие микроаллели не разбиваются', () => {
   assert.deepEqual(alleleCandidates('11.12', 'D5S818').map(candidate => candidate.value), ['11.12', '11,12']);

@@ -46,7 +46,7 @@ test('Стандартный порядок и тот же профиль с п�
 test('Все 31 маркер из задания и перемешанный набор независимо от позиций', async () => {
   const names = 'TH01 D5S818 D21S11 D18S51 D6S1043 D4S2366 Rs2032678 SRY AMEL D3S1358 D13S317 D7S820 D16S539 CSF1PO Penta_D DYS392 D2S441 vWA D8S1179 TPOX Penta_E Rs771783753 D19S433 D22S1045 D2S1338 FGA DYS391 D1S1656 D12S391 D10S1248 SE33'.split(' ').map(name => name.replace('_', ' '));
   const values = Object.fromEntries(names.map((name, index) => [name,
-    name === 'AMEL' ? 'XY' : name.startsWith('Rs') ? 'A,T' : ['SRY', 'DYS392', 'DYS391'].includes(name) ? String(index + 1) : `${index + 7},${index + 9}`]));
+    name === 'AMEL' ? 'XY' : name === 'Rs771783753' ? '1' : name.startsWith('Rs') ? 'A,T' : ['SRY', 'DYS392', 'DYS391'].includes(name) ? String(index + 1) : `${index + 7},${index + 9}`]));
   const [base] = await parse([['Объект', ...names], ['FULL-1', ...names.map(name => values[name])]]);
   assert.equal(Object.keys(base.strData).length, 31);
   for (let shift = 0; shift < names.length; shift += 5) {
@@ -117,6 +117,21 @@ test('Частично заполненный профиль и существу
   await assert.rejects(parse([['Объект', 'TH01', 'D5S818', 'Rs2032678'], ['A-1', '7,9', '11,12', 'Q']]), /Недопустим/);
   const detector = new LociTypeDetector();
   assert.equal(detector.getCanonicalLocusName('RS771783753'), 'Rs771783753');
+});
+
+test('Несколько Y-InDel значений дают предупреждение и сохраняются; прочие значения блокируются', async () => {
+  const rows = [['Объект', 'TH01', 'D5S818', 'D21S11', 'rs199815934'], ['PGP-1', '7,9', '11,12', '29,30', '1/2']];
+  const buffer = workbook(rows);
+  const checked = validation.validateFile(buffer, 'panglobal.xlsx', options);
+  assert.equal(checked.valid, true);
+  assert(checked.warnings.some(warning => warning.code === 'MULTI_Y_INDEL' && /rs199815934/.test(warning.message)));
+  const [profile] = await excel.parseExcelFile(buffer, 'panglobal.xlsx', options);
+  assert.deepEqual(profile.strData.rs199815934, ['1', '2']);
+  const invalid = workbook([rows[0], [...rows[1].slice(0, 4), '3']]);
+  const rejected = validation.validateFile(invalid, 'panglobal.xlsx', options);
+  assert.equal(rejected.valid, false);
+  assert(rejected.errors.some(error => error.code === 'INVALID_Y_INDEL_ALLELE' && /локус «rs199815934»/.test(error.message)));
+  await assert.rejects(excel.parseExcelFile(invalid, 'panglobal.xlsx', options), /Недопустимые значения аллелей для rs199815934/);
 });
 
 test('Дубликат Объекта обнаруживается до записи, с номерами обеих строк', async () => {

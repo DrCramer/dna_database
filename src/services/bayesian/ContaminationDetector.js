@@ -6,6 +6,8 @@
  */
 
 const { logger } = require('../../utils/logger');
+const { LociTypeDetector, LOCI_TYPES } = require('../../utils/lociTypeDetector');
+const locusTypeDetector = new LociTypeDetector();
 
 class ContaminationDetector {
     constructor(populationManager, systemParameters) {
@@ -118,7 +120,10 @@ class ContaminationDetector {
 
             // Process str_data format (legacy)
             for (const [locusName, alleles] of Object.entries(strData)) {
-                if (Array.isArray(alleles) && alleles.length > 2) {
+                const type = locusTypeDetector.detectLocusType(locusName);
+                if (type === LOCI_TYPES.Y_INDEL && Array.isArray(alleles) && alleles.length > 1) {
+                    flaggedLoci.push({ locusName, locusType: LOCI_TYPES.Y_INDEL, alleleCount: alleles.length, alleles: [...alleles], reason: 'Multiple alleles at a haploid Y-InDel marker; possible mixture or anomaly', severity: 'MEDIUM' });
+                } else if (type === LOCI_TYPES.STR && Array.isArray(alleles) && alleles.length > 2) {
                     // Filter out non-numeric alleles (like 'X', 'Y', null, undefined)
                     const numericAlleles = alleles.filter(allele => 
                         allele !== null && 
@@ -143,7 +148,9 @@ class ContaminationDetector {
             // Process loci Map format (new format)
             if (lociMap instanceof Map) {
                 for (const [locusName, locusData] of lociMap) {
-                    if (locusData.locusType === 'STR' && Array.isArray(locusData.alleles)) {
+                    if (locusData.locusType === LOCI_TYPES.Y_INDEL && Array.isArray(locusData.alleles) && locusData.alleles.length > 1) {
+                        flaggedLoci.push({ locusName, locusType: LOCI_TYPES.Y_INDEL, alleleCount: locusData.alleles.length, alleles: [...locusData.alleles], reason: 'Multiple alleles at a haploid Y-InDel marker; possible mixture or anomaly', severity: 'MEDIUM' });
+                    } else if (locusData.locusType === LOCI_TYPES.STR && Array.isArray(locusData.alleles)) {
                         // Filter out non-numeric alleles
                         const numericAlleles = locusData.alleles.filter(allele => 
                             allele !== null && 
@@ -259,6 +266,7 @@ class ContaminationDetector {
 
             // Check str_data format
             for (const [locusName, alleles] of Object.entries(strData)) {
+                if (locusTypeDetector.detectLocusType(locusName) === LOCI_TYPES.Y_INDEL) continue;
                 if (Array.isArray(alleles) && alleles.length > 0) {
                     const populationFreqs = populationData.locusFrequencies.get(locusName);
                     
@@ -274,6 +282,7 @@ class ContaminationDetector {
             // Check loci Map format
             if (lociMap instanceof Map) {
                 for (const [locusName, locusData] of lociMap) {
+                    if (locusData.locusType === LOCI_TYPES.Y_INDEL) continue;
                     if (Array.isArray(locusData.alleles) && locusData.alleles.length > 0) {
                         const populationFreqs = populationData.locusFrequencies.get(locusName);
                         

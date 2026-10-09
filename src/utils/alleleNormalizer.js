@@ -6,7 +6,8 @@ const hardStatuses = new Set(['ERROR', 'NEEDS_REVIEW', 'CONFLICT']);
 function normalizeAlleleValue(rawValue, locus, decision) {
   const raw = String(rawValue ?? '');
   const type = detector.detectLocusType(locus);
-  const haploid = type === LOCI_TYPES.Y_CHROMOSOME || locus === detector.getCanonicalLocusName('Yindel');
+  const canonicalLocus = detector.getCanonicalLocusName(locus);
+  const haploid = type === LOCI_TYPES.Y_CHROMOSOME || type === LOCI_TYPES.Y_INDEL || canonicalLocus === 'Yindel';
   const events = [];
   const add = (code, status, reason, suggestions = []) => events.push({ code, status, hard: hardStatuses.has(status), reason, suggestions });
   let value = raw.trim();
@@ -19,7 +20,7 @@ function normalizeAlleleValue(rawValue, locus, decision) {
       if (!isCertainNumericAllele(value) || haploid || type === LOCI_TYPES.AMELOGENIN) add('INVALID_DECISION', 'ERROR', 'Гомозиготность можно подтвердить только для одной числовой аллели диплоидного локуса.');
       else value = `${value},${value}`;
     } else if (action === 'split_dot') {
-      if (!/^\d+\.\d{2,}$/.test(value)) add('INVALID_DECISION', 'ERROR', 'Исходное значение не соответствует спорной записи A.B.');
+      if (haploid || !/^\d+\.\d{2,}$/.test(value)) add('INVALID_DECISION', 'ERROR', 'Разделение точкой доступно только для диплоидного локуса с неоднозначной записью A.B.');
       else value = value.replace('.', ',');
     } else if (action === 'keep') { explicitSingle = true; }
     else if (action === 'manual' && typeof decision.value === 'string' && decision.value.length <= 500) value = decision.value;
@@ -63,8 +64,8 @@ function normalizeAlleleValue(rawValue, locus, decision) {
   if (tokens.some(token => !knownToken(token))) add('UNKNOWN_ALLELE', 'ERROR', 'Неизвестное значение аллели: требуется явное решение пользователя.');
   const validation = detector.validateAlleles(locus, tokens);
   if (!validation.isValid) add('INVALID_ALLELE', 'ERROR', 'Значение не прошло проверку типа локуса.');
-  if (tokens.length > 2) add('MULTI_ALLELIC', 'WARNING', 'Обнаружено более двух аллелей: возможная смесь, контаминация или триаллельный профиль.');
-  else if (haploid && tokens.length > 1) add('MULTI_Y_ALLELIC', 'WARNING', 'В гаплоидном локусе обнаружено несколько аллелей.');
+  if (tokens.length > 2) add('MULTI_ALLELIC', 'WARNING', haploid ? 'В гаплоидном локусе обнаружено несколько аллелей: возможна смесь или аномалия.' : 'Обнаружено более двух аллелей: возможная смесь, контаминация или триаллельный профиль.');
+  else if (haploid && tokens.length > 1) add('MULTI_Y_ALLELIC', 'WARNING', 'В гаплоидном локусе обнаружено несколько аллелей: возможна смесь или аномалия.');
   return finish(tokens, events);
 }
 

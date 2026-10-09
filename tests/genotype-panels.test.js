@@ -40,6 +40,17 @@ test('Панель canonicalize: регистр и Penta, запрет опеч�
   assert.throws(() => GenotypePanel.validate({ name: 'TEST', lociOrder: ['Typo'] }), /пока не поддерживается/);
 });
 
+test('Y-InDel доступны в каталоге и панели, старое имя Rs771783753 остаётся каноническим', () => {
+  const expectedCatalogOrder = ['Rs771783753', 'rs199815934', 'rs759551978'];
+  const catalog = GenotypePanel.catalog();
+  for (const name of expectedCatalogOrder) assert(catalog.some(item => item.name === name && item.type === 'Y_INDEL'));
+  const panel = GenotypePanel.validate({ name: 'SureID PanGlobal Plus', lociOrder: ['RS199815934', 'rs771783753', 'RS759551978'] });
+  assert.deepEqual(panel.lociOrder, ['rs199815934', 'Rs771783753', 'rs759551978']);
+  assert.throws(() => GenotypePanel.validate({ name: 'Duplicate aliases', lociOrder: ['rs199815934', 'RS199815934'] }), /не должны повторяться/);
+  const actual = getAnalysisLoci([{ strData: { 'rs199815934': ['1'], Rs771783753: ['2'], 'rs759551978': ['1'] } }]);
+  assert.deepEqual(actual, expectedCatalogOrder);
+});
+
 test('Состав и порядок панели дают предупреждения без потери mapping', () => {
   const warnings = GenotypePanel.compareLoci({ lociOrder: ['FGA', 'TH01', 'AMEL', 'SRY'] }, ['TH01', 'AMEL', 'FGA', 'SE33']);
   assert.equal(warnings.length, 3);

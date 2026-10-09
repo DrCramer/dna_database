@@ -6,6 +6,8 @@
  */
 
 const { logger } = require('../../utils/logger');
+const { LociTypeDetector, LOCI_TYPES } = require('../../utils/lociTypeDetector');
+const locusTypeDetector = new LociTypeDetector();
 
 class DegradationAnalyzer {
     constructor(systemParameters) {
@@ -273,7 +275,7 @@ class DegradationAnalyzer {
             // Check all loci in the genetic data, not just the predefined list
             for (const [locus, locusData] of Object.entries(geneticData)) {
                 // Skip non-STR loci like AMEL
-                if (locus === 'AMEL' || locus === 'Amelogenin' || locus.startsWith('DYS') || locus.startsWith('rs')) {
+                if (locus === 'AMEL' || locus === 'Amelogenin' || locusTypeDetector.detectLocusType(locus) !== LOCI_TYPES.STR) {
                     continue;
                 }
                 

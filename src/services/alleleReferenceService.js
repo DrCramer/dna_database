@@ -117,7 +117,7 @@ class AlleleReferenceService {
     for (const candidate of candidates) candidate.confidence = status === 'CONFLICTING_REFERENCE_EVIDENCE' ? 'LOW' : candidate === suggested ? confidence : candidate.known ? (candidate.inLadder ? 'HIGH' : 'MEDIUM') : candidate.hasData ? 'LOW' : 'UNKNOWN';
     return { status, confidence, reason, hasData, ambiguous, candidates, suggestedValue: suggested?.value || null,
       suggestedDecision: suggested?.decision || null, ladder: this.describe(panelId, referenceSetId),
-      genotypeRule: locus === 'Yindel' || locus === 'SRY' ? 'SPECIAL_MARKER' : type === LOCI_TYPES.Y_CHROMOSOME ? 'HAPLOTYPE_REFERENCE_ONLY' : 'LOCUS_TYPE_RULES' };
+      genotypeRule: type === LOCI_TYPES.Y_INDEL ? 'HAPLOID_REFERENCE_ONLY' : locus === 'Yindel' || locus === 'SRY' ? 'SPECIAL_MARKER' : type === LOCI_TYPES.Y_CHROMOSOME ? 'HAPLOTYPE_REFERENCE_ONLY' : 'LOCUS_TYPE_RULES' };
   }
 }
 module.exports = { AlleleReferenceService, referenceSettings };

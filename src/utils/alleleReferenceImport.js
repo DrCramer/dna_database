@@ -64,33 +64,49 @@ function validateReferenceImport(data) {
   });
   if (!Array.isArray(values) || !values.length || values.length > 20000) throw new ReferenceError('Нужно от 1 до 20 000 явных записей аллелей.');
   const keys = new Set();
+  const importErrors = [];
+  const addRowError = message => { importErrors.push(message); return null; };
   set.values = values.map((row, index) => {
-    if (!row || typeof row !== 'object') throw new ReferenceError(`Некорректная запись ${index + 1}.`);
-    const locus = detector.getCanonicalLocusName(row.locus || row.locusName);
-    if (!locus) throw new ReferenceError(`Неизвестный локус в записи ${index + 1}.`);
-    const allele = text(row.allele, 'Аллель (строка)', 30, true);
+    const entryNumber = index + 1;
+    if (!row || typeof row !== 'object' || Array.isArray(row)) return addRowError(`Некорректная запись ${entryNumber}.`);
+    const rawLocus = row.locus || row.locusName;
+    const locus = detector.getCanonicalLocusName(rawLocus);
+    if (!locus) return addRowError(`Неизвестный локус «${String(rawLocus || 'не указан').slice(0, 100)}» в записи ${entryNumber}. Добавьте локус в каталог поддерживаемых маркеров или проверьте его название.`);
+    let allele;
+    try { allele = text(row.allele, 'Аллель (строка)', 30, true); }
+    catch (error) { return addRowError(`Некорректное значение аллели для локуса «${locus}» в записи ${entryNumber}: ${error.message}`); }
     const type = detector.detectLocusType(locus);
-    const valid = type === LOCI_TYPES.AMELOGENIN ? /^[XY]$/.test(allele) : type === LOCI_TYPES.SNP ? /^[ATCG]$/.test(allele) : /^\d+(?:\.\d+)?$/.test(allele);
-    if (!valid) throw new ReferenceError(`Укажите одну точную аллель в записи ${index + 1}; диапазоны и специальные токены не принимаются.`);
-    if (set.type === 'Y_STR_REFERENCE' && type !== LOCI_TYPES.Y_CHROMOSOME) throw new ReferenceError('Y-справочник может содержать только Y-хромосомные локусы.');
+    const valid = type === LOCI_TYPES.AMELOGENIN ? /^[XY]$/.test(allele)
+      : type === LOCI_TYPES.SNP ? /^[ATCG]$/.test(allele)
+        : type === LOCI_TYPES.Y_INDEL ? /^[12]$/.test(allele)
+          : /^\d+(?:\.\d+)?$/.test(allele);
+    if (!valid) return addRowError(`Недопустимое значение аллели «${allele.slice(0, 50)}» для локуса «${locus}» в записи ${entryNumber}; укажите одну точную аллель допустимого формата.`);
+    if (set.type === 'Y_STR_REFERENCE' && type !== LOCI_TYPES.Y_CHROMOSOME) return addRowError(`Y-справочник может содержать только Y-хромосомные STR; локус «${locus}» в записи ${entryNumber} к ним не относится.`);
     const classification = row.classification || (set.type === 'KIT_LADDER' ? 'IN_LADDER' : set.type === 'OBSERVED_REFERENCE' ? 'OBSERVED' : 'KNOWN_VARIANT');
-    if (!['IN_LADDER', 'KNOWN_VARIANT', 'OFF_LADDER', 'TRIALLELIC_VARIANT', 'OBSERVED'].includes(classification) || (set.type === 'KIT_LADDER') !== (classification === 'IN_LADDER')) throw new ReferenceError(`Классификация не соответствует типу справочника в записи ${index + 1}.`);
-    for (const [field, expected] of [['kit', set.kitName], ['version', set.sourceVersion]]) if (row[field] && row[field] !== expected) throw new ReferenceError(`Поле ${field} CSV не совпадает с настройками источника.`);
+    if (!['IN_LADDER', 'KNOWN_VARIANT', 'OFF_LADDER', 'TRIALLELIC_VARIANT', 'OBSERVED'].includes(classification) || (set.type === 'KIT_LADDER') !== (classification === 'IN_LADDER')) return addRowError(`Классификация не соответствует типу справочника в записи ${entryNumber} (локус «${locus}»).`);
+    for (const [field, expected] of [['kit', set.kitName], ['version', set.sourceVersion]]) if (row[field] && row[field] !== expected) return addRowError(`Поле ${field} CSV не совпадает с настройками источника в записи ${entryNumber} (локус «${locus}»).`);
     let sourceLabel = null;
     if (row.source) {
+      if (typeof row.source !== 'string') return addRowError(`Поле Source должно быть строкой в записи ${entryNumber} (локус «${locus}»).`);
       if (/^https?:\/\//i.test(row.source.trim())) {
-        if (row.source.trim() !== set.sourceUrl) throw new ReferenceError('Ссылка в колонке Source CSV не совпадает с настройками источника.');
+        if (row.source.trim() !== set.sourceUrl) return addRowError(`Ссылка в колонке Source CSV не совпадает с настройками источника в записи ${entryNumber} (локус «${locus}»).`);
       } else {
-        sourceLabel = text(row.source, 'Происхождение записи', 300);
+        try { sourceLabel = text(row.source, 'Происхождение записи', 300); }
+        catch (error) { return addRowError(`Некорректное происхождение записи ${entryNumber} (локус «${locus}»): ${error.message}`); }
       }
     }
     const key = `${locus}:${allele}`;
-    if (keys.has(key)) throw new ReferenceError(`Повторная запись ${key}.`);
+    if (keys.has(key)) return addRowError(`Повторная запись ${key} после приведения названия локуса к каноническому виду (запись ${entryNumber}).`);
     keys.add(key);
     const metadata = row.metadata || {};
-    if (typeof metadata !== 'object' || Array.isArray(metadata) || JSON.stringify(metadata).length > 4000) throw new ReferenceError('Некорректные сведения о записи.');
+    if (typeof metadata !== 'object' || Array.isArray(metadata) || JSON.stringify(metadata).length > 4000) return addRowError(`Некорректные сведения о записи ${entryNumber} (локус «${locus}»).`);
     return { locus, allele, classification, metadata: sourceLabel ? { ...metadata, sourceLabel } : metadata };
-  }).sort((a, b) => a.locus.localeCompare(b.locus) || a.allele.localeCompare(b.allele));
+  }).filter(Boolean).sort((a, b) => a.locus.localeCompare(b.locus) || a.allele.localeCompare(b.allele));
+  if (importErrors.length) {
+    const shown = importErrors.slice(0, 25).map(message => `• ${message}`);
+    if (importErrors.length > shown.length) shown.push(`• И ещё ошибок: ${importErrors.length - shown.length}.`);
+    throw new ReferenceError(`Найдены ошибки в ${importErrors.length} записях справочника:\n${shown.join('\n')}`, 400, 'INVALID_REFERENCE_ROWS');
+  }
   set.metadata = { ...set.metadata, confirmed: true };
   set.contentHash = createHash('sha256').update(JSON.stringify(set)).digest('hex');
   return set;

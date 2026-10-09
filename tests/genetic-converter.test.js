@@ -28,6 +28,28 @@ test('Нормализация безопасных разделителей, м
   for (const missing of ['', ' ', '-', '—', '–']) assert.deepEqual(normalize(missing, 'TH01').alleles, []);
 });
 
+test('Y-InDel заголовки распознаются, одиночные значения сохраняются при импорте и экспорте', async () => {
+  const markerNames = ['rs199815934', 'RS771783753', 'rs759551978'];
+  const headers = ['Объект', 'TH01', 'D5S818', 'D21S11', ...markerNames];
+  const row = ['PGP-1', '7,9', '11,12', '29,30', '1', '2', '1'];
+  const source = file([headers, row], 'panglobal.xlsx');
+  const direct = await new ExcelService().parseExcelFile(source.buffer, source.originalname, { importFormat: 'genetic' });
+  assert.deepEqual(direct[0].strData, {
+    TH01: ['7', '9'], D5S818: ['11', '12'], D21S11: ['29', '30'],
+    rs199815934: ['1'], Rs771783753: ['2'], rs759551978: ['1']
+  });
+
+  const panel = { id: 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa', name: 'SureID PanGlobal Plus', lociOrder: headers.slice(1).map(name => detector.getCanonicalLocusName(name)) };
+  const converted = converter.convert([source], {}, [panel]);
+  assert.equal(converted.canImport, true, JSON.stringify(converted.issues));
+  assert.deepEqual(converted.profiles[0].strData.rs199815934, ['1']);
+  assert.deepEqual(converted.profiles[0].strData.Rs771783753, ['2']);
+  assert.deepEqual(converted.profiles[0].strData.rs759551978, ['1']);
+  const exported = converter.export(converted);
+  const roundTrip = await new ExcelService().parseExcelFile(exported, 'round-trip.xlsx', { importFormat: 'genetic' });
+  for (const locus of panel.lociOrder.slice(-3)) assert.deepEqual(roundTrip[0].strData[locus], converted.profiles[0].strData[locus]);
+});
+
 test('Точки и одиночные диплоидные аллели требуют явного решения', () => {
   assert.equal(normalize('11.12', 'TH01').status, 'NEEDS_REVIEW');
   assert.equal(normalize('11.12', 'TH01', { action: 'split_dot' }).normalizedValue, '11,12');
@@ -128,7 +150,7 @@ test('Поддельные метаданные не скрывают локус
 });
 
 test('Перестановки всех локусов используют каталог, а не позиции или фиксированное число', () => {
-  const value = locus => detector.detectLocusType(locus) === 'AMELOGENIN' ? 'XY' : detector.detectLocusType(locus) === 'Y_CHROMOSOME' || locus === 'Yindel' ? '12' : '12,13';
+  const value = locus => detector.detectLocusType(locus) === 'AMELOGENIN' ? 'XY' : detector.detectLocusType(locus) === 'Y_INDEL' ? '1' : detector.detectLocusType(locus) === 'Y_CHROMOSOME' || locus === 'Yindel' ? '12' : '12,13';
   const order = [...ALL_LOCI].reverse(); const result = converter.convert([file([['Объект',...order], ['FULL-1',...order.map(value)]])]);
   assert.equal(result.canImport, true, JSON.stringify(result.issues.filter(i => i.hard)));
   for (const locus of ALL_LOCI) assert.equal(result.profiles[0].strData[locus].join(','), locus === 'AMEL' ? 'X,Y' : value(locus));

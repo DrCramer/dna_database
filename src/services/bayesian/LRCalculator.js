@@ -8,6 +8,8 @@ const { informativeAlleles, alleleTokens, isSpecialAllele, isMissingAllele } = r
  */
 
 const { logger } = require('../../utils/logger');
+const { LociTypeDetector, LOCI_TYPES } = require('../../utils/lociTypeDetector');
+const locusTypeDetector = new LociTypeDetector();
 
 // Import STR/SNP loci configuration
 const { 
@@ -85,6 +87,9 @@ class LRCalculator {
                     }
                     probability = this.calculateYChromosomeProbability(alleles[0], frequencies);
                     break;
+
+                case 'Y_INDEL':
+                    throw new Error('Для Y-InDel не применяется аутосомная модель LR.');
                     
                 default:
                     throw new Error(`Unsupported locus type: ${locusType}`);
@@ -164,6 +169,11 @@ class LRCalculator {
                     
                     if (!locus1 || !locus2) {
                         logger.warn(`Missing locus data for ${locusName}`);
+                        continue;
+                    }
+
+                    if (locus1.locusType === LOCI_TYPES.Y_INDEL || locus2.locusType === LOCI_TYPES.Y_INDEL) {
+                        warnings.push(`Y-InDel ${locusName} сравнивается как гаплоидный маркер и не включается в расчёт аутосомного LR.`);
                         continue;
                     }
                     
@@ -352,10 +362,13 @@ class LRCalculator {
                     }
                     probability = this.calculateYChromosomeProbability(alleles[0], frequencies);
                     break;
-                    
+
                 case 'AMELOGENIN':
                     probability = this.calculateAmelogeninProbability(alleles, frequencies);
                     break;
+
+                case 'Y_INDEL':
+                    throw new Error('Для Y-InDel не применяется диплоидная модель LR.');
                     
                 default:
                     // Default to STR analysis for unknown types
@@ -397,25 +410,17 @@ class LRCalculator {
             STR: [],
             SNP: [],
             Y_CHROMOSOME: [],
+            Y_INDEL: [],
             X_CHROMOSOME: [],
             AMELOGENIN: [],
+            INDEL: [],
             OTHER: []
         };
         
         loci.forEach(locusName => {
-            if (locusName.startsWith('DYS') || locusName === 'SRY' || locusName === 'Yindel') {
-                categories.Y_CHROMOSOME.push(locusName);
-            } else if (locusName.startsWith('rs') || locusName.toLowerCase().startsWith('rs')) {
-                categories.SNP.push(locusName);
-            } else if (locusName.startsWith('DXS')) {
-                categories.X_CHROMOSOME.push(locusName);
-            } else if (locusName === 'AMEL' || locusName === 'Amelogenin') {
-                categories.AMELOGENIN.push(locusName);
-            } else if (EXTENDED_40_STR_SNP_LOCI.includes(locusName)) {
-                categories.STR.push(locusName);
-            } else {
-                categories.OTHER.push(locusName);
-            }
+            const canonical = locusTypeDetector.getCanonicalLocusName(locusName);
+            const type = canonical === 'Yindel' ? LOCI_TYPES.Y_CHROMOSOME : locusTypeDetector.detectLocusType(canonical || locusName);
+            (categories[type] || categories.OTHER).push(locusName);
         });
         
         return categories;
@@ -741,31 +746,36 @@ class LRCalculator {
      */
     extractLociData(profile) {
         const lociMap = new Map();
+        const typeOf = locusName => {
+            const canonical = locusTypeDetector.getCanonicalLocusName(locusName);
+            return canonical === 'Yindel' ? LOCI_TYPES.Y_CHROMOSOME : locusTypeDetector.detectLocusType(canonical || locusName);
+        };
+        const normalizedData = (locusName, data, alleles) => ({ ...data, locusName, locusType: typeOf(locusName), alleles });
         
         // Handle different profile formats
         if (profile.loci && profile.loci instanceof Map) {
             // Already in Map format
-            return new Map([...profile.loci].map(([name, data]) => [name, { ...data, alleles: informativeAlleles(data.alleles).length === alleleTokens(data.alleles).length ? informativeAlleles(data.alleles) : [] }]));
+            return new Map([...profile.loci].map(([name, data]) => [locusTypeDetector.getCanonicalLocusName(name) || name, normalizedData(name, data, informativeAlleles(data.alleles).length === alleleTokens(data.alleles).length ? informativeAlleles(data.alleles) : [])]));
         } else if (profile.loci && typeof profile.loci === 'object') {
             // Convert object to Map
             Object.entries(profile.loci).forEach(([locusName, locusData]) => {
-                lociMap.set(locusName, { ...locusData, alleles: informativeAlleles(locusData.alleles).length === alleleTokens(locusData.alleles).length ? informativeAlleles(locusData.alleles) : [] });
+                lociMap.set(locusTypeDetector.getCanonicalLocusName(locusName) || locusName, normalizedData(locusName, locusData, informativeAlleles(locusData.alleles).length === alleleTokens(locusData.alleles).length ? informativeAlleles(locusData.alleles) : []));
             });
         } else if (profile.str_data) {
             // Convert STR data format
             Object.entries(profile.str_data).forEach(([locusName, locusData]) => {
                 if (Array.isArray(locusData)) {
                     // Handle array format (новый формат БД)
-                    lociMap.set(locusName, {
+                    lociMap.set(locusTypeDetector.getCanonicalLocusName(locusName) || locusName, {
                         locusName: locusName,
-                        locusType: 'STR',
+                        locusType: typeOf(locusName),
                         alleles: informativeAlleles(locusData).length === locusData.length ? informativeAlleles(locusData) : []
                     });
                 } else if (locusData && locusData.allele1 && locusData.allele2) {
                     // Handle object format (старый формат)
-                    lociMap.set(locusName, {
+                    lociMap.set(locusTypeDetector.getCanonicalLocusName(locusName) || locusName, {
                         locusName: locusName,
-                        locusType: 'STR',
+                        locusType: typeOf(locusName),
                         alleles: informativeAlleles(locusData).length === 2 ? informativeAlleles(locusData) : []
                     });
                 }

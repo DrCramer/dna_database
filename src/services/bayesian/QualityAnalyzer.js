@@ -11,9 +11,11 @@
  */
 
 const { logger } = require('../../utils/logger');
+const { LociTypeDetector, LOCI_TYPES } = require('../../utils/lociTypeDetector');
 const { ValidationUtils, Classifications, Thresholds } = require('./types');
 const { GeneticSample, PopulationFrequencies } = require('./models');
 const { query } = require('../../config/database');
+const locusTypeDetector = new LociTypeDetector();
 
 class QualityAnalyzer {
     constructor(populationManager, systemParameters) {
@@ -187,6 +189,7 @@ class QualityAnalyzer {
                         : sample.rawData.str_data;
                     
                     for (const [locusName, locusData] of Object.entries(strData)) {
+                        if (locusTypeDetector.detectLocusType(locusName) === LOCI_TYPES.Y_INDEL) continue;
                         // Новый формат: массив
                         if (Array.isArray(locusData)) {
                             const validAlleles = locusData.filter(a => 
@@ -229,6 +232,7 @@ class QualityAnalyzer {
             } else if (sample.str_data && Object.keys(sample.str_data).length > 0) {
                 // Используем str_data напрямую из GeneticSample
                 for (const [locusName, locusData] of Object.entries(sample.str_data)) {
+                    if (locusTypeDetector.detectLocusType(locusName) === LOCI_TYPES.Y_INDEL) continue;
                     // Новый формат: массив
                     if (Array.isArray(locusData)) {
                         const validAlleles = locusData.filter(a => 
@@ -268,6 +272,7 @@ class QualityAnalyzer {
             } else if (sample.loci && sample.loci.size > 0) {
                 // Используем новую модель LocusData
                 for (const [locusName, locusData] of sample.loci) {
+                    if (locusTypeDetector.detectLocusType(locusName) === LOCI_TYPES.Y_INDEL) continue;
                     if (locusData.isAnalyzed()) {
                         analyzedLoci++;
                         

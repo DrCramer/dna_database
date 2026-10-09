@@ -1,6 +1,8 @@
 const XLSX = require('xlsx');
 const { logger } = require('../utils/logger');
 const { validateGeneticHeaders, normalizeObjectName, getGeneticHeaders } = require('../utils/profileImportFormat');
+const { LociTypeDetector, LOCI_TYPES } = require('../utils/lociTypeDetector');
+const locusTypeDetector = new LociTypeDetector();
 
 /**
  * Типы экспертиз
@@ -184,6 +186,8 @@ class FileValidationService {
         const validation = validateGeneticHeaders(headers, options.minRequiredLoci || 3);
         errors.push(...validation.errors);
         let actualDataRows = 0;
+        let yIndelWarningCount = 0;
+        const maxYIndelWarnings = 100;
         if (validation.valid) dataRows.forEach((row, index) => {
           if (row.every(value => !normalizeObjectName(value))) return;
           actualDataRows++;
@@ -192,8 +196,22 @@ class FileValidationService {
           else if (!validation.columns.some(({ index: column }) => !['', '-'].includes(normalizeObjectName(row[column])))) {
             errors.push({ type: 'data', code: 'EMPTY_GENETIC_PROFILE', message: `Строка ${rowNumber}, объект «${normalizeObjectName(row[0])}»: отсутствуют данные генетического профиля.`, details: { rowNumber } });
           }
+          for (const { index: column, locus } of validation.columns) {
+            if (locusTypeDetector.detectLocusType(locus) !== LOCI_TYPES.Y_INDEL) continue;
+            const raw = normalizeObjectName(row[column]);
+            if (!raw || raw === '-') continue;
+            const alleles = raw.split(/[,;/]/).map(value => value.trim()).filter(Boolean);
+            const checked = locusTypeDetector.validateAlleles(locus, alleles);
+            if (!checked.isValid) {
+              errors.push({ type: 'data', code: 'INVALID_Y_INDEL_ALLELE', message: `Строка ${rowNumber}, объект «${normalizeObjectName(row[0])}», локус «${locus}»: ${checked.errors.join('; ')}.`, details: { rowNumber, locus } });
+            } else if (alleles.length > 1) {
+              yIndelWarningCount++;
+              if (yIndelWarningCount <= maxYIndelWarnings) errors.push({ type: 'warning', code: 'MULTI_Y_INDEL', message: `Строка ${rowNumber}, объект «${normalizeObjectName(row[0])}», локус «${locus}»: несколько аллелей (${alleles.join(', ')}); возможны смесь или аномалия. Значения будут сохранены без изменений.`, details: { rowNumber, locus, alleleCount: alleles.length } });
+            }
+          }
         });
-        return { valid: errors.length === 0, errors, expertiseType: 'genetic', headers, dataRows: dataRows.length,
+        if (yIndelWarningCount > maxYIndelWarnings) errors.push({ type: 'warning', code: 'MULTI_Y_INDEL_MORE', message: `И ещё записей с несколькими аллелями Y-InDel: ${yIndelWarningCount - maxYIndelWarnings}.` });
+        return { valid: errors.every(error => error.type === 'warning'), errors, expertiseType: 'genetic', headers, dataRows: dataRows.length,
           actualDataRows, skippedEmptyRows: dataRows.length - actualDataRows, requiredColumns: ['Объект'], recognizedMarkers: validation.recognizedMarkers };
       }
       // Для ЧС явно применяем существующую схему; legacy-эвристика остаётся для остальных отделений.

@@ -153,7 +153,7 @@ test('Реальные PostgreSQL, authenticate, preview и upload', { skip: !da
 
   await t.test('Массовый поиск сравнивает все дополнительные STR, SNP и Y-маркеры', async () => {
     const names = ['D6S1043', 'D4S2366', 'Rs2032678', 'SRY', 'Penta D', 'DYS392', 'Penta E', 'Rs771783753'];
-    const alleles = ['7,9', '11,12', 'A,T', '1', '20,22', '12', '21,23', 'C,G'];
+    const alleles = ['7,9', '11,12', 'A,T', '1', '20,22', '12', '21,23', '2'];
     const imported = await upload('/upload', genetic, [['Объект', ...names], ['DYNAMIC-1', ...alleles], ['DYNAMIC-2', ...alleles]]);
     assert.equal(imported.body.processing.created, 2, JSON.stringify(imported.body));
     const ids = (await query("SELECT id FROM dna_profiles WHERE user_id=$1 AND internal_number IN ('DYNAMIC-1','DYNAMIC-2')", [userId])).rows.map(row => row.id);

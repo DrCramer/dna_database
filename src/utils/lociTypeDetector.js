@@ -12,6 +12,7 @@ const LOCI_TYPES = {
     X_CHROMOSOME: 'X_CHROMOSOME',
     AMELOGENIN: 'AMELOGENIN',
     INDEL: 'INDEL',
+    Y_INDEL: 'Y_INDEL',
     OTHER: 'OTHER'
 };
 
@@ -41,7 +42,13 @@ const X_CHROMOSOME_LOCI = [
 
 // SNP (Single Nucleotide Polymorphism) markers
 const SNP_LOCI = [
-    'Rs2032678', 'Rs771783753'
+    'Rs2032678'
+];
+
+// Зарегистрированные Y-InDel; регистр заголовка не влияет на определение типа.
+// Для существующих данных сохранено каноническое имя Rs771783753.
+const Y_INDEL_LOCI = [
+    'Rs771783753', 'rs199815934', 'rs759551978'
 ];
 
 // Amelogenin (sex determination)
@@ -64,16 +71,18 @@ const OTHER_LOCI = [
     'SE33', 'LPL', 'F13B', 'FESFPS', 'F13A01'
 ];
 
-// All supported loci (80 total)
+// Существующие локусы сохраняют прежний порядок; новые Y-InDel добавлены в конец.
 const ALL_LOCI = [
     ...STR_LOCI,
     ...Y_CHROMOSOME_LOCI,
     ...X_CHROMOSOME_LOCI,
     ...SNP_LOCI,
+    Y_INDEL_LOCI[0],
     ...AMELOGENIN_LOCI,
     ...INDEL_LOCI,
     ...PENTA_LOCI,
-    ...OTHER_LOCI
+    ...OTHER_LOCI,
+    ...Y_INDEL_LOCI.slice(1)
 ];
 
 class LociTypeDetector {
@@ -104,6 +113,7 @@ class LociTypeDetector {
         Y_CHROMOSOME_LOCI.forEach(locus => map.set(locus.toUpperCase(), LOCI_TYPES.Y_CHROMOSOME));
         X_CHROMOSOME_LOCI.forEach(locus => map.set(locus.toUpperCase(), LOCI_TYPES.X_CHROMOSOME));
         SNP_LOCI.forEach(locus => map.set(locus.toUpperCase(), LOCI_TYPES.SNP));
+        Y_INDEL_LOCI.forEach(locus => map.set(locus.toUpperCase(), LOCI_TYPES.Y_INDEL));
         AMELOGENIN_LOCI.forEach(locus => map.set(locus.toUpperCase(), LOCI_TYPES.AMELOGENIN));
         INDEL_LOCI.forEach(locus => map.set(locus.toUpperCase(), LOCI_TYPES.INDEL));
         OTHER_LOCI.forEach(locus => map.set(locus.toUpperCase(), LOCI_TYPES.OTHER));
@@ -142,7 +152,7 @@ class LociTypeDetector {
             return LOCI_TYPES.X_CHROMOSOME;
         }
         
-        if (normalizedName.startsWith('RS') || normalizedName.includes('SNP')) {
+        if (normalizedName.includes('SNP')) {
             return LOCI_TYPES.SNP;
         }
         
@@ -201,6 +211,8 @@ class LociTypeDetector {
                 return [...AMELOGENIN_LOCI];
             case LOCI_TYPES.INDEL:
                 return [...INDEL_LOCI];
+            case LOCI_TYPES.Y_INDEL:
+                return [...Y_INDEL_LOCI];
             case LOCI_TYPES.OTHER:
                 return [...OTHER_LOCI];
             default:
@@ -241,6 +253,8 @@ class LociTypeDetector {
                 return this.validateAmelogeninAlleles(alleles);
             case LOCI_TYPES.INDEL:
                 return this.validateIndelAlleles(alleles);
+            case LOCI_TYPES.Y_INDEL:
+                return this.validateYIndelAlleles(alleles);
             default:
                 // Basic validation for other types
                 return this.validateGenericAlleles(alleles);
@@ -387,6 +401,20 @@ class LociTypeDetector {
         return result;
     }
 
+    // Значения зарегистрированных Y-InDel — строки 1/2. Их биологическое
+    // значение (INS/DEL) здесь намеренно не назначается.
+    validateYIndelAlleles(alleles) {
+        const result = { isValid: true, errors: [], warnings: [] };
+        if (alleles.length > 1) result.warnings.push('В гаплоидном Y-InDel обнаружено несколько аллелей: возможна смесь или аномалия.');
+        for (const allele of alleles) {
+            if (allele !== '1' && allele !== '2') {
+                result.errors.push(`Недопустимое значение Y-InDel аллеля: ${allele} (допускаются только 1 или 2)`);
+                result.isValid = false;
+            }
+        }
+        return result;
+    }
+
     /**
      * Generic allele validation
      */
@@ -427,6 +455,7 @@ class LociTypeDetector {
             [LOCI_TYPES.SNP]: SNP_LOCI.length,
             [LOCI_TYPES.AMELOGENIN]: AMELOGENIN_LOCI.length,
             [LOCI_TYPES.INDEL]: INDEL_LOCI.length,
+            [LOCI_TYPES.Y_INDEL]: Y_INDEL_LOCI.length,
             [LOCI_TYPES.OTHER]: OTHER_LOCI.length,
             total: ALL_LOCI.length
         };
@@ -440,6 +469,7 @@ module.exports = {
     Y_CHROMOSOME_LOCI,
     X_CHROMOSOME_LOCI,
     SNP_LOCI,
+    Y_INDEL_LOCI,
     AMELOGENIN_LOCI,
     INDEL_LOCI,
     PENTA_LOCI,

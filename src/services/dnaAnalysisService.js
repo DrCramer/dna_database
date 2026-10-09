@@ -3,6 +3,7 @@ const { logger } = require('../utils/logger');
 const DNAProfile = require('../models/DNAProfile');
 const User = require('../models/User');
 const { ALL_LOCI, LOCI_TYPES, LociTypeDetector } = require('../utils/lociTypeDetector');
+const locusTypeDetector = new LociTypeDetector();
 
 // Define STR/SNP loci configuration with backward compatibility
 // Original 39 STR loci from FM_DNA 1.0.0.html for backward compatibility
@@ -893,7 +894,14 @@ class DNAAnalysisService {
 
     if (isValue1Numeric && isValue2Numeric) {
       result.isNumeric = true;
-      result.match = this.isSTRMatch(value1, value2);
+      if (locusType === LOCI_TYPES.Y_INDEL) {
+        const alleles1 = value1.split(',').map(value => value.trim()).sort();
+        const alleles2 = value2.split(',').map(value => value.trim()).sort();
+        result.match = alleles1.length === alleles2.length && alleles1.every((allele, index) => allele === alleles2[index]);
+        result.yIndelInfo = { isHaploid: true, possibleMixture: alleles1.length > 1 || alleles2.length > 1 };
+      } else {
+        result.match = this.isSTRMatch(value1, value2);
+      }
     } else {
       // Handle special symbols (*, F, ?) - these match with anything but are not numeric
       if (this.isSpecialSymbol(value1) || this.isSpecialSymbol(value2)) {
@@ -970,28 +978,11 @@ class DNAAnalysisService {
    * @returns {string} Locus type (STR, SNP, Y_CHROMOSOME, etc.)
    */
   determineLocusType(locusName, alleleData) {
-    // Y-chromosome markers
-    if (locusName.startsWith('DYS') || locusName === 'SRY' || locusName === 'Yindel') {
-      return 'Y_CHROMOSOME';
-    }
-    
-    // SNP markers (typically start with 'rs' or are in known SNP list)
-    if (locusName.startsWith('rs') || locusName.toLowerCase().startsWith('rs')) {
-      return 'SNP';
-    }
-    
-    // X-chromosome markers
-    if (locusName.startsWith('DXS')) {
-      return 'X_CHROMOSOME';
-    }
-    
-    // Amelogenin (sex determination)
-    if (locusName === 'AMEL' || locusName === 'Amelogenin') {
-      return 'AMELOGENIN';
-    }
-    
-    // Default to STR for most markers
-    return 'STR';
+    const canonical = locusTypeDetector.getCanonicalLocusName(locusName);
+    // Исторический Yindel остаётся гаплоидным спецмаркером; новые Y-InDel
+    // получают собственный тип по реестру, а не только по префиксу rs.
+    if (canonical === 'Yindel') return LOCI_TYPES.Y_CHROMOSOME;
+    return locusTypeDetector.detectLocusType(canonical || locusName);
   }
 
   /**
@@ -1040,6 +1031,8 @@ class DNAAnalysisService {
       result.snpInfo = this.analyzeSNPLocus(value1, value2);
     } else if (locusType === 'Y_CHROMOSOME') {
       result.yChromosomeInfo = this.analyzeYChromosomeLocus(value1, value2);
+    } else if (locusType === LOCI_TYPES.Y_INDEL) {
+      result.yIndelInfo = { isHaploid: true, possibleMixture: value1.includes(',') || value2.includes(',') };
     } else if (locusType === 'AMELOGENIN') {
       result.amelogeninInfo = this.analyzeAmelogeninLocus(value1, value2);
     }

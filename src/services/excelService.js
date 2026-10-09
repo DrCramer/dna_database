@@ -1653,6 +1653,13 @@ class ExcelService {
     let valueStr = cellValue.toString().replace(/\s+/g, '').trim();
 
     if (isMissingAllele(valueStr)) return [];
+    if (locusType === 'Y_INDEL') {
+      const alleles = valueStr.split(/[,;/]/).map(token => token.trim()).filter(Boolean);
+      const validation = this.lociTypeDetector.validateAlleles(locusName, alleles);
+      if (!validation.isValid) throw new ExcelParsingError(`Недопустимые значения аллелей для ${locusName}.`, EXCEL_ERROR_CODES.INVALID_ALLELE_VALUE, { filename, rowNumber, locusName, value: valueStr, errors: validation.errors });
+      if (alleles.length > 1) logger.warn('Multiple alleles in haploid Y-InDel marker', { filename, rowNumber, locusName, alleleCount: alleles.length });
+      return alleles;
+    }
     if (locusType === 'AMELOGENIN' || options.preserveAlleleCount) {
       const alleles = locusType === 'AMELOGENIN' ? amelogeninTokens(valueStr) : valueStr.split(/[,;/]/).map(token => normalizeSpecialAllele(token) || token);
       const validation = this.lociTypeDetector.validateAlleles(locusName, alleles);
