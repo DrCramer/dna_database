@@ -183,15 +183,90 @@ docker compose up -d --build web
 
 ## API
 
-API доступен на том же адресе, что и сайт. Вход возвращает `data.accessToken`:
+API доступен по адресу сайта с префиксом `/api`. Например, для локальной установки:
 
 ```bash
-curl -X POST http://localhost:3001/api/auth/login \
-  -H 'Content-Type: application/json' \
-  -d '{"username":"admin","password":"<пароль из .env>"}'
+export API_URL='http://localhost:3001'
+curl "$API_URL/health"
 ```
 
-Передавайте полученный токен в заголовке `Authorization: Bearer <accessToken>`. Например: `GET /api/auth/me`, `GET /api/profiles/accessible?limit=10`, `GET /api/analytics/kpi`. Состояние сервиса: `GET /health`. Создание пользователей доступно администратору через API или интерфейс; анонимная регистрация закрыта.
+`/health` доступен без авторизации. Для остальных примеров сначала получите JWT:
+
+```bash
+curl -sS -X POST "$API_URL/api/auth/login" \
+  -H 'Content-Type: application/json' \
+  -d '{"username":"<логин>","password":"<пароль>"}'
+```
+
+Ответ содержит `data.accessToken`. Скопируйте его в переменную `TOKEN`, а ID
+нужного отдела возьмите из `data.user.accessible_departments` или ответа
+`GET /api/auth/me`:
+
+```bash
+export TOKEN='<accessToken>'
+export DEPARTMENT_ID='<UUID активного отдела>'
+curl -sS "$API_URL/api/auth/me" \
+  -H "Authorization: Bearer $TOKEN" \
+  -H "X-Active-Department-Id: $DEPARTMENT_ID"
+```
+
+Для запросов с данными используйте оба заголовка: JWT и `X-Active-Department-Id`.
+Отдел должен быть доступен пользователю; права API ограничивают выдачу профилей
+активным отделом и ролью. Передавайте токен именно как `Bearer` и не публикуйте его.
+
+Основные маршруты:
+
+| Действие | Метод и путь |
+| --- | --- |
+| Текущий пользователь и доступные отделы | `GET /api/auth/me` |
+| Доступные профили с пагинацией | `GET /api/profiles/accessible?limit=100&offset=0` |
+| Активные задачи пользователя | `GET /api/tasks/my-active` |
+| Профили задачи | `GET /api/tasks/{taskId}/profiles` |
+| Сравнить два профиля по UUID | `POST /api/analysis/compare` |
+| Поиск совпадений в задаче или мастер-массиве | `POST /api/genotype-analysis/task-search` |
+| Предварительно проверить Excel | `POST /api/profiles/upload/preview` (multipart) |
+| Загрузить Excel в задачу | `POST /api/profiles/upload` (multipart) |
+
+Пример сравнения двух профилей:
+
+```bash
+curl -sS -X POST "$API_URL/api/analysis/compare" \
+  -H "Authorization: Bearer $TOKEN" \
+  -H "X-Active-Department-Id: $DEPARTMENT_ID" \
+  -H 'Content-Type: application/json' \
+  -d '{"profile1Id":"<UUID профиля 1>","profile2Id":"<UUID профиля 2>","options":{"minNumericMatches":15,"enableBayesianAnalysis":true}}'
+```
+
+Пример поиска профилей в задаче:
+
+```bash
+curl -sS -X POST "$API_URL/api/genotype-analysis/task-search" \
+  -H "Authorization: Bearer $TOKEN" \
+  -H "X-Active-Department-Id: $DEPARTMENT_ID" \
+  -H 'Content-Type: application/json' \
+  -d '{"taskId":"<UUID задачи>","searchMode":"task","minMatches":15,"ignoredLoci":[],"comparisonAlgorithm":"standard"}'
+```
+
+Для поиска по мастер-массиву задайте `"searchMode":"master_array"`. Ответ — JSON
+с результатами и статистикой; UUID задачи можно получить через `GET /api/tasks`.
+
+Excel отправляется как `multipart/form-data` с полем `file`. Для импорта в задачу
+передайте поле `taskId` (UUID); сервер проверит доступ и право загрузки. Пример
+предварительной проверки:
+
+```bash
+curl -sS -X POST "$API_URL/api/profiles/upload/preview" \
+  -H "Authorization: Bearer $TOKEN" \
+  -H "X-Active-Department-Id: $DEPARTMENT_ID" \
+  -F 'file=@profiles.xlsx' \
+  -F 'taskId=<UUID задачи>'
+```
+
+Успешный ответ обычно содержит `success: true`; ошибки возвращают подходящий HTTP
+статус и JSON с описанием. Частые статусы: `400` — некорректный запрос или файл,
+`401` — отсутствующий/истёкший токен, `403` — нет доступа к отделу, задаче или
+профилю. Подробности форматов импорта и интеграции доступны в разделах выше и
+в [документации legacy API](docs/LEGACY_PROFILE_ACCESS.md).
 
 ## Форматы импорта ДНК-профилей
 
