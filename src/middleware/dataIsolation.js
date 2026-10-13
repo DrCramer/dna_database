@@ -1,4 +1,4 @@
-const { query } = require('../config/database');
+const AccessPolicyService = require('../services/security/AccessPolicyService');
 const { logger } = require('../utils/logger');
 const auditService = require("../services/audit/auditService");
 
@@ -28,7 +28,7 @@ class DataIsolationMiddleware {
                 }
 
                 // System administrators bypass department isolation
-                if (userRole === 'system_administrator') {
+                if (AccessPolicyService.bypassesLegacyBoundary(req.user)) {
                     return next();
                 }
 
@@ -157,154 +157,37 @@ class DataIsolationMiddleware {
     /**
      * Validate data access based on department isolation rules
      */
-    static async validateDataAccess(userId, userDepartmentId, dataType, dataId) {
-        try {
-            if (!dataId) return true; // No specific data to validate
-
-            switch (dataType) {
-                case 'profile':
-                    return await this.validateProfileAccess(userId, userDepartmentId, dataId);
-                
-                case 'task':
-                    return await this.validateTaskAccess(userId, userDepartmentId, dataId);
-                
-                case 'expert_group':
-                    return await this.validateExpertGroupAccess(userId, userDepartmentId, dataId);
-                
-                case 'master_array':
-                    return await this.validateMasterArrayAccess(userId, userDepartmentId, dataId);
-                
-                case 'department':
-                    return await this.validateDepartmentAccess(userId, userDepartmentId, dataId);
-                
-                case 'user':
-                    return await this.validateUserAccess(userId, userDepartmentId, dataId);
-                
-                default:
-                    logger.warn(`Unknown data type for isolation validation: ${dataType}`);
-                    return false;
-            }
-        } catch (error) {
-            logger.error(`Error validating ${dataType} access:`, error);
-            return false;
-        }
-    }
+    static async validateDataAccess(userId, userDepartmentId, dataType, dataId) { return AccessPolicyService.legacyValidateDataAccess(userId, userDepartmentId, dataType, dataId); }
 
     /**
      * Validate profile access - users can access their own profiles and department master array profiles
      */
-    static async validateProfileAccess(userId, userDepartmentId, profileId) {
-        const result = await query(`
-            SELECT dp.user_id, dp.profile_type, dp.master_array_id, u.department_id, ma.department_id as ma_dept_id
-            FROM dna_profiles dp
-            LEFT JOIN users u ON dp.user_id = u.id
-            LEFT JOIN master_arrays ma ON dp.master_array_id = ma.id
-            WHERE dp.id = $1 AND dp.is_active = true
-        `, [profileId]);
-
-        if (result.rows.length === 0) return false;
-
-        const profile = result.rows[0];
-
-        // User can access their own profiles
-        if (profile.user_id === userId) return true;
-
-        // User can access profiles in their department's master array
-        if (profile.profile_type === 'master' && profile.ma_dept_id === userDepartmentId) {
-            return true;
-        }
-
-        // User can access other user profiles in the same department (for analysis)
-        if (profile.department_id === userDepartmentId) return true;
-
-        return false;
-    }
+    static async validateProfileAccess(userId, userDepartmentId, profileId) { return AccessPolicyService.legacyValidateProfileAccess(userId, userDepartmentId, profileId); }
 
     /**
      * Validate task access - users can access tasks in their department
      */
-    static async validateTaskAccess(userId, userDepartmentId, taskId) {
-        const result = await query(`
-            SELECT department_id, created_by, assigned_to_user, assigned_to_group
-            FROM tasks
-            WHERE id = $1 AND is_active = true
-        `, [taskId]);
-
-        if (result.rows.length === 0) return false;
-
-        const task = result.rows[0];
-
-        // Task must be in user's department
-        if (task.department_id !== userDepartmentId) return false;
-
-        // Additional checks for task assignment
-        if (task.created_by === userId) return true;
-        if (task.assigned_to_user === userId) return true;
-
-        // Check expert group membership
-        if (task.assigned_to_group) {
-            const groupResult = await query(`
-                SELECT 1 FROM expert_group_members
-                WHERE group_id = $1 AND user_id = $2
-            `, [task.assigned_to_group, userId]);
-            
-            return groupResult.rows.length > 0;
-        }
-
-        return true; // Department members can view department tasks
-    }
+    static async validateTaskAccess(userId, userDepartmentId, taskId) { return AccessPolicyService.legacyValidateTaskAccess(userId, userDepartmentId, taskId); }
 
     /**
      * Validate expert group access - users can access groups in their department
      */
-    static async validateExpertGroupAccess(userId, userDepartmentId, groupId) {
-        const result = await query(`
-            SELECT department_id FROM expert_groups
-            WHERE id = $1 AND is_active = true
-        `, [groupId]);
-
-        if (result.rows.length === 0) return false;
-
-        return result.rows[0].department_id === userDepartmentId;
-    }
+    static async validateExpertGroupAccess(userId, userDepartmentId, groupId) { return AccessPolicyService.legacyValidateExpertGroupAccess(userId, userDepartmentId, groupId); }
 
     /**
      * Validate master array access - users can only access their department's master array
      */
-    static async validateMasterArrayAccess(userId, userDepartmentId, masterArrayId) {
-        const result = await query(`
-            SELECT department_id FROM master_arrays
-            WHERE id = $1 AND is_active = true
-        `, [masterArrayId]);
-
-        if (result.rows.length === 0) return false;
-
-        return result.rows[0].department_id === userDepartmentId;
-    }
+    static async validateMasterArrayAccess(userId, userDepartmentId, masterArrayId) { return AccessPolicyService.legacyValidateMasterArrayAccess(userId, userDepartmentId, masterArrayId); }
 
     /**
      * Validate department access - users can only access their own department
      */
-    static async validateDepartmentAccess(userId, userDepartmentId, departmentId) {
-        return departmentId === userDepartmentId;
-    }
+    static async validateDepartmentAccess(userId, userDepartmentId, departmentId) { return AccessPolicyService.legacyValidateDepartmentAccess(userId, userDepartmentId, departmentId); }
 
     /**
      * Validate user access - users can access other users in their department
      */
-    static async validateUserAccess(userId, userDepartmentId, targetUserId) {
-        // Users can always access their own data
-        if (targetUserId === userId) return true;
-
-        const result = await query(`
-            SELECT department_id FROM users
-            WHERE id = $1 AND is_active = true
-        `, [targetUserId]);
-
-        if (result.rows.length === 0) return false;
-
-        return result.rows[0].department_id === userDepartmentId;
-    }
+    static async validateUserAccess(userId, userDepartmentId, targetUserId) { return AccessPolicyService.legacyValidateUserAccess(userId, userDepartmentId, targetUserId); }
 
     /**
      * Validate cross-department data sharing (for special cases)
@@ -318,7 +201,7 @@ class DataIsolationMiddleware {
                 const sharedAccessToken = req.headers['x-shared-access-token'];
 
                 // Only system administrators and department heads can initiate cross-department access
-                if (!['system_administrator', 'department_head'].includes(userRole)) {
+                if (!AccessPolicyService.canInitiateCrossDepartment(req.user)) {
                     return res.status(403).json({
                         error: 'Forbidden',
                         message: 'Cross-department access requires elevated privileges'
@@ -379,32 +262,7 @@ class DataIsolationMiddleware {
     /**
      * Validate shared access token for cross-department operations
      */
-    static async validateSharedAccessToken(userId, token, targetDepartmentId) {
-        try {
-            // This would typically validate against a shared access tokens table
-            // For now, we'll implement a basic validation
-            const result = await query(`
-                SELECT expires_at, granted_by, target_department_id
-                FROM shared_access_tokens
-                WHERE token = $1 AND user_id = $2 AND is_active = true
-            `, [token, userId]);
-
-            if (result.rows.length === 0) return false;
-
-            const tokenData = result.rows[0];
-
-            // Check if token is expired
-            if (new Date() > new Date(tokenData.expires_at)) return false;
-
-            // Check if token is for the correct department
-            if (tokenData.target_department_id !== targetDepartmentId) return false;
-
-            return true;
-        } catch (error) {
-            logger.error('Error validating shared access token:', error);
-            return false;
-        }
-    }
+    static async validateSharedAccessToken(userId, token, targetDepartmentId) { return AccessPolicyService.legacyValidateSharedAccessToken(userId, token, targetDepartmentId); }
 
     /**
      * Middleware to log all data access attempts for audit purposes
@@ -458,7 +316,7 @@ class DataIsolationMiddleware {
                 }
 
                 // System administrators bypass validation
-                if (userRole === 'system_administrator') {
+                if (AccessPolicyService.bypassesLegacyBoundary(req.user)) {
                     return next();
                 }
 

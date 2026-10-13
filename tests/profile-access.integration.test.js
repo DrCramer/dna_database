@@ -242,4 +242,22 @@ test('Legacy API: единый доступ к профилям в active depart
     assert.equal(denied.status, 403);
     assert(logs.some(log => log.event === 'PROFILE_ACCESS_DENIED' && log.metadata.userId === multi.id && log.metadata.profileId === ownEmergency.id && log.metadata.activeDepartmentId === genetic && log.metadata.requestId === denied.requestId));
   });
+  await t.test('AccessPolicy: членство в группе проверяется по реальной колонке group_id', async () => {
+    const AccessPolicyService = require('../src/services/security/AccessPolicyService');
+    const group = (await query('INSERT INTO expert_groups (department_id,name,created_by) VALUES ($1,$2,$3) RETURNING id',
+      [genetic, `Policy fixture ${fixture}`, admin.id])).rows[0].id;
+    await query('INSERT INTO expert_group_members (group_id,user_id,added_by) VALUES ($1,$2,$3)', [group, multi.id, admin.id]);
+    const task = (await query(`INSERT INTO tasks (department_id,created_by,assigned_to_group,title,target_sample,data_source,status)
+      VALUES ($1,$2,$3,'Policy group fixture','{}','new_array','in_progress') RETURNING *`, [genetic, admin.id, group])).rows[0];
+    const account = { id: multi.id, role: 'user_analyst' };
+    assert.equal(await AccessPolicyService.isLegacyExpertGroupMember(multi.id, group), true);
+    assert.equal(await AccessPolicyService.canManageTask(multi.id, task.id), true);
+    assert.equal(await AccessPolicyService.canReadLegacyTask(account, task), true);
+    assert.equal((await AccessPolicyService.getLegacyOwnershipDecision(multi.id, genetic, 'task', task.id)).hasAccess, true);
+    assert.equal(await AccessPolicyService.isLegacyExpertGroupMember(viewer.id, group), false);
+    await query('UPDATE expert_group_members SET is_active=false WHERE group_id=$1 AND user_id=$2', [group, multi.id]);
+    assert.equal(await AccessPolicyService.isLegacyExpertGroupMember(multi.id, group), false);
+    assert.equal(await AccessPolicyService.canManageTask(multi.id, task.id), false);
+    assert.equal(await AccessPolicyService.canReadLegacyTask(account, task), false);
+  });
 });

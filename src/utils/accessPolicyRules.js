@@ -1,0 +1,56 @@
+const UPLOAD_PERMISSION_FIELDS = ['can_upload_with_task', 'can_upload_without_task'];
+
+function getProfileUploadPermissions(user) {
+  return {
+    can_upload_with_task: user?.can_upload_with_task !== false,
+    can_upload_without_task: user?.can_upload_without_task === true
+  };
+}
+
+function validateUploadPermissionFields(data) {
+  return UPLOAD_PERMISSION_FIELDS.every(field => data[field] === undefined || typeof data[field] === 'boolean');
+}
+
+function getProfileUploadBlockReason(user, task, departmentId, uploadTarget) {
+  if (!canUploadProfiles(user)) return 'У вас нет права загружать профили.';
+  const permissions = getProfileUploadPermissions(user);
+  if (!task?.id) {
+    if (!permissions.can_upload_without_task) return 'Перед загрузкой выберите активную задачу. Загрузка без задачи для вашей учётной записи запрещена.';
+    return uploadTarget === 'without_task' ? '' : 'Выберите задачу для загрузки или явно выберите «Без задачи».';
+  }
+  if (!permissions.can_upload_with_task) return 'Загрузка профилей в задачу для вашей учётной записи запрещена.';
+  if (task.department_id !== departmentId) return 'Выбранная задача относится к другому отделению. Выберите активную задачу текущего отделения.';
+  if (task.status !== 'in_progress' || task.is_active === false) return 'Загрузка доступна только в задачу со статусом «В работе». Выберите активную задачу.';
+  return '';
+}
+
+
+
+const UPLOAD_ROLES = ['admin', 'system_administrator', 'department_head', 'user_analyst'];
+const OPERATION_ROLES = {
+        'user_management': ['admin', 'department_head'],
+        'profile_upload': ['admin', 'department_head', 'user_analyst'],
+        'profile_delete': ['admin', 'department_head', 'user_analyst'],
+        'analysis_run': ['admin', 'department_head', 'user_analyst'],
+        'export_data': ['admin', 'department_head', 'user_analyst'],
+        'view_profiles': ['admin', 'department_head'],
+        'view_results': ['admin', 'department_head', 'user_analyst'],
+        'master_array_management': ['admin', 'department_head'],
+        'task_management': ['admin', 'department_head'],
+        'organization_management': ['admin'],
+        'expert_group_management': ['admin', 'department_head'],
+        'task_assignment': ['admin', 'department_head'],
+        'task_approval': ['admin', 'department_head'],
+        'audit_access': ['admin', 'department_head'],
+        'system_settings': ['admin'],
+        'view_tasks': ['admin', 'department_head', 'user_analyst'],
+        'create_tasks': ['admin', 'department_head'],
+        'department_management': ['admin', 'department_head']
+    };
+const normalizeRole = role => role === 'analyst' ? 'user_analyst' : role;
+const matchesRoles = (user, roles = []) => !!user && (!roles.length || roles.map(normalizeRole).includes(normalizeRole(user.role)));
+const canUploadProfiles = user => UPLOAD_ROLES.includes(user?.role);
+const canReadHistory = (user, target) => !!user && (user.id === target || user.role === 'admin');
+const canReadHistoryStats = (user, target) => !!user && (user.id === target || ['admin', 'analyst'].includes(user.role));
+module.exports = { UPLOAD_PERMISSION_FIELDS, getProfileUploadPermissions, validateUploadPermissionFields,
+ getProfileUploadBlockReason, canUploadProfiles, normalizeRole, matchesRoles, OPERATION_ROLES, canReadHistory, canReadHistoryStats };

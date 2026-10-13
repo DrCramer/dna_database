@@ -1,7 +1,7 @@
 const PermissionService = require("../services/security/permissionService");
 const auditService = require("../services/audit/auditService");
 const { logger } = require('../utils/logger');
-const { query } = require('../config/database');
+const AccessPolicyService = require('../services/security/AccessPolicyService');
 
 /**
  * Comprehensive Access Control Middleware
@@ -30,12 +30,12 @@ class AccessControlMiddleware {
                                          req.query.department_id;
 
                 // System administrators can access any department
-                if (req.user.role === 'system_administrator') {
+                if (AccessPolicyService.bypassesLegacyBoundary(req.user)) {
                     return next();
                 }
 
                 // For other users, validate department access
-                if (targetDepartmentId && targetDepartmentId !== userDepartmentId) {
+                if (!AccessPolicyService.canCrossLegacyDepartmentBoundary(req.user, targetDepartmentId)) {
                     // Log unauthorized access attempt
                     await auditService.logDataAccess({
                         userId,
@@ -80,84 +80,13 @@ class AccessControlMiddleware {
                 }
 
                 // System administrators can access any resource
-                if (req.user.role === 'system_administrator') {
+                if (AccessPolicyService.bypassesLegacyBoundary(req.user)) {
                     return next();
                 }
 
                 // Validate resource access based on type
-                let hasAccess = false;
-                let resourceDepartmentId = null;
-
-                switch (resourceType) {
-                    case 'profile':
-                        const profileResult = await query(
-                            `SELECT dp.user_id, u.department_id 
-                             FROM dna_profiles dp 
-                             JOIN users u ON dp.user_id = u.id 
-                             WHERE dp.id = $1 AND dp.is_active = true`,
-                            [resourceId]
-                        );
-                        
-                        if (profileResult.rows.length > 0) {
-                            resourceDepartmentId = profileResult.rows[0].department_id;
-                            hasAccess = resourceDepartmentId === userDepartmentId ||
-                                       profileResult.rows[0].user_id === userId;
-                        }
-                        break;
-
-                    case 'task':
-                        const taskResult = await query(
-                            `SELECT department_id, created_by, assigned_to_user, assigned_to_group
-                             FROM tasks 
-                             WHERE id = $1 AND is_active = true`,
-                            [resourceId]
-                        );
-                        
-                        if (taskResult.rows.length > 0) {
-                            const task = taskResult.rows[0];
-                            resourceDepartmentId = task.department_id;
-                            
-                            // Check if user has access to this task
-                            hasAccess = task.department_id === userDepartmentId &&
-                                       (task.created_by === userId || 
-                                        task.assigned_to_user === userId ||
-                                        await this.isUserInExpertGroup(userId, task.assigned_to_group));
-                        }
-                        break;
-
-                    case 'master_array':
-                        const masterArrayResult = await query(
-                            `SELECT department_id FROM master_arrays 
-                             WHERE id = $1 AND is_active = true`,
-                            [resourceId]
-                        );
-                        
-                        if (masterArrayResult.rows.length > 0) {
-                            resourceDepartmentId = masterArrayResult.rows[0].department_id;
-                            hasAccess = resourceDepartmentId === userDepartmentId;
-                        }
-                        break;
-
-                    case 'expert_group':
-                        const groupResult = await query(
-                            `SELECT department_id FROM expert_groups 
-                             WHERE id = $1 AND is_active = true`,
-                            [resourceId]
-                        );
-                        
-                        if (groupResult.rows.length > 0) {
-                            resourceDepartmentId = groupResult.rows[0].department_id;
-                            hasAccess = resourceDepartmentId === userDepartmentId;
-                        }
-                        break;
-
-                    default:
-                        logger.warn(`Unknown resource type for ownership validation: ${resourceType}`);
-                        return res.status(400).json({
-                            error: 'Bad Request',
-                            message: 'Unknown resource type'
-                        });
-                }
+                const { hasAccess, unknownType } = await AccessPolicyService.getLegacyOwnershipDecision(userId, userDepartmentId, resourceType, resourceId);
+                if (unknownType) return res.status(400).json({ error: 'Bad Request', message: 'Unknown resource type' });
 
                 if (!hasAccess) {
                     // Log unauthorized access attempt
@@ -268,16 +197,12 @@ class AccessControlMiddleware {
                 }
 
                 // System administrators can access any master array
-                if (req.user.role === 'system_administrator') {
+                if (AccessPolicyService.bypassesLegacyBoundary(req.user)) {
                     return next();
                 }
 
                 // Check if master array belongs to user's department
-                const result = await query(
-                    `SELECT department_id, name FROM master_arrays 
-                     WHERE id = $1 AND is_active = true`,
-                    [masterArrayId]
-                );
+                const result = await AccessPolicyService.getLegacyMasterArray(masterArrayId);
 
                 if (result.rows.length === 0) {
                     return res.status(404).json({
@@ -288,7 +213,7 @@ class AccessControlMiddleware {
 
                 const masterArray = result.rows[0];
 
-                if (masterArray.department_id !== userDepartmentId) {
+                if (!AccessPolicyService.isSameDepartment(masterArray.department_id, userDepartmentId)) {
                     // Log unauthorized access attempt
                     await auditService.logDataAccess({
                         userId,
@@ -336,18 +261,12 @@ class AccessControlMiddleware {
                 }
 
                 // System administrators can access any task
-                if (req.user.role === 'system_administrator') {
+                if (AccessPolicyService.bypassesLegacyBoundary(req.user)) {
                     return next();
                 }
 
                 // Get task details
-                const result = await query(
-                    `SELECT t.*, d.name as department_name
-                     FROM tasks t
-                     JOIN departments d ON t.department_id = d.id
-                     WHERE t.id = $1 AND t.is_active = true`,
-                    [taskId]
-                );
+                const result = await AccessPolicyService.getLegacyTask(taskId);
 
                 if (result.rows.length === 0) {
                     return res.status(404).json({
@@ -359,7 +278,7 @@ class AccessControlMiddleware {
                 const task = result.rows[0];
 
                 // Check department access
-                if (task.department_id !== userDepartmentId) {
+                if (!AccessPolicyService.isSameDepartment(task.department_id, userDepartmentId)) {
                     await auditService.logDataAccess({
                         userId,
                         resourceType: 'task',
@@ -378,24 +297,7 @@ class AccessControlMiddleware {
                 }
 
                 // Check if user has access to this specific task
-                let hasTaskAccess = false;
-
-                // Department heads can access all tasks in their department
-                if (req.user.role === 'department_head') {
-                    hasTaskAccess = true;
-                } 
-                // Task creator can access their tasks
-                else if (task.created_by === userId) {
-                    hasTaskAccess = true;
-                }
-                // Assigned user can access their tasks
-                else if (task.assigned_to_user === userId) {
-                    hasTaskAccess = true;
-                }
-                // Expert group members can access group tasks
-                else if (task.assigned_to_group) {
-                    hasTaskAccess = await this.isUserInExpertGroup(userId, task.assigned_to_group);
-                }
+                const hasTaskAccess = await AccessPolicyService.canReadLegacyTask(req.user, task);
 
                 if (!hasTaskAccess) {
                     await auditService.logDataAccess({
@@ -490,22 +392,7 @@ class AccessControlMiddleware {
     }
 
     // Helper method to check if user is in expert group
-    static async isUserInExpertGroup(userId, groupId) {
-        if (!groupId) return false;
-        
-        try {
-            const result = await query(
-                `SELECT 1 FROM expert_group_members 
-                 WHERE user_id = $1 AND expert_group_id = $2 AND is_active = true`,
-                [userId, groupId]
-            );
-            
-            return result.rows.length > 0;
-        } catch (error) {
-            logger.error('Error checking expert group membership:', error);
-            return false;
-        }
-    }
+    static async isUserInExpertGroup(userId, groupId) { return AccessPolicyService.isLegacyExpertGroupMember(userId, groupId); }
 
     // Comprehensive access logging middleware
     static logAccess() {

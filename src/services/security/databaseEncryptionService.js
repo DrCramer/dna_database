@@ -1,3 +1,4 @@
+const { ALGORITHMS, encryptBytes, decryptBytes } = require('./cryptoPrimitives');
 const { query, transaction } = require("../../config/database");
 const { securityConfig } = require("../../config/security");
 const { logger } = require("../../utils/logger");
@@ -13,18 +14,7 @@ class DatabaseEncryptionService {
         this.encryptionConfig = securityConfig;
         
         // Encryption algorithms and settings
-        this.algorithms = {
-            'aes-256-cbc': {
-                keyLength: 32,
-                ivLength: 16,
-                algorithm: 'aes-256-cbc'
-            },
-            'aes-256-gcm': {
-                keyLength: 32,
-                ivLength: 12,
-                algorithm: 'aes-256-gcm'
-            }
-        };
+        this.algorithms = ALGORITHMS;
         
         // Tables and columns that require encryption
         this.encryptionMap = {
@@ -64,53 +54,14 @@ class DatabaseEncryptionService {
      * @returns {string} Encrypted data with metadata
      */
     encryptData(plaintext, algorithm = 'aes-256-cbc') {
-        try {
-            if (!plaintext || plaintext.trim() === '') {
-                return null;
-            }
-
-            const config = this.algorithms[algorithm];
-            if (!config) {
-                throw new Error(`Unsupported encryption algorithm: ${algorithm}`);
-            }
-
-            const key = this.encryptionConfig.encryptionKey;
-            const iv = crypto.randomBytes(config.ivLength);
-            
-            let encrypted;
-            let authTag = null;
-
-            if (algorithm === 'aes-256-gcm') {
-                const cipher = crypto.createCipheriv(algorithm, key, iv);
-                encrypted = Buffer.concat([
-                    cipher.update(plaintext, 'utf8'),
-                    cipher.final()
-                ]);
-                authTag = cipher.getAuthTag();
-            } else {
-                const cipher = crypto.createCipheriv(algorithm, key, iv);
-                encrypted = Buffer.concat([
-                    cipher.update(plaintext, 'utf8'),
-                    cipher.final()
-                ]);
-            }
-
-            // Create encrypted data package with metadata
-            const encryptedPackage = {
-                algorithm,
-                iv: iv.toString('base64'),
-                data: encrypted.toString('base64'),
-                authTag: authTag ? authTag.toString('base64') : null,
-                version: 1,
-                timestamp: new Date().toISOString()
-            };
-
-            return JSON.stringify(encryptedPackage);
-        } catch (error) {
-            logger.error('Data encryption failed:', error);
-            throw new Error('Database encryption failed');
-        }
-    }
+   try {
+     if (!plaintext || plaintext.trim() === '') return null;
+     if (!this.algorithms[algorithm]) throw new Error('Unsupported encryption algorithm: ' + algorithm);
+     const { iv, data, authTag } = encryptBytes(plaintext, this.encryptionConfig.encryptionKey, algorithm);
+     return JSON.stringify({ algorithm, iv: iv.toString('base64'), data: data.toString('base64'),
+       authTag: authTag ? authTag.toString('base64') : null, version: 1, timestamp: new Date().toISOString() });
+   } catch (error) { logger.error('Data encryption failed:', error); throw new Error('Database encryption failed'); }
+ }
 
     /**
      * Decrypt sensitive data from database
@@ -118,48 +69,14 @@ class DatabaseEncryptionService {
      * @returns {string} Decrypted plaintext
      */
     decryptData(encryptedData) {
-        try {
-            if (!encryptedData) {
-                return null;
-            }
-
-            const encryptedPackage = JSON.parse(encryptedData);
-            const { algorithm, iv, data, authTag, version } = encryptedPackage;
-
-            const config = this.algorithms[algorithm];
-            if (!config) {
-                throw new Error(`Unsupported encryption algorithm: ${algorithm}`);
-            }
-
-            const key = this.encryptionConfig.encryptionKey;
-            const ivBuffer = Buffer.from(iv, 'base64');
-            const encryptedBuffer = Buffer.from(data, 'base64');
-
-            let decrypted;
-
-            if (algorithm === 'aes-256-gcm') {
-                const decipher = crypto.createDecipheriv(algorithm, key, ivBuffer);
-                if (authTag) {
-                    decipher.setAuthTag(Buffer.from(authTag, 'base64'));
-                }
-                decrypted = Buffer.concat([
-                    decipher.update(encryptedBuffer),
-                    decipher.final()
-                ]);
-            } else {
-                const decipher = crypto.createDecipheriv(algorithm, key, ivBuffer);
-                decrypted = Buffer.concat([
-                    decipher.update(encryptedBuffer),
-                    decipher.final()
-                ]);
-            }
-
-            return decrypted.toString('utf8');
-        } catch (error) {
-            logger.error('Data decryption failed:', error);
-            throw new Error('Database decryption failed');
-        }
-    }
+   try {
+     if (!encryptedData) return null;
+     const { algorithm, iv, data, authTag } = JSON.parse(encryptedData);
+     if (!this.algorithms[algorithm]) throw new Error('Unsupported encryption algorithm: ' + algorithm);
+     return decryptBytes({ algorithm, iv: Buffer.from(iv, 'base64'), data: Buffer.from(data, 'base64'),
+       authTag: authTag ? Buffer.from(authTag, 'base64') : null }, this.encryptionConfig.encryptionKey).toString('utf8');
+   } catch (error) { logger.error('Data decryption failed:', error); throw new Error('Database decryption failed'); }
+ }
 
     /**
      * Encrypt genetic profile data

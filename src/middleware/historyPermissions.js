@@ -1,3 +1,4 @@
+const AccessPolicyService = require('../services/security/AccessPolicyService');
 const { logger } = require('../utils/logger');
 const User = require('../models/User');
 
@@ -11,12 +12,12 @@ function checkHistoryAccess(req, res, next) {
         const targetUserId = req.params.userId;
         
         // If accessing own history, allow
-        if (requestingUserId === targetUserId) {
+        if (AccessPolicyService.isOwnResource(req.user, targetUserId)) {
             return next();
         }
         
         // Only admins can access other users' history
-        if (req.user.role !== 'admin') {
+        if (!AccessPolicyService.canReadHistory(req.user, req.params.userId)) {
             logger.warn('Unauthorized history access attempt', {
                 requestingUserId,
                 targetUserId,
@@ -96,7 +97,7 @@ function logAdminHistoryAccess(req, res, next) {
         const result = originalJson.call(this, data);
         
         // Log admin access asynchronously
-        if (req.user.role === 'admin' && req.params.userId && req.params.userId !== req.user.id) {
+        if (AccessPolicyService.shouldLogHistoryAccess(req.user, req.params.userId)) {
             setImmediate(async () => {
                 try {
                     const OperationHistory = require('../models/OperationHistory');
@@ -147,7 +148,7 @@ function filterSensitiveData(req, res, next) {
         }
         
         // For viewers, filter out some sensitive operation details
-        if (req.user.role === 'viewer' && data.operations) {
+        if (AccessPolicyService.shouldRedactHistory(req.user) && data.operations) {
             data.operations = data.operations.map(op => {
                 const filtered = { ...op };
                 // Remove sensitive details for viewers
@@ -174,12 +175,12 @@ function checkStatsPermission(req, res, next) {
         const targetUserId = req.params.userId;
         
         // Users can view their own stats
-        if (requestingUserId === targetUserId) {
+        if (AccessPolicyService.isOwnResource(req.user, targetUserId)) {
             return next();
         }
         
         // Only admins and analysts can view other users' stats
-        if (!['admin', 'analyst'].includes(req.user.role)) {
+        if (!AccessPolicyService.canReadHistoryStats(req.user, targetUserId)) {
             return res.status(403).json({
                 error: 'Forbidden',
                 message: 'Insufficient permissions to view operation statistics'

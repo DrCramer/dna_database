@@ -1,3 +1,5 @@
+import apiErrors from '../../utils/apiErrors.js';
+
 /**
  * Error Handler - Centralized error handling and logging system
  * 
@@ -51,7 +53,15 @@ export class BayesianAnalysisError extends Error {
         return `err_${Date.now()}_${Math.random().toString(36).substr(2, 6)}`;
     }
 
+    toApiResponse(options = {}) {
+        return apiErrors.serializeApiError(this, options);
+    }
+
     toJSON() {
+        return this.toApiResponse();
+    }
+
+    toDiagnosticJSON() {
         return {
             id: this.id,
             name: this.name,
@@ -372,7 +382,7 @@ class ErrorHandler {
      */
     _logError(error, context) {
         const logEntry = {
-            ...error.toJSON(),
+            ...error.toDiagnosticJSON(),
             context,
             handledAt: new Date()
         };
@@ -482,7 +492,7 @@ class ErrorHandler {
         // In a real application, this would send errors to monitoring systems
         // like Sentry, LogRocket, or custom error tracking
         if (error.severity === ErrorSeverity.CRITICAL || error.severity === ErrorSeverity.HIGH) {
-            console.warn('High severity error reported:', error.toJSON());
+            console.warn('High severity error reported:', error.toDiagnosticJSON());
         }
     }
 

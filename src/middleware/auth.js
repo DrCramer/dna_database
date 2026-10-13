@@ -1,3 +1,4 @@
+const AccessPolicyService = require('../services/security/AccessPolicyService');
 const authService = require("../services/security/authService");
 const User = require('../models/User');
 const PermissionService = require("../services/security/permissionService");
@@ -108,31 +109,19 @@ async function authenticate(req, res, next) {
 
         const accessibleDepartments = await user.getAccessibleDepartments();
         const activeDepartmentIdFromHeader = extractActiveDepartmentId(req);
-        const fallbackDepartmentId = user.department_id || accessibleDepartments[0]?.id || null;
-        const allowedDepartmentIds = accessibleDepartments
-            .filter(department => user.role === 'system_administrator' || department.organization_id === user.organization_id)
-            .map(department => department.id);
-
-        let activeDepartmentId = fallbackDepartmentId;
-
-        if (activeDepartmentIdFromHeader) {
-            if (!allowedDepartmentIds.includes(activeDepartmentIdFromHeader)) {
-                logger.warn('PROFILE_ACCESS_DENIED', {
-                    userId: user.id, profileId: req.params.id || null,
-                    activeDepartmentId: activeDepartmentIdFromHeader, requestId: req.requestId
-                });
-                return res.status(403).json({
-                    error: 'Forbidden', code: 'PROFILE_ACCESS_DENIED', requestId: req.requestId,
-                    message: 'Selected department is not available for this user'
-                });
-            }
-
-            activeDepartmentId = activeDepartmentIdFromHeader;
+        let activeDepartmentId;
+        try {
+            activeDepartmentId = AccessPolicyService.resolveActiveDepartment(user, accessibleDepartments, activeDepartmentIdFromHeader);
+        } catch (error) {
+            if (!(error instanceof AccessPolicyService.ProfileAccessError)) throw error;
+            logger.warn('PROFILE_ACCESS_DENIED', { userId: user.id, profileId: req.params.id || null,
+                activeDepartmentId: activeDepartmentIdFromHeader, requestId: req.requestId });
+            return res.status(403).json({ error: 'Forbidden', code: 'PROFILE_ACCESS_DENIED', requestId: req.requestId,
+                message: error.message });
         }
 
         // Validate organizational context matches token
-        if (decoded.organization_id !== user.organization_id || 
-            decoded.department_id !== user.department_id) {
+        if (!AccessPolicyService.organizationalContextMatches(decoded, user)) {
             logger.warn(`Organizational context mismatch for user ${user.username}`);
             
             // Log organizational context mismatch
@@ -235,17 +224,9 @@ function authorize(allowedRoles = []) {
                 return next();
             }
 
-            // Map legacy roles to new role system
-            const roleMapping = {
-                'analyst': 'user_analyst'
-                // admin and department_head stay as is
-            };
-
-            const userRole = roleMapping[req.user.role] || req.user.role;
-            const mappedAllowedRoles = allowedRoles.map(role => roleMapping[role] || role);
 
             // Check if user has required role
-            if (!mappedAllowedRoles.includes(userRole)) {
+            if (!AccessPolicyService.matchesRoles(req.user, allowedRoles)) {
                 logger.warn(`Access denied for user ${req.user.username} with role ${req.user.role}. Required roles: ${allowedRoles.join(', ')}`);
                 
                 return res.status(403).json({
@@ -324,7 +305,7 @@ function requireOwnershipOrAdmin(resourceUserIdField = 'user_id') {
             }
 
             // Admins can access any resource
-            if (req.user.role === 'admin') {
+            if (AccessPolicyService.isResourceAdmin(req.user)) {
                 return next();
             }
 
@@ -338,7 +319,7 @@ function requireOwnershipOrAdmin(resourceUserIdField = 'user_id') {
                 });
             }
 
-            if (resourceUserId !== req.user.id) {
+            if (!AccessPolicyService.isOwnResource(req.user, resourceUserId)) {
                 return res.status(403).json({
                     error: 'Forbidden',
                     message: 'You can only access your own resources'
@@ -358,27 +339,6 @@ function requireOwnershipOrAdmin(resourceUserIdField = 'user_id') {
 
 // Permission check for specific operations with organizational context
 function requirePermission(operation) {
-    const permissions = {
-        'user_management': ['admin', 'department_head'],
-        'profile_upload': ['admin', 'department_head', 'user_analyst'],
-        'profile_delete': ['admin', 'department_head', 'user_analyst'],
-        'analysis_run': ['admin', 'department_head', 'user_analyst'],
-        'export_data': ['admin', 'department_head', 'user_analyst'],
-        'view_profiles': ['admin', 'department_head'],
-        'view_results': ['admin', 'department_head', 'user_analyst'],
-        'master_array_management': ['admin', 'department_head'],
-        'task_management': ['admin', 'department_head'],
-        'organization_management': ['admin'],
-        'expert_group_management': ['admin', 'department_head'],
-        'task_assignment': ['admin', 'department_head'],
-        'task_approval': ['admin', 'department_head'],
-        'audit_access': ['admin', 'department_head'],
-        'system_settings': ['admin'],
-        'view_tasks': ['admin', 'department_head', 'user_analyst'],
-        'create_tasks': ['admin', 'department_head'],
-        'department_management': ['admin', 'department_head']
-    };
-
     return async (req, res, next) => {
         try {
             if (!req.user) {
@@ -388,7 +348,7 @@ function requirePermission(operation) {
                 });
             }
 
-            const allowedRoles = permissions[operation];
+            const allowedRoles = AccessPolicyService.getOperationRoles(operation);
             if (!allowedRoles) {
                 logger.error(`Unknown permission operation: ${operation}`);
                 return res.status(500).json({
@@ -397,15 +357,8 @@ function requirePermission(operation) {
                 });
             }
 
-            // Map legacy roles to new role system
-            const roleMapping = {
-                'analyst': 'user_analyst'
-                // admin and department_head stay as is
-            };
 
-            const userRole = roleMapping[req.user.role] || req.user.role;
-
-            if (!allowedRoles.includes(userRole) && !allowedRoles.includes(req.user.role)) {
+            if (!AccessPolicyService.matchesRoles(req.user, allowedRoles)) {
                 logger.warn(`Permission denied for user ${req.user.username} with role ${req.user.role} for operation ${operation}`);
                 
                 return res.status(403).json({
@@ -501,30 +454,7 @@ function requireOrganizationalAccess(resourceType, action) {
 }
 
 // Department isolation middleware
-function requireDepartmentAccess() {
-    return async (req, res, next) => {
-        try {
-            const userId = req.user?.id;
-            const departmentId = req.params.departmentId || req.body.department_id;
-
-            if (!userId || !departmentId) {
-                return res.status(400).json({ error: 'User ID and department ID required' });
-            }
-
-            const hasAccess = await PermissionService.validateDataAccess(userId, 'department', departmentId);
-
-            if (!hasAccess) {
-                logger.warn(`Department access denied: User ${userId} attempted to access department ${departmentId}`);
-                return res.status(403).json({ error: 'Department access denied' });
-            }
-
-            next();
-        } catch (error) {
-            logger.error('Error in department access middleware:', error);
-            res.status(500).json({ error: 'Internal server error' });
-        }
-    };
-}
+function requireDepartmentAccess() { return PermissionService.requireDepartmentAccess(); }
 
 // Master array access middleware
 function requireMasterArrayAccess() {
@@ -595,8 +525,7 @@ async function refreshSessionContext(req, res, next) {
         }
 
         // If organizational context changed, invalidate session
-        if (currentUser.organization_id !== req.user.organization_id ||
-            currentUser.department_id !== req.user.department_id) {
+        if (!AccessPolicyService.organizationalContextMatches(currentUser, req.user)) {
             
             await authService.invalidateSession(req.token);
             return res.status(401).json({

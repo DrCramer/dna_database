@@ -10,7 +10,7 @@ const rateLimit = require('express-rate-limit');
 // Load configuration first
 const config = require('./config/environment');
 const { connectDatabase } = require('./config/database');
-const { errorHandler } = require('./middleware/errorHandler');
+const { errorHandler, apiErrorResponses } = require('./middleware/errorHandler');
 const { logger } = require('./utils/logger');
 const { securityConfig, sessionManager } = require('./config/security');
 const { auditApiOperation, setUserContext } = require('./middleware/auditLogger');
@@ -47,6 +47,7 @@ const analyticsRoutes = require('./routes/analytics');
 
 const app = express();
 app.use(require('./middleware/requestContext').requestContext);
+app.use('/api', apiErrorResponses);
 const PORT = config.get('app.port');
 
 // Сделать app доступным глобально для SSE уведомлений
@@ -261,6 +262,9 @@ app.use('/api/analytics', analyticsRoutes);
 
 // Feature status endpoint
 app.get('/api/features', getFeatureStatus);
+
+// API не должен возвращать HTML-страницу SPA для неизвестного маршрута.
+app.use('/api', (req, res) => res.status(404).json({ error: 'Not Found', message: 'API route not found' }));
 
 // Conditionally register Bayesian routes based on feature toggle
 conditionalRoute(app, () => config.isBayesianAnalysisEnabled(), '/api/bayesian', bayesianRoutes);

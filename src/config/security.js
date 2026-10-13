@@ -1,3 +1,4 @@
+const { encryptBytes, decryptBytes } = require('../services/security/cryptoPrimitives');
 const crypto = require('crypto');
 const fs = require('fs');
 const path = require('path');
@@ -6,7 +7,6 @@ const { logger } = require('../utils/logger');
 // Encryption configuration
 const ENCRYPTION_ALGORITHM = 'aes-256-cbc';
 const KEY_LENGTH = 32; // 256 bits
-const IV_LENGTH = 16; // 128 bits
 
 class SecurityConfig {
     constructor() {
@@ -86,50 +86,23 @@ class SecurityConfig {
 
     // Encrypt sensitive data for database storage
     encryptData(plaintext) {
-        try {
-            if (!plaintext || plaintext.trim() === '') {
-                // Handle empty or whitespace-only strings
-                return null;
-            }
-            
-            const iv = crypto.randomBytes(IV_LENGTH);
-            const cipher = crypto.createCipheriv(ENCRYPTION_ALGORITHM, this.encryptionKey, iv);
-            
-            let encrypted = cipher.update(plaintext, 'utf8', 'hex');
-            encrypted += cipher.final('hex');
-            
-            // Combine IV and encrypted data
-            return iv.toString('hex') + ':' + encrypted;
-        } catch (error) {
-            logger.error('Encryption failed:', error);
-            throw new Error('Data encryption failed');
-        }
-    }
+   try {
+     if (!plaintext || plaintext.trim() === '') return null;
+     const { iv, data } = encryptBytes(plaintext, this.encryptionKey, ENCRYPTION_ALGORITHM);
+     return iv.toString('hex') + ':' + data.toString('hex');
+   } catch (error) { logger.error('Encryption failed:', error); throw new Error('Data encryption failed'); }
+ }
 
     // Decrypt sensitive data from database
     decryptData(encryptedData) {
-        try {
-            if (!encryptedData) return null;
-            
-            const parts = encryptedData.split(':');
-            if (parts.length !== 2) {
-                throw new Error('Invalid encrypted data format');
-            }
-            
-            const iv = Buffer.from(parts[0], 'hex');
-            const encrypted = parts[1];
-            
-            const decipher = crypto.createDecipheriv(ENCRYPTION_ALGORITHM, this.encryptionKey, iv);
-            
-            let decrypted = decipher.update(encrypted, 'hex', 'utf8');
-            decrypted += decipher.final('utf8');
-            
-            return decrypted;
-        } catch (error) {
-            logger.error('Decryption failed:', error);
-            throw new Error('Data decryption failed');
-        }
-    }
+   try {
+     if (!encryptedData) return null;
+     const parts = encryptedData.split(':');
+     if (parts.length !== 2) throw new Error('Invalid encrypted data format');
+     return decryptBytes({ algorithm: ENCRYPTION_ALGORITHM, iv: Buffer.from(parts[0], 'hex'),
+       data: Buffer.from(parts[1], 'hex') }, this.encryptionKey).toString('utf8');
+   } catch (error) { logger.error('Decryption failed:', error); throw new Error('Data decryption failed'); }
+ }
 
     // Hash sensitive data (one-way)
     hashData(data, salt = null) {
