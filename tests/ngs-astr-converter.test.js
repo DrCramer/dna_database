@@ -154,8 +154,12 @@ test('Все 111 ASTR, AMEL, aliases и новые STR проходят пане
   assert.deepEqual(result.files[0].ngs.locusReport.unknown, []);
   assert.equal(result.sourceLoci.length, 112);
   assert.equal(result.profiles[0].detectedPanelId, panel.id);
-  const buffer = converter.export(result), book = XLSX.read(buffer, { type: 'buffer' });
+  const buffer = converter.export(result, { hideEmptyLoci: true }), book = XLSX.read(buffer, { type: 'buffer', cellStyles: true });
   assert.deepEqual(XLSX.utils.sheet_to_json(book.Sheets['Импорт'], { header: 1 })[0].slice(0, 6), ['Объект', 'Год', ...panel.lociOrder]);
+  const sheet = book.Sheets['Импорт'];
+  const headers = XLSX.utils.sheet_to_json(sheet, { header: 1 })[0];
+  assert(sheet['!cols'][headers.indexOf('DYS391')].hidden);
+  assert(!sheet['!cols'][headers.indexOf('AMEL')].hidden);
   assert.deepEqual(book.SheetNames, ['Импорт', '_DNA_META']);
   assert.deepEqual(book.Workbook.Sheets.filter(sheet => !sheet.Hidden).map(sheet => sheet.name), ['Импорт']);
   const [parsed] = await new ExcelService().parseExcelFile(buffer, 'normalized.xlsx', { importFormat: 'genetic' });

@@ -3,7 +3,7 @@ import NgsSourcePreview from './NgsSourcePreview';
 function SourceYear({ file, disabled, apply }) {
   const [year, setYear] = useState(String(file.year ?? ''));
   const valid = year === '' || /^\d{4}$/.test(year) && Number(year) >= 1900 && Number(year) <= 2100;
-  return <div><label>Год исследования<input className="form-input" type="number" min="1900" max="2100" step="1" value={year} disabled={disabled} onChange={event => setYear(event.target.value)} placeholder="Например, 2026" aria-invalid={!valid} /></label><button className="btn btn-secondary" disabled={disabled || !valid || year === String(file.year ?? '')} onClick={() => apply(year)}>Применить год</button>{!valid && <p>Введите целый год от 1900 до 2100.</p>}</div>;
+  return <div className="converter-source-year"><label>Год исследования<input className="form-input" type="number" min="1900" max="2100" step="1" value={year} disabled={disabled} onChange={event => setYear(event.target.value)} placeholder="Например, 2026" aria-invalid={!valid} /></label><button type="button" className="btn btn-secondary" disabled={disabled || !valid || year === String(file.year ?? '')} onClick={() => apply(year)}>Применить год</button>{!valid && <p>Введите целый год от 1900 до 2100.</p>}</div>;
 }
 export default function ConverterSources({ result, options, update, disabled }) {
   const set = (id, patch) => update({ ...options, files: { ...options.files, [id]: { ...options.files?.[id], ...patch } } });

@@ -40,7 +40,7 @@ for (const operation of ['preview', 'export']) router.post(`/${operation}`, (req
       const result = converter.convert(req.files, options, panels, references);
       res.set('Cache-Control', 'private, no-store');
       if (operation === 'preview') return res.json(result);
-      const buffer = converter.export(result);
+      const buffer = converter.export(result, options.export);
       res.type('application/vnd.openxmlformats-officedocument.spreadsheetml.sheet').set('Content-Disposition', 'attachment; filename="DNA-normalized.xlsx"').send(buffer);
     } catch (caught) { respond(req, res, caught); }
   });

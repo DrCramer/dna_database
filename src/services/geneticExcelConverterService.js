@@ -3,7 +3,7 @@ const { createHash } = require('node:crypto');
 const { LociTypeDetector } = require('../utils/lociTypeDetector');
 const { normalizeObjectName, geneticObjectKey, geneticProfileKey } = require('../utils/profileImportFormat');
 const { normalizeAlleleValue } = require('../utils/alleleNormalizer');
-const { informativeAlleles } = require('../utils/alleleTokens');
+const { informativeAlleles, isMissingAllele } = require('../utils/alleleTokens');
 const { metadataSheet, CONVERSION_META_SHEET } = require('../utils/geneticConversionMetadata');
 const sourceDetector = require('./geneticSourceDetector');
 const { parseNgsAstrWorkbook, suggestObjectNumber, applyNgsDecision } = require('./ngsAstrExcelParser');
@@ -251,11 +251,14 @@ class GeneticExcelConverterService {
     return result;
   }
 
-  export(result) {
+  export(result, options = {}) {
     if (!result.canImport) throw new ConversionError('Сначала разрешите все ошибки и конфликты.', 'UNRESOLVED_CONVERSION', 409);
+    if (!options || typeof options !== 'object' || Array.isArray(options) || options.hideEmptyLoci != null && typeof options.hideEmptyLoci !== 'boolean') throw new ConversionError('Некорректные настройки скрытия пустых локусов.');
     const book = XLSX.utils.book_new();
     const exportLoci = result.exportLoci || result.catalogLoci;
-    XLSX.utils.book_append_sheet(book, XLSX.utils.aoa_to_sheet([['Объект', 'Год', ...exportLoci], ...result.profiles.map(profile => [profile.objectNumber, profile.year ?? '', ...exportLoci.map(locus => (profile.strData[locus] || []).join(','))])]), 'Импорт');
+    const sheet = XLSX.utils.aoa_to_sheet([['Объект', 'Год', ...exportLoci], ...result.profiles.map(profile => [profile.objectNumber, profile.year ?? '', ...exportLoci.map(locus => (profile.strData[locus] || []).join(','))])]);
+    if (options.hideEmptyLoci) sheet['!cols'] = [{}, {}, ...exportLoci.map(locus => ({ hidden: result.profiles.every(profile => !(profile.strData[locus] || []).some(allele => !isMissingAllele(allele))) }))];
+    XLSX.utils.book_append_sheet(book, sheet, 'Импорт');
     const fileDecisions = new Map();
     for (const issue of result.issues) if (['COLUMN_DECISION', 'IGNORED_ROW'].includes(issue.code)) {
       if (!fileDecisions.has(issue.fileId)) fileDecisions.set(issue.fileId, []);

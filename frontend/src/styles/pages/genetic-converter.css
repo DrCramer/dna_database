@@ -8,8 +8,11 @@
 :where(.converter-page) .converter-counter strong { font-size: 24px; }
 :where(.converter-page) .converter-actions { display: flex; flex-wrap: wrap; align-items: end; gap: 12px; margin: 12px 0; }
 :where(.converter-page) .converter-actions label { display: grid; gap: 6px; }
-:where(.converter-page) .converter-source-controls { display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 16px; margin: 16px 0; }
+:where(.converter-page) .converter-source-controls { display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); align-items: start; gap: 16px; margin: 16px 0; }
 :where(.converter-page) .converter-source-controls label { display: grid; gap: 6px; min-width: 0; }
+:where(.converter-page) .converter-source-year { display: grid; gap: 8px; min-width: 0; }
+:where(.converter-page) .converter-source-year .btn { justify-self: start; }
+:where(.converter-page) .converter-export-toggle { display: flex; align-items: center; gap: 8px; }
 :where(.converter-page) details { margin: 12px 0; padding: 12px; border: 1px solid var(--border-default); border-radius: var(--radius-sm); }
 :where(.converter-page) summary { cursor: pointer; font-weight: 600; overflow-wrap: anywhere; }
 :where(.converter-page) .converter-mapping { display: flex; flex-wrap: wrap; align-items: center; gap: 12px; padding: 12px 0; }

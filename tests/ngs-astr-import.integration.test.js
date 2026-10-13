@@ -52,9 +52,14 @@ test('NGS: авторизация → конвертер → preview → акт�
   assert.equal((await convert('export', { canImport: true })).status, 409);
   const preview = await convert('preview'); assert.equal(preview.status, 200);
   const draft = await preview.json(); assert.equal(draft.canImport, false);
-  const options = { files: { [draft.files[0].id]: { objectNumber: `NGS-${nonce}`, objectConfirmed: true, year: 2026, panelId } } };
+  const options = { files: { [draft.files[0].id]: { objectNumber: `NGS-${nonce}`, objectConfirmed: true, year: 2026, panelId } }, export: { hideEmptyLoci: true } };
   const exported = await convert('export', options); assert.equal(exported.status, 200, await (exported.status !== 200 ? exported.text() : Promise.resolve('')));
   const normalized = Buffer.from(await exported.arrayBuffer());
+  const exportedBook = XLSX.read(normalized, { type: 'buffer', cellStyles: true });
+  const exportedSheet = exportedBook.Sheets['Импорт'];
+  const exportedHeaders = XLSX.utils.sheet_to_json(exportedSheet, { header: 1 })[0];
+  assert(exportedSheet['!cols'][exportedHeaders.indexOf('DYS391')].hidden);
+  assert(!exportedSheet['!cols'][exportedHeaders.indexOf('TH01')].hidden);
   const upload = async (endpoint, input = normalized) => {
     const body = new FormData(); body.append('file', new Blob([input]), 'ngs-normalized.xlsx'); body.append('taskId', taskId); body.append('uploadTarget', 'task');
     const response = await fetch(`${base}/profiles${endpoint}`, { method: 'POST', headers, body });

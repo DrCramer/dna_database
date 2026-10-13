@@ -10,6 +10,7 @@ export default function GeneticExcelConverterPage({ onPreparedFile }) {
   const { activeDepartment, activeDepartmentId, user } = useAuth();
   const [files, setFiles] = useState([]), [options, setOptions] = useState({}), [result, setResult] = useState(null);
   const [busy, setBusy] = useState(false), [error, setError] = useState('');
+  const [hideEmptyLoci, setHideEmptyLoci] = useState(true);
   const [references, setReferences] = useState([]), [populations, setPopulations] = useState([]);
   const request = useRef(null), input = useRef(null);
   const allowed = resolveProfileImportFormat(activeDepartment) === 'genetic';
@@ -41,7 +42,7 @@ export default function GeneticExcelConverterPage({ onPreparedFile }) {
   };
   const update = settings => perform('preview', settings);
   const exportFile = async direct => {
-    const blob = await perform('export'); if (!blob) return;
+    const blob = await perform('export', { ...options, export: { hideEmptyLoci } }); if (!blob) return;
     if (direct) onPreparedFile({ file: new File([blob], 'DNA-normalized.xlsx', { type: blob.type }), departmentId: activeDepartmentId, ownerId: user.id });
     else { const url = URL.createObjectURL(blob), anchor = document.createElement('a'); anchor.href = url; anchor.download = 'DNA-normalized.xlsx'; anchor.click(); setTimeout(() => URL.revokeObjectURL(url), 1000); }
   };
@@ -54,6 +55,6 @@ export default function GeneticExcelConverterPage({ onPreparedFile }) {
     </section>
     {error && <div className="alert alert-danger" role="alert">{error}</div>}
     {result && <><div className="converter-summary" aria-live="polite">{Object.entries(counters).map(([key, label]) => <div className="converter-counter" key={key}><strong>{result.summary[key]}</strong><span>{label}</span></div>)}</div><ConverterSources result={result} options={options} update={update} disabled={busy} /><ConverterIssues result={result} options={options} update={update} disabled={busy} /><ConverterGrid result={result} options={options} update={update} disabled={busy} />
-      <section className="converter-card"><div className="converter-actions"><button className="btn btn-primary" disabled={busy || !result.canImport} onClick={() => exportFile(false)}>Скачать нормализованный Excel</button><button className="btn btn-primary" disabled={busy || !result.canUpload} onClick={() => exportFile(true)}>Передать в загрузку профилей</button></div><p>{result.canUpload ? 'Предупреждения сохранены в журнале. На странице загрузки выберите задачу и проверьте результат обычного импорта.' : result.canImport ? 'Укажите год исследования для каждого файла в блоке «Источники и панели». После этого можно передать профили в загрузку. При скачивании без указанного года заполните колонку «Год» вручную.' : 'Разрешите все ошибки, неоднозначности и конфликты перед экспортом.'}</p></section></>}
+      <section className="converter-card"><label className="converter-export-toggle"><input type="checkbox" checked={hideEmptyLoci} disabled={busy} onChange={event => setHideEmptyLoci(event.target.checked)} />Скрывать пустые локусы в Excel</label><p>Скрываются только столбцы, пустые у всех объектов. При необходимости их можно показать в Excel.</p><div className="converter-actions"><button className="btn btn-primary" disabled={busy || !result.canImport} onClick={() => exportFile(false)}>Скачать нормализованный Excel</button><button className="btn btn-primary" disabled={busy || !result.canUpload} onClick={() => exportFile(true)}>Передать в загрузку профилей</button></div><p>{result.canUpload ? 'Предупреждения сохранены в журнале. На странице загрузки выберите задачу и проверьте результат обычного импорта.' : result.canImport ? 'Укажите год исследования для каждого файла в блоке «Источники и панели». После этого можно передать профили в загрузку. При скачивании без указанного года заполните колонку «Год» вручную.' : 'Разрешите все ошибки, неоднозначности и конфликты перед экспортом.'}</p></section></>}
   </div>;
 }

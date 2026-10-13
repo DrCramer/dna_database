@@ -90,6 +90,35 @@ test('Сигнал SRY проходит каталог, нормализацию
   assert.throws(() => excel.parseAlleleValue('other', 'SRY', 'Y_CHROMOSOME', 2, 'invalid.xlsx'), /Недопустимые значения/);
 });
 
+test('Экспорт скрывает только локусы, пустые у всех объектов, и сохраняет данные для импорта', async () => {
+  const source = file([
+    ['Объект', 'TH01', 'D5S818', 'D21S11', 'AMEL', 'SRY', 'D19S433'],
+    ['A-1', '7,9', '?', '*', '', '', '-'],
+    ['A-2', '10,11', '?', '*', 'X,Y', 'SRY', '']
+  ]);
+  const draft = converter.convert([source]);
+  const result = converter.convert([source], { files: { [draft.files[0].id]: { year: 2026 } } });
+  assert(result.canUpload, JSON.stringify(result.issues));
+  const output = converter.export(result, { hideEmptyLoci: true });
+  const book = XLSX.read(output, { type: 'buffer', cellStyles: true });
+  const sheet = book.Sheets['Импорт'];
+  const names = XLSX.utils.sheet_to_json(sheet, { header: 1 })[0];
+  const visible = names.filter((name, index) => !sheet['!cols'][index]?.hidden);
+  assert.deepEqual(visible, ['Объект', 'Год', ...ALL_LOCI.filter(locus => ['TH01', 'D5S818', 'D21S11', 'AMEL', 'SRY'].includes(locus))]);
+  assert(sheet['!cols'][names.indexOf('D19S433')].hidden);
+  const parsed = await new ExcelService().parseExcelFile(output, 'hidden-empty.xlsx', { importFormat: 'genetic' });
+  assert.equal(parsed.length, 2);
+  for (const [index, profile] of parsed.entries()) {
+    assert.deepEqual(profile.metadata.conversion.sourceLoci, result.profiles[index].sourceLoci);
+    for (const locus of result.sourceLoci) assert.deepEqual(profile.strData[locus], result.profiles[index].strData[locus]);
+  }
+  for (const settings of [{}, { hideEmptyLoci: false }]) {
+    const expanded = XLSX.read(converter.export(result, settings), { type: 'buffer', cellStyles: true });
+    assert(!(expanded.Sheets['Импорт']['!cols'] || []).some(column => column?.hidden));
+  }
+  assert.throws(() => converter.export(result, { hideEmptyLoci: 'true' }), /настройки скрытия/);
+});
+
 test('Точки и одиночные диплоидные аллели требуют явного решения', () => {
   assert.equal(normalize('11.12', 'TH01').status, 'NEEDS_REVIEW');
   assert.equal(normalize('11.12', 'TH01', { action: 'split_dot' }).normalizedValue, '11,12');
