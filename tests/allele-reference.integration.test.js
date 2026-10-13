@@ -140,7 +140,7 @@ test('Референсы: реальные PostgreSQL, права, версии,
     await call(`${endpoint}/${referenceId}`, 'PATCH', { isActive: false });
     const disabled = await convert('preview', { reference: { referenceSetId: referenceId } }); assert.equal(disabled.status, 404);
     const refreshed = await (await convert('preview')).json(); assert.equal(refreshed.files[0].reference.referenceSetId, nextId);
-    const { ExcelService } = require('../src/services/excelService'); const parsed = await new ExcelService().parseExcelFile(normalized, 'reference-normalized.xlsx', { importFormat: 'genetic' });
+    const { ExcelService } = require("../src/services/converters/excelService"); const parsed = await new ExcelService().parseExcelFile(normalized, 'reference-normalized.xlsx', { importFormat: 'genetic' });
     assert.equal(parsed[0].metadata.conversion, undefined);
     assert.deepEqual(parsed[0].strData.D5S818, ['11', '12']);
     assert.equal(decisionSnapshot.candidates[1].evidence[0].referenceVersion, 'fixture-1');

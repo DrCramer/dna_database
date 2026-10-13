@@ -10,7 +10,7 @@ test('Новая схема: параметры анализа, мастер-м�
   const { query, transaction, pool } = require('../src/config/database');
   const { logger } = require('../src/utils/logger');
   const SystemParameters = require('../src/services/bayesian/SystemParameters');
-  const persistence = require('../src/services/dataPersistenceService');
+  const persistence = require("../src/services/infrastructure/dataPersistenceService");
   t.after(() => pool.end());
 
   await t.test('Пустая canonical schema принимает два параллельных bootstrap параметров', async () => {

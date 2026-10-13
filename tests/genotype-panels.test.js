@@ -60,7 +60,7 @@ test('Состав и порядок панели дают предупрежд�
 });
 
 test('Контаминация включает AMEL, Yindel и DYS391; явные исключения сохраняются', async () => {
-  const Analyzer = require('../src/services/staffContaminationAnalyzer');
+  const Analyzer = require("../src/services/contamination/staffContaminationAnalyzer");
   const analyzer = new Analyzer();
   const str_data = { AMEL: ['X', 'Y'], Yindel: ['1'], DYS391: ['10'], D6S1043: ['8', '10', '12'] };
   const sample = { id: 'synthetic', str_data };

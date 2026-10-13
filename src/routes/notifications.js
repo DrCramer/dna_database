@@ -1,6 +1,6 @@
 const express = require('express');
 const { authenticate } = require('../middleware/auth');
-const { notificationService } = require('../services/notificationService');
+const { notificationService } = require("../services/tasks/notificationService");
 const { logger } = require('../utils/logger');
 const Joi = require('joi');
 
@@ -252,7 +252,7 @@ router.delete('/', authenticate, async (req, res) => {
   }
 });
 
-// SSE endpoint removed - using WebSocket instead (see src/services/websocketService.js)
+// SSE endpoint removed - using WebSocket instead (see src/services/infrastructure/websocketService.js)
 
 /**
  * POST /api/notifications/test

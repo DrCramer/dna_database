@@ -1,14 +1,14 @@
 const express = require('express');
 const { authenticate, adminOrAnalyst } = require('../middleware/auth');
-const { ExportService } = require('../services/exportService');
-const { jobQueueService } = require('../services/jobQueueService');
+const { ExportService } = require("../services/audit/exportService");
+const { jobQueueService } = require("../services/infrastructure/jobQueueService");
 const { logger } = require('../utils/logger');
 const Joi = require('joi');
 const { query } = require('../config/database');
 const DNAProfile = require('../models/DNAProfile');
-const { ProfileAccessService } = require('../services/profileAccessService');
-const { DuplicateExcelExportService, XLSX_MIME } = require('../services/duplicateExcelExportService');
-const { getSearchSnapshots, profileFingerprint } = require('../services/searchSnapshotStore');
+const { ProfileAccessService } = require("../services/security/profileAccessService");
+const { DuplicateExcelExportService, XLSX_MIME } = require("../services/audit/duplicateExcelExportService");
+const { getSearchSnapshots, profileFingerprint } = require("../services/profiles/searchSnapshotStore");
 const { resolveProfileImportFormat } = require('../utils/profileImportFormat');
 const { normalizeMatchColors } = require('../utils/locusComparisonPresentation');
 

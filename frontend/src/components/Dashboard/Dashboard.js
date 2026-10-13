@@ -1,7 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { useAuth } from '../../contexts/AuthContext';
-import { dnaAnalysisService } from '../../services/dnaAnalysisService';
+import { dnaAnalysisApi } from "../../services/dnaAnalysisApi";
 
 const Dashboard = () => {
   const { user, hasRole } = useAuth();
@@ -21,7 +21,7 @@ const Dashboard = () => {
   const loadDashboardStats = async () => {
     try {
       setLoading(true);
-      const dashboardStats = await dnaAnalysisService.getDashboardStats();
+      const dashboardStats = await dnaAnalysisApi.getDashboardStats();
       setStats(dashboardStats);
       setError(null);
     } catch (err) {

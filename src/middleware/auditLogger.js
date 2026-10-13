@@ -1,4 +1,4 @@
-const auditService = require('../services/auditService');
+const auditService = require("../services/audit/auditService");
 const { logger } = require('../utils/logger');
 
 // Middleware to log data access for sensitive operations

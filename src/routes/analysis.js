@@ -8,11 +8,11 @@ const {
   EXTENDED_40_STR_SNP_LOCI, 
   COMPATIBILITY_MODES,
   DEFAULT_CONFIG 
-} = require('../services/dnaAnalysisService');
+} = require("../services/profiles/dnaAnalysisService");
 const { createBayesianEngine } = require('../services/bayesian');
-const { ResultFormattingService } = require('../services/resultFormattingService');
+const { ResultFormattingService } = require("../services/profiles/resultFormattingService");
 const DNAProfile = require('../models/DNAProfile');
-const PermissionService = require('../services/permissionService');
+const PermissionService = require("../services/security/permissionService");
 const { logger } = require('../utils/logger');
 const router = express.Router();
 
@@ -447,7 +447,7 @@ router.get('/supported-loci',
       let supportedLoci;
       switch (mode) {
         case COMPATIBILITY_MODES.ORIGINAL_39:
-          supportedLoci = require('../services/dnaAnalysisService').ORIGINAL_39_STR_LOCI;
+          supportedLoci = require("../services/profiles/dnaAnalysisService").ORIGINAL_39_STR_LOCI;
           break;
         case COMPATIBILITY_MODES.EXTENDED_40:
           supportedLoci = EXTENDED_40_STR_SNP_LOCI;

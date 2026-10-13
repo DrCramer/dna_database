@@ -1,7 +1,7 @@
 const express = require('express');
 const { authenticate } = require('../middleware/auth');
 const { logOperation } = require('../middleware/operationLogger');
-const SettingsService = require('../services/settingsService');
+const SettingsService = require("../services/infrastructure/settingsService");
 const OperationHistory = require('../models/OperationHistory');
 const { logger } = require('../utils/logger');
 

@@ -1,6 +1,6 @@
 const test = require('node:test');
 const assert = require('node:assert/strict');
-const service = require('../src/services/duplicateDetectionService');
+const service = require("../src/services/profiles/duplicateDetectionService");
 const fixtures = require('./fixtures/duplicate-baseline.json');
 
 test('Канонический сервис сохраняет эталоны обоих путей поиска дубликатов', () => {

@@ -1,7 +1,7 @@
 const test = require('node:test');
 const assert = require('node:assert/strict');
 const ExcelJS = require('exceljs');
-const { DuplicateExcelExportService } = require('../src/services/duplicateExcelExportService');
+const { DuplicateExcelExportService } = require("../src/services/audit/duplicateExcelExportService");
 const { validateGeneticHeaders } = require('../src/utils/profileImportFormat');
 
 const service = new DuplicateExcelExportService();

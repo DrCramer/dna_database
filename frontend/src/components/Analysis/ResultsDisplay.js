@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { dnaAnalysisService } from '../../services/dnaAnalysisService';
+import { dnaAnalysisApi } from "../../services/dnaAnalysisApi";
 import { useProfileFieldLabel } from '../../hooks/useProfileFieldLabel';
 
 const ResultsDisplay = ({ results, searchSettings }) => {
@@ -19,7 +19,7 @@ const ResultsDisplay = ({ results, searchSettings }) => {
     setExportError(null);
 
     try {
-      const blob = await dnaAnalysisService.exportResults(results.matches, 'excel');
+      const blob = await dnaAnalysisApi.exportResults(results.matches, 'excel');
       const url = window.URL.createObjectURL(blob);
       const link = document.createElement('a');
       link.href = url;

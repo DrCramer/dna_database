@@ -7,7 +7,7 @@ const router = express.Router();
 const multer = require('multer');
 const { authenticate, adminOnly } = require('../middleware/auth');
 const { logger } = require('../utils/logger');
-const StaffProfileService = require('../services/staffProfileService');
+const StaffProfileService = require("../services/profiles/staffProfileService");
 
 // Настройка multer для загрузки файлов в память
 const upload = multer({

@@ -2,7 +2,7 @@ const express = require('express');
 const Task = require('../models/Task');
 const TaskComment = require('../models/TaskComment');
 const TaskResult = require('../models/TaskResult');
-const TaskService = require('../services/taskService');
+const TaskService = require("../services/tasks/taskService");
 const { authenticate, departmentHeadOrAdmin, requireTaskAccess } = require('../middleware/auth');
 const { 
     validateUUID,
@@ -13,8 +13,8 @@ const {
     validateAddTaskResult
 } = require('../middleware/validation');
 const { logger } = require('../utils/logger');
-const authService = require('../services/authService');
-const websocketService = require('../services/websocketService');
+const authService = require("../services/security/authService");
+const websocketService = require("../services/infrastructure/websocketService");
 
 const router = express.Router();
 

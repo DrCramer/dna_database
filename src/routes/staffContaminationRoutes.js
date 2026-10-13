@@ -6,7 +6,7 @@ const express = require('express');
 const router = express.Router();
 const { authenticate } = require('../middleware/auth');
 const { logger } = require('../utils/logger');
-const StaffContaminationAnalyzer = require('../services/staffContaminationAnalyzer');
+const StaffContaminationAnalyzer = require("../services/contamination/staffContaminationAnalyzer");
 
 /**
  * POST /api/staff-contamination/analyze

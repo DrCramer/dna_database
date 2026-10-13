@@ -1,6 +1,6 @@
 const express = require('express');
 const User = require('../models/User');
-const authService = require('../services/authService');
+const authService = require("../services/security/authService");
 const { authenticate, adminOnly, departmentHeadOrAdmin } = require('../middleware/auth');
 const { 
     validateUpdateRole, 

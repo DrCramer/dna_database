@@ -1,11 +1,11 @@
 const assert = require('node:assert/strict');
 const Module = require('node:module');
-const { getSearchSnapshots } = require('../../src/services/searchSnapshotStore');
+const { getSearchSnapshots } = require("../../src/services/profiles/searchSnapshotStore");
 const scopeCalls = [];
 const replacements = {
   '../../src/middleware/auth': { authenticate: (_req, _res, next) => next() },
   '../../src/models/DNAProfile': {},
-  '../../src/services/profileAccessService': {
+  "../../src/services/security/profileAccessService": {
     ProfileAccessService: {
       getScope: async context => {
         scopeCalls.push(context);

@@ -1,7 +1,7 @@
 const express = require('express');
 const router = express.Router();
-const MasterArrayService = require('../services/masterArrayService');
-const PermissionService = require('../services/permissionService');
+const MasterArrayService = require("../services/profiles/masterArrayService");
+const PermissionService = require("../services/security/permissionService");
 const { authenticate } = require('../middleware/auth');
 const { logger } = require('../utils/logger');
 

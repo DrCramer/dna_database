@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from 'react';
-import { dnaAnalysisService } from '../../services/dnaAnalysisService';
+import { dnaAnalysisApi } from "../../services/dnaAnalysisApi";
 import { useProfileFieldLabel } from '../../hooks/useProfileFieldLabel';
 
 const ProfileViewer = () => {
@@ -22,7 +22,7 @@ const ProfileViewer = () => {
   const loadProfiles = async () => {
     try {
       setLoading(true);
-      const data = await dnaAnalysisService.getProfiles();
+      const data = await dnaAnalysisApi.getProfiles();
       setProfiles(data);
     } catch (err) {
       setError('Не удалось загрузить ДНК-профили');
@@ -38,7 +38,7 @@ const ProfileViewer = () => {
     }
 
     try {
-      await dnaAnalysisService.deleteProfile(profileId);
+      await dnaAnalysisApi.deleteProfile(profileId);
       await loadProfiles();
       if (selectedProfile?.id === profileId) {
         setSelectedProfile(null);

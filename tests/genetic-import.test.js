@@ -1,8 +1,8 @@
 const { test } = require('node:test');
 const assert = require('node:assert/strict');
 const XLSX = require('xlsx');
-const { ExcelService } = require('../src/services/excelService');
-const { FileValidationService } = require('../src/services/fileValidationService');
+const { ExcelService } = require("../src/services/converters/excelService");
+const { FileValidationService } = require("../src/services/converters/fileValidationService");
 const { LociTypeDetector } = require('../src/utils/lociTypeDetector');
 const { resolveProfileImportFormat } = require('../src/utils/profileImportFormat');
 const DNAProfile = require('../src/models/DNAProfile');
@@ -205,7 +205,7 @@ test('Конкурентный конфликт записи возвращае�
 });
 
 test('Реальный алгоритм сравнивает локусы по именам при разном порядке колонок', async () => {
-  const { DNAAnalysisService } = require('../src/services/dnaAnalysisService');
+  const { DNAAnalysisService } = require("../src/services/profiles/dnaAnalysisService");
   const [a] = await parse(standard);
   const [b] = await parse([['Объект', 'D21S11', 'D5S818', 'Год', 'TH01'], ['A-2', '29,30', '11,12', 2024, '7,9']]);
   const analysis = new DNAAnalysisService({ enableBayesianAnalysis: false });

@@ -58,7 +58,7 @@ for (const file of filesUnder(source).filter((file) => file.endsWith('.css'))) {
   assert(styles.has(file), `Stylesheet outside the manifest: ${file}`);
 }
 
-for (const file of [...filesUnder(source), ...filesUnder(path.join(root, 'src/components/bayesian'))]) {
+for (const file of filesUnder(source)) {
   if (!file.endsWith('.js')) continue;
   const ast = parse(fs.readFileSync(file, 'utf8'), { sourceType: 'module', plugins: ['jsx'] });
   for (const statement of ast.program.body) {

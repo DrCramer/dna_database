@@ -11,7 +11,7 @@ test('NGS: авторизация → конвертер → preview → акт�
   const { query, pool } = require('../src/config/database');
   const originalInterval = global.setInterval;
   global.setInterval = (...args) => originalInterval(...args).unref();
-  const authService = require('../src/services/authService');
+  const authService = require("../src/services/security/authService");
   const profilesRouter = require('../src/routes/profiles');
   const converterRouter = require('../src/routes/geneticExcelConverter');
   global.setInterval = originalInterval;

@@ -1,6 +1,6 @@
 const express = require('express');
 const rateLimit = require('express-rate-limit');
-const authService = require('../services/authService');
+const authService = require("../services/security/authService");
 const User = require('../models/User');
 const { getProfileUploadPermissions, validateUploadPermissionFields } = require('../utils/profileUploadPermissions');
 const { authenticate, adminOnly } = require('../middleware/auth');
@@ -611,7 +611,7 @@ router.get('/organizational-context', authenticate, async (req, res) => {
         context.accessibleMasterArrays = await req.user.getAccessibleMasterArrays();
 
         // Get effective permissions
-        const PermissionService = require('../services/permissionService');
+        const PermissionService = require("../services/security/permissionService");
         context.permissions = await PermissionService.getEffectivePermissions(req.user.id);
 
         res.status(200).json({

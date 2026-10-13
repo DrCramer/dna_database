@@ -10,7 +10,7 @@ import { ALL_LOCI } from '../../../../src/utils/lociTypeDetector';
 import { getAnalysisLoci, compareProfileNumbers } from '../../../../src/utils/analysisLoci';
 import { getLocusComparisonPresentation } from '../../../../src/utils/locusComparisonPresentation';
 import DuplicateExportModal from './DuplicateExportModal';
-import { requestDuplicateXlsx } from '../../services/duplicateExportService';
+import { requestDuplicateXlsx } from "../../services/duplicateExportApi";
 
 const PROFILE_COLUMN_WIDTHS = { year: 72, import_number: 144, sample_name: 104, internal_number: 120, panel: 150 };
 const LOCUS_COLUMN_WIDTH = 78;

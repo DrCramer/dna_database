@@ -1,6 +1,6 @@
 const test = require('node:test');
 const assert = require('node:assert/strict');
-const { createSearchSnapshot, getSearchSnapshots, profileFingerprint } = require('../src/services/searchSnapshotStore');
+const { createSearchSnapshot, getSearchSnapshots, profileFingerprint } = require("../src/services/profiles/searchSnapshotStore");
 
 test('search snapshots are bound to their owner and active department and fingerprint source genotypes', () => {
   const reference = { id: 'ref-1', internal_number: '258-1', loci: { TH01: ['7', '9'] } };

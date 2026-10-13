@@ -1,5 +1,5 @@
 import React from 'react';
-import BayesianAnalysisApp from '../../../../src/components/bayesian/BayesianAnalysisApp';
+import BayesianAnalysisApp from './Bayesian/BayesianAnalysisApp';
 
 const BayesianShell = ({ onNavigate }) => {
   return (

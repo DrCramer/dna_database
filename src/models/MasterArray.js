@@ -1,7 +1,7 @@
 const { query, transaction } = require('../config/database');
 const { resolveProfileImportFormat, geneticObjectKey, geneticProfileKey } = require('../utils/profileImportFormat');
 const { logger } = require('../utils/logger');
-const { STR_LOCI } = require('../services/excelService');
+const { STR_LOCI } = require("../services/converters/excelService");
 
 class MasterArray {
     constructor(data) {

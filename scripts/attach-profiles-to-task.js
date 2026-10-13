@@ -21,7 +21,7 @@ async function main() {
   if (!options.task || !options.username) throw new Error('Укажите --task и --user; --help покажет пример.');
   const { pool } = require('../src/config/database');
   try {
-    const { attachOrphanProfiles } = require('../src/services/profileTaskRecoveryService');
+    const { attachOrphanProfiles } = require("../src/services/tasks/profileTaskRecoveryService");
     const report = await attachOrphanProfiles({ ...options, saveUndo: async undo => {
       const directory = path.resolve(process.cwd(), fs.existsSync('/app/backups') ? '/app/backups' : 'runtime/backups');
       fs.mkdirSync(directory, { recursive: true, mode: 0o700 });

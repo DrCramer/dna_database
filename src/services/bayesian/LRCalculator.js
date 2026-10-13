@@ -16,7 +16,7 @@ const {
   EXTENDED_40_STR_SNP_LOCI, 
   ORIGINAL_39_STR_LOCI,
   COMPATIBILITY_MODES 
-} = require('../dnaAnalysisService');
+} = require("../profiles/dnaAnalysisService");
 
 class LRCalculator {
     constructor(populationManager, systemParameters) {

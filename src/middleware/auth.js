@@ -1,7 +1,7 @@
-const authService = require('../services/authService');
+const authService = require("../services/security/authService");
 const User = require('../models/User');
-const PermissionService = require('../services/permissionService');
-const auditService = require('../services/auditService');
+const PermissionService = require("../services/security/permissionService");
+const auditService = require("../services/audit/auditService");
 const { logger } = require('../utils/logger');
 const rateLimit = require('express-rate-limit');
 const { requestContext } = require('./requestContext');

@@ -1031,7 +1031,7 @@ class DNAProfile {
 
       const result = options.uploadContext ? await transaction(async client => {
         const context = options.uploadContext;
-        const { assertProfileUploadAllowed, ProfileUploadAccessError } = require('../services/profileUploadPolicy');
+        const { assertProfileUploadAllowed, ProfileUploadAccessError } = require("../services/security/profileUploadPolicy");
         const userResult = await client.query('SELECT * FROM users WHERE id = $1 AND is_active = true FOR SHARE', [userId]);
         if (!userResult.rows[0]) throw new ProfileUploadAccessError('Учётная запись недоступна.', 'UPLOAD_FORBIDDEN');
         await assertProfileUploadAllowed(userResult.rows[0], context, { query: client.query.bind(client), lockTask: true });
@@ -1347,7 +1347,7 @@ class DNAProfile {
    * @returns {Promise<boolean>} True if access is allowed
    */
   async validateDepartmentIsolation(requestingUserId, activeDepartmentId) {
-    const { ProfileAccessService } = require('../services/profileAccessService');
+    const { ProfileAccessService } = require("../services/security/profileAccessService");
     return ProfileAccessService.validateProfileAccess({
       userId: requestingUserId, profileId: this.id, activeDepartmentId
     });

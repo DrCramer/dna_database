@@ -1,7 +1,7 @@
 const express = require('express');
 const router = express.Router();
-const scheduledJobService = require('../services/scheduledJobService');
-const auditService = require('../services/auditService');
+const scheduledJobService = require("../services/infrastructure/scheduledJobService");
+const auditService = require("../services/audit/auditService");
 const { authenticate, adminOnly } = require('../middleware/auth');
 const { auditDataAccess, auditComplianceOperation } = require('../middleware/auditLogger');
 const { logger } = require('../utils/logger');

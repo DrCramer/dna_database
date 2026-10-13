@@ -1,4 +1,4 @@
-const { prepareMassSearchProfiles, runMassSearchComparisons, groupMassSearchResults } = require('../services/massSearchService');
+const { prepareMassSearchProfiles, runMassSearchComparisons, groupMassSearchResults } = require("../services/profiles/massSearchService");
 const { multisetIntersection } = require('../utils/alleleComparison');
 const { informativeAlleles, isSpecialAllele } = require('../utils/alleleTokens');
 /**
@@ -11,12 +11,12 @@ const router = express.Router();
 const { authenticate } = require('../middleware/auth');
 const { logger } = require('../utils/logger');
 const { calculateContaminationScoreV5 } = require('../utils/contaminationAlgorithm');
-const { calculateDuplicateSimilarityOptimized, isDuplicateOptimized } = require('../services/duplicateDetectionService');
+const { calculateDuplicateSimilarityOptimized, isDuplicateOptimized } = require("../services/profiles/duplicateDetectionService");
 
 const DNAProfile = require('../models/DNAProfile');
-const { ProfileAccessService } = require('../services/profileAccessService');
+const { ProfileAccessService } = require("../services/security/profileAccessService");
 const { getAnalysisLoci } = require('../utils/analysisLoci');
-const { createSearchSnapshot } = require('../services/searchSnapshotStore');
+const { createSearchSnapshot } = require("../services/profiles/searchSnapshotStore");
 
 // Веса локусов для алгоритма контаминации (v4.0)
 const LOCUS_WEIGHTS = {
@@ -1177,7 +1177,7 @@ router.post('/task-search', authenticate, async (req, res) => {
     
     // Логирование результатов поиска для статистики
     try {
-      const ContaminationLogger = require('../services/contaminationLogger');
+      const ContaminationLogger = require("../services/contamination/contaminationLogger");
       await ContaminationLogger.logSearchResults(results, {
         searchMode,
         algorithmUsed: comparisonAlgorithm,
@@ -1592,7 +1592,7 @@ router.post('/department-tasks-search', authenticate, async (req, res) => {
     
     // Логирование результатов поиска для статистики
     try {
-      const ContaminationLogger = require('../services/contaminationLogger');
+      const ContaminationLogger = require("../services/contamination/contaminationLogger");
       await ContaminationLogger.logSearchResults(results, {
         searchMode: 'department_tasks',
         algorithmUsed: comparisonAlgorithm,

@@ -1,10 +1,10 @@
 const test = require('node:test');
 const assert = require('node:assert/strict');
 const XLSX = require('xlsx');
-const { GeneticExcelConverterService } = require('../src/services/geneticExcelConverterService');
-const { detectSourceFormat, NGS_FORMAT } = require('../src/services/geneticSourceDetector');
-const { parseNgsAstrWorkbook, suggestObjectNumber } = require('../src/services/ngsAstrExcelParser');
-const { ExcelService } = require('../src/services/excelService');
+const { GeneticExcelConverterService } = require("../src/services/converters/geneticExcelConverterService");
+const { detectSourceFormat, NGS_FORMAT } = require("../src/services/converters/geneticSourceDetector");
+const { parseNgsAstrWorkbook, suggestObjectNumber } = require("../src/services/converters/ngsAstrExcelParser");
+const { ExcelService } = require("../src/services/converters/excelService");
 const { LociTypeDetector } = require('../src/utils/lociTypeDetector');
 const { getAnalysisLoci } = require('../src/utils/analysisLoci');
 const { GenotypePanel } = require('../src/models/GenotypePanel');

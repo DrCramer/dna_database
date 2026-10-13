@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { exportService } from '../../services/exportService';
+import { exportApi } from "../../services/exportApi";
 
 const AnalysisExporter = ({ results, analysisType, onClose }) => {
   const [exportFormat, setExportFormat] = useState('excel');
@@ -53,16 +53,16 @@ const AnalysisExporter = ({ results, analysisType, onClose }) => {
 
       switch (exportFormat) {
         case 'excel':
-          await exportService.exportToExcel(exportData, `${analysisType}_analysis_${Date.now()}.xlsx`);
+          await exportApi.exportToExcel(exportData, `${analysisType}_analysis_${Date.now()}.xlsx`);
           break;
         case 'csv':
-          await exportService.exportToCSV(exportData, `${analysisType}_analysis_${Date.now()}.csv`);
+          await exportApi.exportToCSV(exportData, `${analysisType}_analysis_${Date.now()}.csv`);
           break;
         case 'json':
-          await exportService.exportToJSON(exportData, `${analysisType}_analysis_${Date.now()}.json`);
+          await exportApi.exportToJSON(exportData, `${analysisType}_analysis_${Date.now()}.json`);
           break;
         case 'pdf':
-          await exportService.exportToPDF(exportData, `${analysisType}_analysis_${Date.now()}.pdf`);
+          await exportApi.exportToPDF(exportData, `${analysisType}_analysis_${Date.now()}.pdf`);
           break;
         default:
           throw new Error('Неподдерживаемый формат экспорта');

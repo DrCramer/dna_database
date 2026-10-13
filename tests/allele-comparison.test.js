@@ -1,8 +1,8 @@
 const test = require('node:test');
 const assert = require('node:assert/strict');
 const { multisetIntersection, equalAlleleArrays, isAlleleSubset, setIntersection } = require('../src/utils/alleleComparison');
-const Analyzer = require('../src/services/staffContaminationAnalyzer');
-const Service = require('../src/services/staffContaminationService');
+const Analyzer = require("../src/services/contamination/staffContaminationAnalyzer");
+const Service = require("../src/services/contamination/staffContaminationService");
 const fixtures = require('./fixtures/staff-comparison-baseline.json');
 
 test('Общие операции сохраняют кратность, порядок и независимость исходных массивов', () => {

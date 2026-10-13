@@ -26,6 +26,8 @@
 ```bash
 npm ci --include=dev
 npm run check:ui
+npm run check:imports
+npm test
 npm run build
 ```
 
@@ -40,6 +42,12 @@ npm run build
 существование токенов и отсутствие ограничения ширины анализа. Эта проверка также
 выполняется при сборке Docker-образа. Подробности ревизии, исключения и результаты
 проверки страниц описаны в [отчёте по UI](docs/UI_REVISION.md).
+
+`check:imports` проверяет относительные ссылки во frontend, backend, тестах
+и скриптах, включая модули вне основного bundle. Проверка включена в Docker-сборку.
+Байесовский UI находится в `frontend/src/components/Analysis/Bayesian/`,
+серверные сервисы сгруппированы по доменам в `src/services/`.
+Подробности: [архитектурный рефакторинг](docs/REFACTOR_PHASE3.md).
 
 ## Быстрая установка с пустой базой
 

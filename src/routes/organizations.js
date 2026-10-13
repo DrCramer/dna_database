@@ -16,7 +16,7 @@ const {
     validateUpdateExpertGroup
 } = require('../middleware/validation');
 const { logger } = require('../utils/logger');
-const authService = require('../services/authService');
+const authService = require("../services/security/authService");
 
 const router = express.Router();
 

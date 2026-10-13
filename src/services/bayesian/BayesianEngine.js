@@ -7,8 +7,8 @@
 
 const { logger } = require('../../utils/logger');
 const { query, transaction } = require('../../config/database');
-const CacheService = require('../cacheService');
-const connectionPoolService = require('../connectionPoolService');
+const CacheService = require("../infrastructure/cacheService");
+const connectionPoolService = require("../infrastructure/connectionPoolService");
 
 class BayesianEngine {
     constructor() {

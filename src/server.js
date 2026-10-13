@@ -15,12 +15,12 @@ const { logger } = require('./utils/logger');
 const { securityConfig, sessionManager } = require('./config/security');
 const { auditApiOperation, setUserContext } = require('./middleware/auditLogger');
 const { conditionalRoute, getFeatureStatus } = require('./middleware/featureToggle');
-const scheduledJobService = require('./services/scheduledJobService');
-const healthCheckService = require('./services/healthCheckService');
-const databaseInitService = require('./services/databaseInitService');
-const concurrencyService = require('./services/concurrencyService');
-const dataPersistenceService = require('./services/dataPersistenceService');
-const websocketService = require('./services/websocketService');
+const scheduledJobService = require("./services/infrastructure/scheduledJobService");
+const healthCheckService = require("./services/infrastructure/healthCheckService");
+const databaseInitService = require("./services/infrastructure/databaseInitService");
+const concurrencyService = require("./services/infrastructure/concurrencyService");
+const dataPersistenceService = require("./services/infrastructure/dataPersistenceService");
+const websocketService = require("./services/infrastructure/websocketService");
 
 // Import routes
 const authRoutes = require('./routes/auth');

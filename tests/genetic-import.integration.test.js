@@ -15,7 +15,7 @@ test('Реальные PostgreSQL, authenticate, preview и upload', { skip: !da
   const DNAProfile = require('../src/models/DNAProfile');
   const originalInterval = global.setInterval;
   global.setInterval = (...args) => originalInterval(...args).unref();
-  const authService = require('../src/services/authService');
+  const authService = require("../src/services/security/authService");
   const profilesRouter = require('../src/routes/profiles');
   const genotypeRouter = require('../src/routes/genotypeAnalysisRoutes');
   const usersRouter = require('../src/routes/users');
@@ -321,7 +321,7 @@ test('Реальные PostgreSQL, authenticate, preview и upload', { skip: !da
     await query('UPDATE departments SET master_array_id = $1 WHERE id = $2', [emergencyMasterId, emergency]);
     const taskId = (await query("INSERT INTO tasks (title, department_id, created_by, assigned_to_user, target_sample, data_source, status) VALUES ('Тест переноса', $1, $2, $2, '{}', 'new_array', 'completed') RETURNING id", [genetic, userId])).rows[0].id;
     await query("UPDATE dna_profiles SET task_id = $1, import_number = 'Тестовое ФИО', panel_id = (SELECT id FROM genotype_panels WHERE department_id=$3 LIMIT 1) WHERE user_id = $2 AND department_id = $3 AND internal_number = 'A-1'", [taskId, userId, genetic]);
-    const taskService = require('../src/services/taskService');
+    const taskService = require("../src/services/tasks/taskService");
     const transferred = await taskService.addToMasterArray(taskId, userId);
     assert.equal(transferred.errors.length, 0, JSON.stringify(transferred));
     assert.equal(transferred.success.length, 1);
@@ -488,7 +488,7 @@ test('Реальные PostgreSQL, authenticate, preview и upload', { skip: !da
     });
 
     await t.test('Восстановление привязывает только одну выбранную загрузку, сохраняя STR и метаданные', async () => {
-      const { attachOrphanProfiles } = require('../src/services/profileTaskRecoveryService');
+      const { attachOrphanProfiles } = require("../src/services/tasks/profileTaskRecoveryService");
       const repairTask = await task();
       const original = await DNAProfile.create({ userId: restrictedId, departmentId: genetic, organizationId: organization, importFormat: 'genetic', year: 2024, sampleName: 'REPAIR', internalNumber: 'REPAIR-1', strData: { TH01: ['7', '9'], D5S818: ['11', '12'], D21S11: ['29', '30'] }, fileSource: 'repair.xlsx', notes: 'Сохранить комментарий' });
       const second = await DNAProfile.create({ userId: restrictedId, departmentId: genetic, organizationId: organization, importFormat: 'genetic', year: 2024, sampleName: 'OTHER', internalNumber: 'OTHER-1', strData: original.strData, fileSource: 'other.xlsx' });

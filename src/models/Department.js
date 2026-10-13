@@ -1,6 +1,6 @@
 const { query, transaction } = require('../config/database');
 const { logger } = require('../utils/logger');
-const auditService = require('../services/auditService');
+const auditService = require("../services/audit/auditService");
 
 class Department {
     constructor(data) {

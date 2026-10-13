@@ -12,8 +12,8 @@ test('Legacy API: единый доступ к профилям в active depart
   const { logger } = require('../src/utils/logger');
   const User = require('../src/models/User');
   const DNAProfile = require('../src/models/DNAProfile');
-  const PermissionService = require('../src/services/permissionService');
-  const { ProfileAccessService } = require('../src/services/profileAccessService');
+  const PermissionService = require("../src/services/security/permissionService");
+  const { ProfileAccessService } = require("../src/services/security/profileAccessService");
   const originalInterval = global.setInterval;
   global.setInterval = (...args) => originalInterval(...args).unref();
   const express = require('express');

@@ -1,13 +1,13 @@
 const { test } = require('node:test');
 const assert = require('node:assert/strict');
 const XLSX = require('xlsx');
-const { GeneticExcelConverterService } = require('../src/services/geneticExcelConverterService');
+const { GeneticExcelConverterService } = require("../src/services/converters/geneticExcelConverterService");
 const { normalizeAlleleValue: normalize } = require('../src/utils/alleleNormalizer');
 const { ALL_LOCI, LociTypeDetector } = require('../src/utils/lociTypeDetector');
 const { orderNormalizedLoci } = require('../src/utils/normalizedExcelLayout');
 const { informativeAlleles } = require('../src/utils/alleleTokens');
-const { ExcelService } = require('../src/services/excelService');
-const { FileValidationService } = require('../src/services/fileValidationService');
+const { ExcelService } = require("../src/services/converters/excelService");
+const { FileValidationService } = require("../src/services/converters/fileValidationService");
 const { GenotypePanel } = require('../src/models/GenotypePanel');
 const User = require('../src/models/User');
 const converter = new GeneticExcelConverterService();
@@ -307,10 +307,10 @@ test('Несколько тысяч объектов: независимые Map
 });
 
 test('Спецтокены не становятся совпадениями в DNA, Bayesian, дублях и контаминации', async () => {
-  const { DNAAnalysisService } = require('../src/services/dnaAnalysisService');
-  const Staff = require('../src/services/staffContaminationAnalyzer');
-  const { utils, calculateDuplicateSimilarity } = require('../src/services/duplicateDetectionService');
-  const { compareLocusObjects } = require('../src/services/duplicateDetectionService');
+  const { DNAAnalysisService } = require("../src/services/profiles/dnaAnalysisService");
+  const Staff = require("../src/services/contamination/staffContaminationAnalyzer");
+  const { utils, calculateDuplicateSimilarity } = require("../src/services/profiles/duplicateDetectionService");
+  const { compareLocusObjects } = require("../src/services/profiles/duplicateDetectionService");
   const analysis = new DNAAnalysisService({ enableBayesianAnalysis: false });
   assert.deepEqual(informativeAlleles(['*','**','?','F','17?','9.3','12']), ['9.3','12']);
   assert.deepEqual(new Staff().parseAlleles(['*','**','?','F','12']), ['12']);
@@ -363,7 +363,7 @@ test('Мастер-массив и bulkSearch не принимают специ
   const names=ALL_LOCI.filter(locus=>detector.detectLocusType(locus)==='STR').slice(0,18);
   const profile={id:'ordinary',sampleName:'synthetic',strData:Object.fromEntries(names.map(locus=>[locus,['11','12']]))};
   const special={id:'special',sampleName:'synthetic-special',strData:Object.fromEntries(names.map(locus=>[locus,['*','F']]))};
-  const {DNAAnalysisService}=require('../src/services/dnaAnalysisService'); const engine=new DNAAnalysisService({enableBayesianAnalysis:false});
+  const {DNAAnalysisService}=require("../src/services/profiles/dnaAnalysisService"); const engine=new DNAAnalysisService({enableBayesianAnalysis:false});
   const matches=await engine.bulkSearch(profile,[special,{...profile,id:'copy'}],{minNumericMatches:15}); assert.equal(matches.length,1);
   const master=await new ExcelService().compareWithMasterArray(special,[{...special,id:'special-copy'}]); assert.deepEqual(master,[]);
   assert.equal((await new ExcelService().compareWithMasterArray(profile,[{...profile,id:'ordinary-copy'}])).length,1);
@@ -378,7 +378,7 @@ test('Неполные генотипы исключаются из настоя
     assert.throws(()=>lr.calculateHardyWeinbergProbability(['11',token],frequencies),/excluded from LR/);
     assert.deepEqual(lr.extractLociData({str_data:{TH01:['11',token]}}).get('TH01').alleles,[]);
   }
-  const {DNAAnalysisService}=require('../src/services/dnaAnalysisService');
+  const {DNAAnalysisService}=require("../src/services/profiles/dnaAnalysisService");
   assert.deepEqual(new DNAAnalysisService().convertToBayesianFormat({strData:{TH01:['11','?']}}).loci.get('TH01').alleles,[]);
   assert.equal(normalize('1 2','DYS392').hard,true);
 });

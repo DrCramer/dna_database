@@ -9,8 +9,8 @@ let databaseQuery;
 const forbidden = async () => { throw new Error('Unexpected database access in unit test'); };
 const replacements = {
   '../src/config/database': { query: (...args) => databaseQuery(...args), transaction: forbidden },
-  '../src/services/cacheService': class UnitCache {},
-  '../src/services/connectionPoolService': { initialize: forbidden }
+  "../src/services/infrastructure/cacheService": class UnitCache {},
+  "../src/services/infrastructure/connectionPoolService": { initialize: forbidden }
 };
 const saved = new Map();
 let BayesianEngine;

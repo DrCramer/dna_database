@@ -1,12 +1,12 @@
 const { test } = require('node:test');
 const assert = require('node:assert/strict');
 const XLSX = require('xlsx');
-const { AlleleReferenceService } = require('../src/services/alleleReferenceService');
+const { AlleleReferenceService } = require("../src/services/profiles/alleleReferenceService");
 const { validateReferenceImport } = require('../src/utils/alleleReferenceImport');
 const { normalizeAlleleValue, alleleCandidates } = require('../src/utils/alleleNormalizer');
 const { LociTypeDetector, LOCI_TYPES, STR_LOCI, Y_INDEL_LOCI } = require('../src/utils/lociTypeDetector');
-const { GeneticExcelConverterService } = require('../src/services/geneticExcelConverterService');
-const { ExcelService } = require('../src/services/excelService');
+const { GeneticExcelConverterService } = require("../src/services/converters/geneticExcelConverterService");
+const { ExcelService } = require("../src/services/converters/excelService");
 const id = 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa', panelId = 'bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb';
 // Только вымышленные тестовые справочники; они не являются лестницей коммерческого набора.
 function set(loci, overrides = {}) {

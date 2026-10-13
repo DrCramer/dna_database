@@ -1,5 +1,5 @@
-const PermissionService = require('../services/permissionService');
-const auditService = require('../services/auditService');
+const PermissionService = require("../services/security/permissionService");
+const auditService = require("../services/audit/auditService");
 const { logger } = require('../utils/logger');
 const { query } = require('../config/database');
 

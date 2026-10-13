@@ -1,6 +1,6 @@
 import React, { createContext, useContext, useState, useEffect } from 'react';
 import { useAuth } from './AuthContext';
-import organizationService from '../services/organizationService';
+import organizationApi from "../services/organizationApi";
 
 const OrganizationContext = createContext();
 
@@ -34,7 +34,7 @@ export const OrganizationProvider = ({ children }) => {
     try {
       setLoading(true);
       setError(null);
-      const context = await organizationService.getUserContext();
+      const context = await organizationApi.getUserContext();
       setOrganizationContext(context);
     } catch (err) {
       setError('Failed to load organizational context');
@@ -49,7 +49,7 @@ export const OrganizationProvider = ({ children }) => {
     try {
       setLoading(true);
       setError(null);
-      const orgs = await organizationService.getOrganizations();
+      const orgs = await organizationApi.getOrganizations();
       setOrganizations(orgs);
       return orgs;
     } catch (err) {
@@ -66,7 +66,7 @@ export const OrganizationProvider = ({ children }) => {
     try {
       setLoading(true);
       setError(null);
-      const depts = await organizationService.getDepartments(organizationId);
+      const depts = await organizationApi.getDepartments(organizationId);
       setDepartments(depts);
       return depts;
     } catch (err) {
@@ -83,7 +83,7 @@ export const OrganizationProvider = ({ children }) => {
     try {
       setLoading(true);
       setError(null);
-      const groups = await organizationService.getExpertGroups(departmentId);
+      const groups = await organizationApi.getExpertGroups(departmentId);
       setExpertGroups(groups);
       return groups;
     } catch (err) {
@@ -98,7 +98,7 @@ export const OrganizationProvider = ({ children }) => {
   // Organization management functions
   const createOrganization = async (organizationData) => {
     try {
-      const newOrg = await organizationService.createOrganization(organizationData);
+      const newOrg = await organizationApi.createOrganization(organizationData);
       setOrganizations(prev => [...prev, newOrg]);
       return newOrg;
     } catch (err) {
@@ -109,7 +109,7 @@ export const OrganizationProvider = ({ children }) => {
 
   const updateOrganization = async (organizationId, updates) => {
     try {
-      const updatedOrg = await organizationService.updateOrganization(organizationId, updates);
+      const updatedOrg = await organizationApi.updateOrganization(organizationId, updates);
       setOrganizations(prev => 
         prev.map(org => org.id === organizationId ? updatedOrg : org)
       );
@@ -122,7 +122,7 @@ export const OrganizationProvider = ({ children }) => {
 
   const deactivateOrganization = async (organizationId) => {
     try {
-      await organizationService.deactivateOrganization(organizationId);
+      await organizationApi.deactivateOrganization(organizationId);
       setOrganizations(prev => 
         prev.map(org => org.id === organizationId ? { ...org, is_active: false } : org)
       );
@@ -135,7 +135,7 @@ export const OrganizationProvider = ({ children }) => {
   // Department management functions
   const createDepartment = async (departmentData) => {
     try {
-      const newDept = await organizationService.createDepartment(departmentData);
+      const newDept = await organizationApi.createDepartment(departmentData);
       setDepartments(prev => [...prev, newDept]);
       return newDept;
     } catch (err) {
@@ -146,7 +146,7 @@ export const OrganizationProvider = ({ children }) => {
 
   const updateDepartment = async (departmentId, updates) => {
     try {
-      const updatedDept = await organizationService.updateDepartment(departmentId, updates);
+      const updatedDept = await organizationApi.updateDepartment(departmentId, updates);
       setDepartments(prev => 
         prev.map(dept => dept.id === departmentId ? updatedDept : dept)
       );
@@ -159,7 +159,7 @@ export const OrganizationProvider = ({ children }) => {
 
   const deactivateDepartment = async (departmentId) => {
     try {
-      await organizationService.deactivateDepartment(departmentId);
+      await organizationApi.deactivateDepartment(departmentId);
       setDepartments(prev => 
         prev.map(dept => dept.id === departmentId ? { ...dept, is_active: false } : dept)
       );
@@ -172,7 +172,7 @@ export const OrganizationProvider = ({ children }) => {
   // Expert group management functions
   const createExpertGroup = async (groupData) => {
     try {
-      const newGroup = await organizationService.createExpertGroup(groupData);
+      const newGroup = await organizationApi.createExpertGroup(groupData);
       setExpertGroups(prev => [...prev, newGroup]);
       return newGroup;
     } catch (err) {
@@ -183,7 +183,7 @@ export const OrganizationProvider = ({ children }) => {
 
   const updateExpertGroup = async (groupId, updates) => {
     try {
-      const updatedGroup = await organizationService.updateExpertGroup(groupId, updates);
+      const updatedGroup = await organizationApi.updateExpertGroup(groupId, updates);
       setExpertGroups(prev => 
         prev.map(group => group.id === groupId ? updatedGroup : group)
       );
@@ -196,7 +196,7 @@ export const OrganizationProvider = ({ children }) => {
 
   const deactivateExpertGroup = async (groupId) => {
     try {
-      await organizationService.deactivateExpertGroup(groupId);
+      await organizationApi.deactivateExpertGroup(groupId);
       setExpertGroups(prev => 
         prev.map(group => group.id === groupId ? { ...group, is_active: false } : group)
       );
@@ -208,7 +208,7 @@ export const OrganizationProvider = ({ children }) => {
 
   const addMemberToGroup = async (groupId, userId) => {
     try {
-      await organizationService.addMemberToGroup(groupId, userId);
+      await organizationApi.addMemberToGroup(groupId, userId);
       // Reload expert groups to get updated member counts
       await loadExpertGroups();
     } catch (err) {
@@ -219,7 +219,7 @@ export const OrganizationProvider = ({ children }) => {
 
   const removeMemberFromGroup = async (groupId, userId) => {
     try {
-      await organizationService.removeMemberFromGroup(groupId, userId);
+      await organizationApi.removeMemberFromGroup(groupId, userId);
       // Reload expert groups to get updated member counts
       await loadExpertGroups();
     } catch (err) {
