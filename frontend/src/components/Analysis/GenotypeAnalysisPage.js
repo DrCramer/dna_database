@@ -8,6 +8,9 @@ import { useAuth } from '../../contexts/AuthContext';
 import { resolveProfileImportFormat } from '../../../../src/utils/profileImportFormat';
 import { ALL_LOCI } from '../../../../src/utils/lociTypeDetector';
 import { getAnalysisLoci, compareProfileNumbers } from '../../../../src/utils/analysisLoci';
+import { getLocusComparisonPresentation } from '../../../../src/utils/locusComparisonPresentation';
+import DuplicateExportModal from './DuplicateExportModal';
+import { requestDuplicateXlsx } from '../../services/duplicateExportService';
 
 const PROFILE_COLUMN_WIDTHS = { year: 72, import_number: 144, sample_name: 104, internal_number: 120, panel: 150 };
 const LOCUS_COLUMN_WIDTH = 78;
@@ -38,6 +41,11 @@ const GenotypeAnalysisPage = ({ onNavigate, selectedActiveTask }) => {
   const [searchResults, setSearchResults] = useState([]);
   const [searchHistory, setSearchHistory] = useState([]);
   const [referenceProfile, setReferenceProfile] = useState(null); // Полные данные эталона для отображения
+  const [duplicateExportSnapshots, setDuplicateExportSnapshots] = useState([]);
+  const [duplicateExportDefaultReferenceKey, setDuplicateExportDefaultReferenceKey] = useState('');
+  const [showDuplicateExportModal, setShowDuplicateExportModal] = useState(false);
+  const [duplicateExportBusy, setDuplicateExportBusy] = useState(false);
+  const [duplicateExportProgress, setDuplicateExportProgress] = useState('');
   const [minMatches, setMinMatches] = useState(() => {
     const saved = localStorage.getItem('minMatches');
     return saved ? parseInt(saved) : 15;
@@ -302,6 +310,7 @@ const GenotypeAnalysisPage = ({ onNavigate, selectedActiveTask }) => {
 
   // Порядок базовых колонок (можно перетаскивать)
   const defaultBaseColumns = () => isGenetic ? [
+    { key: 'year', label: 'Год' },
     { key: 'sample_name', label: '№ Экспертизы' },
     { key: 'internal_number', label: '№ Объекта' },
     { key: 'import_number', label: 'ФИО' },
@@ -381,6 +390,49 @@ const GenotypeAnalysisPage = ({ onNavigate, selectedActiveTask }) => {
 
   const deactivatedCount = profiles.filter(p => p.is_active === false).length;
   const withCommentsCount = profiles.filter(p => p.expert_comment).length;
+
+  const duplicateExportSnapshotIds = [...new Set(duplicateExportSnapshots.map(snapshot => snapshot?.id).filter(Boolean))];
+  const duplicateExportGroups = [...new Map(duplicateExportSnapshots.flatMap(snapshot => snapshot?.groups || []).map(group => [group.key, group])).values()];
+  const duplicateExportPairCount = duplicateExportSnapshots.reduce((total, snapshot) => total + (snapshot?.pairCount || 0), 0);
+  const duplicateExportProfileCount = new Set(duplicateExportSnapshots.flatMap(snapshot => snapshot?.profileKeys || [])).size;
+  const duplicateExportLocusCount = new Set(duplicateExportSnapshots.flatMap(snapshot => snapshot?.locusNames || [])).size;
+
+  const handleDuplicateExport = async (settings) => {
+    if (duplicateExportBusy || !duplicateExportSnapshotIds.length) return;
+    setDuplicateExportBusy(true);
+    setError(null);
+    try {
+      const stages = ['Подготовка данных…', 'Группировка совпадений…', 'Формирование таблицы…', 'Применение подсветки…', 'Подготовка скачивания…'];
+      for (const stage of stages) {
+        setDuplicateExportProgress(stage);
+        await new Promise(resolve => setTimeout(resolve, 120));
+      }
+      const { blob, filename } = await requestDuplicateXlsx({
+        snapshotIds: duplicateExportSnapshotIds,
+        options: {
+          ...settings,
+          visibleLoci: activeLoci,
+          colors: contaminationSettings.colors
+        },
+        token: localStorage.getItem('token'),
+        activeDepartmentId: activeDepartment?.id
+      });
+      const url = URL.createObjectURL(blob);
+      const anchor = document.createElement('a');
+      anchor.href = url;
+      anchor.download = filename;
+      document.body.appendChild(anchor);
+      anchor.click();
+      anchor.remove();
+      setTimeout(() => URL.revokeObjectURL(url), 1000);
+      setShowDuplicateExportModal(false);
+    } catch (exportError) {
+      setError(exportError.message || 'Не удалось сформировать Excel-файл.');
+    } finally {
+      setDuplicateExportBusy(false);
+      setDuplicateExportProgress('');
+    }
+  };
 
   // Вычисление видимых строк
   const bodyScrollTop = Math.max(0, scrollTop - HEADER_HEIGHT);
@@ -601,6 +653,8 @@ const GenotypeAnalysisPage = ({ onNavigate, selectedActiveTask }) => {
     try {
       setSearching(true);
       setError(null);
+      setDuplicateExportSnapshots([]);
+      setDuplicateExportDefaultReferenceKey('');
 
       const token = localStorage.getItem('token');
 
@@ -617,7 +671,8 @@ const GenotypeAnalysisPage = ({ onNavigate, selectedActiveTask }) => {
           referenceProfile: referenceValues,
           minMatches: minMatches,
           ignoredLoci: ignoredLociList,
-          excludeProfileId: selectedProfile?.id
+          excludeProfileId: selectedProfile?.id,
+          colors: contaminationSettings.colors
         })
       });
 
@@ -625,6 +680,10 @@ const GenotypeAnalysisPage = ({ onNavigate, selectedActiveTask }) => {
 
       if (data.success) {
         setSearchResults(data.matches);
+        setReferenceProfile(selectedProfile
+          ? { ...selectedProfile, loci: selectedProfile.loci || referenceValues.loci }
+          : { ...referenceValues, id: null, loci: referenceValues.loci });
+        setDuplicateExportSnapshots(data.exportSnapshot ? [data.exportSnapshot] : []);
 
         // Автоматическое комментирование дубликатов
         if (data.matches && data.matches.length > 0) {
@@ -641,7 +700,11 @@ const GenotypeAnalysisPage = ({ onNavigate, selectedActiveTask }) => {
           import_number: referenceValues.import_number,
           matchCount: data.count,
           timestamp: new Date(),
-          results: data.matches
+          results: data.matches,
+          referenceProfileId: selectedProfile?.id || null,
+          exportSnapshot: data.exportSnapshot || null,
+          exportAlgorithm: 'standard',
+          exportSearchMode: 'single'
         }]);
 
         // Переключаемся на вкладку результатов
@@ -684,6 +747,8 @@ const GenotypeAnalysisPage = ({ onNavigate, selectedActiveTask }) => {
 
     // Очищаем историю перед началом нового поиска
     setSearchHistory([]);
+    setDuplicateExportSnapshots([]);
+    setDuplicateExportDefaultReferenceKey('');
 
     try {
       setSearching(true);
@@ -706,7 +771,8 @@ const GenotypeAnalysisPage = ({ onNavigate, selectedActiveTask }) => {
           ignoredLoci: ignoredLociList,
           comparisonAlgorithm: comparisonAlgorithm,
           useV5Algorithm: contaminationSettings.useV5Algorithm !== undefined ? contaminationSettings.useV5Algorithm : true,
-          duplicateSettings: comparisonAlgorithm === 'duplicate_v5' ? duplicateSettings : undefined
+          duplicateSettings: comparisonAlgorithm === 'duplicate_v5' ? duplicateSettings : undefined,
+          colors: contaminationSettings.colors
         })
       });
 
@@ -745,10 +811,15 @@ const GenotypeAnalysisPage = ({ onNavigate, selectedActiveTask }) => {
           displayedCount: result.displayedCount || result.matchCount,
           timestamp: new Date(),
           results: result.matches,
-          searchMode: data.searchMode
+          searchMode: data.searchMode,
+          referenceProfileId: result.reference.id,
+          exportSnapshot: data.exportSnapshot || null,
+          exportAlgorithm: data.comparisonAlgorithm || comparisonAlgorithm,
+          exportSettings: { minMatches, duplicateSettings, ignoredLoci: ignoredLociList }
         }));
 
         setSearchHistory(prev => [...prev, ...newHistoryItems]);
+        setDuplicateExportSnapshots(data.exportSnapshot ? [data.exportSnapshot] : []);
 
         const stats = data.statistics || {};
 
@@ -816,6 +887,8 @@ const GenotypeAnalysisPage = ({ onNavigate, selectedActiveTask }) => {
 
     // Очищаем историю перед началом нового поиска
     setSearchHistory([]);
+    setDuplicateExportSnapshots([]);
+    setDuplicateExportDefaultReferenceKey('');
 
     try {
       setSearching(true);
@@ -840,7 +913,8 @@ const GenotypeAnalysisPage = ({ onNavigate, selectedActiveTask }) => {
           minMatches: minMatches,
           ignoredLoci: Object.keys(ignoredLoci).filter(locus => ignoredLoci[locus]),
           comparisonAlgorithm: comparisonAlgorithm,
-          duplicateSettings: comparisonAlgorithm === 'duplicate_v5' ? duplicateSettings : undefined
+          duplicateSettings: comparisonAlgorithm === 'duplicate_v5' ? duplicateSettings : undefined,
+          colors: contaminationSettings.colors
         })
       });
 
@@ -894,6 +968,7 @@ const GenotypeAnalysisPage = ({ onNavigate, selectedActiveTask }) => {
       });
 
       setSearchResults(formattedResults);
+      setDuplicateExportSnapshots(data.exportSnapshot ? [data.exportSnapshot] : []);
 
       // Добавляем в историю - каждый профиль отдельно с его совпадениями
       // Сохраняем информацию о задаче и эксперте для каждого совпадения
@@ -910,7 +985,11 @@ const GenotypeAnalysisPage = ({ onNavigate, selectedActiveTask }) => {
           task_name: match.task_name,
           task_owner: match.task_owner
         })),
-        searchMode: 'department_tasks'
+        searchMode: 'department_tasks',
+        referenceProfileId: result.reference.id,
+        exportSnapshot: data.exportSnapshot || null,
+        exportAlgorithm: data.comparisonAlgorithm || comparisonAlgorithm,
+        exportSettings: { minMatches, duplicateSettings, ignoredLoci: Object.keys(ignoredLoci).filter(locus => ignoredLoci[locus]) }
       }));
 
       setSearchHistory(prev => [...newHistoryItems, ...prev]);
@@ -1040,6 +1119,8 @@ const GenotypeAnalysisPage = ({ onNavigate, selectedActiveTask }) => {
 
     // Очищаем историю перед началом нового поиска
     setSearchHistory([]);
+    setDuplicateExportSnapshots([]);
+    setDuplicateExportDefaultReferenceKey('');
 
     try {
       setSearching(true);
@@ -1065,7 +1146,8 @@ const GenotypeAnalysisPage = ({ onNavigate, selectedActiveTask }) => {
           ignoredLoci: ignoredLociList,
           comparisonAlgorithm: comparisonAlgorithm,
           useV5Algorithm: contaminationSettings.useV5Algorithm !== undefined ? contaminationSettings.useV5Algorithm : true,
-          duplicateSettings: comparisonAlgorithm === 'duplicate_v5' ? duplicateSettings : undefined
+          duplicateSettings: comparisonAlgorithm === 'duplicate_v5' ? duplicateSettings : undefined,
+          colors: contaminationSettings.colors
         })
       });
 
@@ -1086,7 +1168,8 @@ const GenotypeAnalysisPage = ({ onNavigate, selectedActiveTask }) => {
           ignoredLoci: ignoredLociList,
           comparisonAlgorithm: comparisonAlgorithm,
           useV5Algorithm: contaminationSettings.useV5Algorithm !== undefined ? contaminationSettings.useV5Algorithm : true,
-          duplicateSettings: comparisonAlgorithm === 'duplicate_v5' ? duplicateSettings : undefined
+          duplicateSettings: comparisonAlgorithm === 'duplicate_v5' ? duplicateSettings : undefined,
+          colors: contaminationSettings.colors
         })
       });
 
@@ -1137,6 +1220,9 @@ const GenotypeAnalysisPage = ({ onNavigate, selectedActiveTask }) => {
             timestamp: new Date(),
             results: result.matches,
             searchMode: 'task',
+            referenceProfileId: result.reference.id,
+            exportSnapshot: taskSearchData.exportSnapshot || null,
+            exportAlgorithm: taskSearchData.comparisonAlgorithm || comparisonAlgorithm,
             fullSearchGroup: 'task' // Маркер для группировки
           });
         });
@@ -1155,6 +1241,9 @@ const GenotypeAnalysisPage = ({ onNavigate, selectedActiveTask }) => {
             timestamp: new Date(),
             results: result.matches,
             searchMode: 'master_array',
+            referenceProfileId: result.reference.id,
+            exportSnapshot: masterSearchData.exportSnapshot || null,
+            exportAlgorithm: masterSearchData.comparisonAlgorithm || comparisonAlgorithm,
             fullSearchGroup: 'master' // Маркер для группировки
           });
         });
@@ -1184,6 +1273,7 @@ const GenotypeAnalysisPage = ({ onNavigate, selectedActiveTask }) => {
 
       // Добавляем все результаты в историю
       setSearchHistory(prev => [...newHistoryItems, ...prev]);
+      setDuplicateExportSnapshots([taskSearchData.exportSnapshot, masterSearchData.exportSnapshot].filter(Boolean));
 
       // Сохраняем текущее состояние локусов
       setLastSearchLociState(JSON.parse(JSON.stringify(ignoredLoci)));
@@ -1726,56 +1816,23 @@ const GenotypeAnalysisPage = ({ onNavigate, selectedActiveTask }) => {
    * Форматирование локуса с подсветкой совпадающих аллелей
    * Используется для частичных совпадений (контаминация)
    */
-  const formatLocusWithHighlight = (locusData, refLocusData) => {
-    if (!locusData) return '';
-    if (!refLocusData) return formatLocusValue(locusData);
-
-    // Получаем массивы аллелей
-    const getAlleles = (data) => {
-      if (!data) return [];
-      if (Array.isArray(data)) {
-        return data.filter(a => a && a !== '' && a !== '.' && a !== '*' && a !== '**' && a !== '?');
-      }
-      if (typeof data === 'object') {
-        const alleles = [];
-        if (data.allele1 && data.allele1 !== '' && data.allele1 !== '.' && data.allele1 !== '*') {
-          alleles.push(data.allele1);
-        }
-        if (data.allele2 && data.allele2 !== '' && data.allele2 !== '.' && data.allele2 !== '*') {
-          alleles.push(data.allele2);
-        }
-        return alleles;
-      }
-      return [data.toString()];
-    };
-
-    const refAlleles = getAlleles(refLocusData);
-    const compAlleles = getAlleles(locusData);
-
-    if (refAlleles.length === 0 || compAlleles.length === 0) {
-      return formatLocusValue(locusData);
-    }
-
-    // Создаем Set для быстрой проверки
-    const refSet = new Set(refAlleles);
-
-    // Подсвечиваем совпадающие аллели синим цветом
+  const formatLocusWithHighlight = (presentation) => {
+    if (!presentation?.alleles?.length) return '';
     return (
       <span className="locus-highlight-list">
-        {compAlleles.map((allele, idx) => {
-          const isMatched = refSet.has(allele);
+        {presentation.alleles.map(({ value, matched }, idx) => {
           return (
             <React.Fragment key={idx}>
               {idx > 0 && ','}
               <span
-                className={isMatched ? 'locus-highlight-match' : 'locus-highlight-default'}
+                className={matched ? 'locus-highlight-match' : 'locus-highlight-default'}
                 style={
-                  isMatched
-                    ? { '--locus-highlight-color': contaminationSettings.colors?.partialMatchAllele || '#1400e8' }
+                  matched
+                    ? { '--locus-highlight-color': presentation.colors.partialMatchAllele }
                     : undefined
                 }
               >
-                {allele}
+                {value}
               </span>
             </React.Fragment>
           );
@@ -1855,15 +1912,21 @@ const GenotypeAnalysisPage = ({ onNavigate, selectedActiveTask }) => {
   const groupHistoryByGenotype = (history) => {
     if (!history || history.length === 0) return [];
 
+    const identityKey = profile => profile?.id
+      ? `id:${profile.id}`
+      : (profile?.internal_number || profile?.internalNumber)
+        ? `object:${String(profile.internal_number || profile.internalNumber).toLocaleLowerCase('ru')}`
+        : `sample:${String(profile?.sample_name || profile?.sampleName || '')}:${profile?.year || ''}`;
+
     // Создаем карту всех профилей
     const profileMap = new Map();
 
     // Собираем все профили из истории
     history.forEach(item => {
-      // Используем internal_number как ключ, если он есть, иначе sample_name
-      const key = item.internal_number || item.sample_name;
+      const key = identityKey({ id: item.referenceProfileId, ...item });
       if (!profileMap.has(key)) {
         profileMap.set(key, {
+          id: item.referenceProfileId || null,
           sample_name: item.sample_name,
           internal_number: item.internal_number,
           import_number: item.import_number,
@@ -1871,6 +1934,7 @@ const GenotypeAnalysisPage = ({ onNavigate, selectedActiveTask }) => {
           timestamp: item.timestamp,
           searchMode: item.searchMode,
           matches: [],
+          exportSnapshots: item.exportSnapshot ? [item.exportSnapshot] : [],
           task_name: item.task_name, // Добавляем информацию о задаче
           task_owner: item.task_owner, // Добавляем информацию об эксперте
           expert_comment: item.expert_comment, // Добавляем комментарий
@@ -1882,12 +1946,13 @@ const GenotypeAnalysisPage = ({ onNavigate, selectedActiveTask }) => {
       // Добавляем совпадения
       if (item.results && item.results.length > 0) {
         item.results.forEach(match => {
-          const matchKey = match.internal_number || match.sample_name;
+          const matchKey = identityKey(match);
           profileMap.get(key).matches.push(matchKey);
 
           // Добавляем совпавший профиль в карту, если его еще нет
           if (!profileMap.has(matchKey)) {
             profileMap.set(matchKey, {
+              id: match.id || null,
               sample_name: match.sample_name,
               internal_number: match.internal_number,
               import_number: match.import_number,
@@ -1895,6 +1960,7 @@ const GenotypeAnalysisPage = ({ onNavigate, selectedActiveTask }) => {
               timestamp: item.timestamp,
               searchMode: item.searchMode,
               matches: [],
+              exportSnapshots: item.exportSnapshot ? [item.exportSnapshot] : [],
               task_name: match.task_name, // Информация о задаче из совпадения
               task_owner: match.task_owner, // Информация об эксперте из совпадения
               expert_comment: match.expert_comment, // Комментарий из совпадения
@@ -1983,6 +2049,7 @@ const GenotypeAnalysisPage = ({ onNavigate, selectedActiveTask }) => {
         matchCount: profiles.length - 1, // Количество совпадений = количество профилей - 1
         timestamp: earliestTimestamp,
         allProfiles: profiles,
+        exportSnapshots: [...new Map(profiles.flatMap(profile => profile.exportSnapshots || []).map(snapshot => [snapshot.id, snapshot])).values()],
         isGroup: profiles.length > 1,
         searchMode: mainProfile.searchMode
       });
@@ -1998,6 +2065,10 @@ const GenotypeAnalysisPage = ({ onNavigate, selectedActiveTask }) => {
    * Восстановление результатов из истории с загрузкой полных данных
    */
   const restoreFromHistory = async (historyItem) => {
+    const historySnapshots = historyItem?.exportSnapshots || (historyItem?.exportSnapshot ? [historyItem.exportSnapshot] : []);
+    setDuplicateExportSnapshots([...new Map(historySnapshots.filter(snapshot => snapshot?.id).map(snapshot => [snapshot.id, snapshot])).values()]);
+    setDuplicateExportDefaultReferenceKey(historyItem?.referenceProfileId ? `db:${historyItem.referenceProfileId}` : '');
+
     // Получаем ссылку на панель для прокрутки
     const panelElement = document.querySelector('.input-panel');
 
@@ -2775,6 +2846,12 @@ const GenotypeAnalysisPage = ({ onNavigate, selectedActiveTask }) => {
         {/* Вкладка: Результаты сравнения */}
         {activeTab === 'results' && (
           <div className="results-container">
+            <div className="duplicate-export-toolbar">
+              <button type="button" className="btn btn-secondary" disabled={!duplicateExportSnapshotIds.length || duplicateExportBusy} onClick={() => setShowDuplicateExportModal(true)}>
+                📥 Экспорт дубликатов в Excel
+              </button>
+              {!duplicateExportSnapshotIds.length && <p>Для экспорта выполните новый поиск совпадений внутри задачи, в мастер-массиве или в задачах отдела.</p>}
+            </div>
             {searchResults.length === 0 ? (
               <div className="no-results">
                 Нет результатов. Выполните поиск.
@@ -2939,90 +3016,33 @@ const GenotypeAnalysisPage = ({ onNavigate, selectedActiveTask }) => {
                               </>
                             )}
                             {activeLoci.map(locus => {
-                              const isMatched = result.matchedLoci && result.matchedLoci.includes(locus);
-                              const refLocusData = referenceProfile?.loci ? referenceProfile.loci[locus] : null;
+                              const resultReference = result.referenceProfile || referenceProfile;
+                              const refLocusData = resultReference?.loci ? resultReference.loci[locus] : null;
                               const compLocusData = result.loci ? result.loci[locus] : null;
-
-                              // Определяем тип совпадения для фона
-                              let cellClass = '';
-                              let isPartialMatch = false;
-
-                              if (refLocusData && compLocusData) {
-                                // Получаем аллели
-                                const getAlleles = (data) => {
-                                  if (!data) return [];
-                                  if (Array.isArray(data)) {
-                                    return data.filter(a => a && a !== '' && a !== '.' && a !== '*' && a !== '**' && a !== '?');
-                                  }
-                                  // Поддержка старого формата
-                                  if (typeof data === 'object') {
-                                    const alleles = [];
-                                    if (data.allele1 && data.allele1 !== '' && data.allele1 !== '.' && data.allele1 !== '*') {
-                                      alleles.push(data.allele1);
-                                    }
-                                    if (data.allele2 && data.allele2 !== '' && data.allele2 !== '.' && data.allele2 !== '*') {
-                                      alleles.push(data.allele2);
-                                    }
-                                    return alleles;
-                                  }
-                                  return [];
-                                };
-
-                                const refAlleles = getAlleles(refLocusData);
-                                const compAlleles = getAlleles(compLocusData);
-
-                                if (refAlleles.length > 0 && compAlleles.length > 0) {
-                                  // Проверяем полное совпадение: массивы должны быть идентичны
-                                  const refSorted = [...refAlleles].sort().join(',');
-                                  const compSorted = [...compAlleles].sort().join(',');
-
-                                  if (refSorted === compSorted) {
-                                    // Полное совпадение - аллели идентичны
-                                    if (isMatched) {
-                                      cellClass = 'matched';
-                                    }
-                                  } else {
-                                    // Проверяем частичное совпадение (контаминация)
-                                    // Контаминация: есть совпадающие аллели, но не все
-                                    const refSet = new Set(refAlleles);
-                                    const compSet = new Set(compAlleles);
-
-                                    // Считаем совпадающие аллели
-                                    let matchingCount = 0;
-                                    for (const allele of refAlleles) {
-                                      if (compSet.has(allele)) {
-                                        matchingCount++;
-                                      }
-                                    }
-
-                                    // Если есть хотя бы одно совпадение, это контаминация
-                                    if (matchingCount > 0) {
-                                      cellClass = 'matched-contamination';
-                                      isPartialMatch = true;
-                                    } else {
-                                      // Полное несовпадение - нет ни одного совпадающего аллеля
-                                      cellClass = 'no-match';
-                                    }
-                                  }
-                                }
-                              }
+                              const presentation = getLocusComparisonPresentation({
+                                referenceData: refLocusData,
+                                comparedData: compLocusData,
+                                matchedLoci: result.matchedLoci,
+                                details: result.details,
+                                locus,
+                                ignoredLoci: Object.keys(ignoredLoci).filter(name => ignoredLoci[name]),
+                                colors: contaminationSettings.colors
+                              });
+                              const statusClasses = {
+                                full: 'matched',
+                                partial: 'matched-contamination',
+                                no_match: 'no-match'
+                              };
+                              const cellClass = statusClasses[presentation.status] || '';
 
                               return (
                                 <td
                                   key={locus}
                                   className={`results-locus-cell${cellClass ? ` ${cellClass}` : ''}`}
-                                  style={
-                                    cellClass === 'matched'
-                                      ? { '--results-locus-bg': contaminationSettings.colors?.fullMatch || '#90EE90' }
-                                      : cellClass === 'matched-contamination'
-                                        ? { '--results-locus-bg': contaminationSettings.colors?.partialMatch || '#9d8311' }
-                                        : cellClass === 'no-match'
-                                          ? { '--results-locus-bg': contaminationSettings.colors?.noMatch || '#FFB6C1' }
-                                          : undefined
-                                  }
+                                  style={presentation.backgroundColor ? { '--results-locus-bg': presentation.backgroundColor } : undefined}
                                 >
-                                  {isPartialMatch ?
-                                    formatLocusWithHighlight(compLocusData, refLocusData) :
+                                  {presentation.status === 'partial' ?
+                                    formatLocusWithHighlight(presentation) :
                                     formatLocusValue(compLocusData)
                                   }
                                 </td>
@@ -3204,6 +3224,12 @@ const GenotypeAnalysisPage = ({ onNavigate, selectedActiveTask }) => {
         {/* Вкладка: История */}
         {activeTab === 'history' && (
           <div className="history-container">
+            <div className="duplicate-export-toolbar">
+              <button type="button" className="btn btn-secondary btn-sm" disabled={!duplicateExportSnapshotIds.length || duplicateExportBusy} onClick={() => setShowDuplicateExportModal(true)}>
+                📥 Экспорт дубликатов в Excel
+              </button>
+              {!duplicateExportSnapshotIds.length && <p>Выберите результат недавнего поиска из истории или выполните поиск заново. Старая история требует повторного поиска для экспорта.</p>}
+            </div>
             {searchHistory.length === 0 ? (
               <div className="no-results">
                 История пуста. Выполните поиск.
@@ -4959,6 +4985,20 @@ const GenotypeAnalysisPage = ({ onNavigate, selectedActiveTask }) => {
             </div>
           </div>
         </div>
+      )}
+      {showDuplicateExportModal && (
+        <DuplicateExportModal
+          groups={duplicateExportGroups}
+          defaultReferenceKey={duplicateExportDefaultReferenceKey}
+          profileCount={duplicateExportProfileCount}
+          pairCount={duplicateExportPairCount}
+          locusCount={duplicateExportLocusCount}
+          colors={contaminationSettings.colors}
+          busy={duplicateExportBusy}
+          progress={duplicateExportProgress}
+          onClose={() => !duplicateExportBusy && setShowDuplicateExportModal(false)}
+          onExport={handleDuplicateExport}
+        />
       )}
     </div>
   );

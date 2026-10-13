@@ -171,7 +171,9 @@ test('Подтверждение проходит через существую�
   assert.equal(issue.reference.suggestedValue, '11,12');
   const ready = converter.convert([file], { cells: { [issue.id]: issue.reference.suggestedDecision } }, panels, reference);
   assert.equal(ready.canImport, true); assert.deepEqual(ready.profiles[0].strData.D5S818, ['11', '12']);
-  const parsed = await new ExcelService().parseExcelFile(converter.export(ready), 'normalized.xlsx', { importFormat: 'genetic' });
+  const exported = XLSX.read(converter.export(ready), { type: 'buffer' });
+  exported.Sheets['Импорт'].B2 = { t: 'n', v: 2024 };
+  const parsed = await new ExcelService().parseExcelFile(XLSX.write(exported, { type: 'buffer', bookType: 'xlsx' }), 'normalized.xlsx', { importFormat: 'genetic' });
   const audit = parsed[0].metadata.conversion.audit.find(item => item.locus === 'D5S818');
   assert.equal(audit.rawValue, '11.12'); assert.equal(audit.reference.confidence, 'HIGH'); assert.equal(audit.reference.decision.action, 'split_dot'); assert.equal(audit.reference.candidates[1].evidence[0].referenceSetId, id);
 });

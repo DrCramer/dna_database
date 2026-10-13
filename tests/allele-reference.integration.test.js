@@ -45,7 +45,7 @@ test('Референсы: реальные PostgreSQL, права, версии,
   const definition = { name: 'Synthetic fixture — not a manufacturer ladder', type: 'KIT_LADDER', kitName: 'Synthetic fixture', sourceTitle: 'Integration test only', sourceUrl: 'https://example.invalid/fixture', sourceVersion: 'fixture-1', confirmed: true, format: 'csv', content: 'Kit,Locus,Allele,Classification\nSynthetic fixture,D5S818,11,IN_LADDER\nSynthetic fixture,D5S818,12,IN_LADDER' };
   let referenceId, panelId;
   const DNAProfile = require('../src/models/DNAProfile');
-  const baseline = await DNAProfile.create({ userId: analyst.id, organizationId: org, departmentId: dept, importFormat: 'genetic', internalNumber: 'UNCHANGED-1', sampleName: 'UNCHANGED', strData: { TH01: ['7', '9'], D5S818: ['11', '12'], D21S11: ['29', '30'] } });
+  const baseline = await DNAProfile.create({ userId: analyst.id, organizationId: org, departmentId: dept, importFormat: 'genetic', year: 2024, internalNumber: 'UNCHANGED-1', sampleName: 'UNCHANGED', strData: { TH01: ['7', '9'], D5S818: ['11', '12'], D21S11: ['29', '30'] } });
   await t.test('Миграция повторяется и откатывается без изменения исторических профилей и частот', async () => {
     const profile = async () => (await query('SELECT to_jsonb(p) AS value FROM dna_profiles p WHERE id=$1', [baseline.id])).rows[0].value;
     const before = await profile();
@@ -113,7 +113,7 @@ test('Референсы: реальные PostgreSQL, права, версии,
     const preview = await convert('preview'); assert.equal(preview.status, 200); const dirty = await preview.json(); assert.equal(dirty.canImport, false);
     const issue = dirty.issues.find(item => item.code === 'AMBIGUOUS_DOT'); assert.equal(issue.reference.suggestedValue, '11,12'); assert.equal(issue.reference.confidence, 'HIGH');
     assert.deepEqual(dirty.profiles[0].strData.D5S818, ['11.12']); assert.equal((await convert('export')).status, 409);
-    const exported = await convert('export', { cells: { [issue.id]: issue.reference.suggestedDecision } }); assert.equal(exported.status, 200); normalized = Buffer.from(await exported.arrayBuffer());
+    const exported = await convert('export', { cells: { [issue.id]: issue.reference.suggestedDecision }, files: { [dirty.files[0].id]: { year: '2024' } } }); assert.equal(exported.status, 200); normalized = Buffer.from(await exported.arrayBuffer());
     const form = new FormData(); form.append('file', new Blob([normalized]), 'reference-normalized.xlsx'); form.append('uploadTarget', 'without_task');
     const imported = await fetch(`${base}/api/profiles/upload`, { method: 'POST', headers: { Authorization: `Bearer ${analyst.token}`, 'X-Active-Department-Id': dept }, body: form });
     assert.equal(imported.status, 200, JSON.stringify(await imported.json()));

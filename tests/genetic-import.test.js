@@ -31,33 +31,33 @@ function workbook(rows) {
   return XLSX.write(book, { type: 'buffer', bookType: 'xlsx' });
 }
 const parse = rows => excel.parseExcelFile(workbook(rows), 'genetic.xlsx', options);
-const standard = [['Объект', 'TH01', 'D5S818', 'D21S11'], ['A-1', '7,9', '11,12', '29,30']];
+const standard = [['Объект', 'Год', 'TH01', 'D5S818', 'D21S11'], ['A-1', 2024, '7,9', '11,12', '29,30']];
 
 test('Стандартный порядок и тот же профиль с переставленными столбцами', async () => {
   const [a] = await parse(standard);
-  const [b] = await parse([['Объект', 'D21S11', 'TH01', 'D5S818'], ['A-1', '29,30', '7,9', '11,12']]);
+  const [b] = await parse([['Объект', 'D21S11', 'TH01', 'Год', 'D5S818'], ['A-1', '29,30', '7,9', 2024, '11,12']]);
   assert.deepEqual(a.strData, { TH01: ['7', '9'], D5S818: ['11', '12'], D21S11: ['29', '30'] });
   assert.deepEqual(b.strData, a.strData);
   assert.equal(a.sampleName, 'A');
   assert.equal(a.internalNumber, 'A-1');
-  assert.equal(a.year, null);
+  assert.equal(a.year, 2024);
 });
 
 test('Все 31 маркер из задания и перемешанный набор независимо от позиций', async () => {
   const names = 'TH01 D5S818 D21S11 D18S51 D6S1043 D4S2366 Rs2032678 SRY AMEL D3S1358 D13S317 D7S820 D16S539 CSF1PO Penta_D DYS392 D2S441 vWA D8S1179 TPOX Penta_E Rs771783753 D19S433 D22S1045 D2S1338 FGA DYS391 D1S1656 D12S391 D10S1248 SE33'.split(' ').map(name => name.replace('_', ' '));
   const values = Object.fromEntries(names.map((name, index) => [name,
     name === 'AMEL' ? 'XY' : name === 'Rs771783753' ? '1' : name.startsWith('Rs') ? 'A,T' : ['SRY', 'DYS392', 'DYS391'].includes(name) ? String(index + 1) : `${index + 7},${index + 9}`]));
-  const [base] = await parse([['Объект', ...names], ['FULL-1', ...names.map(name => values[name])]]);
+  const [base] = await parse([['Объект', 'Год', ...names], ['FULL-1', 2024, ...names.map(name => values[name])]]);
   assert.equal(Object.keys(base.strData).length, 31);
   for (let shift = 0; shift < names.length; shift += 5) {
     const order = [...names.slice(shift), ...names.slice(0, shift)].reverse();
-    const [profile] = await parse([['Объект', ...order], ['FULL-1', ...order.map(name => values[name])]]);
+    const [profile] = await parse([['Объект', 'Год', ...order], ['FULL-1', 2024, ...order.map(name => values[name])]]);
     assert.deepEqual(profile.strData, base.strData);
   }
 });
 
 test('Регистр, пробелы и Penta приводятся к каноническим ключам', async () => {
-  const [p] = await parse([[' Объект ', ' th01 ', 'D5s818', 'rs2032678', 'PENTAD', 'vwa', 'Penta  E'], ['110-1', '7,9', '11,12', 'A,T', '8', '15/18', '12-13']]);
+  const [p] = await parse([[' Объект ', 'Год', ' th01 ', 'D5s818', 'rs2032678', 'PENTAD', 'vwa', 'Penta  E'], ['110-1', 2024, '7,9', '11,12', 'A,T', '8', '15/18', '12-13']]);
   assert.deepEqual(Object.keys(p.strData), ['TH01', 'D5S818', 'Rs2032678', 'Penta D', 'vWA', 'Penta E']);
   assert.deepEqual(p.strData['Penta D'], ['8', '8']);
   assert.deepEqual(p.strData.vWA, ['15', '18']);
@@ -65,16 +65,17 @@ test('Регистр, пробелы и Penta приводятся к канон
 });
 
 for (const [name, headers, message] of [
-  ['Нет Объекта', ['Sample Name', 'TH01', 'D5S818', 'D21S11'], /Первый столбец/],
-  ['Объект не первый', ['TH01', 'Объект', 'D5S818', 'D21S11'], /Первый столбец/],
-  ['Неизвестный локус', ['Объект', 'TH01', 'D5S818', 'D21S1I'], /Неизвестный генетический локус: D21S1I/],
-  ['Повторный локус', ['Объект', 'TH01', 'D5S818', 'D21S11', 'th01'], /повторяющиеся столбцы локуса TH01/],
-  ['Повторный Penta', ['Объект', 'TH01', 'Penta D', 'D21S11', 'PentaD'], /повторяющиеся столбцы локуса Penta D/],
-  ['Только два локуса', ['Объект', 'TH01', 'D5S818'], /Найдено: 2. Минимум: 3/],
-  ['Служебный столбец', ['Объект', 'TH01', 'D5S818', 'D21S11', 'Год'], /Неизвестный генетический локус: Год/]
+  ['Нет Объекта', ['Sample Name', 'Год', 'TH01', 'D5S818', 'D21S11'], /Первый столбец/],
+  ['Объект не первый', ['TH01', 'Объект', 'Год', 'D5S818', 'D21S11'], /Первый столбец/],
+  ['Неизвестный локус', ['Объект', 'Год', 'TH01', 'D5S818', 'D21S1I'], /Неизвестный генетический локус: D21S1I/],
+  ['Повторный локус', ['Объект', 'Год', 'TH01', 'D5S818', 'D21S11', 'th01'], /повторяющиеся столбцы локуса TH01/],
+  ['Повторный Penta', ['Объект', 'Год', 'TH01', 'Penta D', 'D21S11', 'PentaD'], /повторяющиеся столбцы локуса Penta D/],
+  ['Только два локуса', ['Объект', 'Год', 'TH01', 'D5S818'], /Найдено: 2. Минимум: 3/],
+  ['Служебный столбец', ['Объект', 'Год', 'TH01', 'D5S818', 'D21S11', 'Подразделение'], /Неизвестный генетический локус: Подразделение/],
+  ['Год отсутствует', ['Объект', 'TH01', 'D5S818', 'D21S11'], /столбец «Год»/]
 ]) {
   test(name, async () => {
-    const data = [headers, ['A-1', '7,9', '11,12', '29,30', '7,9']];
+    const data = [headers, headers.map((header, index) => index === 0 ? 'A-1' : header === 'Год' ? 2024 : '7,9')];
     await assert.rejects(parse(data), message);
     const checked = validation.validateFile(workbook(data), 'genetic.xlsx', options);
     assert.equal(checked.valid, false);
@@ -88,15 +89,15 @@ test('Отсутствие A1 и безымянная колонка с данн
 });
 
 test('Пустые строки пропускаются, ошибка Объекта сохраняет номер строки Excel', async () => {
-  const rows = [standard[0], standard[1], [], [null, '7,9', '11,12', '29,30']];
+  const rows = [standard[0], standard[1], [], [null, 2024, '7,9', '11,12', '29,30']];
   await assert.rejects(parse(rows), error => error.details.validationErrors[0].rowNumber === 4 && /Объект/.test(error.message));
   const [p] = await parse([standard[0], [], standard[1], []]);
   assert.equal(p.rowNumber, 3);
-  await assert.rejects(parse([standard[0], ['110-1', '-', '', null]]), /отсутствуют данные генетического профиля/);
+  await assert.rejects(parse([standard[0], ['110-1', 2024, '-', '', null]]), /отсутствуют данные генетического профиля/);
 });
 
 test('Нулевые значения не теряются, пустое форматирование справа игнорируется', async () => {
-  const [zero] = await parse([standard[0], [0, 0, 0, 0]]);
+  const [zero] = await parse([standard[0], [0, 2024, 0, 0, 0]]);
   assert.equal(zero.sampleName, '0');
   assert.deepEqual(zero.strData.TH01, ['0', '0']);
   const book = XLSX.read(workbook(standard), { type: 'buffer' });
@@ -108,26 +109,26 @@ test('Нулевые значения не теряются, пустое фор
 });
 
 test('Частично заполненный профиль и существующие форматы аллелей', async () => {
-  const [p] = await parse([['Объект', 'TH01', 'D5S818', 'D21S11', 'DYS392', 'SRY', 'DYS391', 'AMEL', 'Rs2032678'], ['A-1', '8', '-', '', '12', '1', '10', 'XY', 'A/T']]);
+  const [p] = await parse([['Объект', 'Год', 'TH01', 'D5S818', 'D21S11', 'DYS392', 'SRY', 'DYS391', 'AMEL', 'Rs2032678'], ['A-1', 2024, '8', '-', '', '12', '1', '10', 'XY', 'A/T']]);
   assert.deepEqual(p.strData.TH01, ['8', '8']);
   for (const name of ['DYS391', 'DYS392', 'SRY']) assert.equal(p.strData[name].length, 1);
   assert.deepEqual(p.strData.AMEL, ['X', 'Y']);
   assert.deepEqual(p.strData.D5S818, []);
   assert.deepEqual(p.strData.Rs2032678, ['A', 'T']);
-  await assert.rejects(parse([['Объект', 'TH01', 'D5S818', 'Rs2032678'], ['A-1', '7,9', '11,12', 'Q']]), /Недопустим/);
+  await assert.rejects(parse([['Объект', 'Год', 'TH01', 'D5S818', 'Rs2032678'], ['A-1', 2024, '7,9', '11,12', 'Q']]), /Недопустим/);
   const detector = new LociTypeDetector();
   assert.equal(detector.getCanonicalLocusName('RS771783753'), 'Rs771783753');
 });
 
 test('Несколько Y-InDel значений дают предупреждение и сохраняются; прочие значения блокируются', async () => {
-  const rows = [['Объект', 'TH01', 'D5S818', 'D21S11', 'rs199815934'], ['PGP-1', '7,9', '11,12', '29,30', '1/2']];
+  const rows = [['Объект', 'Год', 'TH01', 'D5S818', 'D21S11', 'rs199815934'], ['PGP-1', 2024, '7,9', '11,12', '29,30', '1/2']];
   const buffer = workbook(rows);
   const checked = validation.validateFile(buffer, 'panglobal.xlsx', options);
   assert.equal(checked.valid, true);
   assert(checked.warnings.some(warning => warning.code === 'MULTI_Y_INDEL' && /rs199815934/.test(warning.message)));
   const [profile] = await excel.parseExcelFile(buffer, 'panglobal.xlsx', options);
   assert.deepEqual(profile.strData.rs199815934, ['1', '2']);
-  const invalid = workbook([rows[0], [...rows[1].slice(0, 4), '3']]);
+  const invalid = workbook([rows[0], [...rows[1].slice(0, 5), '3']]);
   const rejected = validation.validateFile(invalid, 'panglobal.xlsx', options);
   assert.equal(rejected.valid, false);
   assert(rejected.errors.some(error => error.code === 'INVALID_Y_INDEL_ALLELE' && /локус «rs199815934»/.test(error.message)));
@@ -135,13 +136,19 @@ test('Несколько Y-InDel значений дают предупрежд�
 });
 
 test('Дубликат Объекта обнаруживается до записи, с номерами обеих строк', async () => {
-  await assert.rejects(parse([standard[0], standard[1], [], ['A-2', '7,9', '11,12', '29,30'], [' a-1 ', '7,9', '11,12', '29,30']]), error => {
+  await assert.rejects(parse([standard[0], standard[1], [], ['A-2', 2024, '7,9', '11,12', '29,30'], [' a-1 ', 2024, '7,9', '11,12', '29,30']]), error => {
     assert.equal(error.code, 'INTERNAL_DUPLICATES');
     assert.equal(error.details.internalDuplicates[0].firstRow, 2);
     assert.equal(error.details.internalDuplicates[0].duplicateRow, 5);
     assert.match(error.message, /объекта/);
     return true;
   });
+});
+
+test('Одинаковый номер объекта разрешён в разных годах', async () => {
+  const rows = [standard[0], standard[1], ['A-1', 2025, '7,9', '11,12', '29,30']];
+  const profiles = await parse(rows);
+  assert.deepEqual(profiles.map(profile => profile.year), [2024, 2025]);
 });
 
 test('Смена активного отделения и bulkUpload не заменяют его основным', async t => {
@@ -155,9 +162,10 @@ test('Смена активного отделения и bulkUpload не зам
   assert.equal(result.metadata.importFormat, 'genetic');
   const uploaded = await excel.bulkUploadWithContext(workbook(standard), 'genetic.xlsx', context, { compareMasterArray: false });
   assert.equal(uploaded.department, 'genetic');
-  assert.equal(uploaded.processing.created[0].profile.year, null);
+  assert.equal(uploaded.processing.created[0].profile.year, 2024);
   assert.equal(uploaded.processing.created[0].profile.departmentId, 'genetic');
-  await assert.rejects(excel.parseExcelFileWithContext(workbook(standard), 'genetic.xlsx', { ...context, departmentId: 'emergency' }), /Год|год/);
+  const emergencyImport = await excel.parseExcelFileWithContext(workbook(standard), 'genetic.xlsx', { ...context, departmentId: 'emergency' });
+  assert.equal(emergencyImport.metadata.importFormat, 'emergency');
   await assert.rejects(excel.parseExcelFileWithContext(workbook(standard), 'genetic.xlsx', { ...context, departmentId: 'forbidden' }), /Нет доступа/);
   assert.equal(resolveProfileImportFormat(departments[0]), 'emergency');
 });
@@ -180,10 +188,11 @@ test('Старый ЧС mapping, год и служебные поля сохр�
   await assert.rejects(excel.parseExcelFile(workbook(rows), 'emergency.xlsx', { importFormat: 'emergency' }), /Год|год/);
 });
 
-test('Модель разрешает NULL-год только genetic-профилю с организационным scope', () => {
+test('Модель требует год для нового genetic-профиля', () => {
   assert.throws(() => DNAProfile.validateImportFields({ sampleName: 'A-1' }), /Год обязателен/);
   assert.throws(() => DNAProfile.validateImportFields({ importFormat: 'genetic', sampleName: 'A-1' }), /активное отделение/);
-  assert.doesNotThrow(() => DNAProfile.validateImportFields({ importFormat: 'genetic', sampleName: 'A', internalNumber: 'A-1', departmentId: 'dept', organizationId: 'org', strData: { TH01: ['7', '9'] } }));
+  assert.throws(() => DNAProfile.validateImportFields({ importFormat: 'genetic', sampleName: 'A', internalNumber: 'A-1', departmentId: 'dept', organizationId: 'org', strData: { TH01: ['7', '9'] } }), /Год обязателен/);
+  assert.doesNotThrow(() => DNAProfile.validateImportFields({ importFormat: 'genetic', year: 2024, sampleName: 'A', internalNumber: 'A-1', departmentId: 'dept', organizationId: 'org', strData: { TH01: ['7', '9'] } }));
 });
 
 test('Конкурентный конфликт записи возвращает понятную русскую ошибку', async t => {
@@ -198,7 +207,7 @@ test('Конкурентный конфликт записи возвращае�
 test('Реальный алгоритм сравнивает локусы по именам при разном порядке колонок', async () => {
   const { DNAAnalysisService } = require('../src/services/dnaAnalysisService');
   const [a] = await parse(standard);
-  const [b] = await parse([['Объект', 'D21S11', 'D5S818', 'TH01'], ['A-2', '29,30', '11,12', '7,9']]);
+  const [b] = await parse([['Объект', 'D21S11', 'D5S818', 'Год', 'TH01'], ['A-2', '29,30', '11,12', 2024, '7,9']]);
   const analysis = new DNAAnalysisService({ enableBayesianAnalysis: false });
   const result = await analysis.compareProfiles({ ...a, id: 'a' }, { ...b, id: 'b' }, { enableBayesianAnalysis: false, minNumericMatches: 3 });
   assert.equal(result.numericMatchCount, 3);

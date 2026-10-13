@@ -68,6 +68,7 @@ class DNAProfile {
     if (format === 'genetic') {
       if (!data.departmentId || !data.organizationId) throw new Error('Для генетического профиля требуется активное отделение и организация.');
       if (!data.sampleName || !String(data.sampleName).trim() || !data.internalNumber || !String(data.internalNumber).trim()) throw new Error('Не заполнено обязательное поле «Объект».');
+      if (data.year == null) throw new Error('Год обязателен для профиля «Генетические экспертизы».');
       if (!Object.values(data.strData || {}).some(alleles => Array.isArray(alleles) && alleles.length)) throw new Error('Отсутствуют данные генетического профиля.');
     } else if (!data.year) {
       throw new Error('Год обязателен для профиля ЧС.');
@@ -233,7 +234,7 @@ class DNAProfile {
         const genetic = (profile.importFormat || context.importFormat) === 'genetic';
         if (genetic && (!context.departmentId || !context.organizationId)) throw new Error('Не определено активное отделение для проверки объекта.');
         const params = genetic
-          ? [userId, profile.internalNumber, context.departmentId, context.organizationId]
+          ? [userId, profile.internalNumber, context.departmentId, context.organizationId, year]
           : [userId, internalNumber, year];
         if (genetic) queryText = `
           SELECT id, sample_name, internal_number, year, is_active, upload_date,
@@ -241,7 +242,7 @@ class DNAProfile {
           FROM dna_profiles
           WHERE user_id = $1 AND lower(btrim(internal_number)) = lower(btrim($2))
             AND department_id = $3 AND organization_id = $4 AND import_format = 'genetic'
-            AND profile_type = 'user'
+            AND profile_type = 'user' AND (year = $5 OR year IS NULL)
           ORDER BY is_active DESC, upload_date DESC
         `;
         if (!genetic && context.departmentId) {
@@ -471,12 +472,12 @@ class DNAProfile {
       WHERE sample_name = $1 AND user_id = $2 AND is_active = true
     `;
     const genetic = context.importFormat === 'genetic';
-    if (genetic) queryText = queryText.replace('sample_name = $1', "lower(btrim(internal_number)) = lower(btrim($1)) AND import_format = 'genetic' AND profile_type = 'user'");
-    const params = [genetic ? context.internalNumber : sampleName, userId];
+    if (genetic) queryText = queryText.replace('sample_name = $1', "lower(btrim(internal_number)) = lower(btrim($1)) AND import_format = 'genetic' AND profile_type = 'user' AND year = $3");
+    const params = genetic ? [context.internalNumber, userId, context.year] : [sampleName, userId];
 
     if (excludeId) {
-      queryText += ' AND id != $3';
       params.push(excludeId);
+      queryText += ` AND id != $${params.length}`;
     }
 
     if (context.departmentId) {

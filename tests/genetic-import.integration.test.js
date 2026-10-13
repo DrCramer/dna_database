@@ -64,6 +64,9 @@ test('Реальные PostgreSQL, authenticate, preview и upload', { skip: !da
     return XLSX.write(book, { type: 'buffer', bookType: 'xlsx' });
   }
   async function upload(endpoint, department, rows, fields = {}) {
+    if (department === genetic && !rows[0]?.some(value => String(value || '').trim().toLocaleLowerCase('ru') === 'год')) {
+      rows = [[rows[0][0], 'Год', ...rows[0].slice(1)], ...rows.slice(1).map(row => [row[0], 2024, ...row.slice(1)])];
+    }
     const form = new FormData();
     form.append('file', new Blob([buffer(rows)]), 'fixture.xlsx');
     form.append('uploadTarget', fields.taskId || fields.task_id ? 'task' : 'without_task');
@@ -87,7 +90,7 @@ test('Реальные PostgreSQL, authenticate, preview и upload', { skip: !da
 
   await t.test('029 выполняет backfill и сохраняет количество, полные номера и STR', async () => {
     const oldProfiles = [];
-    for (const internalNumber of ['258-1', '258-2', '258-11x']) oldProfiles.push(await DNAProfile.create({ userId, departmentId: genetic, organizationId: organization, importFormat: 'genetic', sampleName: internalNumber, internalNumber, strData: { TH01: ['7', '9'], D5S818: ['11', '12'], D21S11: ['29', '30'] } }));
+    for (const internalNumber of ['258-1', '258-2', '258-11x']) oldProfiles.push(await DNAProfile.create({ userId, departmentId: genetic, organizationId: organization, importFormat: 'genetic', year: 2024, sampleName: internalNumber, internalNumber, strData: { TH01: ['7', '9'], D5S818: ['11', '12'], D21S11: ['29', '30'] } }));
     const before = oldProfiles[2];
     await query("DROP INDEX idx_dna_profiles_genetic_object; CREATE UNIQUE INDEX idx_dna_profiles_genetic_object ON dna_profiles (organization_id,department_id,user_id,lower(btrim(sample_name))) WHERE is_active=true AND import_format='genetic' AND profile_type='user'");
     const legacyMasterId = (await query("INSERT INTO master_arrays (name, department_id) VALUES ('Migration old master', $1) RETURNING id", [genetic])).rows[0].id;
@@ -109,6 +112,10 @@ test('Реальные PostgreSQL, authenticate, preview и upload', { skip: !da
     assert.equal(masterRows.length, 2); assert(masterRows.every(row => row.sample_name === '258'));
     assert.deepEqual(masterRows.map(row => row.internal_number), ['258-1', '258-2']);
     assert(masterRows.every(row => JSON.stringify(row.str_data) === JSON.stringify(before.strData)));
+    const yearMigration = fs.readFileSync(path.join(__dirname, '../database/migrations/032_genetic_profile_year_identity.sql'), 'utf8');
+    await query(yearMigration); await query(yearMigration);
+    const recurring = await DNAProfile.create({ userId, departmentId: genetic, organizationId: organization, importFormat: 'genetic', year: 2025, sampleName: '258', internalNumber: '258-1', strData: before.strData });
+    assert.equal(recurring.year, 2025, 'the same object number is allowed in another year');
   });
 
   await t.test('Панели: CRUD, scope, роли, валидация, назначение, порядок и soft-disable', async () => {
@@ -191,7 +198,7 @@ test('Реальные PostgreSQL, authenticate, preview и upload', { skip: !da
     const repeated = await upload('/upload', genetic, [columns, ['a-1', ...values]], { performDeduplication: 'false', allowDuplicates: 'true' });
     assert.equal(repeated.body.processing.created, 0);
     assert.equal(repeated.body.processing.duplicates, 1);
-    const profile = { importFormat: 'genetic', departmentId: otherDepartment, organizationId: otherOrganization, userId, sampleName: 'A-1', internalNumber: 'A-1', strData: { TH01: ['7', '9'], D5S818: ['11', '12'], D21S11: ['29', '30'] } };
+    const profile = { importFormat: 'genetic', year: 2024, departmentId: otherDepartment, organizationId: otherOrganization, userId, sampleName: 'A-1', internalNumber: 'A-1', strData: { TH01: ['7', '9'], D5S818: ['11', '12'], D21S11: ['29', '30'] } };
     await DNAProfile.create(profile);
     const checks = await DNAProfile.checkExistingProfiles(userId, [{ ...profile, sampleName: 'A', internalNumber: 'A-2' }], { departmentId: genetic, organizationId: organization });
     assert.equal(checks[0].action, 'create');
@@ -310,7 +317,7 @@ test('Реальные PostgreSQL, authenticate, preview и upload', { skip: !da
     assert.equal(transferred.errors.length, 0, JSON.stringify(transferred));
     assert.equal(transferred.success.length, 1);
     const stored = (await query('SELECT * FROM master_array_profiles WHERE master_array_id = $1', [masterId])).rows[0];
-    assert.equal(stored.year, null);
+    assert.equal(stored.year, 2024);
     assert.equal(stored.sample_name, 'A');
     assert.equal(stored.metadata.importFormat, 'genetic');
     assert.equal(stored.import_number, 'Тестовое ФИО');
@@ -318,8 +325,8 @@ test('Реальные PostgreSQL, authenticate, preview и upload', { skip: !da
     assert.deepEqual(stored.metadata.panelLociOrder, ['FGA', 'TH01', 'AMEL']);
     const MasterArray = require('../src/models/MasterArray');
     const master = await MasterArray.findById(masterId);
-    const sample = { sample_name: 'M-2', internal_number: 'M-2', str_data: { TH01: ['7', '9'], D5S818: ['11', '12'], D21S11: ['29', '30'] }, metadata: { importFormat: 'genetic' }, created_by: userId };
-    assert.equal((await master.addProfile(sample)).year, null);
+    const sample = { year: 2024, sample_name: 'M-2', internal_number: 'M-2', str_data: { TH01: ['7', '9'], D5S818: ['11', '12'], D21S11: ['29', '30'] }, metadata: { importFormat: 'genetic' }, created_by: userId };
+    assert.equal((await master.addProfile(sample)).year, 2024);
     const second = await master.addProfile({ ...sample, sample_name: 'M', internal_number: 'M-3', import_number: 'Тестовое ФИО', metadata: { importFormat: 'genetic', panelId: 'synthetic-panel-reference', panelName: 'TEST-PANEL', panelLociOrder: ['FGA', 'TH01', 'AMEL'] } });
     assert.equal(second.metadata.panelName, 'TEST-PANEL');
     assert.equal(second.import_number, 'Тестовое ФИО');
@@ -327,7 +334,7 @@ test('Реальные PostgreSQL, authenticate, preview и upload', { skip: !da
     assert.equal(repeated.success.length, 0);
     assert.equal(repeated.errors.length, 1);
     const emergencyMaster = await MasterArray.findById(emergencyMasterId);
-    await assert.rejects(emergencyMaster.addProfile({ ...sample, metadata: {} }), /Year|Год/);
+    await assert.rejects(emergencyMaster.addProfile({ ...sample, year: null, metadata: {} }), /Year|Год/);
     const accessible = await DNAProfile.getAccessibleProfiles(userId, { departmentId: genetic });
     assert.equal(accessible.departmentInfo.department_id, genetic);
     assert.equal(accessible.masterArrayProfiles.length, 3);
@@ -474,8 +481,8 @@ test('Реальные PostgreSQL, authenticate, preview и upload', { skip: !da
     await t.test('Восстановление привязывает только одну выбранную загрузку, сохраняя STR и метаданные', async () => {
       const { attachOrphanProfiles } = require('../src/services/profileTaskRecoveryService');
       const repairTask = await task();
-      const original = await DNAProfile.create({ userId: restrictedId, departmentId: genetic, organizationId: organization, importFormat: 'genetic', sampleName: 'REPAIR', internalNumber: 'REPAIR-1', strData: { TH01: ['7', '9'], D5S818: ['11', '12'], D21S11: ['29', '30'] }, fileSource: 'repair.xlsx', notes: 'Сохранить комментарий' });
-      const second = await DNAProfile.create({ userId: restrictedId, departmentId: genetic, organizationId: organization, importFormat: 'genetic', sampleName: 'OTHER', internalNumber: 'OTHER-1', strData: original.strData, fileSource: 'other.xlsx' });
+      const original = await DNAProfile.create({ userId: restrictedId, departmentId: genetic, organizationId: organization, importFormat: 'genetic', year: 2024, sampleName: 'REPAIR', internalNumber: 'REPAIR-1', strData: { TH01: ['7', '9'], D5S818: ['11', '12'], D21S11: ['29', '30'] }, fileSource: 'repair.xlsx', notes: 'Сохранить комментарий' });
+      const second = await DNAProfile.create({ userId: restrictedId, departmentId: genetic, organizationId: organization, importFormat: 'genetic', year: 2024, sampleName: 'OTHER', internalNumber: 'OTHER-1', strData: original.strData, fileSource: 'other.xlsx' });
       const before = (await query('SELECT to_jsonb(p) AS snapshot FROM dna_profiles p WHERE id=$1', [original.id])).rows[0].snapshot;
       const options = { task: repairTask, username: restrictedName };
       const preview = await attachOrphanProfiles(options);

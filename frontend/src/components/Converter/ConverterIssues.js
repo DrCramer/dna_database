@@ -7,6 +7,7 @@ function Decision({ issue, apply, disabled }) {
   const [value, setValue] = useState(issue.normalizedValue || '');
   const [all, setAll] = useState(false);
   const structural = !issue.locus && issue.code !== 'INVALID_OBJECT';
+  if (issue.ngs) return <span>Откройте локус в NGS-предпросмотре источника: решение принимается с учётом Result и Detail.</span>;
   if (structural) return <span>Настройте источник выше</span>;
   const action = decision => apply(issue, decision, all);
   if (issue.code === 'INVALID_OBJECT') return <div className="converter-decisions"><input className="form-input" aria-label="Исправленный номер объекта" maxLength={100} value={value} onChange={e => setValue(e.target.value)} /><button className="btn btn-secondary" disabled={disabled} onClick={() => action({ action: 'object', value })}>Сохранить номер</button><button className="btn btn-secondary" disabled={disabled} onClick={() => action({ action: 'ignore_row' })}>Исключить строку</button></div>;

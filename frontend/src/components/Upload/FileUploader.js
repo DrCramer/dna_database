@@ -923,7 +923,7 @@ const FileUploader = ({ onNavigate, onUploadSuccess, selectedActiveTask, onSelec
                               {dup.sampleName}
                             </div>
                             <div className="upload-result-row-subtitle">
-                              {isGenetic ? `Объект: ${dup.internalNumber}` : `Год: ${dup.year} | Номер: ${dup.internalNumber}`}
+                              {isGenetic ? `Год: ${dup.year} | Объект: ${dup.internalNumber}` : `Год: ${dup.year} | Номер: ${dup.internalNumber}`}
                             </div>
                             {dup.existingProfiles && dup.existingProfiles.length > 0 && (
                               <div className="upload-result-row-meta">
@@ -1022,7 +1022,7 @@ const FileUploader = ({ onNavigate, onUploadSuccess, selectedActiveTask, onSelec
                               {dup.sampleName}
                             </div>
                             <div className="upload-duplicates-meta">
-                              {isGenetic ? dup.lociCount : (dup.year && dup.internalNumber ? `${dup.year} / ${dup.internalNumber}` : '—')}
+                              {isGenetic ? `${dup.year || 'Год не указан'} / ${dup.internalNumber || 'объект'}` : (dup.year && dup.internalNumber ? `${dup.year} / ${dup.internalNumber}` : '—')}
                             </div>
                             <div className="upload-duplicates-reason">
                               {message}
@@ -1053,24 +1053,24 @@ const FileUploader = ({ onNavigate, onUploadSuccess, selectedActiveTask, onSelec
         {isGenetic ? (
         <div className="upload-example-card upload-example-card-accent">
           <h3 className="upload-example-title">📋 Формат для отделения «Генетические экспертизы»</h3>
-          <p className="upload-example-description">Первый столбец — «Объект», остальные — поддерживаемые генетические локусы.</p>
+          <p className="upload-example-description">Первый столбец — «Объект», второй — «Год», далее идут поддерживаемые генетические локусы.</p>
           <div className="example-table-wrapper">
             <table className="example-table example-table-compact">
-              <thead><tr>{['Объект', 'TH01', 'D5S818', 'D21S11', 'D18S51', 'AMEL', 'D3S1358', 'FGA', 'SE33'].map(name => <th key={name}>{name}</th>)}</tr></thead>
-              <tbody><tr>{['110-1', '7,9', '11,12', '29,30', '12,15', 'XY', '15,16', '21,23', '18,19'].map((value, index) => <td key={index}>{value}</td>)}</tr></tbody>
+              <thead><tr>{['Объект', 'Год', 'TH01', 'D5S818', 'D21S11', 'D18S51', 'AMEL', 'D3S1358', 'FGA', 'SE33'].map(name => <th key={name}>{name}</th>)}</tr></thead>
+              <tbody><tr>{['110-1', '2026', '7,9', '11,12', '29,30', '12,15', 'XY', '15,16', '21,23', '18,19'].map((value, index) => <td key={index}>{value}</td>)}</tr></tbody>
             </table>
           </div>
           <div className="upload-requirements-box">
             <h4 className="upload-requirements-title">Важные требования:</h4>
             <ul className="upload-requirements-list-compact">
               <li>Первая строка файла содержит заголовки; первый столбец обязательно называется «Объект».</li>
-              <li>После «Объект» нужны минимум 3 распознанных локуса. Набор зависит от используемой генетической системы.</li>
+              <li>После «Объект» укажите год, затем добавьте минимум 3 распознанных локуса. Набор зависит от используемой генетической системы.</li>
               <li>Порядок столбцов генетических локусов может отличаться в зависимости от используемой системы. Локусы определяются автоматически по названиям столбцов.</li>
               <li>Пустые значения отдельных локусов допускаются; полностью пустой генетический профиль не загружается.</li>
-              <li>Год, привоз и старые служебные столбцы не требуются.</li>
+              <li>Год обязателен и входит в идентификатор объекта. Номер объекта может повторяться в разных годах.</li>
               <li>Из полного номера «258-11x» определяется № Экспертизы «258»; № Объекта сохраняется как «258-11x».</li>
               <li>Панель выбирается необязательно; её порядок используется в анализе, а данные сопоставляются по заголовкам.</li>
-              <li>Значение «Объект» обязательно и должно быть уникальным среди ваших профилей активного отделения.</li>
+              <li>Пара «Год + Объект» должна быть уникальной среди ваших профилей активного отделения.</li>
             </ul>
           </div>
         </div>
@@ -1308,7 +1308,7 @@ const FileUploader = ({ onNavigate, onUploadSuccess, selectedActiveTask, onSelec
                           {profile.sampleName}
                         </div>
                         <div className="upload-result-row-subtitle">
-                          {isGenetic ? `Объект: ${profile.sampleName} | Локусов: ${profile.lociCount}` : `Внутренний номер: ${profile.internalNumber} | Год: ${profile.year}`}
+                          {isGenetic ? `Год: ${profile.year} | Объект: ${profile.internalNumber} | Локусов: ${profile.lociCount}` : `Внутренний номер: ${profile.internalNumber} | Год: ${profile.year}`}
                         </div>
                         {profile.existingProfile && (
                           <div className="upload-result-row-meta">

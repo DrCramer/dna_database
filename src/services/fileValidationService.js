@@ -193,6 +193,8 @@ class FileValidationService {
           actualDataRows++;
           const rowNumber = index + 2;
           if (!normalizeObjectName(row[0])) errors.push({ type: 'data', code: 'MISSING_OBJECT', message: `Строка ${rowNumber}: не заполнено обязательное поле «Объект».`, details: { rowNumber } });
+          const rawYear = normalizeObjectName(row[validation.yearIndex]);
+          if (!/^\d{4}$/.test(rawYear) || Number(rawYear) < 1900 || Number(rawYear) > 2100) errors.push({ type: 'data', code: 'INVALID_YEAR', message: `Строка ${rowNumber}: укажите год целым числом от 1900 до 2100.`, details: { rowNumber } });
           else if (!validation.columns.some(({ index: column }) => !['', '-'].includes(normalizeObjectName(row[column])))) {
             errors.push({ type: 'data', code: 'EMPTY_GENETIC_PROFILE', message: `Строка ${rowNumber}, объект «${normalizeObjectName(row[0])}»: отсутствуют данные генетического профиля.`, details: { rowNumber } });
           }

@@ -38,3 +38,7 @@
 :where(.converter-page) .converter-actions .converter-reference-toggle { display: flex; align-items: center; gap: 8px; }
 :where(.converter-page) .converter-reference-evidence { min-width: 260px; max-width: 480px; overflow-wrap: anywhere; }
 :where(.converter-page) .converter-reference-evidence ul { padding-left: 20px; }
+
+:where(.converter-page) .converter-ngs { margin-top: 16px; min-width: 0; }
+:where(.converter-page) .converter-ngs-dialog { width: min(1200px, 95vw); max-height: 90vh; overflow-y: auto; }
+:where(.converter-page) .converter-ngs-dialog pre { white-space: pre-wrap; overflow-wrap: anywhere; max-width: 500px; max-height: 300px; overflow: auto; }

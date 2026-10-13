@@ -13,7 +13,7 @@
 - `frontend/src/components/Settings/GenotypePanelsPage.js`, `Layout/Header.js`, `Upload/FileUploader.js`, `Analysis/GenotypeAnalysisPage.js`, `Analysis/ProfileViewer.js`, `Analysis/StaffContaminationPanel.js`.
 - `frontend/src/components/Dashboard/{AdminDashboard,LegacyDashboardView}.js`, `Search/MasterObjectSearchPage.js`, `Task/LegacyCreateTaskPageView.js`, `frontend/src/App-fixed.js`, `hooks/useProfileFieldLabel.js`.
 - `frontend/src/styles/pages/{analysis,genotype-panels}.css`, `styles/index.css`: плотность таблицы и стили справочника через общий CSS-манифест.
-- `database/migrations/029_genetic_expertise_panels.sql`, `database/{schema,init}.sql`; `tests/{genetic-import,genetic-import.integration,genotype-panels}.test.js`.
+- `database/migrations/{029_genetic_expertise_panels,032_genetic_profile_year_identity}.sql`, `database/{schema,init}.sql`; `tests/{genetic-import,genetic-import.integration,genotype-panels}.test.js`.
 - `README.md` и документация импорта, подписей и новой функциональности.
 
 ## 2. № Экспертизы
@@ -22,18 +22,18 @@
 
 ## 3. № Объекта
 
-`internal_number` / `internalNumber` содержит полный номер: `258-11x`, без обрезания суффикса. Для Genetic `year=NULL` допустим. Импорт не придумывает год.
+`internal_number` / `internalNumber` содержит полный номер: `258-11x`, без обрезания суффикса. Для новых генетических профилей год обязателен и является частью идентификатора вместе с полным номером объекта. Старые профили без года сохраняются как legacy-записи.
 
 ## 4. Дубликаты
 
-Для Genetic ключ — полный номер объекта с учётом организации, отделения, пользователя, формата и типа профиля. Локальные дубликаты файла проверяются по `internalNumber`. Объекты одной экспертизы с одинаковым генотипом могут существовать одновременно.
+Для Genetic ключ — год и полный номер объекта с учётом организации, отделения, пользователя, формата и типа профиля. Локальные дубликаты файла проверяются по этой паре. Объекты одной экспертизы с одинаковым генотипом могут существовать одновременно.
 
 Массовый поиск также не пропускает разные genetic-объекты из-за одинакового `sample_name`. Комментарии связываются с UUID или полным номером объекта.
 
 ## 5. Индексы
 
-- `idx_dna_profiles_genetic_object`: `(organization_id, department_id, user_id, lower(btrim(internal_number)))`, только активные Genetic-профили типа `user`.
-- `idx_master_array_genetic_object`: `(master_array_id, lower(btrim(internal_number)))`, только активные записи с `metadata.importFormat=genetic`.
+- `idx_dna_profiles_genetic_object`: `(organization_id, department_id, user_id, year, lower(btrim(internal_number)))`, только активные Genetic-профили типа `user` с заданным годом.
+- `idx_master_array_genetic_object`: `(master_array_id, year, lower(btrim(internal_number)))`, только активные записи с `metadata.importFormat=genetic` и заданным годом.
 - `idx_genotype_panels_name`: название панели без учёта регистра внутри организации/отделения. Неактивное название остаётся занятым, что позволяет однозначно восстановить прежнюю панель.
 - `idx_dna_profiles_panel`: nullable-ссылка на панель; составной FK исключает назначение панели другого организационного scope.
 
@@ -41,7 +41,10 @@
 
 Миграция 029 работает в транзакции. Проверяет конфликты новых ключей и пустые номера объектов, блокирует конкурирующие записи, удаляет прежние индексы, обновляет только Genetic-записи с `sample_name=internal_number`, затем создаёт новые индексы. Не удаляет профили и не изменяет полные номера, STR, владельцев или задачи. Перед применением к рабочей БД создаётся отдельная резервная копия.
 
-Результаты применения к рабочей БД приведены ниже в разделе «Развёртывание».
+Миграция 032 заменяет индексы, чтобы одинаковый номер был допустим в разных
+годах. Старые записи без года не меняются; повторная загрузка такого номера
+блокируется до ручного уточнения года. Результаты применения миграций к рабочей
+БД приведены ниже в разделе «Развёртывание».
 
 ## 7. MasterArray
 

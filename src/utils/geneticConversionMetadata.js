@@ -1,6 +1,6 @@
 const XLSX = require('xlsx');
 const { LociTypeDetector } = require('./lociTypeDetector');
-const { geneticObjectKey } = require('./profileImportFormat');
+const { geneticObjectKey, geneticProfileKey } = require('./profileImportFormat');
 const detector = new LociTypeDetector();
 const SHEET = '_DNA_META';
 const FORMAT = 'dna-genetic-converter';
@@ -33,7 +33,8 @@ function readConversionMetadata(workbook, profiles, columns) {
     if (typeof entry.objectNumber !== 'string' || !Array.isArray(entry.sourceLoci) || entry.sourceLoci.length < 3 || entry.sourceLoci.length > available.size) throw new Error('Некорректный состав локусов источника.');
     const loci = entry.sourceLoci.map(name => detector.getCanonicalLocusName(name));
     if (loci.some(name => !name || !available.has(name)) || new Set(loci).size !== loci.length) throw new Error('Неизвестные или повторяющиеся локусы в метаданных.');
-    const key = geneticObjectKey(entry.objectNumber);
+    if (entry.year != null && (!Number.isInteger(Number(entry.year)) || Number(entry.year) < 1900 || Number(entry.year) > 2100)) throw new Error('Некорректный год в метаданных конвертации.');
+    const key = entry.year == null ? `legacy:${geneticObjectKey(entry.objectNumber)}` : geneticProfileKey(entry.year, entry.objectNumber);
     if (entries.has(key)) throw new Error('Повторный объект в метаданных конвертации.');
     if (entry.detectedPanelId != null && !/^[\da-f]{8}(?:-[\da-f]{4}){3}-[\da-f]{12}$/i.test(entry.detectedPanelId)) throw new Error('Некорректная панель в метаданных конвертации.');
     if (!Array.isArray(entry.audit) || entry.audit.length > 20000 || !Array.isArray(entry.sources) || entry.sources.length > 20000) throw new Error('Некорректный журнал конвертации.');
@@ -45,10 +46,10 @@ function readConversionMetadata(workbook, profiles, columns) {
       for (const field of ['rawValue', 'normalizedValue', 'objectNumber', 'sourceFile', 'sourceSheet']) if (audit[field] != null && (typeof audit[field] !== 'string' || audit[field].length > 32000)) throw new Error('Некорректное значение журнала конвертации.');
       if (audit.variants != null && (!Array.isArray(audit.variants) || audit.variants.length > 20000)) throw new Error('Некорректные варианты исследования.');
     }
-    entries.set(key, { objectNumber: entry.objectNumber, detectedPanelId: entry.detectedPanelId || null, sourceLoci: loci, sources: entry.sources, audit: entry.audit });
+    entries.set(key, { objectNumber: entry.objectNumber, year: entry.year ?? null, detectedPanelId: entry.detectedPanelId || null, sourceLoci: loci, sources: entry.sources, audit: entry.audit });
   }
   for (const profile of profiles) {
-    const entry = entries.get(geneticObjectKey(profile.internalNumber));
+    const entry = (profile.year == null ? null : entries.get(geneticProfileKey(profile.year, profile.internalNumber))) || entries.get(`legacy:${geneticObjectKey(profile.internalNumber)}`);
     if (!entry || Object.entries(profile.strData).some(([locus, alleles]) => alleles.length && !entry.sourceLoci.includes(locus))) throw new Error('Исследованные локусы не соответствуют данным объекта.');
   }
   return entries;

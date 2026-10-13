@@ -75,4 +75,35 @@ function panelCandidates(sourceLoci, panels) {
   }).filter(panel => panel.matches).sort((a, b) => b.score - a.score || a.name.localeCompare(b.name));
 }
 
-module.exports = { objectPriority, isServiceColumn, headerCandidates, objectCandidates, chooseObjectColumn, meaningfulSheets, readRows, suggestLoci, panelCandidates };
+const NGS_FORMAT = 'NGS_ASTR_RESULT_DETAIL';
+const resultHeaders = ['#type', 'locus', 'genotype', 'qc flag', 'total depth of coverage'];
+const detailHeaders = ['locus', 'allele', 'qc flag', 'coverage'];
+
+function ngsHeader(sheet, required, selectedRow) {
+  const rows = readRows(sheet);
+  const candidates = rows.slice(0, 30).map((row, index) => {
+    const names = row.map(normalizeHeader);
+    return { row: index + 1, columns: Object.fromEntries(names.map((name, column) => [name, column])),
+      valid: required.every(name => names.filter(value => value === name).length === 1),
+      score: required.filter(name => names.includes(name)).length };
+  }).filter(candidate => selectedRow == null || candidate.row === selectedRow).sort((a, b) => b.score - a.score);
+  const best = candidates[0];
+  return best && best.score >= 2 ? { ...best, ambiguous: candidates[1]?.score === best.score } : null;
+}
+
+function detectSourceFormat(workbook, settings = {}) {
+  const results = workbook.SheetNames.filter(name => name.trim().toLowerCase() === 'result');
+  const details = workbook.SheetNames.filter(name => name.trim().toLowerCase() === 'detail');
+  const resultSheet = results.includes(settings.sheetName) ? settings.sheetName : results[0];
+  const detailSheet = details.includes(settings.detailSheetName) ? settings.detailSheetName : details[0];
+  const resultHeader = resultSheet && ngsHeader(workbook.Sheets[resultSheet], resultHeaders, settings.resultHeaderRow);
+  const detailHeader = detailSheet && ngsHeader(workbook.Sheets[detailSheet], detailHeaders, settings.detailHeaderRow);
+  const candidate = (resultHeader && ['locus', 'genotype'].every(name => name in resultHeader.columns))
+    || (detailHeader && ['locus', 'allele', 'coverage'].every(name => name in detailHeader.columns)) || settings.format === NGS_FORMAT;
+  if (!candidate || settings.format === 'legacy') return { format: 'LEGACY_TABLE' };
+  const ambiguous = (results.length > 1 && !results.includes(settings.sheetName)) || (details.length > 1 && !details.includes(settings.detailSheetName)) || resultHeader?.ambiguous || detailHeader?.ambiguous;
+  return { format: NGS_FORMAT, confidence: ambiguous ? 'LOW' : resultHeader?.valid && detailHeader?.valid ? 'HIGH' : 'LIMITED',
+    ambiguous, resultSheet, detailSheet, resultHeader, detailHeader };
+}
+
+module.exports = { objectPriority, isServiceColumn, headerCandidates, objectCandidates, chooseObjectColumn, meaningfulSheets, readRows, suggestLoci, panelCandidates, detectSourceFormat, NGS_FORMAT };

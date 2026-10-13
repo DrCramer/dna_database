@@ -317,7 +317,7 @@ ALTER TABLE dna_profiles
 ADD CONSTRAINT dna_profiles_import_format_check CHECK (import_format IN ('emergency', 'genetic')),
 ADD CONSTRAINT dna_profiles_import_year_check CHECK (year IS NOT NULL OR import_format = 'genetic'),
 ADD CONSTRAINT dna_profiles_genetic_scope_check CHECK (import_format <> 'genetic' OR (department_id IS NOT NULL AND organization_id IS NOT NULL));
-CREATE UNIQUE INDEX idx_dna_profiles_genetic_object ON dna_profiles (organization_id, department_id, user_id, lower(btrim(internal_number))) WHERE is_active = true AND import_format = 'genetic' AND profile_type = 'user';
+CREATE UNIQUE INDEX idx_dna_profiles_genetic_object ON dna_profiles (organization_id, department_id, user_id, year, lower(btrim(internal_number))) WHERE is_active = true AND import_format = 'genetic' AND profile_type = 'user' AND year IS NOT NULL;
 
 -- Add organizational context to operation_history
 ALTER TABLE operation_history 
@@ -655,7 +655,7 @@ GRANT EXECUTE ON ALL FUNCTIONS IN SCHEMA public TO dna_user;
 -- ============================================================================
 
 ALTER TABLE master_array_profiles ADD CONSTRAINT master_array_profiles_import_year_check CHECK (year IS NOT NULL OR COALESCE(metadata->>'importFormat', 'emergency') = 'genetic');
-CREATE UNIQUE INDEX idx_master_array_genetic_object ON master_array_profiles (master_array_id, lower(btrim(internal_number))) WHERE is_active = true AND metadata->>'importFormat' = 'genetic';
+CREATE UNIQUE INDEX idx_master_array_genetic_object ON master_array_profiles (master_array_id, year, lower(btrim(internal_number))) WHERE is_active = true AND metadata->>'importFormat' = 'genetic' AND year IS NOT NULL;
 
 -- Необязательные генетические панели (029), без фиктивных определений.
 CREATE TABLE IF NOT EXISTS genotype_panels (

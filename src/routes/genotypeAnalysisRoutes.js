@@ -15,6 +15,7 @@ const { calculateDuplicateSimilarityOptimized, isDuplicateOptimized } = require(
 const DNAProfile = require('../models/DNAProfile');
 const { ProfileAccessService } = require('../services/profileAccessService');
 const { getAnalysisLoci } = require('../utils/analysisLoci');
+const { createSearchSnapshot } = require('../services/searchSnapshotStore');
 
 // Веса локусов для алгоритма контаминации (v4.0)
 const LOCUS_WEIGHTS = {
@@ -53,6 +54,35 @@ const MATCH_COEFFICIENTS = {
 
 function getActiveDepartmentId(req) {
   return req.activeDepartmentId || req.user.department_id || null;
+}
+
+function createGroupedExportSnapshot(req, { results, referenceProfiles = [], compareProfiles = [], settings = {}, searchMode, algorithm }) {
+  const referencesById = new Map(referenceProfiles.filter(profile => profile?.id).map(profile => [profile.id, profile]));
+  const matchesById = new Map(compareProfiles.filter(profile => profile?.id).map(profile => [profile.id, profile]));
+  const comparisons = (results || []).flatMap(group => (group.exportMatches || group.matches || []).map(match => {
+    const reference = referencesById.get(group.reference?.id) || group.reference;
+    const matched = matchesById.get(match.id) || match;
+    return {
+      referenceProfile: reference,
+      matchedProfile: matched,
+      matchedLoci: match.matchedLoci,
+      details: match.details,
+      matchCount: match.matchCount ?? match.matchingLoci,
+      totalLoci: match.totalLoci ?? match.comparedLociCount,
+      matchPercentage: match.matchPercentage,
+      totalScore: match.totalScore ?? match.matchScore ?? match.score,
+      algorithm: match.algorithm || algorithm
+    };
+  }));
+  const snapshot = createSearchSnapshot({
+    userId: req.user.id,
+    departmentId: getActiveDepartmentId(req),
+    searchMode,
+    algorithm,
+    settings,
+    comparisons
+  });
+  return snapshot;
 }
 
 /**
@@ -537,10 +567,26 @@ router.post('/search', authenticate, async (req, res) => {
       minMatches
     });
     
+    const exportSnapshot = createSearchSnapshot({
+      userId: req.user.id,
+      departmentId: activeDepartmentId,
+      searchMode: 'single',
+      algorithm: 'standard',
+      settings: { ignoredLoci, minMatches, colors: req.body.colors },
+      comparisons: matches.map(match => ({
+        referenceProfile: { ...referenceProfile, loci: referenceLoci },
+        matchedProfile: match,
+        matchedLoci: match.matchedLoci,
+        algorithm: 'standard',
+        matchCount: match.matchCount
+      }))
+    });
+
     res.json({
       success: true,
       matches,
       count: matches.length,
+      exportSnapshot: exportSnapshot,
       reference: {
         sample_name: referenceProfile.sample_name,
         internal_number: referenceProfile.internal_number,
@@ -794,6 +840,7 @@ router.post('/mass-search', authenticate, async (req, res) => {
               import_number: referenceProfile.import_number
             },
             matches: limitedMatches,
+            exportMatches: uniqueMatches,
             matchCount: matches.length,  // Полное количество
             displayedCount: limitedMatches.length  // Показываем только топ
           });
@@ -817,10 +864,21 @@ router.post('/mass-search', authenticate, async (req, res) => {
       avgTimePerComparison: avgTimePerComparison,
       minMatches
     });
+
+    const exportSnapshot = createGroupedExportSnapshot(req, {
+      results: massSearchResults,
+      referenceProfiles: processedProfiles,
+      compareProfiles: processedProfiles,
+      settings: { ignoredLoci, minMatches, colors: req.body.colors },
+      searchMode: 'mass',
+      algorithm: 'standard'
+    });
     
+    const responseResults = massSearchResults.map(({ exportMatches, ...group }) => group);
     res.json({
       success: true,
-      results: massSearchResults,
+      results: responseResults,
+      exportSnapshot,
       totalAnalyzed: profiles.length,
       resultsWithMatches: massSearchResults.length,
       statistics: {
@@ -1283,6 +1341,7 @@ router.post('/task-search', authenticate, async (req, res) => {
             year: refProfile.year
           },
           matches: matches.slice(0, 100), // Топ-100
+          exportMatches: matches,
           matchCount: matches.length,
           displayedCount: Math.min(matches.length, 100)
         });
@@ -1319,9 +1378,20 @@ router.post('/task-search', authenticate, async (req, res) => {
       // Не прерываем выполнение
     }
     
+    const exportSnapshot = createGroupedExportSnapshot(req, {
+      results,
+      referenceProfiles,
+      compareProfiles,
+      settings: { ignoredLoci, minMatches, duplicateSettings: req.body.duplicateSettings, colors: req.body.colors },
+      searchMode,
+      algorithm: comparisonAlgorithm
+    });
+
+    const responseResults = results.map(({ exportMatches, ...group }) => group);
     res.json({
       success: true,
-      results: results,
+      results: responseResults,
+      exportSnapshot,
       totalAnalyzed: referenceProfiles.length,
       resultsWithMatches: results.length,
       searchMode: searchMode,
@@ -1726,9 +1796,19 @@ router.post('/department-tasks-search', authenticate, async (req, res) => {
       // Не прерываем выполнение
     }
     
+    const exportSnapshot = createGroupedExportSnapshot(req, {
+      results,
+      referenceProfiles,
+      compareProfiles,
+      settings: { ignoredLoci, minMatches, duplicateSettings: req.body.duplicateSettings, colors: req.body.colors },
+      searchMode: 'department_tasks',
+      algorithm: comparisonAlgorithm
+    });
+
     res.status(200).json({
       success: true,
       results: results,
+      exportSnapshot,
       stats: {
         totalTimeMs: totalTime,
         comparisons: comparisonCount,

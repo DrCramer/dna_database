@@ -19,6 +19,14 @@ function file(rows, name = 'old.xlsx', sheets) {
 const headers = ['Объект', 'TH01', 'D5S818', 'D21S11'];
 const values = ['7,9', '11,12', '29,30'];
 const standard = [headers, ['258-11x (2)_a', ...values]];
+function withImportYear(buffer, year = 2024) {
+  const book = XLSX.read(buffer, { type: 'buffer' });
+  const sheet = book.Sheets['Импорт'];
+  if (!sheet) return buffer;
+  const range = XLSX.utils.decode_range(sheet['!ref']);
+  for (let row = 1; row <= range.e.r; row += 1) sheet[XLSX.utils.encode_cell({ r: row, c: 1 })] = { t: 'n', v: year };
+  return XLSX.write(book, { type: 'buffer', bookType: 'xlsx' });
+}
 
 test('Нормализация безопасных разделителей, микроаллелей, AMEL и Y', () => {
   for (const input of ['12 ,13', '12/13', '12;13']) assert.equal(normalize(input, 'TH01').normalizedValue, '12,13');
@@ -33,7 +41,8 @@ test('Y-InDel заголовки распознаются, одиночные з
   const headers = ['Объект', 'TH01', 'D5S818', 'D21S11', ...markerNames];
   const row = ['PGP-1', '7,9', '11,12', '29,30', '1', '2', '1'];
   const source = file([headers, row], 'panglobal.xlsx');
-  const direct = await new ExcelService().parseExcelFile(source.buffer, source.originalname, { importFormat: 'genetic' });
+  const directSource = file([['Объект', 'Год', ...headers.slice(1)], ['PGP-1', 2024, ...row.slice(1)]], 'panglobal-with-year.xlsx');
+  const direct = await new ExcelService().parseExcelFile(directSource.buffer, directSource.originalname, { importFormat: 'genetic' });
   assert.deepEqual(direct[0].strData, {
     TH01: ['7', '9'], D5S818: ['11', '12'], D21S11: ['29', '30'],
     rs199815934: ['1'], Rs771783753: ['2'], rs759551978: ['1']
@@ -45,7 +54,7 @@ test('Y-InDel заголовки распознаются, одиночные з
   assert.deepEqual(converted.profiles[0].strData.rs199815934, ['1']);
   assert.deepEqual(converted.profiles[0].strData.Rs771783753, ['2']);
   assert.deepEqual(converted.profiles[0].strData.rs759551978, ['1']);
-  const exported = converter.export(converted);
+  const exported = withImportYear(converter.export(converted));
   const roundTrip = await new ExcelService().parseExcelFile(exported, 'round-trip.xlsx', { importFormat: 'genetic' });
   for (const locus of panel.lociOrder.slice(-3)) assert.deepEqual(roundTrip[0].strData[locus], converted.profiles[0].strData[locus]);
 });
@@ -98,16 +107,36 @@ test('Выбор листа, заголовка и разных колонок �
   assert.equal(result.profiles[0].strData.D21S11.join(','), '29,30');
 });
 
+test('Конвертер сохраняет повторный номер отдельно по годам и требует год перед передачей в импорт', async () => {
+  const first = file([headers, ['REPEAT-1', '7,9', '11,12', '29,30']], '2024.xlsx');
+  const second = file([headers, ['REPEAT-1', '8,9', '11,12', '29,30']], '2025.xlsx');
+  const unresolved = converter.convert([first, second]);
+  assert.equal(unresolved.profiles.length, 1, 'без годов источник не даёт права разделять или сливать номера по предположению');
+  assert.equal(unresolved.canImport, false);
+  assert.equal(unresolved.canUpload, false);
+  const withYears = converter.convert([first, second], { files: {
+    [unresolved.files[0].id]: { year: '2024' },
+    [unresolved.files[1].id]: { year: '2025' }
+  } });
+  assert.equal(withYears.profiles.length, 2);
+  assert.deepEqual(withYears.profiles.map(profile => profile.year).sort(), [2024, 2025]);
+  assert.equal(withYears.canUpload, true);
+  const imported = await new ExcelService().parseExcelFile(converter.export(withYears), 'two-years.xlsx', { importFormat: 'genetic' });
+  assert.deepEqual(imported.map(profile => profile.year).sort(), [2024, 2025]);
+});
+
 test('Слияние по полному номеру, заполнение специального значения и конфликт без потери источников', () => {
   const a = file([headers, ['258-1','*','11,12','29,30']], 'one.xlsx');
   const b = file([headers, [' 258-1 ','7,9','11,12','29,30'], ['258-11x',...values]], 'two.xlsx');
-  const result = converter.convert([a,b]); assert.equal(result.canImport, true); assert.equal(result.profiles.length, 2);
+  const yearSettings = files => ({ files: Object.fromEntries(converter.convert(files).files.map(source => [source.id, { year: '2024' }])) });
+  const result = converter.convert([a,b], yearSettings([a,b])); assert.equal(result.canImport, true); assert.equal(result.profiles.length, 2);
   assert.deepEqual(result.profiles[0].strData.TH01, ['7','9']); assert.equal(result.profiles[0].sources.length, 2);
   assert(result.profiles[0].audit.find(i => i.code === 'MERGE').variants.some(v => v.rawValue === '*'));
   const conflictFile = file([headers, ['258-1','7,9','11,13','29,30']], 'conflict.xlsx');
-  let conflict = converter.convert([b,conflictFile]); assert.equal(conflict.canImport, false); assert.equal(conflict.summary.conflicts, 1);
+  const conflictYears = yearSettings([b,conflictFile]);
+  let conflict = converter.convert([b,conflictFile], conflictYears); assert.equal(conflict.canImport, false); assert.equal(conflict.summary.conflicts, 1);
   assert.throws(() => converter.export(conflict), /разрешите/);
-  const c = conflict.conflicts[0]; conflict = converter.convert([b,conflictFile], { conflicts: { [c.id]: { sourceId: c.variants[1].id } } });
+  const c = conflict.conflicts[0]; conflict = converter.convert([b,conflictFile], { ...conflictYears, conflicts: { [c.id]: { sourceId: c.variants[1].id } } });
   assert.equal(conflict.canImport, true); assert.deepEqual(conflict.profiles[0].strData.D5S818, ['11','13']);
 });
 
@@ -125,26 +154,27 @@ test('Roundtrip dirty → converter → ExcelService: типы, каталог, 
   const result = converter.convert([input], {}, [panel]); assert.equal(result.canImport, true); assert.equal(result.profiles[0].detectedPanelId, panel.id);
   const buffer = converter.export(result), book = XLSX.read(buffer, { type: 'buffer' });
   assert.deepEqual(book.SheetNames, ['Импорт','Проверка','_DNA_META']);
-  assert.deepEqual(XLSX.utils.sheet_to_json(book.Sheets['Импорт'], { header: 1 })[0], ['Объект',...ALL_LOCI]);
-  assert.equal(new FileValidationService().validateFile(buffer, 'converted.xlsx', { importFormat: 'genetic' }).valid, true);
-  const excel = new ExcelService(); const [profile] = await excel.parseExcelFile(buffer, 'converted.xlsx', { importFormat: 'genetic' });
+  assert.deepEqual(XLSX.utils.sheet_to_json(book.Sheets['Импорт'], { header: 1 })[0], ['Объект','Год',...ALL_LOCI]);
+  const importable = withImportYear(buffer);
+  assert.equal(new FileValidationService().validateFile(importable, 'converted.xlsx', { importFormat: 'genetic' }).valid, true);
+  const excel = new ExcelService(); const [profile] = await excel.parseExcelFile(importable, 'converted.xlsx', { importFormat: 'genetic' });
   assert.equal(profile.internalNumber, '258-11x (2)_a');
   for (const locus of result.sourceLoci) assert.deepEqual(profile.strData[locus], result.profiles[0].strData[locus]);
   assert.equal(profile.totalLociCount, 7); assert.equal(Object.keys(profile.strData).length, 7);
   assert.equal(profile.metadata.qualityMetrics.completeness, 100); assert(profile.metadata.conversion.audit.some(i => i.code === 'AMEL'));
   t.mock.method(User, 'findById', async () => ({ role: 'user_analyst', department_id: 'dept', can_upload_without_task: true, getAccessibleDepartments: async () => [{ id: 'dept', name: 'Генетические экспертизы', organization_id: 'org' }] }));
   t.mock.method(GenotypePanel, 'resolveAssignment', async options => { assert.equal(options.detectedPanelId, panel.id); return panel; });
-  const context = await excel.parseExcelFileWithContext(buffer, 'converted.xlsx', { userId: 'tester', departmentId: 'dept', uploadTarget: 'without_task' });
+  const context = await excel.parseExcelFileWithContext(importable, 'converted.xlsx', { userId: 'tester', departmentId: 'dept', uploadTarget: 'without_task' });
   assert.equal(context.profiles[0].panelId, panel.id); assert.deepEqual(context.panelWarnings, []);
   delete book.Sheets._DNA_META; book.SheetNames.pop(); const noMeta = XLSX.write(book, { type: 'buffer', bookType: 'xlsx' });
-  const [plain] = await excel.parseExcelFile(noMeta, 'plain.xlsx', { importFormat: 'genetic' }); assert.equal(plain.totalLociCount, 7); assert.deepEqual(plain.strData.AMEL, ['X','Y']);
+  const [plain] = await excel.parseExcelFile(withImportYear(noMeta), 'plain.xlsx', { importFormat: 'genetic' }); assert.equal(plain.totalLociCount, 7); assert.deepEqual(plain.strData.AMEL, ['X','Y']);
 });
 
 test('Поддельные метаданные не скрывают локусы и не меняют scope', async () => {
-  const result = converter.convert([file(standard)]), book = XLSX.read(converter.export(result), { type: 'buffer' });
+  const result = converter.convert([file(standard)]), book = XLSX.read(withImportYear(converter.export(result)), { type: 'buffer' });
   const { metadataSheet } = require('../src/utils/geneticConversionMetadata');
   book.Sheets._DNA_META = metadataSheet({ profiles: [{ objectNumber: standard[1][0], sourceLoci: ['TH01','D5S818','AMEL'], sources: [], audit: [], detectedPanelId: null }] });
-  await assert.rejects(new ExcelService().parseExcelFile(XLSX.write(book, { type: 'buffer', bookType: 'xlsx' }), 'forged.xlsx', { importFormat: 'genetic' }), /не соответствуют/);
+  await assert.rejects(new ExcelService().parseExcelFile(withImportYear(XLSX.write(book, { type: 'buffer', bookType: 'xlsx' })), 'forged.xlsx', { importFormat: 'genetic' }), /не соответствуют/);
   assert.throws(() => converter.convert([file(standard)], { rules: {} }), /массовые правила/);
   assert.throws(() => converter.convert([file(standard)], { files: [] }), /настройки/);
 });
@@ -187,7 +217,7 @@ test('Спецтокены не становятся совпадениями в
 
 test('Расширение каталога автоматически добавляет пустую колонку экспорта', () => {
   ALL_LOCI.push('FutureSyntheticLocus');
-  try { const result = converter.convert([file(standard)]); const book = XLSX.read(converter.export(result), { type: 'buffer' }); const columns = XLSX.utils.sheet_to_json(book.Sheets['Импорт'], { header: 1 })[0]; assert.deepEqual(columns, ['Объект',...ALL_LOCI]); assert.equal(columns.at(-1),'FutureSyntheticLocus'); assert.equal(result.sourceLoci.length,3); }
+  try { const result = converter.convert([file(standard)]); const book = XLSX.read(converter.export(result), { type: 'buffer' }); const columns = XLSX.utils.sheet_to_json(book.Sheets['Импорт'], { header: 1 })[0]; assert.deepEqual(columns, ['Объект','Год',...ALL_LOCI]); assert.equal(columns.at(-1),'FutureSyntheticLocus'); assert.equal(result.sourceLoci.length,3); }
   finally { ALL_LOCI.pop(); }
 });
 
@@ -195,9 +225,10 @@ test('Частичный источник, разные панели объек�
   const one = file([headers, ['P-1','7,9','','29,30']], 'one.xlsx');
   const two = file([['Объект','TH01','D5S818','AMEL'], ['P-2','7,9','11,12','XY']], 'two.xlsx');
   const panels = [{id:'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa', name:'One', lociOrder:headers.slice(1)}, {id:'bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb',name:'Two',lociOrder:['TH01','D5S818','AMEL']}];
-  let result = converter.convert([one,two],{},panels); assert.deepEqual(result.profiles.map(p => p.detectedPanelId),panels.map(p => p.id));
-  result = converter.convert([one,two], {conflicts:{'merge:p-1:TH01':{action:'manual',value:'9,10'}}},panels); assert.deepEqual(result.profiles[0].strData.TH01,['9','10']); assert(result.profiles[0].audit.some(i => i.code==='MANUAL_RESULT'));
-  const excel = new ExcelService(),buffer = converter.export(result);
+  const yearOptions = { files: Object.fromEntries(converter.convert([one,two], {}, panels).files.map(source => [source.id, { year: '2024' }])) };
+  let result = converter.convert([one,two],yearOptions,panels); assert.deepEqual(result.profiles.map(p => p.detectedPanelId),panels.map(p => p.id));
+  result = converter.convert([one,two], { ...yearOptions, conflicts:{'merge:2024:p-1:TH01':{action:'manual',value:'9,10'}}},panels); assert.deepEqual(result.profiles[0].strData.TH01,['9','10']); assert(result.profiles[0].audit.some(i => i.code==='MANUAL_RESULT'));
+  const excel = new ExcelService(),buffer = withImportYear(converter.export(result));
   const parsed = await excel.parseExcelFile(buffer,'multiple.xlsx',{importFormat:'genetic'}); assert.equal(parsed[0].totalLociCount,3); assert(Math.abs(parsed[0].metadata.qualityMetrics.completeness-200/3)<1e-8);
   t.mock.method(User,'findById',async()=>({role:'user_analyst',department_id:'dept',can_upload_without_task:true,getAccessibleDepartments:async()=>[{id:'dept',name:'Генетические экспертизы',organization_id:'org'}]}));
   t.mock.method(GenotypePanel,'resolveAssignment',async options=>panels.find(p=>p.id===options.detectedPanelId));
@@ -242,6 +273,6 @@ test('Неполные генотипы исключаются из настоя
 test('Без метаданных повторно импортируется и профиль с двумя заполненными локусами', async () => {
   const result=converter.convert([file([headers,['SPARSE-1','7,9','','29,30']])]);
   const book=XLSX.read(converter.export(result),{type:'buffer'}); delete book.Sheets._DNA_META; book.SheetNames=book.SheetNames.filter(name=>name!=='_DNA_META');
-  const [profile]=await new ExcelService().parseExcelFile(XLSX.write(book,{type:'buffer',bookType:'xlsx'}),'no-metadata.xlsx',{importFormat:'genetic'});
+  const [profile]=await new ExcelService().parseExcelFile(withImportYear(XLSX.write(book,{type:'buffer',bookType:'xlsx'})),'no-metadata.xlsx',{importFormat:'genetic'});
   assert.equal(profile.totalLociCount,2); assert.deepEqual(profile.strData.TH01,['7','9']); assert.deepEqual(profile.strData.D21S11,['29','30']);
 });

@@ -71,6 +71,19 @@ const OTHER_LOCI = [
     'SE33', 'LPL', 'F13B', 'FESFPS', 'F13A01'
 ];
 
+// STR-маркеры из спецификации и проверенных строк ASTR листов Result/Detail.
+// Неизвестные названия из файлов не добавляются в каталог по шаблону имени.
+const NGS_STR_LOCI = [
+    'AC001348B', 'D10S1237', 'D11S1304', 'D12S1064', 'D21S1446', 'D22S684',
+    'GATA23B10', 'GATA83B04', 'D13S305', 'D14S1426', 'D16S3391', 'D17S1294',
+    'D17S974', 'D18S1270', 'D18S865', 'D19S400', 'D1S1609', 'D1S1676',
+    'D1S1679', 'D1S2142', 'D1S2145', 'D1S518', 'D1S549', 'D20S1082',
+    'D20S161', 'D20S481', 'D20S85', 'D21S1409', 'D21S1432', 'D21S1437',
+    'D2S1772', 'D2S427', 'D3S1545', 'D3S1766', 'D3S2459', 'D3S3053',
+    'D3S4554', 'D4S1627', 'D4S2364', 'D4S2639', 'D5S1457', 'D5S1507',
+    'D8S1115', 'D9S1118', 'D9S2026', 'D9S2157', 'D9S926'
+];
+
 // Существующие локусы сохраняют прежний порядок; новые Y-InDel добавлены в конец.
 const ALL_LOCI = [
     ...STR_LOCI,
@@ -82,7 +95,8 @@ const ALL_LOCI = [
     ...INDEL_LOCI,
     ...PENTA_LOCI,
     ...OTHER_LOCI,
-    ...Y_INDEL_LOCI.slice(1)
+    ...Y_INDEL_LOCI.slice(1),
+    ...NGS_STR_LOCI
 ];
 
 class LociTypeDetector {
@@ -109,6 +123,7 @@ class LociTypeDetector {
         const map = new Map();
         
         STR_LOCI.forEach(locus => map.set(locus.toUpperCase(), LOCI_TYPES.STR));
+        NGS_STR_LOCI.forEach(locus => map.set(locus.toUpperCase(), LOCI_TYPES.STR));
         PENTA_LOCI.forEach(locus => map.set(locus.toUpperCase(), LOCI_TYPES.STR)); // Penta are STR variants
         Y_CHROMOSOME_LOCI.forEach(locus => map.set(locus.toUpperCase(), LOCI_TYPES.Y_CHROMOSOME));
         X_CHROMOSOME_LOCI.forEach(locus => map.set(locus.toUpperCase(), LOCI_TYPES.X_CHROMOSOME));
@@ -135,7 +150,7 @@ class LociTypeDetector {
         
         // Специальная нормализация для Penta: добавляем пробел если его нет
         // "PENTAE" → "PENTA E", "PENTAD" → "PENTA D", "PENTAC" → "PENTA C"
-        normalizedName = normalizedName.replace(/^PENTA([EDC])$/, 'PENTA $1');
+        normalizedName = normalizedName.replace(/^PENTA[\s_]*([EDC])$/, 'PENTA $1');
         
         // Direct lookup first
         const directType = this.lociTypeMap.get(normalizedName);
@@ -184,7 +199,7 @@ class LociTypeDetector {
     // и конвертер также принимают явно перечисленные дополнительные локусы.
     normalizeName(name) {
         return String(name).trim().replace(/\s+/g, ' ').toUpperCase()
-            .replace(/^PENTA\s*([EDC])$/, 'PENTA $1');
+            .replace(/^PENTA[\s_]*([EDC])$/, 'PENTA $1');
     }
 
     getCanonicalLocusName(name) {
@@ -200,7 +215,7 @@ class LociTypeDetector {
     getLociByType(locusType) {
         switch (locusType) {
             case LOCI_TYPES.STR:
-                return [...STR_LOCI, ...PENTA_LOCI];
+                return [...STR_LOCI, ...PENTA_LOCI, ...NGS_STR_LOCI];
             case LOCI_TYPES.Y_CHROMOSOME:
                 return [...Y_CHROMOSOME_LOCI];
             case LOCI_TYPES.X_CHROMOSOME:
@@ -449,7 +464,7 @@ class LociTypeDetector {
      */
     getLociCountByType() {
         return {
-            [LOCI_TYPES.STR]: STR_LOCI.length + PENTA_LOCI.length,
+            [LOCI_TYPES.STR]: STR_LOCI.length + PENTA_LOCI.length + NGS_STR_LOCI.length,
             [LOCI_TYPES.Y_CHROMOSOME]: Y_CHROMOSOME_LOCI.length,
             [LOCI_TYPES.X_CHROMOSOME]: X_CHROMOSOME_LOCI.length,
             [LOCI_TYPES.SNP]: SNP_LOCI.length,

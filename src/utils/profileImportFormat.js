@@ -45,7 +45,10 @@ function validateGeneticHeaders(headers, minRequiredLoci = 3) {
   if (String(headers[0] || '').trim().toLowerCase() !== 'объект') {
     add('MISSING_OBJECT_COLUMN', 'Первый столбец файла должен называться «Объект».');
   }
+  const yearIndex = headers.findIndex((header, index) => index > 0 && ['год', 'year'].includes(normalizeObjectName(header).toLocaleLowerCase('ru')));
+  if (yearIndex < 0) add('MISSING_YEAR_COLUMN', 'В файле должен быть столбец «Год» после столбца «Объект».');
   for (let index = 1; index < headers.length; index++) {
+    if (index === yearIndex) continue;
     const name = headers[index];
     const locus = detector.getCanonicalLocusName(name);
     if (!locus) {
@@ -60,7 +63,11 @@ function validateGeneticHeaders(headers, minRequiredLoci = 3) {
   if (seen.size < minRequiredLoci) {
     add('MISSING_STR_COLUMNS', `В файле не найдено достаточного количества генетических локусов. Найдено: ${seen.size}. Минимум: ${minRequiredLoci}.`);
   }
-  return { valid: errors.length === 0, errors, columns, recognizedMarkers: seen.size };
+  return { valid: errors.length === 0, errors, columns, yearIndex, recognizedMarkers: seen.size };
 }
 
-module.exports = { IMPORT_FORMATS, resolveProfileImportFormat, normalizeObjectName, extractExpertiseNumber, geneticObjectKey, getGeneticHeaders, validateGeneticHeaders };
+function geneticProfileKey(year, objectNumber) {
+  return `${Number(year)}:${geneticObjectKey(objectNumber)}`;
+}
+
+module.exports = { IMPORT_FORMATS, resolveProfileImportFormat, normalizeObjectName, extractExpertiseNumber, geneticObjectKey, geneticProfileKey, getGeneticHeaders, validateGeneticHeaders };

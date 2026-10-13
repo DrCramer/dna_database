@@ -4,9 +4,154 @@ const { ExportService } = require('../services/exportService');
 const { jobQueueService } = require('../services/jobQueueService');
 const { logger } = require('../utils/logger');
 const Joi = require('joi');
+const { query } = require('../config/database');
+const DNAProfile = require('../models/DNAProfile');
+const { ProfileAccessService } = require('../services/profileAccessService');
+const { DuplicateExcelExportService, XLSX_MIME } = require('../services/duplicateExcelExportService');
+const { getSearchSnapshots, profileFingerprint } = require('../services/searchSnapshotStore');
+const { resolveProfileImportFormat } = require('../utils/profileImportFormat');
+const { normalizeMatchColors } = require('../utils/locusComparisonPresentation');
 
 const router = express.Router();
 const exportService = new ExportService();
+const duplicateExcelExportService = new DuplicateExcelExportService();
+
+const duplicateExcelRequestSchema = Joi.object({
+  snapshotIds: Joi.array().items(Joi.string().guid({ version: ['uuidv4', 'uuidv5'] })).min(1).max(20).required(),
+  options: Joi.object({
+    scope: Joi.string().valid('all', 'reference').default('all'),
+    referenceKey: Joi.string().max(200).allow(null, ''),
+    includeReferences: Joi.boolean().default(true),
+    includeHighlights: Joi.boolean().default(true),
+    highlightAlleles: Joi.boolean().default(true),
+    includeComparisons: Joi.boolean().default(true),
+    includeAnalysis: Joi.boolean().default(true),
+    locusMode: Joi.string().valid('all', 'visible').default('all'),
+    visibleLoci: Joi.array().items(Joi.string().max(100)).max(500).default([]),
+    colors: Joi.object({
+      fullMatch: Joi.string().pattern(/^#[0-9a-fA-F]{6}$/),
+      partialMatch: Joi.string().pattern(/^#[0-9a-fA-F]{6}$/),
+      partialMatchAllele: Joi.string().pattern(/^#[0-9a-fA-F]{6}$/),
+      noMatch: Joi.string().pattern(/^#[0-9a-fA-F]{6}$/)
+    }).default({})
+  }).default({})
+});
+const MAX_DUPLICATE_EXPORT_CELLS = 2_000_000;
+
+/**
+ * Export a server-held, short-lived search snapshot. Genotypes and match details
+ * are never accepted from the browser; database records are reloaded in scope.
+ */
+router.post('/duplicates/excel', authenticate, async (req, res) => {
+  try {
+    const { error, value } = duplicateExcelRequestSchema.validate(req.body, { abortEarly: false, stripUnknown: true });
+    if (error) return res.status(400).json({ message: 'Проверьте настройки экспорта и повторите попытку.' });
+
+    const activeDepartmentId = req.activeDepartmentId || req.user.department_id || null;
+    const snapshots = getSearchSnapshots(value.snapshotIds, { userId: req.user.id, departmentId: activeDepartmentId });
+    const options = value.options;
+    const pairs = snapshots.flatMap(snapshot => snapshot.pairs.map(pair => ({
+      ...pair,
+      ignoredLoci: snapshot.settings.ignoredLoci || []
+    })));
+    const selectedPairs = options.scope === 'reference'
+      ? pairs.filter(pair => pair.referenceKey === options.referenceKey)
+      : pairs;
+    if (!selectedPairs.length) return res.status(400).json({ message: 'Нет найденных дубликатов для выгрузки.' });
+    if (selectedPairs.length > 20000) {
+      return res.status(413).json({ message: 'Слишком много пар для формирования одного файла (максимум 20 000). Выберите группу одного эталона и повторите экспорт.' });
+    }
+    const availableLoci = new Set(snapshots.flatMap(snapshot => snapshot.locusNames || []));
+    const locusCount = options.locusMode === 'visible'
+      ? options.visibleLoci.filter(locus => availableLoci.has(locus)).length
+      : availableLoci.size;
+    if (selectedPairs.length * Math.max(1, locusCount) * 2 > MAX_DUPLICATE_EXPORT_CELLS) {
+      return res.status(413).json({ message: 'Отчёт превышает безопасный размер одного XLSX. Выберите группу одного эталона или только отображаемые локусы.' });
+    }
+
+    const profileIds = [...new Set(selectedPairs.flatMap(pair => [pair.referenceProfileId, pair.matchedProfileId]).filter(Boolean))];
+    if (profileIds.some(id => !/^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(id))) {
+      return res.status(400).json({ message: 'Невозможно восстановить корректные данные поиска. Выполните поиск заново.' });
+    }
+
+    const scope = await ProfileAccessService.getScope({
+      userId: req.user.id,
+      activeDepartmentId,
+      action: 'read'
+    });
+    let authorizedProfiles = [];
+    if (profileIds.length) {
+      const idParam = scope.params.length + 1;
+      const result = await query(`SELECT dp.* FROM dna_profiles dp WHERE dp.id = ANY($${idParam}::uuid[]) AND ${scope.clause}`, [...scope.params, profileIds]);
+      authorizedProfiles = await DNAProfile.fromRows(result.rows);
+    }
+    const profilesById = new Map(authorizedProfiles.map(profile => [profile.id, profile]));
+    if (profilesById.size !== profileIds.length) {
+      return res.status(403).json({ message: 'Нет доступа к выбранным профилям.' });
+    }
+
+    const fingerprintMismatch = snapshots.some(snapshot => Object.entries(snapshot.profileFingerprints)
+      .some(([id, fingerprint]) => selectedPairs.some(pair => pair.referenceProfileId === id || pair.matchedProfileId === id) &&
+        (!profilesById.has(id) || profileFingerprint(profilesById.get(id)) !== fingerprint)));
+    if (fingerprintMismatch) {
+      return res.status(409).json({ message: 'Данные профилей изменились после поиска. Повторите анализ, чтобы экспорт соответствовал найденным результатам.' });
+    }
+
+    const hydratedPairs = selectedPairs.map(pair => ({
+      ...pair,
+      reference: pair.referenceProfileId ? profilesById.get(pair.referenceProfileId) : pair.reference,
+      matched: profilesById.get(pair.matchedProfileId)
+    }));
+    const colors = options.colors || {};
+    const mergedColors = normalizeMatchColors({ ...snapshots[0].settings.colors, ...colors });
+    const departmentResult = await query('SELECT name FROM departments WHERE id = $1 AND is_active = true', [activeDepartmentId]);
+    const format = resolveProfileImportFormat({ name: departmentResult.rows[0]?.name });
+    const metadata = {
+      importFormat: format || 'emergency',
+      departmentName: departmentResult.rows[0]?.name || '',
+      searchModes: [...new Set(snapshots.map(snapshot => snapshot.searchMode))],
+      searchedAt: snapshots.map(snapshot => snapshot.createdAt).sort((a, b) => a - b)[0]?.toISOString(),
+      minMatches: snapshots[0].settings.minMatches,
+      duplicateSettings: snapshots[0].settings.duplicateSettings
+    };
+    const buffer = await duplicateExcelExportService.createWorkbookBuffer({
+      comparisons: hydratedPairs.map(pair => ({
+        reference: pair.reference,
+        matched: pair.matched,
+        matchedLoci: pair.matchedLoci,
+        details: pair.details,
+        algorithm: pair.algorithm,
+        matchCount: pair.matchCount,
+        totalLoci: pair.totalLoci,
+        matchPercentage: pair.matchPercentage,
+        totalScore: pair.totalScore,
+        ignoredLoci: pair.ignoredLoci
+      })),
+      metadata,
+      options: { ...options, colors: mergedColors }
+    });
+
+    const stamp = new Date().toISOString().replace(/[-:]/g, '').replace(/\.\d{3}Z$/, 'Z').slice(0, 13);
+    const filename = `Дубликаты_${(departmentResult.rows[0]?.name || 'отделение').replace(/[^\p{L}\p{N}_-]+/gu, '_').slice(0, 40)}_${stamp}.xlsx`;
+    logger.info('Duplicate XLSX export generated', {
+      userId: req.user.id,
+      departmentId: activeDepartmentId,
+      pairCount: selectedPairs.length,
+      profileCount: profilesById.size,
+      snapshotCount: snapshots.length
+    });
+    res.set({
+      'Content-Type': XLSX_MIME,
+      'Content-Disposition': `attachment; filename="dna-duplicates.xlsx"; filename*=UTF-8''${encodeURIComponent(filename)}`,
+      'Cache-Control': 'private, no-store, max-age=0',
+      'X-Content-Type-Options': 'nosniff'
+    });
+    return res.status(200).send(Buffer.from(buffer));
+  } catch (error) {
+    logger.error('Duplicate XLSX export failed', { userId: req.user?.id, error: error.message });
+    return res.status(error.status || 500).json({ message: error.message || 'Не удалось сформировать Excel-файл.' });
+  }
+});
 
 // Configuration for large export threshold
 const LARGE_EXPORT_THRESHOLD = 1000; // Records

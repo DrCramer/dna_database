@@ -3817,10 +3817,10 @@ ALTER TABLE ONLY public.users
 -- Принадлежность профиля активному отделению при загрузке.
 ALTER TABLE public.dna_profiles ADD CONSTRAINT dna_profiles_department_id_fkey FOREIGN KEY (department_id) REFERENCES public.departments(id);
 ALTER TABLE public.dna_profiles ADD CONSTRAINT dna_profiles_organization_id_fkey FOREIGN KEY (organization_id) REFERENCES public.organizations(id);
-CREATE UNIQUE INDEX idx_dna_profiles_genetic_object ON public.dna_profiles (organization_id, department_id, user_id, lower(btrim(internal_number))) WHERE is_active = true AND import_format = 'genetic' AND profile_type = 'user';
+CREATE UNIQUE INDEX idx_dna_profiles_genetic_object ON public.dna_profiles (organization_id, department_id, user_id, year, lower(btrim(internal_number))) WHERE is_active = true AND import_format = 'genetic' AND profile_type = 'user' AND year IS NOT NULL;
 CREATE INDEX idx_dna_profiles_department ON public.dna_profiles (department_id) WHERE is_active = true;
 
-CREATE UNIQUE INDEX idx_master_array_genetic_object ON public.master_array_profiles (master_array_id, lower(btrim(internal_number))) WHERE is_active = true AND metadata->>'importFormat' = 'genetic';
+CREATE UNIQUE INDEX idx_master_array_genetic_object ON public.master_array_profiles (master_array_id, year, lower(btrim(internal_number))) WHERE is_active = true AND metadata->>'importFormat' = 'genetic' AND year IS NOT NULL;
 
 -- Необязательные генетические панели (029).
 SET search_path = public;

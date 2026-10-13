@@ -8,7 +8,7 @@ const User = require('../models/User');
 const { assertProfileUploadAllowed } = require('./profileUploadPolicy');
 const { readConversionMetadata, CONVERSION_META_SHEET } = require('../utils/geneticConversionMetadata');
 const { informativeAlleles, amelogeninTokens, normalizeSpecialAllele, isSpecialAllele, isMissingAllele } = require('../utils/alleleTokens');
-const { resolveProfileImportFormat, normalizeObjectName, extractExpertiseNumber, geneticObjectKey, getGeneticHeaders, validateGeneticHeaders } = require('../utils/profileImportFormat');
+const { resolveProfileImportFormat, normalizeObjectName, extractExpertiseNumber, geneticObjectKey, geneticProfileKey, getGeneticHeaders, validateGeneticHeaders } = require('../utils/profileImportFormat');
 
 // Импортируем конвертер латинских символов
 const { LatinToCyrillicConverter } = require('./latinToCyrillicConverter');
@@ -288,7 +288,7 @@ class ExcelService {
         try {
           // Step 1: Check for duplicates using in-memory data
           if (isGenetic && geneticChecks[i].action === 'conflict') {
-            result.duplicates.push({ sampleName: profile.sampleName, internalNumber: profile.internalNumber, importFormat: 'genetic', lociCount: profile.totalLociCount,
+            result.duplicates.push({ sampleName: profile.sampleName, internalNumber: profile.internalNumber, year: profile.year, importFormat: 'genetic', lociCount: profile.totalLociCount,
               reason: 'duplicate_object', existingProfiles: [geneticChecks[i].existing] });
             result.summary.duplicateCount++;
             continue;
@@ -811,7 +811,8 @@ class ExcelService {
         const fullCatalog = columns.length === ALL_LOCI.length && ALL_LOCI.every(locus => columns.includes(locus));
         const fallback = fullCatalog ? columns.filter(locus => profiles.some(profile => profile.strData[locus]?.length)) : columns;
         for (const profile of profiles) {
-          const entry = metadata?.get(geneticObjectKey(profile.internalNumber));
+          const entry = metadata?.get(profile.year == null ? `legacy:${geneticObjectKey(profile.internalNumber)}` : geneticProfileKey(profile.year, profile.internalNumber))
+            || metadata?.get(`legacy:${geneticObjectKey(profile.internalNumber)}`);
           const sourceLoci = entry?.sourceLoci || fallback;
           // Минимум три заголовка уже проверен; без метаданных заполненных локусов может быть меньше.
           profile.strData = Object.fromEntries(sourceLoci.map(locus => [locus, profile.strData[locus] || []]));
@@ -826,7 +827,13 @@ class ExcelService {
             populatedLociCount: sourceLoci.filter(locus => profile.strData[locus].length).length, lociTypeBreakdown: this.getLociTypeBreakdown(profile.strData),
             compatibilityInfo: { ...profile.metadata.compatibilityInfo, totalLociCount: sourceLoci.length, priorityMarkerCount: profile.priorityMarkerCount },
             qualityMetrics: { ...profile.metadata.qualityMetrics, completeness: sourceLoci.filter(locus => informativeAlleles(profile.strData[locus]).length).length / sourceLoci.length * 100, dataQuality: this.assessDataQuality(Object.fromEntries(sourceLoci.map(locus => [locus, informativeAlleles(profile.strData[locus])]))) },
-            ...(entry ? { conversion: entry } : {}) };
+            ...(entry ? { conversion: entry } : {}),
+            ...(entry?.sources.some(source => source.sourceFormat === 'NGS_ASTR_RESULT_DETAIL') ? {
+              ngs: { sourceFormat: 'NGS_ASTR_RESULT_DETAIL',
+                multiAllelicLoci: sourceLoci.filter(locus => profile.strData[locus].length > 2),
+                requiresMixtureInterpretation: sourceLoci.some(locus => profile.strData[locus].length > 2),
+                qcAuditAvailable: true }
+            } : {}) };
         }
       }
       return profiles;
@@ -969,7 +976,7 @@ class ExcelService {
     
     for (const profile of profiles) {
       if (profile.importFormat === 'genetic' || (profile.year && profile.internalNumber)) {
-        const key = profile.importFormat === 'genetic' ? geneticObjectKey(profile.internalNumber) : `${profile.year}-${profile.internalNumber}`;
+        const key = profile.importFormat === 'genetic' ? geneticProfileKey(profile.year, profile.internalNumber) : `${profile.year}-${profile.internalNumber}`;
         
         if (profileKeys.has(key)) {
           // Найден дубликат!
@@ -1603,8 +1610,11 @@ class ExcelService {
   extractGeneticProfileFromRow(row, headers, rowNumber, filename, validationResult, options = {}) {
     const objectNumber = normalizeObjectName(row[0]);
     const sampleName = extractExpertiseNumber(objectNumber);
+    const rawYear = normalizeObjectName(row[validationResult.yearIndex]);
+    const year = /^\d{4}$/.test(rawYear) ? Number(rawYear) : NaN;
     if (!objectNumber || !sampleName) throw new ExcelParsingError(`Строка ${rowNumber}: не заполнено обязательное поле «Объект».`, 'MISSING_OBJECT', { rowNumber });
     if (objectNumber.length > 100) throw new ExcelParsingError(`Строка ${rowNumber}: значение «Объект» длиннее 100 символов.`, 'INVALID_OBJECT', { rowNumber });
+    if (!Number.isInteger(year) || year < 1900 || year > 2100) throw new ExcelParsingError(`Строка ${rowNumber}: укажите год целым числом от 1900 до 2100.`, 'INVALID_YEAR', { rowNumber });
     const strData = {};
     const lociTypes = {};
     const priorityMarkers = {};
@@ -1622,7 +1632,7 @@ class ExcelService {
       sampleName,
       // Полный номер объекта, включая суффикс, сохраняется без сокращения.
       internalNumber: objectNumber,
-      year: null,
+      year,
       importNumber: null,
       importFormat: 'genetic',
       strData,
