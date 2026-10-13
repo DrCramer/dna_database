@@ -7,6 +7,7 @@ const { logger } = require('../utils/logger');
 const { AlleleReferenceService } = require('../services/alleleReferenceService');
 const { ReferenceError } = require('../utils/alleleReferenceImport');
 const { ALL_LOCI } = require('../utils/lociTypeDetector');
+const { normalizedExcelFilename } = require('../utils/normalizedExcelLayout');
 const converter = new GeneticExcelConverterService();
 // Busboy сообщает partsLimit при достижении порога: 100 файлов + options должны проходить целиком.
 const upload = multer({ storage: multer.memoryStorage(), limits: { files: 100, fileSize: 10 * 1024 * 1024, fieldSize: 2 * 1024 * 1024, fields: 1, parts: 102 } }).array('files', 100);
@@ -41,7 +42,8 @@ for (const operation of ['preview', 'export']) router.post(`/${operation}`, (req
       res.set('Cache-Control', 'private, no-store');
       if (operation === 'preview') return res.json(result);
       const buffer = converter.export(result, options.export);
-      res.type('application/vnd.openxmlformats-officedocument.spreadsheetml.sheet').set('Content-Disposition', 'attachment; filename="DNA-normalized.xlsx"').send(buffer);
+      const filename = normalizedExcelFilename(result.profiles);
+      res.type('application/vnd.openxmlformats-officedocument.spreadsheetml.sheet').set('Content-Disposition', `attachment; filename="DNA-normalized.xlsx"; filename*=UTF-8''${encodeURIComponent(filename)}`).send(buffer);
     } catch (caught) { respond(req, res, caught); }
   });
 });

@@ -4,17 +4,12 @@ const { LociTypeDetector } = require('../utils/lociTypeDetector');
 const { normalizeObjectName, geneticObjectKey, geneticProfileKey } = require('../utils/profileImportFormat');
 const { normalizeAlleleValue } = require('../utils/alleleNormalizer');
 const { informativeAlleles, isMissingAllele } = require('../utils/alleleTokens');
-const { metadataSheet, CONVERSION_META_SHEET } = require('../utils/geneticConversionMetadata');
+const { orderNormalizedLoci } = require('../utils/normalizedExcelLayout');
 const sourceDetector = require('./geneticSourceDetector');
 const { parseNgsAstrWorkbook, suggestObjectNumber, applyNgsDecision } = require('./ngsAstrExcelParser');
 
 class ConversionError extends Error {
   constructor(message, code = 'CONVERSION_ERROR', status = 400) { super(message); this.code = code; this.status = status; }
-}
-
-function exportMetadata(payload) {
-  try { return metadataSheet(payload); }
-  catch (error) { throw new ConversionError(error.message, 'CONVERSION_EXPORT_LIMIT', 413); }
 }
 
 const hard = status => ['ERROR', 'NEEDS_REVIEW', 'CONFLICT'].includes(status);
@@ -255,19 +250,10 @@ class GeneticExcelConverterService {
     if (!result.canImport) throw new ConversionError('Сначала разрешите все ошибки и конфликты.', 'UNRESOLVED_CONVERSION', 409);
     if (!options || typeof options !== 'object' || Array.isArray(options) || options.hideEmptyLoci != null && typeof options.hideEmptyLoci !== 'boolean') throw new ConversionError('Некорректные настройки скрытия пустых локусов.');
     const book = XLSX.utils.book_new();
-    const exportLoci = result.exportLoci || result.catalogLoci;
+    const exportLoci = orderNormalizedLoci(result.exportLoci || result.catalogLoci);
     const sheet = XLSX.utils.aoa_to_sheet([['Объект', 'Год', ...exportLoci], ...result.profiles.map(profile => [profile.objectNumber, profile.year ?? '', ...exportLoci.map(locus => (profile.strData[locus] || []).join(','))])]);
     if (options.hideEmptyLoci) sheet['!cols'] = [{}, {}, ...exportLoci.map(locus => ({ hidden: result.profiles.every(profile => !(profile.strData[locus] || []).some(allele => !isMissingAllele(allele))) }))];
     XLSX.utils.book_append_sheet(book, sheet, 'Импорт');
-    const fileDecisions = new Map();
-    for (const issue of result.issues) if (['COLUMN_DECISION', 'IGNORED_ROW'].includes(issue.code)) {
-      if (!fileDecisions.has(issue.fileId)) fileDecisions.set(issue.fileId, []);
-      fileDecisions.get(issue.fileId).push(issue);
-    }
-    const profiles = result.profiles.map(profile => ({ objectNumber: profile.objectNumber, year: profile.year, sourceLoci: profile.sourceLoci, detectedPanelId: profile.detectedPanelId, sources: profile.sources, audit: [...profile.audit, ...[...new Set(profile.sources.map(source => source.fileId))].flatMap(fileId => fileDecisions.get(fileId) || [])] }));
-    if (profiles.some(profile => JSON.stringify(profile).length > 1024 * 1024)) throw new ConversionError('Журнал одного объекта слишком большой. Разделите исходные файлы.');
-    XLSX.utils.book_append_sheet(book, exportMetadata({ createdAt: new Date().toISOString(), converterVersion: '1.3', sourceLoci: result.sourceLoci, sourceFiles: result.files.map(file => ({ name: file.name, year: file.year, sheet: file.sheet, sourceFormat: file.sourceFormat, headerRow: file.headerRow, objectColumn: file.objectColumn, sourceLoci: file.sourceLoci, detectedPanelId: file.detectedPanelId, reference: file.reference })), decisions: result.issues.filter(issue => ['COLUMN_DECISION','IGNORED_ROW'].includes(issue.code)), profiles }), CONVERSION_META_SHEET);
-    book.Workbook = { Sheets: book.SheetNames.map(name => ({ name, Hidden: name === CONVERSION_META_SHEET ? 1 : 0 })) };
     return XLSX.write(book, { type: 'buffer', bookType: 'xlsx', compression: true });
   }
 }

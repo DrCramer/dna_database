@@ -100,7 +100,7 @@ test('Смесь не обрезается; два Pass — только пре�
   const kept = decide(converter, files, options, result, 'D18S51', { action: 'keep' });
   assert(kept.canImport); assert(kept.profiles[0].audit.find(entry => entry.locus === 'D18S51').ngs.multiAllelicConfirmed);
   const parsedKept = await new ExcelService().parseExcelFile(converter.export(kept), 'multi.xlsx', { importFormat: 'genetic' });
-  assert.deepEqual(parsedKept[0].strData.D18S51, ['7', '9', '13.2', '16', '18']);
+  assert.deepEqual([...parsedKept[0].strData.D18S51], ['7', '9', '13.2', '16', '18']);
   const chosen = decide(converter, files, options, result, 'D18S51', { action: 'manual', value: '16,18' });
   assert(chosen.canImport); assert.deepEqual(chosen.profiles[0].strData.D18S51, ['16', '18']);
   const audit = chosen.profiles[0].audit.find(entry => entry.locus === 'D18S51');
@@ -155,18 +155,19 @@ test('Все 111 ASTR, AMEL, aliases и новые STR проходят пане
   assert.equal(result.sourceLoci.length, 112);
   assert.equal(result.profiles[0].detectedPanelId, panel.id);
   const buffer = converter.export(result, { hideEmptyLoci: true }), book = XLSX.read(buffer, { type: 'buffer', cellStyles: true });
-  assert.deepEqual(XLSX.utils.sheet_to_json(book.Sheets['Импорт'], { header: 1 })[0].slice(0, 6), ['Объект', 'Год', ...panel.lociOrder]);
+  assert.deepEqual(XLSX.utils.sheet_to_json(book.Sheets['Импорт'], { header: 1 })[0].slice(0, 5), ['Объект', 'Год', 'Penta E', 'AC001348B', 'TH01']);
   const sheet = book.Sheets['Импорт'];
   const headers = XLSX.utils.sheet_to_json(sheet, { header: 1 })[0];
   assert(sheet['!cols'][headers.indexOf('DYS391')].hidden);
   assert(!sheet['!cols'][headers.indexOf('AMEL')].hidden);
-  assert.deepEqual(book.SheetNames, ['Импорт', '_DNA_META']);
+  assert.deepEqual(book.SheetNames, ['Импорт']);
   assert.deepEqual(book.Workbook.Sheets.filter(sheet => !sheet.Hidden).map(sheet => sheet.name), ['Импорт']);
   const [parsed] = await new ExcelService().parseExcelFile(buffer, 'normalized.xlsx', { importFormat: 'genetic' });
   for (const name of extra) assert.deepEqual(parsed.strData[detector.getCanonicalLocusName(name)], ['7.2', '13.2']);
-  assert.equal(parsed.metadata.conversion.detectedPanelId, panel.id);
-  assert.equal(parsed.metadata.conversion.sources[0].sourceFormat, NGS_FORMAT);
-  assert.equal(parsed.metadata.conversion.audit.find(entry => entry.locus === 'TH01').ngs.rawGenotype, '7.2,13.2');
+  assert.equal(parsed.metadata.conversion, undefined);
+  assert.equal(result.profiles[0].detectedPanelId, panel.id);
+  assert.equal(result.profiles[0].sources[0].sourceFormat, NGS_FORMAT);
+  assert.equal(result.profiles[0].audit.find(entry => entry.locus === 'TH01').ngs.rawGenotype, '7.2,13.2');
   assert.deepEqual(parsed.strData.AMEL, ['X', 'Y']);
   const analysisLoci = getAnalysisLoci([{ ...parsed, panel }]);
   for (const name of extra) assert(analysisLoci.includes(detector.getCanonicalLocusName(name)));
@@ -182,7 +183,7 @@ test('NGS SEXUAL SRY с текстовым сигналом проходит э�
   assert.deepEqual(result.profiles[0].strData.SRY, ['SRY']);
   const [profile] = await new ExcelService().parseExcelFile(converter.export(result), 'sry-ngs.xlsx', { importFormat: 'genetic' });
   assert.deepEqual(profile.strData.SRY, ['SRY']);
-  const audit = profile.metadata.conversion.audit.find(entry => entry.locus === 'SRY');
+  const audit = result.profiles[0].audit.find(entry => entry.locus === 'SRY');
   assert.equal(audit.ngs.rawGenotype, 'SRY');
   assert.equal(audit.ngs.detailRows[0].allele, 'SRY');
 });
@@ -205,7 +206,8 @@ test('Неизвестный локус блокирует экспорт; яв�
   options.files[result.files[0].id].columns = { [column.index]: { ignore: true } };
   const reviewed = converter.convert(files, options); assert(reviewed.canImport);
   const [parsed] = await new ExcelService().parseExcelFile(converter.export(reviewed), 'normalized.xlsx', { importFormat: 'genetic' });
-  assert.equal(parsed.metadata.conversion.audit.find(entry => entry.code === 'NGS_LOCUS_EXCLUDED').ngs.originalLocus, 'D99S999999');
+  assert.equal(reviewed.profiles[0].audit.find(entry => entry.code === 'NGS_LOCUS_EXCLUDED').ngs.originalLocus, 'D99S999999');
+  assert.equal(parsed.metadata.conversion, undefined);
 });
 
 test('Пакет NGS и legacy: разные объекты сохраняются, одинаковые не перезаписываются', () => {

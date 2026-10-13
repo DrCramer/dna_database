@@ -160,7 +160,7 @@ test('Снимки доказательств не изменяются при �
   assert.equal(JSON.stringify(before), snapshot);
   assert.equal(before.candidates[1].evidence[0].referenceVersion, 'fixture-1');
 });
-test('Подтверждение проходит через существующие решения; аудит источников переживает экспорт/импорт', async () => {
+test('Подтверждённые аллели проходят импорт, аудит остаётся в конвертере', async () => {
   const book = XLSX.utils.book_new(); XLSX.utils.book_append_sheet(book, XLSX.utils.aoa_to_sheet([['Объект', 'D5S818', 'TH01', 'D21S11'], ['REF-1', '11.12', '7,9', '29,30']]), 'SBT_horizont');
   const file = { originalname: 'fixture.xlsx', buffer: XLSX.write(book, { type: 'buffer', bookType: 'xlsx' }) };
   const converter = new GeneticExcelConverterService(), reference = service([set({ D5S818: ['11', '12'] })]);
@@ -174,7 +174,9 @@ test('Подтверждение проходит через существую�
   const exported = XLSX.read(converter.export(ready), { type: 'buffer' });
   exported.Sheets['Импорт'].B2 = { t: 'n', v: 2024 };
   const parsed = await new ExcelService().parseExcelFile(XLSX.write(exported, { type: 'buffer', bookType: 'xlsx' }), 'normalized.xlsx', { importFormat: 'genetic' });
-  const audit = parsed[0].metadata.conversion.audit.find(item => item.locus === 'D5S818');
+  assert.deepEqual(parsed[0].strData.D5S818, ['11', '12']);
+  assert.equal(parsed[0].metadata.conversion, undefined);
+  const audit = ready.profiles[0].audit.find(item => item.locus === 'D5S818');
   assert.equal(audit.rawValue, '11.12'); assert.equal(audit.reference.confidence, 'HIGH'); assert.equal(audit.reference.decision.action, 'split_dot'); assert.equal(audit.reference.candidates[1].evidence[0].referenceSetId, id);
 });
 test('CSV/JSON: строки микроаллелей, точные перечни, provenance, дубликаты и нечисловые токены', () => {

@@ -1,5 +1,6 @@
 import React, { useMemo, useState } from 'react';
 import { geneticObjectKey, geneticProfileKey } from '../../../../src/utils/profileImportFormat';
+import { orderNormalizedLoci } from '../../../../src/utils/normalizedExcelLayout';
 import ReferenceEvidence from './ReferenceEvidence';
 
 export default function ConverterGrid({ result, options, update, disabled }) {
@@ -8,7 +9,7 @@ export default function ConverterGrid({ result, options, update, disabled }) {
   const [page, setPage] = useState(0);
   const problem = useMemo(() => new Set(result.issues.filter(issue => issue.hard || issue.status === 'WARNING').map(issue => issue.locus)), [result]);
   const populated = useMemo(() => new Set(result.profiles.flatMap(profile => profile.populatedLoci)), [result]);
-  const loci = result.catalogLoci.filter(locus => mode === 'all' || (mode === 'source' ? result.sourceLoci.includes(locus) : mode === 'populated' ? populated.has(locus) : problem.has(locus)));
+  const loci = orderNormalizedLoci(result.catalogLoci).filter(locus => mode === 'all' || (mode === 'source' ? result.sourceLoci.includes(locus) : mode === 'populated' ? populated.has(locus) : problem.has(locus)));
   const current = Math.min(page, Math.max(0, Math.ceil(result.profiles.length / 50) - 1));
   const editorProfile = editor && result.profiles.find(profile => profile.objectNumber === editor.object && profile.year === editor.year);
   const identityKey = profile => profile.year == null ? `legacy:${geneticObjectKey(profile.objectNumber)}` : geneticProfileKey(profile.year, profile.objectNumber);

@@ -601,21 +601,21 @@ test('Реальные PostgreSQL, authenticate, preview и upload', { skip: !da
     const preview = await convert('preview'); assert.equal(preview.status,200); const dirty = await preview.json(); assert.equal(dirty.canImport,false);
     assert.equal(dirty.profiles[0].detectedPanelId,panelId);
     const issue = dirty.issues.find(issue => issue.code === 'AMBIGUOUS_DOT');
-    const converted = await convert('export',{cells:{[issue.id]:{action:'split_dot'}}}); assert.equal(converted.status,200);
+    const converted = await convert('export',{cells:{[issue.id]:{action:'split_dot'}},files:{[dirty.files[0].id]:{year:2026}}}); assert.equal(converted.status,200);
     const normalized = Buffer.from(await converted.arrayBuffer());
     assert.equal((await query('SELECT count(*)::int AS count FROM dna_profiles WHERE task_id=$1',[taskId])).rows[0].count,0);
     const uploadConverted = async (path, extra = {}) => {
-      const form = new FormData(); form.append('file',new Blob([normalized]),'normalized.xlsx'); form.append('taskId',taskId); form.append('uploadTarget','task');
+      const form = new FormData(); form.append('file',new Blob([normalized]),'normalized.xlsx'); form.append('taskId',taskId); form.append('uploadTarget','task'); form.append('panelId',panelId);
       for (const [key,value] of Object.entries(extra)) form.append(key,value);
       const response = await fetch(`${baseUrl}${path}`,{method:'POST',headers:{Authorization:`Bearer ${accessToken}`,'X-Active-Department-Id':genetic},body:form}); return {status:response.status,body:await response.json()};
     };
     const ready = await uploadConverted('/upload/preview'); assert.equal(ready.status,200,JSON.stringify(ready.body));
-    assert.deepEqual(ready.body.preview.panelWarnings,[]);
+    assert(ready.body.preview.panelWarnings.some(warning=>/Порядок/.test(warning)));
     const imported = await uploadConverted('/upload'); assert.equal(imported.status,200,JSON.stringify(imported.body)); assert.equal(imported.body.processing.created,1);
     const row = (await query("SELECT id,task_id,panel_id,notes FROM dna_profiles WHERE internal_number='CONV-11x' AND user_id=$1",[userId])).rows[0];
     assert.equal(row.task_id,taskId); assert.equal(row.panel_id,panelId);
     const notes = typeof row.notes === 'string' ? JSON.parse(row.notes) : row.notes;
-    assert.equal(notes.sourceLoci.length,5); assert.equal(notes.qualityMetrics.completeness,100); assert(notes.conversion.audit.some(item => item.userDecision?.action === 'split_dot'));
+    assert.equal(notes.sourceLoci.length,5); assert.equal(notes.qualityMetrics.completeness,100); assert.equal(notes.conversion,undefined);
     const saved = await DNAProfile.findById(row.id); assert.deepEqual(saved.strData.TH01,['11','12']); assert.deepEqual(saved.strData.AMEL,['X','X']); assert.deepEqual(saved.strData.DYS392,['12']); assert.deepEqual(saved.strData.D5S818,['?','15']); assert.deepEqual(saved.strData.D21S11,['29','30','31.2']);
     const duplicate = await uploadConverted('/upload/preview'); assert.equal(duplicate.status,200); assert(duplicate.body.preview.breakdown.conflict > 0);
     await query('UPDATE users SET can_upload_with_task=false WHERE id=$1',[userId]);

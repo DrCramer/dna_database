@@ -1,6 +1,7 @@
 import React, { useEffect, useRef, useState } from 'react';
 import { useAuth } from '../../contexts/AuthContext';
 import { resolveProfileImportFormat } from '../../../../src/utils/profileImportFormat';
+import { normalizedExcelFilename } from '../../../../src/utils/normalizedExcelLayout';
 import ConverterSources from './ConverterSources';
 import ConverterIssues from './ConverterIssues';
 import ConverterGrid from './ConverterGrid';
@@ -36,15 +37,22 @@ export default function GeneticExcelConverterPage({ onPreparedFile }) {
       const response = await fetch(`/api/genetic-excel-converter/${operation}`, { method: 'POST', body, signal: controller.signal, headers: { Authorization: `Bearer ${user?.accessToken || localStorage.getItem('token')}`, 'X-Active-Department-Id': activeDepartmentId } });
       if (!response.ok) { const data = await response.json(); throw new Error(data.message || 'Ошибка конвертации.'); }
       if (operation === 'preview') { const next = await response.json(); if (!controller.signal.aborted) { setOptions(settings); setResult(next); } return; }
-      const blob = await response.blob(); if (!controller.signal.aborted) return blob;
+      const blob = await response.blob();
+      if (!controller.signal.aborted) {
+        let filename = normalizedExcelFilename(result?.profiles);
+        const encoded = (response.headers.get('Content-Disposition') || '').match(/filename\*=UTF-8''([^;]+)/i)?.[1];
+        if (encoded) { try { filename = decodeURIComponent(encoded); } catch { /* Используем имя, рассчитанное по объектам. */ } }
+        return { blob, filename };
+      }
     } catch (caught) { if (caught.name !== 'AbortError') setError(caught.message); }
     finally { if (request.current === controller) setBusy(false); }
   };
   const update = settings => perform('preview', settings);
   const exportFile = async direct => {
-    const blob = await perform('export', { ...options, export: { hideEmptyLoci } }); if (!blob) return;
-    if (direct) onPreparedFile({ file: new File([blob], 'DNA-normalized.xlsx', { type: blob.type }), departmentId: activeDepartmentId, ownerId: user.id });
-    else { const url = URL.createObjectURL(blob), anchor = document.createElement('a'); anchor.href = url; anchor.download = 'DNA-normalized.xlsx'; anchor.click(); setTimeout(() => URL.revokeObjectURL(url), 1000); }
+    const exported = await perform('export', { ...options, export: { hideEmptyLoci } }); if (!exported) return;
+    const { blob, filename } = exported;
+    if (direct) onPreparedFile({ file: new File([blob], filename, { type: blob.type }), departmentId: activeDepartmentId, ownerId: user.id });
+    else { const url = URL.createObjectURL(blob), anchor = document.createElement('a'); anchor.href = url; anchor.download = filename; anchor.click(); setTimeout(() => URL.revokeObjectURL(url), 1000); }
   };
   if (!allowed) return <div className="alert alert-info">Конвертер доступен в отделении «Генетические экспертизы».</div>;
   return <div className="converter-page" aria-busy={busy}><header className="page-header"><div><h1>Конвертер Excel</h1><p>Старые Excel и NGS ASTR+: проверка генотипов и QC, объединение и подготовка к загрузке.</p></div></header>
@@ -55,6 +63,6 @@ export default function GeneticExcelConverterPage({ onPreparedFile }) {
     </section>
     {error && <div className="alert alert-danger" role="alert">{error}</div>}
     {result && <><div className="converter-summary" aria-live="polite">{Object.entries(counters).map(([key, label]) => <div className="converter-counter" key={key}><strong>{result.summary[key]}</strong><span>{label}</span></div>)}</div><ConverterSources result={result} options={options} update={update} disabled={busy} /><ConverterIssues result={result} options={options} update={update} disabled={busy} /><ConverterGrid result={result} options={options} update={update} disabled={busy} />
-      <section className="converter-card"><label className="converter-export-toggle"><input type="checkbox" checked={hideEmptyLoci} disabled={busy} onChange={event => setHideEmptyLoci(event.target.checked)} />Скрывать пустые локусы в Excel</label><p>Скрываются только столбцы, пустые у всех объектов. При необходимости их можно показать в Excel.</p><div className="converter-actions"><button className="btn btn-primary" disabled={busy || !result.canImport} onClick={() => exportFile(false)}>Скачать нормализованный Excel</button><button className="btn btn-primary" disabled={busy || !result.canUpload} onClick={() => exportFile(true)}>Передать в загрузку профилей</button></div><p>{result.canUpload ? 'Предупреждения сохранены в журнале. На странице загрузки выберите задачу и проверьте результат обычного импорта.' : result.canImport ? 'Укажите год исследования для каждого файла в блоке «Источники и панели». После этого можно передать профили в загрузку. При скачивании без указанного года заполните колонку «Год» вручную.' : 'Разрешите все ошибки, неоднозначности и конфликты перед экспортом.'}</p></section></>}
+      <section className="converter-card"><label className="converter-export-toggle"><input type="checkbox" checked={hideEmptyLoci} disabled={busy} onChange={event => setHideEmptyLoci(event.target.checked)} />Скрывать пустые локусы в Excel</label><p>Скрываются только столбцы, пустые у всех объектов. При необходимости их можно показать в Excel.</p><div className="converter-actions"><button className="btn btn-primary" disabled={busy || !result.canImport} onClick={() => exportFile(false)}>Скачать нормализованный Excel</button><button className="btn btn-primary" disabled={busy || !result.canUpload} onClick={() => exportFile(true)}>Передать в загрузку профилей</button></div><p>{result.canUpload ? 'В Excel включены только генотипы. Диагностика доступна в конвертере. На странице загрузки выберите задачу и панель при необходимости, затем проверьте результат обычного импорта.' : result.canImport ? 'Укажите год исследования для каждого файла в блоке «Источники и панели». После этого можно передать профили в загрузку. При скачивании без указанного года заполните колонку «Год» вручную.' : 'Разрешите все ошибки, неоднозначности и конфликты перед экспортом.'}</p></section></>}
   </div>;
 }

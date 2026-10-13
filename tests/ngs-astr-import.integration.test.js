@@ -54,14 +54,16 @@ test('NGS: авторизация → конвертер → preview → акт�
   const draft = await preview.json(); assert.equal(draft.canImport, false);
   const options = { files: { [draft.files[0].id]: { objectNumber: `NGS-${nonce}`, objectConfirmed: true, year: 2026, panelId } }, export: { hideEmptyLoci: true } };
   const exported = await convert('export', options); assert.equal(exported.status, 200, await (exported.status !== 200 ? exported.text() : Promise.resolve('')));
+  assert.equal(decodeURIComponent(exported.headers.get('Content-Disposition').split("filename*=UTF-8''")[1]), 'NGS-2026.xlsx');
   const normalized = Buffer.from(await exported.arrayBuffer());
   const exportedBook = XLSX.read(normalized, { type: 'buffer', cellStyles: true });
+  assert.deepEqual(exportedBook.SheetNames, ['Импорт']);
   const exportedSheet = exportedBook.Sheets['Импорт'];
   const exportedHeaders = XLSX.utils.sheet_to_json(exportedSheet, { header: 1 })[0];
   assert(exportedSheet['!cols'][exportedHeaders.indexOf('DYS391')].hidden);
   assert(!exportedSheet['!cols'][exportedHeaders.indexOf('TH01')].hidden);
   const upload = async (endpoint, input = normalized) => {
-    const body = new FormData(); body.append('file', new Blob([input]), 'ngs-normalized.xlsx'); body.append('taskId', taskId); body.append('uploadTarget', 'task');
+    const body = new FormData(); body.append('file', new Blob([input]), 'ngs-normalized.xlsx'); body.append('taskId', taskId); body.append('uploadTarget', 'task'); body.append('panelId', panelId);
     const response = await fetch(`${base}/profiles${endpoint}`, { method: 'POST', headers, body });
     return { status: response.status, body: await response.json() };
   };
@@ -73,10 +75,8 @@ test('NGS: авторизация → конвертер → preview → акт�
   assert.equal(stored[0].internal_number, `NGS-${nonce}`);
   for (const locus of markers) assert.deepEqual(stored[0].str_data[locus], ['7.2', '13.2']);
   const notes = JSON.parse(stored[0].notes);
-  assert.equal(notes.ngs.sourceFormat, 'NGS_ASTR_RESULT_DETAIL');
-  const audit = notes.conversion.audit.find(entry => entry.locus === 'AC001348B');
-  assert.equal(audit.ngs.resultRows[0].qcFlag, 'Pass'); assert.equal(audit.ngs.detailRows[0].structure, 'ATCT');
-  assert.equal(audit.ngs.rawGenotype, '7.2,13.2');
+  assert.equal(notes.conversion, undefined);
+  assert.equal(notes.ngs, undefined);
 
   const DNAProfile = require('../src/models/DNAProfile');
   const identity = { importFormat: 'genetic', internalNumber: `NGS-${nonce}`, year: 2026, departmentId: department, organizationId: organization };
@@ -114,16 +114,12 @@ test('NGS: авторизация → конвертер → preview → акт�
     const saved = (await query('SELECT * FROM dna_profiles WHERE task_id=$1 AND internal_number=$2', [taskId, `NGS-real-test-${nonce}`])).rows[0];
     assert.equal(saved.panel_id, panelId); assert.equal(saved.year, 2026);
     const metadata = JSON.parse(saved.notes);
-    assert.deepEqual(metadata.conversion.sourceLoci, ready.profiles[0].sourceLoci);
+    assert.equal(metadata.conversion, undefined);
     for (const record of ngs.records) {
       assert.deepEqual(saved.str_data[record.locus] || [], ready.profiles[0].strData[record.locus]);
-      const preserved = metadata.conversion.audit.find(entry => entry.locus === record.locus).ngs;
-      assert.equal(preserved.rawGenotype, record.rawGenotype);
-      assert.deepEqual(preserved.resultRows, record.resultRows);
-      assert.deepEqual(preserved.detailRows, record.detailRows);
     }
     assert.deepEqual(saved.str_data.D19S433 || [], []);
-    assert(metadata.ngs.requiresMixtureInterpretation);
-    assert(metadata.ngs.multiAllelicLoci.includes('D18S51'));
+    assert.equal(saved.str_data.D18S51.length, 5);
+    assert.equal(metadata.ngs, undefined);
   });
 });
