@@ -256,22 +256,6 @@ class GeneticExcelConverterService {
     const book = XLSX.utils.book_new();
     const exportLoci = result.exportLoci || result.catalogLoci;
     XLSX.utils.book_append_sheet(book, XLSX.utils.aoa_to_sheet([['Объект', 'Год', ...exportLoci], ...result.profiles.map(profile => [profile.objectNumber, profile.year ?? '', ...exportLoci.map(locus => (profile.strData[locus] || []).join(','))])]), 'Импорт');
-    const auditHeaders = ['Файл', 'Лист', 'Строка', 'Объект', 'Локус', 'Исходное', 'Результат', 'Статус', 'Причина', 'Решение пользователя', 'Предложение', 'Уверенность', 'Референсные основания'];
-    const entries = new Map([...result.issues, ...result.profiles.flatMap(profile => profile.audit)].map(item => [item.id, item]));
-    const referenceColumns = item => [item.reference?.suggestedValue || '', item.reference?.confidence || '', item.reference ? JSON.stringify(item.reference).slice(0, 32000) : ''];
-    const auditRows = [...entries.values()].flatMap(item => item.variants ? item.variants.map(variant => [variant.sourceFile, variant.sourceSheet, variant.sourceRow, item.objectNumber, item.locus, variant.rawValue, item.normalizedValue, item.status, item.reason, item.userDecision ? JSON.stringify(item.userDecision) : '', ...referenceColumns(variant)]) : [[item.sourceFile || '', item.sourceSheet || '', item.sourceRow || '', item.objectNumber || '', item.locus || '', item.rawValue || '', item.normalizedValue || '', item.status, item.reason, item.userDecision ? JSON.stringify(item.userDecision) : '', ...referenceColumns(item)]]);
-    XLSX.utils.book_append_sheet(book, XLSX.utils.aoa_to_sheet([auditHeaders, ...auditRows]), 'Проверка');
-    const ngsAudit = result.profiles.flatMap(profile => profile.audit.filter(entry => entry.ngs));
-    if (ngsAudit.length) {
-      const rows = [['Файл', 'Лист', 'Строка', 'Объект', 'Исходный локус', 'Канонический локус', 'Исходный генотип', 'QC', 'Аллель Detail', 'Coverage', 'Proportion', 'Flanking SNP', 'Structure', 'Repeat Region', 'Upstream', 'Downstream', 'Решение', 'Итоговый генотип']];
-      for (const entry of ngsAudit) for (const evidence of [...entry.ngs.resultRows, ...entry.ngs.detailRows]) rows.push([
-        entry.sourceFile, evidence.sourceSheet, evidence.sourceRow, entry.objectNumber, evidence.originalLocus, entry.locus,
-        evidence.genotype || entry.ngs.rawGenotype, evidence.qcFlag, evidence.allele, evidence.coverage ?? evidence.totalCoverage,
-        evidence.proportion, evidence.flankingSnp, evidence.structure, evidence.repeatRegion, evidence.upstream, evidence.downstream,
-        entry.userDecision ? JSON.stringify(entry.userDecision) : entry.code, entry.ngs.finalGenotype || ''
-      ]);
-      XLSX.utils.book_append_sheet(book, XLSX.utils.aoa_to_sheet(rows), 'NGS QC');
-    }
     const fileDecisions = new Map();
     for (const issue of result.issues) if (['COLUMN_DECISION', 'IGNORED_ROW'].includes(issue.code)) {
       if (!fileDecisions.has(issue.fileId)) fileDecisions.set(issue.fileId, []);

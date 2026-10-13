@@ -156,7 +156,8 @@ test('Все 111 ASTR, AMEL, aliases и новые STR проходят пане
   assert.equal(result.profiles[0].detectedPanelId, panel.id);
   const buffer = converter.export(result), book = XLSX.read(buffer, { type: 'buffer' });
   assert.deepEqual(XLSX.utils.sheet_to_json(book.Sheets['Импорт'], { header: 1 })[0].slice(0, 6), ['Объект', 'Год', ...panel.lociOrder]);
-  assert(book.Sheets['NGS QC']);
+  assert.deepEqual(book.SheetNames, ['Импорт', '_DNA_META']);
+  assert.deepEqual(book.Workbook.Sheets.filter(sheet => !sheet.Hidden).map(sheet => sheet.name), ['Импорт']);
   const [parsed] = await new ExcelService().parseExcelFile(buffer, 'normalized.xlsx', { importFormat: 'genetic' });
   for (const name of extra) assert.deepEqual(parsed.strData[detector.getCanonicalLocusName(name)], ['7.2', '13.2']);
   assert.equal(parsed.metadata.conversion.detectedPanelId, panel.id);
@@ -167,6 +168,19 @@ test('Все 111 ASTR, AMEL, aliases и новые STR проходят пане
   for (const name of extra) assert(analysisLoci.includes(detector.getCanonicalLocusName(name)));
   const catalog = GenotypePanel.catalog();
   for (const name of extra) assert.equal(catalog.find(entry => entry.name === detector.getCanonicalLocusName(name)).type, name === 'SE33' ? 'OTHER' : 'STR');
+});
+
+test('NGS SEXUAL SRY с текстовым сигналом проходит экспорт и штатный импорт', async () => {
+  const converter = new GeneticExcelConverterService();
+  const files = [source([...standard, { locus: 'SRY', genotype: 'SRY', type: 'SEXUAL' }])];
+  const { result } = confirmed(converter, files);
+  assert(result.canUpload, JSON.stringify(result.issues));
+  assert.deepEqual(result.profiles[0].strData.SRY, ['SRY']);
+  const [profile] = await new ExcelService().parseExcelFile(converter.export(result), 'sry-ngs.xlsx', { importFormat: 'genetic' });
+  assert.deepEqual(profile.strData.SRY, ['SRY']);
+  const audit = profile.metadata.conversion.audit.find(entry => entry.locus === 'SRY');
+  assert.equal(audit.ngs.rawGenotype, 'SRY');
+  assert.equal(audit.ngs.detailRows[0].allele, 'SRY');
 });
 
 test('Пустой QC не означает Pass, даже при согласованных Result и Detail', () => {

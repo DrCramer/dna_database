@@ -1,5 +1,5 @@
 const { LociTypeDetector, LOCI_TYPES } = require('./lociTypeDetector');
-const { normalizeSpecialAllele, isSpecialAllele, isMissingAllele, isCertainNumericAllele, amelogeninTokens } = require('./alleleTokens');
+const { normalizeSpecialAllele, isSpecialAllele, isMissingAllele, isCertainNumericAllele, normalizeSrySignal, amelogeninTokens } = require('./alleleTokens');
 const detector = new LociTypeDetector();
 const hardStatuses = new Set(['ERROR', 'NEEDS_REVIEW', 'CONFLICT']);
 
@@ -38,6 +38,8 @@ function normalizeAlleleValue(rawValue, locus, decision) {
   let tokens = type === LOCI_TYPES.AMELOGENIN ? amelogeninTokens(value) : value.split(',');
   if (type === LOCI_TYPES.AMELOGENIN && tokens.join(',') !== value) add('AMEL', 'AUTO_FIXED', 'AMEL приведён к отдельным аллелям X/Y.');
   tokens = tokens.map(token => {
+    const sry = normalizeSrySignal(canonicalLocus, token);
+    if (sry) return sry;
     const special = normalizeSpecialAllele(token);
     if (special !== null) {
       if (special !== token) add(special === '?' ? 'OFF_LADDER' : 'SPECIAL_CANONICAL', 'AUTO_FIXED', special === '?' ? 'Off Ladder сохранён как неизвестная аллель ?.' : 'Канонизирован специальный токен.');
@@ -57,7 +59,7 @@ function normalizeAlleleValue(rawValue, locus, decision) {
       if (!explicitSingle) add('SINGLE_DIPLOID', 'NEEDS_REVIEW', 'Одиночная аллель в диплоидном локусе: подтвердите гомозиготу или неизвестную вторую аллель.', [`${allele},${allele}`, `${allele},?`]);
     }
   }
-  const knownToken = token => isSpecialAllele(token) || /^\d+(?:\.\d+)?(?:\?)?$/.test(token)
+  const knownToken = token => normalizeSrySignal(canonicalLocus, token) || isSpecialAllele(token) || /^\d+(?:\.\d+)?(?:\?)?$/.test(token)
     || (type === LOCI_TYPES.AMELOGENIN && /^[XY](?:\?)?$/.test(token))
     || (type === LOCI_TYPES.SNP && /^[ATCG]$/.test(token))
     || (type === LOCI_TYPES.INDEL && /^[+-]?\d+[ATCG]*$/.test(token));

@@ -1,4 +1,4 @@
-const { isSpecialAllele } = require('./alleleTokens');
+const { isSpecialAllele, normalizeSrySignal } = require('./alleleTokens');
 /**
  * Loci Type Detection Utility
  * Provides classification and validation for all 80 genetic loci types
@@ -259,7 +259,7 @@ class LociTypeDetector {
             case LOCI_TYPES.STR:
                 return this.validateSTRAlleles(alleles);
             case LOCI_TYPES.Y_CHROMOSOME:
-                return this.validateYChromosomeAlleles(alleles);
+                return this.validateYChromosomeAlleles(alleles, locusName);
             case LOCI_TYPES.X_CHROMOSOME:
                 return this.validateXChromosomeAlleles(alleles);
             case LOCI_TYPES.SNP:
@@ -301,7 +301,7 @@ class LociTypeDetector {
     /**
      * Validate Y-chromosome alleles
      */
-    validateYChromosomeAlleles(alleles) {
+    validateYChromosomeAlleles(alleles, locusName) {
         const result = { isValid: true, errors: [], warnings: [] };
 
         if (alleles.length > 1) {
@@ -310,7 +310,7 @@ class LociTypeDetector {
 
         for (const allele of alleles) {
             // Allow *, **, ?, F, empty values, numeric alleles, alleles with ? suffix (NO spaces allowed), and alleles with parentheses (e.g., "10(11)")
-            if (!isSpecialAllele(allele) && allele !== '' &&
+            if (!normalizeSrySignal(locusName, allele) && !isSpecialAllele(allele) && allele !== '' &&
                 !/^\d+(\?)?(\(\d+\))?$/.test(allele)) {
                 result.errors.push(`Недопустимый формат Y-хромосомного аллеля: ${allele}`);
                 result.isValid = false;

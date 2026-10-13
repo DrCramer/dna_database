@@ -59,6 +59,37 @@ test('Y-InDel заголовки распознаются, одиночные з
   for (const locus of panel.lociOrder.slice(-3)) assert.deepEqual(roundTrip[0].strData[locus], converted.profiles[0].strData[locus]);
 });
 
+test('Сигнал SRY проходит каталог, нормализацию и повторный импорт без диагностических листов', async () => {
+  for (const signal of ['SRY', ' sry ', 'SrY']) {
+    const normalized = normalize(signal, 'SRY');
+    assert.equal(normalized.hard, false);
+    assert.deepEqual(normalized.alleles, ['SRY']);
+    assert(detector.validateAlleles('SRY', [signal]).isValid);
+  }
+  assert.equal(normalize('SRY', 'TH01').hard, true);
+  assert.equal(normalize('SRY', 'DYS391').hard, true);
+  assert.equal(detector.validateAlleles('DYS391', ['SRY']).isValid, false);
+  assert.equal(normalize('SRY', 'SRY', { action: 'homozygous' }).hard, true);
+  assert.deepEqual(normalize('-', 'SRY').alleles, []);
+  assert.deepEqual(normalize('1', 'SRY').alleles, ['1']);
+  assert(GenotypePanel.catalog().some(entry => entry.name === 'SRY'));
+  const source = file([['Объект', 'TH01', 'D5S818', 'D21S11', ' sry '], ['SRY-1', ...values, 'sry']]);
+  const converted = converter.convert([source]);
+  assert(converted.canImport, JSON.stringify(converted.issues));
+  assert.deepEqual(converted.profiles[0].strData.SRY, ['SRY']);
+  const output = withImportYear(converter.export(converted));
+  const book = XLSX.read(output, { type: 'buffer' });
+  assert.deepEqual(book.SheetNames, ['Импорт', '_DNA_META']);
+  assert.deepEqual(book.Workbook.Sheets.filter(sheet => !sheet.Hidden).map(sheet => sheet.name), ['Импорт']);
+  assert(new FileValidationService().validateFile(output, 'sry.xlsx', { importFormat: 'genetic' }).valid);
+  const [profile] = await new ExcelService().parseExcelFile(output, 'sry.xlsx', { importFormat: 'genetic' });
+  assert.deepEqual(profile.strData.SRY, ['SRY']);
+  assert(profile.metadata.conversion.sourceLoci.includes('SRY'));
+  const excel = new ExcelService();
+  assert.deepEqual(excel.parseAlleleValue('sry', 'SRY', 'Y_CHROMOSOME', 2, 'emergency.xlsx'), ['SRY']);
+  assert.throws(() => excel.parseAlleleValue('other', 'SRY', 'Y_CHROMOSOME', 2, 'invalid.xlsx'), /Недопустимые значения/);
+});
+
 test('Точки и одиночные диплоидные аллели требуют явного решения', () => {
   assert.equal(normalize('11.12', 'TH01').status, 'NEEDS_REVIEW');
   assert.equal(normalize('11.12', 'TH01', { action: 'split_dot' }).normalizedValue, '11,12');
@@ -153,7 +184,7 @@ test('Roundtrip dirty → converter → ExcelService: типы, каталог, 
   const panel = { id: 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa', name: 'Source', lociOrder: ['TH01','D5S818','D21S11','AMEL','DYS392','SRY','Yindel'] };
   const result = converter.convert([input], {}, [panel]); assert.equal(result.canImport, true); assert.equal(result.profiles[0].detectedPanelId, panel.id);
   const buffer = converter.export(result), book = XLSX.read(buffer, { type: 'buffer' });
-  assert.deepEqual(book.SheetNames, ['Импорт','Проверка','_DNA_META']);
+  assert.deepEqual(book.SheetNames, ['Импорт','_DNA_META']);
   assert.deepEqual(XLSX.utils.sheet_to_json(book.Sheets['Импорт'], { header: 1 })[0], ['Объект','Год',...ALL_LOCI]);
   const importable = withImportYear(buffer);
   assert.equal(new FileValidationService().validateFile(importable, 'converted.xlsx', { importFormat: 'genetic' }).valid, true);

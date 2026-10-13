@@ -58,8 +58,8 @@ function assess(record, detailAvailable) {
     if (detailAvailable && result.some(row => tokenValues(row.genotype).some(value => !detail.some(evidence => key(evidence.originalLocus) === key(row.originalLocus) && tokenValues(evidence.allele).includes(value))))) add('NGS_RESULT_DETAIL_CONFLICT', 'Для сигнала AMEL нет подтверждения в Detail того же исходного маркера.');
   }
   for (const row of [...result, ...detail]) {
-    const expectedType = /^AMEL[XY]$/i.test(row.originalLocus) ? 'SEXUAL' : 'ASTR';
     const knownName = canonical(row.originalLocus);
+    const expectedType = /^AMEL[XY]$/i.test(row.originalLocus) || knownName === 'SRY' ? 'SEXUAL' : 'ASTR';
     if (key(row.type) === 'ASTR' && knownName && !['STR', 'OTHER'].includes(detector.detectLocusType(knownName))) add('NGS_MARKER_TYPE', `Тип ASTR не соответствует каталогу для ${row.originalLocus}.`);
     if (row.type && key(row.type) !== expectedType) add('NGS_MARKER_TYPE', `Тип ${row.type} у ${row.originalLocus} требует проверки.`);
     if (result.includes(row) && !row.type) add('NGS_MARKER_TYPE', 'В Result отсутствует тип маркера.');

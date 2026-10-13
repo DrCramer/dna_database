@@ -7,7 +7,7 @@ const { GenotypePanel } = require('../models/GenotypePanel');
 const User = require('../models/User');
 const { assertProfileUploadAllowed } = require('./profileUploadPolicy');
 const { readConversionMetadata, CONVERSION_META_SHEET } = require('../utils/geneticConversionMetadata');
-const { informativeAlleles, amelogeninTokens, normalizeSpecialAllele, isSpecialAllele, isMissingAllele } = require('../utils/alleleTokens');
+const { informativeAlleles, amelogeninTokens, normalizeSpecialAllele, normalizeSrySignal, isSpecialAllele, isMissingAllele } = require('../utils/alleleTokens');
 const { resolveProfileImportFormat, normalizeObjectName, extractExpertiseNumber, geneticObjectKey, geneticProfileKey, getGeneticHeaders, validateGeneticHeaders } = require('../utils/profileImportFormat');
 
 // Импортируем конвертер латинских символов
@@ -1663,6 +1663,13 @@ class ExcelService {
     let valueStr = cellValue.toString().replace(/\s+/g, '').trim();
 
     if (isMissingAllele(valueStr)) return [];
+    if (this.lociTypeDetector.getCanonicalLocusName(locusName) === 'SRY') {
+      const alleles = valueStr.split(/[,;/]/).map(token => normalizeSrySignal(locusName, token) || normalizeSpecialAllele(token) || token);
+      const validation = this.lociTypeDetector.validateAlleles(locusName, alleles);
+      if (!validation.isValid) throw new ExcelParsingError(`Недопустимые значения аллелей для ${locusName}.`, EXCEL_ERROR_CODES.INVALID_ALLELE_VALUE, { filename, rowNumber, locusName });
+      if (alleles.length > 1) logger.warn('Multiple alleles in SRY marker', { filename, rowNumber, locusName, alleleCount: alleles.length });
+      return alleles;
+    }
     if (locusType === 'Y_INDEL') {
       const alleles = valueStr.split(/[,;/]/).map(token => token.trim()).filter(Boolean);
       const validation = this.lociTypeDetector.validateAlleles(locusName, alleles);

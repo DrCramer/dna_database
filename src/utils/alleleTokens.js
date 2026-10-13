@@ -11,6 +11,11 @@ function isSpecialAllele(value) { return normalizeSpecialAllele(value) !== null;
 function isMissingAllele(value) { return value == null || /^[\s\-—–.]*$/.test(String(value)); }
 function isCertainNumericAllele(value) { return /^\d+(?:\.\d+)?$/.test(String(value ?? '').trim()); }
 
+// Сигнал SRY допустим только у одноимённого локуса, не у остальных Y-STR.
+function normalizeSrySignal(locus, value) {
+  return String(locus ?? '').trim().toUpperCase() === 'SRY' && String(value ?? '').trim().toUpperCase() === 'SRY' ? 'SRY' : null;
+}
+
 function alleleTokens(value) {
   if (Array.isArray(value)) return value.flatMap(alleleTokens);
   if (value && typeof value === 'object') return alleleTokens([value.allele1, value.allele2]);
@@ -27,4 +32,4 @@ function amelogeninTokens(value) {
   return normalized.split(/[,;/]/).flatMap(token => /^[XY]{1,2}$/.test(token) ? [...token] : [normalizeSpecialAllele(token) || token]).filter(Boolean);
 }
 
-module.exports = { normalizeSpecialAllele, isSpecialAllele, isMissingAllele, isCertainNumericAllele, alleleTokens, informativeAlleles, amelogeninTokens };
+module.exports = { normalizeSpecialAllele, isSpecialAllele, isMissingAllele, isCertainNumericAllele, normalizeSrySignal, alleleTokens, informativeAlleles, amelogeninTokens };
