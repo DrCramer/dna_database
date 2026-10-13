@@ -93,7 +93,7 @@ test('Синтаксические кандидаты отделены от ре
   assert.deepEqual(alleleCandidates('11.12', 'D5S818').map(candidate => candidate.value), ['11.12', '11,12']);
   for (const value of ['9.3', '31.2', '17.3', '14.2']) {
     assert.equal(alleleCandidates(value, 'TH01').length, 1);
-    assert.deepEqual(normalizeAlleleValue(value, 'TH01').alleles, [value, '?']);
+    assert.deepEqual(normalizeAlleleValue(value, 'TH01').alleles, [value]);
   }
 });
 test('Точная лестница предлагает разделить 11.12 с HIGH без замены исходного', () => {
@@ -107,7 +107,8 @@ test('Обычная пара и известная микроаллель по�
   const reference = service([set({ TH01: ['9.3', '12', '13'] })]);
   assert.equal(reference.evaluate('12,13', 'TH01', panelId).status, 'VALID_KNOWN_ALLELE');
   assert.equal(reference.evaluate('9.3', 'TH01', panelId).status, 'VALID_KNOWN_ALLELE');
-  assert(normalizeAlleleValue('9.3', 'TH01').events.some(event => event.code === 'SINGLE_DIPLOID'));
+  assert.equal(normalizeAlleleValue('9.3', 'TH01').status, 'OK');
+  assert.deepEqual(normalizeAlleleValue('9.3', 'TH01').alleles, ['9.3']);
   assert.equal(reference.evaluate('12', 'TH01', panelId).suggestedDecision, null);
 });
 test('Обе интерпретации подтверждены: обязательная ручная проверка, без предложения', () => {

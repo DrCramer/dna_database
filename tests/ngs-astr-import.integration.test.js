@@ -97,7 +97,7 @@ test('NGS: авторизация → конвертер → preview → акт�
     const settings = { files: { [initial.files[0].id]: { objectNumber: `NGS-real-test-${nonce}`, objectConfirmed: true, year: 2026, panelId } } };
     assert.equal((await convert('export', settings, headers, input)).status, 409);
     settings.cells = Object.fromEntries(ngs.records.map(record => [record.cell.id, {
-      action: record.cell.code === 'SINGLE_DIPLOID' ? 'unknown' : 'keep',
+      action: 'keep',
       reason: 'Технический тест сохранения данных; не экспертное заключение',
       timestamp: '2026-10-13T08:00:00.000Z'
     }]));
@@ -107,6 +107,14 @@ test('NGS: авторизация → конвертер → preview → акт�
     const exportResponse = await convert('export', settings, headers, input);
     assert.equal(exportResponse.status, 200);
     const output = Buffer.from(await exportResponse.arrayBuffer());
+    const outputRow = XLSX.utils.sheet_to_json(XLSX.read(output, { type: 'buffer' }).Sheets['Импорт'])[0];
+    for (const record of ngs.records) {
+      const alleles = ready.profiles[0].strData[record.locus];
+      assert.equal(outputRow[record.locus] || '', alleles.join(','));
+      if (/^\d+(?:\.\d+)?$/.test(record.rawGenotype)) {
+        assert.equal(outputRow[record.locus], record.rawGenotype);
+      }
+    }
     assert.equal((await upload('/upload/preview', output)).status, 200);
     const uploaded = await upload('/upload', output);
     assert.equal(uploaded.status, 200, JSON.stringify(uploaded.body));
@@ -116,7 +124,12 @@ test('NGS: авторизация → конвертер → preview → акт�
     const metadata = JSON.parse(saved.notes);
     assert.equal(metadata.conversion, undefined);
     for (const record of ngs.records) {
-      assert.deepEqual(saved.str_data[record.locus] || [], ready.profiles[0].strData[record.locus]);
+      const alleles = ready.profiles[0].strData[record.locus];
+      const type = detector.detectLocusType(record.locus);
+      // Штатный импорт трактует одиночный числовой диплоидный STR как гомозиготу.
+      const singleDiploid = alleles.length === 1 && /^\d+(?:\.\d+)?$/.test(alleles[0])
+        && !['Y_CHROMOSOME', 'Y_INDEL', 'AMELOGENIN'].includes(type) && record.locus !== 'Yindel';
+      assert.deepEqual(saved.str_data[record.locus] || [], singleDiploid ? [alleles[0], alleles[0]] : alleles);
     }
     assert.deepEqual(saved.str_data.D19S433 || [], []);
     assert.equal(saved.str_data.D18S51.length, 5);

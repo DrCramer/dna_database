@@ -52,13 +52,7 @@ function normalizeAlleleValue(rawValue, locus, decision) {
   });
   const ambiguousDot = !haploid && type !== LOCI_TYPES.AMELOGENIN && tokens.length === 1 && /^\d+\.\d{2,}$/.test(tokens[0]);
   if (ambiguousDot && !explicitSingle) add('AMBIGUOUS_DOT', 'NEEDS_REVIEW', 'Возможно, точка использована как разделитель аллелей.', [tokens[0].replace('.', ','), tokens[0]]);
-  if (tokens.length === 1 && isCertainNumericAllele(tokens[0]) && !haploid && type !== LOCI_TYPES.AMELOGENIN) {
-    if (!ambiguousDot || explicitSingle) {
-      const allele = tokens[0];
-      tokens = [allele, '?'];
-      if (!explicitSingle) add('SINGLE_DIPLOID', 'NEEDS_REVIEW', 'Одиночная аллель в диплоидном локусе: подтвердите гомозиготу или неизвестную вторую аллель.', [`${allele},${allele}`, `${allele},?`]);
-    }
-  }
+  // Сохраняем исходное число аллелей; вторую добавляет только явное решение пользователя.
   const knownToken = token => normalizeSrySignal(canonicalLocus, token) || isSpecialAllele(token) || /^\d+(?:\.\d+)?(?:\?)?$/.test(token)
     || (type === LOCI_TYPES.AMELOGENIN && /^[XY](?:\?)?$/.test(token))
     || (type === LOCI_TYPES.SNP && /^[ATCG]$/.test(token))

@@ -132,11 +132,16 @@ test('Экспорт скрывает только локусы, пустые у
   assert.throws(() => converter.export(result, { hideEmptyLoci: 'true' }), /настройки скрытия/);
 });
 
-test('Точки и одиночные диплоидные аллели требуют явного решения', () => {
+test('Неоднозначные точки требуют решения, одиночные аллели сохраняются как в исходнике', () => {
   assert.equal(normalize('11.12', 'TH01').status, 'NEEDS_REVIEW');
   assert.equal(normalize('11.12', 'TH01', { action: 'split_dot' }).normalizedValue, '11,12');
-  assert.equal(normalize('11.12', 'TH01', { action: 'keep' }).normalizedValue, '11.12,?');
-  const single = normalize('12', 'TH01'); assert.equal(single.status, 'NEEDS_REVIEW'); assert.equal(single.normalizedValue, '12,?');
+  assert.equal(normalize('11.12', 'TH01', { action: 'keep' }).normalizedValue, '11.12');
+  for (const raw of ['12', '9.3', '12,12', '9.3,9.3']) {
+    const normalized = normalize(raw, 'TH01');
+    assert.equal(normalized.status, 'OK');
+    assert.equal(normalized.hard, false);
+    assert.equal(normalized.normalizedValue, raw);
+  }
   assert.equal(normalize('12', 'TH01', { action: 'homozygous' }).normalizedValue, '12,12');
   assert.equal(normalize('12', 'TH01', { action: 'unknown' }).normalizedValue, '12,?');
   assert.equal(normalize('12', 'DYS392', { action: 'homozygous' }).hard, true);
@@ -150,6 +155,32 @@ test('Спецтокены, Off Ladder, неизвестные слова и м�
   assert.equal(normalize('**', 'TH01').normalizedValue, '*');
   for (const raw of ['ABC','ERROR','xxx']) { assert.equal(normalize(raw, 'TH01').status, 'ERROR'); assert.equal(normalize(raw, 'TH01', { action: 'missing' }).normalizedValue, ''); assert.equal(normalize(raw, 'TH01', { action: 'unknown' }).normalizedValue, '?'); }
   const mixture = normalize('17.3,15,16', 'TH01'); assert.equal(mixture.status, 'WARNING'); assert.deepEqual(mixture.alleles, ['17.3','15','16']);
+});
+
+test('Legacy XLSX сохраняет исходные одиночные значения и гомозиготы без добавления ?', async () => {
+  const rawValues = [12, '9.3', '12,12', '9.3,9.3', '12/12', '12;12', '12,?'];
+  const expected = ['12', '9.3', '12,12', '9.3,9.3', '12,12', '12,12', '12,?'];
+  const input = file([headers, ...rawValues.map((value, index) => [`A-${index + 1}`, value, '11,12', '29,30'])]);
+  const original = Buffer.from(input.buffer);
+  const draft = converter.convert([input]);
+  const result = converter.convert([input], { files: { [draft.files[0].id]: { year: 2026 } } });
+  assert(result.canUpload, JSON.stringify(result.issues));
+  for (const hideEmptyLoci of [false, true]) {
+    const output = converter.export(result, { hideEmptyLoci });
+    const book = XLSX.read(output, { type: 'buffer', cellStyles: true });
+    assert.deepEqual(book.SheetNames, ['Импорт']);
+    const sheet = book.Sheets['Импорт'];
+    const rows = XLSX.utils.sheet_to_json(sheet);
+    assert.deepEqual(rows.map(row => row.TH01), expected);
+    const column = XLSX.utils.sheet_to_json(sheet, { header: 1 })[0].indexOf('TH01');
+    assert(!sheet['!cols'][column].hidden);
+    const imported = await new ExcelService().parseExcelFile(output, 'homozygotes.xlsx', { importFormat: 'genetic' });
+    // Обычный импорт использует гомозиготную пару для одиночного числового STR.
+    assert.deepEqual(imported.map(profile => profile.strData.TH01), [
+      ['12', '12'], ['9.3', '9.3'], ['12', '12'], ['9.3', '9.3'], ['12', '12'], ['12', '12'], ['12', '?']
+    ]);
+  }
+  assert.deepEqual(input.buffer, original);
 });
 
 for (const [name, rows, object] of [
@@ -214,10 +245,10 @@ test('Слияние по полному номеру, заполнение сп
 });
 
 test('Ручные решения, массовое правило, исправление объекта и исключение строки', () => {
-  const old = file([headers, ['A-1','12','11,12','29,30'], ['A-2','12','11,12','29,30'], ['',...values]]);
-  let result = converter.convert([old]); const issue = result.issues.find(i => i.code === 'SINGLE_DIPLOID'); const invalid = result.issues.find(i => i.code === 'INVALID_OBJECT');
-  const options = { rules: [{ fileId: issue.fileId, code: issue.code, rawValue: '12', locusType: 'STR', decision: { action: 'unknown' } }], objects: { [invalid.id]: 'A-3' } };
-  result = converter.convert([old], options); assert.equal(result.canImport, true); assert.equal(result.profiles.length, 3); assert.equal(result.profiles[1].strData.TH01.join(','), '12,?');
+  const old = file([headers, ['A-1','11.12','11,12','29,30'], ['A-2','11.12','11,12','29,30'], ['',...values]]);
+  let result = converter.convert([old]); const issue = result.issues.find(i => i.code === 'AMBIGUOUS_DOT'); const invalid = result.issues.find(i => i.code === 'INVALID_OBJECT');
+  const options = { rules: [{ fileId: issue.fileId, code: issue.code, rawValue: '11.12', locusType: 'STR', decision: { action: 'split_dot' } }], objects: { [invalid.id]: 'A-3' } };
+  result = converter.convert([old], options); assert.equal(result.canImport, true); assert.equal(result.profiles.length, 3); assert.equal(result.profiles[1].strData.TH01.join(','), '11,12');
   result = converter.convert([old], { ...options, rows: { [invalid.id.replace(/:object$/, '')]: { ignore: true } } }); assert.equal(result.profiles.length, 2); assert(result.issues.some(i => i.code === 'IGNORED_ROW'));
 });
 

@@ -109,14 +109,37 @@ test('Смесь не обрезается; два Pass — только пре�
   assert(audit.ngs.qc.issues.some(issue => issue.code === 'NGS_QC_WARNING'));
 });
 
-test('Одиночная диплоидная аллель требует гомозиготу либо неизвестную вторую', () => {
+test('NGS сохраняет одиночную аллель и исходную гомозиготную пару в XLSX', () => {
   const converter = new GeneticExcelConverterService(), files = [source([...standard, { locus: 'D10S1435', genotype: '12' }])];
   const { options, result } = confirmed(converter, files);
-  assert(!result.canImport); assert(result.issues.some(issue => issue.code === 'SINGLE_DIPLOID'));
+  assert(result.canUpload, JSON.stringify(result.issues));
+  assert.deepEqual(result.profiles[0].strData.D10S1435, ['12']);
+  assert.equal(record(result, 'D10S1435').rawGenotype, '12');
+  const sheet = XLSX.read(converter.export(result), { type: 'buffer' }).Sheets['Импорт'];
+  assert.equal(XLSX.utils.sheet_to_json(sheet)[0].D10S1435, '12');
+  const pair = confirmed(converter, [source([...standard, { locus: 'D10S1435', genotype: '12,12' }])]).result;
+  assert(pair.canUpload, JSON.stringify(pair.issues));
+  assert.deepEqual(pair.profiles[0].strData.D10S1435, ['12', '12']);
+  assert.equal(XLSX.utils.sheet_to_json(XLSX.read(converter.export(pair), { type: 'buffer' }).Sheets['Импорт'])[0].D10S1435, '12,12');
   const homo = decide(converter, files, options, result, 'D10S1435', { action: 'homozygous' });
   assert(homo.canImport); assert.deepEqual(homo.profiles[0].strData.D10S1435, ['12', '12']);
   const unknown = decide(converter, files, options, result, 'D10S1435', { action: 'unknown' });
   assert(unknown.canImport); assert.deepEqual(unknown.profiles[0].strData.D10S1435, ['12', '?']);
+});
+
+test('NGS: одиночное значение сохраняется, но сомнительный QC требует подтверждения', () => {
+  for (const qc of ['Low Coverage', 'Imbalance', '']) {
+    const converter = new GeneticExcelConverterService();
+    const files = [source([...standard, { locus: 'D10S1435', genotype: '12', qc }])];
+    const { options, result } = confirmed(converter, files);
+    assert.equal(result.canImport, false, qc);
+    assert.deepEqual(result.profiles[0].strData.D10S1435, ['12']);
+    assert(record(result, 'D10S1435').cell.hard);
+    const kept = decide(converter, files, options, result, 'D10S1435', { action: 'keep' });
+    assert(kept.canUpload, JSON.stringify(kept.issues));
+    assert.deepEqual(kept.profiles[0].strData.D10S1435, ['12']);
+    assert.equal(XLSX.utils.sheet_to_json(XLSX.read(converter.export(kept), { type: 'buffer' }).Sheets['Импорт'])[0].D10S1435, '12');
+  }
 });
 
 test('Stutter, неизвестный QC, Failed с genotype, различия Result/Detail требуют проверки', () => {
