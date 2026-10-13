@@ -1,3 +1,4 @@
+const { multisetIntersection } = require('../utils/alleleComparison');
 const { informativeAlleles, isSpecialAllele } = require('../utils/alleleTokens');
 /**
  * Алгоритм выявления контаминации сотрудников через анализ STR-профилей
@@ -92,20 +93,7 @@ class StaffContaminationAnalyzer {
      * @param {string[]} arr2 - второй массив
      * @returns {string[]} - массив совпадающих элементов
      */
-    intersect(arr1, arr2) {
-        const result = [];
-        const arr2Copy = [...arr2]; // Копия для отслеживания использованных элементов
-        
-        for (const value of arr1) {
-            const index = arr2Copy.indexOf(value);
-            if (index !== -1) {
-                result.push(value);
-                arr2Copy.splice(index, 1); // Удаляем использованный элемент
-            }
-        }
-        
-        return result;
-    }
+    intersect(arr1, arr2) { return multisetIntersection(arr1, arr2); }
 
     /**
      * Вычисляет разность двух массивов с учетом количества повторений
@@ -384,7 +372,7 @@ class StaffContaminationAnalyzer {
      * @returns {Object} Результаты анализа
      */
     analyzeV50(sampleData, staffData, staffProfile, allLoci, customParams = {}) {
-        const { calculateContaminationScoreV5 } = require('../utils/contaminationAlgorithmV5');
+        const { calculateContaminationScoreV5 } = require('../utils/contaminationAlgorithm');
         
         // Преобразуем данные в формат для v5.0
         const sampleProfile = {};

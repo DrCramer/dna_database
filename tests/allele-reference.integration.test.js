@@ -93,7 +93,7 @@ test('Референсы: реальные PostgreSQL, права, версии,
     const form = new FormData(); form.append('files', new Blob([workbook(value)]), 'fixture.xlsx'); form.append('options', JSON.stringify(options));
     return fetch(`${base}/api/genetic-excel-converter/${operation}`, { method: 'POST', headers: { Authorization: `Bearer ${analyst.token}`, 'X-Active-Department-Id': dept }, body: form });
   }
-  let auditSnapshot, normalized;
+  let auditSnapshot, normalized, decisionSnapshot;
   await t.test('100 файлов используют пакетную загрузку референсов и частот без SQL на каждую аллель', async () => {
     const form = new FormData();
     for (let index = 0; index < 100; index++) form.append('files', new Blob([workbook('11.12', `BATCH-${index + 1}`)]), `batch-${index + 1}.xlsx`);
@@ -108,20 +108,26 @@ test('Референсы: реальные PostgreSQL, права, версии,
     assert(queryCount < 30, `Запросов к БД: ${queryCount}`);
     assert.equal((await query("SELECT count(*)::int AS count FROM dna_profiles WHERE internal_number LIKE 'BATCH-%'")).rows[0].count, 0);
   });
-  await t.test('Сильное предложение требует подтверждения, экспорт сохраняет снимок и обычный импорт', async () => {
+  await t.test('Сильное предложение требует подтверждения; Excel без метаданных импортируется с явной панелью', async () => {
     for (const invalidOptions of [null, [], 'invalid']) assert.equal((await convert('preview', invalidOptions)).status, 400);
     const preview = await convert('preview'); assert.equal(preview.status, 200); const dirty = await preview.json(); assert.equal(dirty.canImport, false);
     const issue = dirty.issues.find(item => item.code === 'AMBIGUOUS_DOT'); assert.equal(issue.reference.suggestedValue, '11,12'); assert.equal(issue.reference.confidence, 'HIGH');
     assert.deepEqual(dirty.profiles[0].strData.D5S818, ['11.12']); assert.equal((await convert('export')).status, 409);
-    const exported = await convert('export', { cells: { [issue.id]: issue.reference.suggestedDecision }, files: { [dirty.files[0].id]: { year: '2024' } } }); assert.equal(exported.status, 200); normalized = Buffer.from(await exported.arrayBuffer());
-    const form = new FormData(); form.append('file', new Blob([normalized]), 'reference-normalized.xlsx'); form.append('uploadTarget', 'without_task');
+    const settings = { cells: { [issue.id]: issue.reference.suggestedDecision }, files: { [dirty.files[0].id]: { year: '2024' } } };
+    const accepted = await (await convert('preview', settings)).json();
+    decisionSnapshot = accepted.profiles[0].audit.find(item => item.locus === 'D5S818').reference;
+    assert.equal(decisionSnapshot.candidates[1].evidence[0].referenceSetId, referenceId);
+    assert.equal(decisionSnapshot.decision.action, 'split_dot');
+    const exported = await convert('export', settings); assert.equal(exported.status, 200); normalized = Buffer.from(await exported.arrayBuffer());
+    assert.deepEqual(XLSX.read(normalized, { type: 'buffer' }).SheetNames, ['Импорт']);
+    const form = new FormData(); form.append('file', new Blob([normalized]), 'reference-normalized.xlsx'); form.append('uploadTarget', 'without_task'); form.append('panelId', panelId);
     const imported = await fetch(`${base}/api/profiles/upload`, { method: 'POST', headers: { Authorization: `Bearer ${analyst.token}`, 'X-Active-Department-Id': dept }, body: form });
     assert.equal(imported.status, 200, JSON.stringify(await imported.json()));
     const row = (await query("SELECT id FROM dna_profiles WHERE internal_number='REFERENCE-1' AND user_id=$1", [analyst.id])).rows[0];
     const profile = await DNAProfile.findById(row.id); assert.deepEqual(profile.strData.D5S818, ['11', '12']); assert.equal(profile.panelId, panelId);
     const stored = (await query('SELECT notes FROM dna_profiles WHERE id=$1', [row.id])).rows[0].notes;
     auditSnapshot = typeof stored === 'string' ? JSON.parse(stored) : stored;
-    const audit = auditSnapshot.conversion.audit.find(item => item.locus === 'D5S818'); assert.equal(audit.reference.candidates[1].evidence[0].referenceSetId, referenceId); assert.equal(audit.reference.decision.action, 'split_dot');
+    assert.equal(auditSnapshot.conversion, undefined);
   });
   await t.test('Новая версия, diff, деактивация и кэш не переписывают историческое решение', async () => {
     const next = await call(endpoint, 'POST', { ...definition, sourceVersion: 'fixture-2', previousSetId: referenceId, content: definition.content + '\nSynthetic fixture,D5S818,11.12,IN_LADDER' }); assert.equal(next.status, 201);
@@ -135,7 +141,9 @@ test('Референсы: реальные PostgreSQL, права, версии,
     const disabled = await convert('preview', { reference: { referenceSetId: referenceId } }); assert.equal(disabled.status, 404);
     const refreshed = await (await convert('preview')).json(); assert.equal(refreshed.files[0].reference.referenceSetId, nextId);
     const { ExcelService } = require('../src/services/excelService'); const parsed = await new ExcelService().parseExcelFile(normalized, 'reference-normalized.xlsx', { importFormat: 'genetic' });
-    assert.equal(parsed[0].metadata.conversion.audit.find(item => item.locus === 'D5S818').reference.candidates[1].evidence[0].referenceVersion, 'fixture-1');
+    assert.equal(parsed[0].metadata.conversion, undefined);
+    assert.deepEqual(parsed[0].strData.D5S818, ['11', '12']);
+    assert.equal(decisionSnapshot.candidates[1].evidence[0].referenceVersion, 'fixture-1');
     const stored = (await query("SELECT notes FROM dna_profiles WHERE internal_number='REFERENCE-1' AND user_id=$1", [analyst.id])).rows[0].notes;
     assert.deepEqual(typeof stored === 'string' ? JSON.parse(stored) : stored, auditSnapshot);
     await query("UPDATE population_data SET frequency=0.3,updated_at=CURRENT_TIMESTAMP WHERE population_id='reference_fixture' AND allele='11'");

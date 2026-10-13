@@ -7,7 +7,7 @@ import {
   AccessDeniedState,
   ExpertGroupsFeaturePage,
   ProfilesFeaturePage
-} from './LegacyRouteHelpers';
+} from './RouteHelpers';
 
 export const ProfilesPage = ({ onNavigate }) => {
   const { hasRole } = useAuth();

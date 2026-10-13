@@ -1,3 +1,4 @@
+const { setIntersection } = require('../utils/alleleComparison');
 /**
  * Сервис для анализа контаминации с профилями сотрудников
  * Обеспечивает связь между образцами и профилями сотрудников для выявления контаминации
@@ -220,7 +221,7 @@ class StaffContaminationService {
         const set2 = new Set(alleles2);
         
         // Находим пересечение
-        const intersection = new Set([...set1].filter(x => set2.has(x)));
+        const intersection = setIntersection(set1, set2);
         const matchingAlleles = intersection.size;
         
         // Определяем тип совпадения

@@ -1,7 +1,7 @@
 const test = require('node:test');
 const assert = require('node:assert/strict');
 const ContaminationDetector = require('../src/services/bayesian/ContaminationDetector');
-const { compareLocusV5, calculateContaminationScoreV5 } = require('../src/utils/contaminationAlgorithmV5');
+const { compareLocusV5, calculateContaminationScoreV5 } = require('../src/utils/contaminationAlgorithm');
 const { profile, population, parameters, close } = require('./fixtures/math-profiles');
 const detector = () => new ContaminationDetector(null, parameters());
 

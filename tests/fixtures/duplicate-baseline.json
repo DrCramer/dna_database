@@ -1,0 +1,2440 @@
+{
+  "sourceRevision": "71dcbf7",
+  "synthetic": true,
+  "cases": [
+    {
+      "name": "homozygote-0",
+      "a": {
+        "TH01": [
+          "12",
+          "12"
+        ]
+      },
+      "b": {
+        "TH01": [
+          "12",
+          "12"
+        ]
+      },
+      "options": {},
+      "plain": {
+        "totalScore": 1,
+        "comparedLociCount": 1,
+        "maxPossibleScore": 1,
+        "matchPercentage": "100.0",
+        "details": {
+          "TH01": {
+            "score": 1,
+            "weightedScore": 1,
+            "status": "match",
+            "valA": [
+              "12",
+              "12"
+            ],
+            "valB": [
+              "12",
+              "12"
+            ],
+            "allelesA": [
+              "12"
+            ],
+            "allelesB": [
+              "12"
+            ]
+          }
+        }
+      },
+      "fast": {
+        "totalScore": 0,
+        "comparedLociCount": 0,
+        "maxPossibleScore": 0,
+        "matchPercentage": 0,
+        "details": {},
+        "earlyExit": true
+      },
+      "object": {
+        "score": 1,
+        "status": "match"
+      },
+      "decisions": [
+        {
+          "threshold": {},
+          "plain": false,
+          "fast": false
+        },
+        {
+          "threshold": {
+            "minScore": 1,
+            "minPercentage": 80,
+            "minLoci": 1
+          },
+          "plain": true,
+          "fast": false
+        }
+      ]
+    },
+    {
+      "name": "homozygote-1",
+      "a": {
+        "TH01": [
+          "12",
+          "12"
+        ]
+      },
+      "b": {
+        "TH01": [
+          "12",
+          "12"
+        ]
+      },
+      "options": {
+        "locusWeights": {
+          "TH01": 2.5,
+          "D5S818": 0.5
+        },
+        "ignoredLoci": [
+          "D21S11"
+        ],
+        "thresholds": {
+          "minScore": 1,
+          "minPercentage": 60,
+          "minLoci": 1
+        }
+      },
+      "plain": {
+        "totalScore": 2.5,
+        "comparedLociCount": 1,
+        "maxPossibleScore": 2.5,
+        "matchPercentage": "100.0",
+        "details": {
+          "TH01": {
+            "score": 1,
+            "weightedScore": 2.5,
+            "status": "match",
+            "valA": [
+              "12",
+              "12"
+            ],
+            "valB": [
+              "12",
+              "12"
+            ],
+            "allelesA": [
+              "12"
+            ],
+            "allelesB": [
+              "12"
+            ]
+          }
+        }
+      },
+      "fast": {
+        "totalScore": 2.5,
+        "comparedLociCount": 1,
+        "maxPossibleScore": 2.5,
+        "matchPercentage": "100.0",
+        "details": {
+          "TH01": {
+            "score": 1,
+            "weightedScore": 2.5,
+            "status": "match",
+            "valA": [
+              "12",
+              "12"
+            ],
+            "valB": [
+              "12",
+              "12"
+            ],
+            "allelesA": [
+              "12",
+              "12"
+            ],
+            "allelesB": [
+              "12",
+              "12"
+            ]
+          }
+        },
+        "earlyExit": false
+      },
+      "object": {
+        "score": 1,
+        "status": "match"
+      },
+      "decisions": [
+        {
+          "threshold": {},
+          "plain": false,
+          "fast": false
+        },
+        {
+          "threshold": {
+            "minScore": 1,
+            "minPercentage": 80,
+            "minLoci": 1
+          },
+          "plain": true,
+          "fast": true
+        }
+      ]
+    },
+    {
+      "name": "heterozygote-0",
+      "a": {
+        "TH01": [
+          "12",
+          "13"
+        ]
+      },
+      "b": {
+        "TH01": [
+          "13",
+          "12"
+        ]
+      },
+      "options": {},
+      "plain": {
+        "totalScore": 1,
+        "comparedLociCount": 1,
+        "maxPossibleScore": 1,
+        "matchPercentage": "100.0",
+        "details": {
+          "TH01": {
+            "score": 1,
+            "weightedScore": 1,
+            "status": "match",
+            "valA": [
+              "12",
+              "13"
+            ],
+            "valB": [
+              "13",
+              "12"
+            ],
+            "allelesA": [
+              "12",
+              "13"
+            ],
+            "allelesB": [
+              "13",
+              "12"
+            ]
+          }
+        }
+      },
+      "fast": {
+        "totalScore": 0,
+        "comparedLociCount": 0,
+        "maxPossibleScore": 0,
+        "matchPercentage": 0,
+        "details": {},
+        "earlyExit": true
+      },
+      "object": {
+        "score": 1,
+        "status": "match"
+      },
+      "decisions": [
+        {
+          "threshold": {},
+          "plain": false,
+          "fast": false
+        },
+        {
+          "threshold": {
+            "minScore": 1,
+            "minPercentage": 80,
+            "minLoci": 1
+          },
+          "plain": true,
+          "fast": false
+        }
+      ]
+    },
+    {
+      "name": "heterozygote-1",
+      "a": {
+        "TH01": [
+          "12",
+          "13"
+        ]
+      },
+      "b": {
+        "TH01": [
+          "13",
+          "12"
+        ]
+      },
+      "options": {
+        "locusWeights": {
+          "TH01": 2.5,
+          "D5S818": 0.5
+        },
+        "ignoredLoci": [
+          "D21S11"
+        ],
+        "thresholds": {
+          "minScore": 1,
+          "minPercentage": 60,
+          "minLoci": 1
+        }
+      },
+      "plain": {
+        "totalScore": 2.5,
+        "comparedLociCount": 1,
+        "maxPossibleScore": 2.5,
+        "matchPercentage": "100.0",
+        "details": {
+          "TH01": {
+            "score": 1,
+            "weightedScore": 2.5,
+            "status": "match",
+            "valA": [
+              "12",
+              "13"
+            ],
+            "valB": [
+              "13",
+              "12"
+            ],
+            "allelesA": [
+              "12",
+              "13"
+            ],
+            "allelesB": [
+              "13",
+              "12"
+            ]
+          }
+        }
+      },
+      "fast": {
+        "totalScore": 2.5,
+        "comparedLociCount": 1,
+        "maxPossibleScore": 2.5,
+        "matchPercentage": "100.0",
+        "details": {
+          "TH01": {
+            "score": 1,
+            "weightedScore": 2.5,
+            "status": "match",
+            "valA": [
+              "12",
+              "13"
+            ],
+            "valB": [
+              "13",
+              "12"
+            ],
+            "allelesA": [
+              "12",
+              "13"
+            ],
+            "allelesB": [
+              "13",
+              "12"
+            ]
+          }
+        },
+        "earlyExit": false
+      },
+      "object": {
+        "score": 1,
+        "status": "match"
+      },
+      "decisions": [
+        {
+          "threshold": {},
+          "plain": false,
+          "fast": false
+        },
+        {
+          "threshold": {
+            "minScore": 1,
+            "minPercentage": 80,
+            "minLoci": 1
+          },
+          "plain": true,
+          "fast": true
+        }
+      ]
+    },
+    {
+      "name": "dropout-0",
+      "a": {
+        "TH01": [
+          "12"
+        ]
+      },
+      "b": {
+        "TH01": [
+          "12",
+          "13"
+        ]
+      },
+      "options": {},
+      "plain": {
+        "totalScore": 0.6,
+        "comparedLociCount": 1,
+        "maxPossibleScore": 1,
+        "matchPercentage": "60.0",
+        "details": {
+          "TH01": {
+            "score": 0.6,
+            "weightedScore": 0.6,
+            "status": "dropout",
+            "valA": [
+              "12"
+            ],
+            "valB": [
+              "12",
+              "13"
+            ],
+            "allelesA": [
+              "12"
+            ],
+            "allelesB": [
+              "12",
+              "13"
+            ]
+          }
+        }
+      },
+      "fast": {
+        "totalScore": 0,
+        "comparedLociCount": 0,
+        "maxPossibleScore": 0,
+        "matchPercentage": 0,
+        "details": {},
+        "earlyExit": true
+      },
+      "object": {
+        "score": 0.6,
+        "status": "dropout"
+      },
+      "decisions": [
+        {
+          "threshold": {},
+          "plain": false,
+          "fast": false
+        },
+        {
+          "threshold": {
+            "minScore": 1,
+            "minPercentage": 80,
+            "minLoci": 1
+          },
+          "plain": false,
+          "fast": false
+        }
+      ]
+    },
+    {
+      "name": "dropout-1",
+      "a": {
+        "TH01": [
+          "12"
+        ]
+      },
+      "b": {
+        "TH01": [
+          "12",
+          "13"
+        ]
+      },
+      "options": {
+        "locusWeights": {
+          "TH01": 2.5,
+          "D5S818": 0.5
+        },
+        "ignoredLoci": [
+          "D21S11"
+        ],
+        "thresholds": {
+          "minScore": 1,
+          "minPercentage": 60,
+          "minLoci": 1
+        }
+      },
+      "plain": {
+        "totalScore": 1.5,
+        "comparedLociCount": 1,
+        "maxPossibleScore": 2.5,
+        "matchPercentage": "60.0",
+        "details": {
+          "TH01": {
+            "score": 0.6,
+            "weightedScore": 1.5,
+            "status": "dropout",
+            "valA": [
+              "12"
+            ],
+            "valB": [
+              "12",
+              "13"
+            ],
+            "allelesA": [
+              "12"
+            ],
+            "allelesB": [
+              "12",
+              "13"
+            ]
+          }
+        }
+      },
+      "fast": {
+        "totalScore": 1.5,
+        "comparedLociCount": 1,
+        "maxPossibleScore": 2.5,
+        "matchPercentage": "60.0",
+        "details": {
+          "TH01": {
+            "score": 0.6,
+            "weightedScore": 1.5,
+            "status": "dropout",
+            "valA": [
+              "12"
+            ],
+            "valB": [
+              "12",
+              "13"
+            ],
+            "allelesA": [
+              "12"
+            ],
+            "allelesB": [
+              "12",
+              "13"
+            ]
+          }
+        },
+        "earlyExit": false
+      },
+      "object": {
+        "score": 0.6,
+        "status": "dropout"
+      },
+      "decisions": [
+        {
+          "threshold": {},
+          "plain": false,
+          "fast": false
+        },
+        {
+          "threshold": {
+            "minScore": 1,
+            "minPercentage": 80,
+            "minLoci": 1
+          },
+          "plain": false,
+          "fast": true
+        }
+      ]
+    },
+    {
+      "name": "reverse-dropout-0",
+      "a": {
+        "TH01": [
+          "12",
+          "13"
+        ]
+      },
+      "b": {
+        "TH01": [
+          "12"
+        ]
+      },
+      "options": {},
+      "plain": {
+        "totalScore": 0.6,
+        "comparedLociCount": 1,
+        "maxPossibleScore": 1,
+        "matchPercentage": "60.0",
+        "details": {
+          "TH01": {
+            "score": 0.6,
+            "weightedScore": 0.6,
+            "status": "dropout",
+            "valA": [
+              "12",
+              "13"
+            ],
+            "valB": [
+              "12"
+            ],
+            "allelesA": [
+              "12",
+              "13"
+            ],
+            "allelesB": [
+              "12"
+            ]
+          }
+        }
+      },
+      "fast": {
+        "totalScore": 0,
+        "comparedLociCount": 0,
+        "maxPossibleScore": 0,
+        "matchPercentage": 0,
+        "details": {},
+        "earlyExit": true
+      },
+      "object": {
+        "score": -0.5,
+        "status": "partial"
+      },
+      "decisions": [
+        {
+          "threshold": {},
+          "plain": false,
+          "fast": false
+        },
+        {
+          "threshold": {
+            "minScore": 1,
+            "minPercentage": 80,
+            "minLoci": 1
+          },
+          "plain": false,
+          "fast": false
+        }
+      ]
+    },
+    {
+      "name": "reverse-dropout-1",
+      "a": {
+        "TH01": [
+          "12",
+          "13"
+        ]
+      },
+      "b": {
+        "TH01": [
+          "12"
+        ]
+      },
+      "options": {
+        "locusWeights": {
+          "TH01": 2.5,
+          "D5S818": 0.5
+        },
+        "ignoredLoci": [
+          "D21S11"
+        ],
+        "thresholds": {
+          "minScore": 1,
+          "minPercentage": 60,
+          "minLoci": 1
+        }
+      },
+      "plain": {
+        "totalScore": 1.5,
+        "comparedLociCount": 1,
+        "maxPossibleScore": 2.5,
+        "matchPercentage": "60.0",
+        "details": {
+          "TH01": {
+            "score": 0.6,
+            "weightedScore": 1.5,
+            "status": "dropout",
+            "valA": [
+              "12",
+              "13"
+            ],
+            "valB": [
+              "12"
+            ],
+            "allelesA": [
+              "12",
+              "13"
+            ],
+            "allelesB": [
+              "12"
+            ]
+          }
+        }
+      },
+      "fast": {
+        "totalScore": -1.25,
+        "comparedLociCount": 1,
+        "maxPossibleScore": 2.5,
+        "matchPercentage": "0.0",
+        "details": {
+          "TH01": {
+            "score": -0.5,
+            "weightedScore": -1.25,
+            "status": "partial",
+            "valA": [
+              "12",
+              "13"
+            ],
+            "valB": [
+              "12"
+            ],
+            "allelesA": [
+              "12",
+              "13"
+            ],
+            "allelesB": [
+              "12"
+            ]
+          }
+        },
+        "earlyExit": false
+      },
+      "object": {
+        "score": -0.5,
+        "status": "partial"
+      },
+      "decisions": [
+        {
+          "threshold": {},
+          "plain": false,
+          "fast": false
+        },
+        {
+          "threshold": {
+            "minScore": 1,
+            "minPercentage": 80,
+            "minLoci": 1
+          },
+          "plain": false,
+          "fast": false
+        }
+      ]
+    },
+    {
+      "name": "mixture-0",
+      "a": {
+        "TH01": [
+          "12",
+          "13"
+        ]
+      },
+      "b": {
+        "TH01": [
+          "12",
+          "13",
+          "14"
+        ]
+      },
+      "options": {},
+      "plain": {
+        "totalScore": 0.8,
+        "comparedLociCount": 1,
+        "maxPossibleScore": 1,
+        "matchPercentage": "80.0",
+        "details": {
+          "TH01": {
+            "score": 0.8,
+            "weightedScore": 0.8,
+            "status": "contamination",
+            "valA": [
+              "12",
+              "13"
+            ],
+            "valB": [
+              "12",
+              "13",
+              "14"
+            ],
+            "allelesA": [
+              "12",
+              "13"
+            ],
+            "allelesB": [
+              "12",
+              "13",
+              "14"
+            ]
+          }
+        }
+      },
+      "fast": {
+        "totalScore": 0,
+        "comparedLociCount": 0,
+        "maxPossibleScore": 0,
+        "matchPercentage": 0,
+        "details": {},
+        "earlyExit": true
+      },
+      "object": {
+        "score": 0.8,
+        "status": "contamination"
+      },
+      "decisions": [
+        {
+          "threshold": {},
+          "plain": false,
+          "fast": false
+        },
+        {
+          "threshold": {
+            "minScore": 1,
+            "minPercentage": 80,
+            "minLoci": 1
+          },
+          "plain": false,
+          "fast": false
+        }
+      ]
+    },
+    {
+      "name": "mixture-1",
+      "a": {
+        "TH01": [
+          "12",
+          "13"
+        ]
+      },
+      "b": {
+        "TH01": [
+          "12",
+          "13",
+          "14"
+        ]
+      },
+      "options": {
+        "locusWeights": {
+          "TH01": 2.5,
+          "D5S818": 0.5
+        },
+        "ignoredLoci": [
+          "D21S11"
+        ],
+        "thresholds": {
+          "minScore": 1,
+          "minPercentage": 60,
+          "minLoci": 1
+        }
+      },
+      "plain": {
+        "totalScore": 2,
+        "comparedLociCount": 1,
+        "maxPossibleScore": 2.5,
+        "matchPercentage": "80.0",
+        "details": {
+          "TH01": {
+            "score": 0.8,
+            "weightedScore": 2,
+            "status": "contamination",
+            "valA": [
+              "12",
+              "13"
+            ],
+            "valB": [
+              "12",
+              "13",
+              "14"
+            ],
+            "allelesA": [
+              "12",
+              "13"
+            ],
+            "allelesB": [
+              "12",
+              "13",
+              "14"
+            ]
+          }
+        }
+      },
+      "fast": {
+        "totalScore": 2,
+        "comparedLociCount": 1,
+        "maxPossibleScore": 2.5,
+        "matchPercentage": "80.0",
+        "details": {
+          "TH01": {
+            "score": 0.8,
+            "weightedScore": 2,
+            "status": "contamination",
+            "valA": [
+              "12",
+              "13"
+            ],
+            "valB": [
+              "12",
+              "13",
+              "14"
+            ],
+            "allelesA": [
+              "12",
+              "13"
+            ],
+            "allelesB": [
+              "12",
+              "13",
+              "14"
+            ]
+          }
+        },
+        "earlyExit": false
+      },
+      "object": {
+        "score": 0.8,
+        "status": "contamination"
+      },
+      "decisions": [
+        {
+          "threshold": {},
+          "plain": false,
+          "fast": false
+        },
+        {
+          "threshold": {
+            "minScore": 1,
+            "minPercentage": 80,
+            "minLoci": 1
+          },
+          "plain": true,
+          "fast": true
+        }
+      ]
+    },
+    {
+      "name": "reverse-mixture-0",
+      "a": {
+        "TH01": [
+          "12",
+          "13",
+          "14"
+        ]
+      },
+      "b": {
+        "TH01": [
+          "12",
+          "13"
+        ]
+      },
+      "options": {},
+      "plain": {
+        "totalScore": 0.8,
+        "comparedLociCount": 1,
+        "maxPossibleScore": 1,
+        "matchPercentage": "80.0",
+        "details": {
+          "TH01": {
+            "score": 0.8,
+            "weightedScore": 0.8,
+            "status": "contamination",
+            "valA": [
+              "12",
+              "13",
+              "14"
+            ],
+            "valB": [
+              "12",
+              "13"
+            ],
+            "allelesA": [
+              "12",
+              "13",
+              "14"
+            ],
+            "allelesB": [
+              "12",
+              "13"
+            ]
+          }
+        }
+      },
+      "fast": {
+        "totalScore": 0,
+        "comparedLociCount": 0,
+        "maxPossibleScore": 0,
+        "matchPercentage": 0,
+        "details": {},
+        "earlyExit": true
+      },
+      "object": {
+        "score": -0.5,
+        "status": "partial"
+      },
+      "decisions": [
+        {
+          "threshold": {},
+          "plain": false,
+          "fast": false
+        },
+        {
+          "threshold": {
+            "minScore": 1,
+            "minPercentage": 80,
+            "minLoci": 1
+          },
+          "plain": false,
+          "fast": false
+        }
+      ]
+    },
+    {
+      "name": "reverse-mixture-1",
+      "a": {
+        "TH01": [
+          "12",
+          "13",
+          "14"
+        ]
+      },
+      "b": {
+        "TH01": [
+          "12",
+          "13"
+        ]
+      },
+      "options": {
+        "locusWeights": {
+          "TH01": 2.5,
+          "D5S818": 0.5
+        },
+        "ignoredLoci": [
+          "D21S11"
+        ],
+        "thresholds": {
+          "minScore": 1,
+          "minPercentage": 60,
+          "minLoci": 1
+        }
+      },
+      "plain": {
+        "totalScore": 2,
+        "comparedLociCount": 1,
+        "maxPossibleScore": 2.5,
+        "matchPercentage": "80.0",
+        "details": {
+          "TH01": {
+            "score": 0.8,
+            "weightedScore": 2,
+            "status": "contamination",
+            "valA": [
+              "12",
+              "13",
+              "14"
+            ],
+            "valB": [
+              "12",
+              "13"
+            ],
+            "allelesA": [
+              "12",
+              "13",
+              "14"
+            ],
+            "allelesB": [
+              "12",
+              "13"
+            ]
+          }
+        }
+      },
+      "fast": {
+        "totalScore": -1.25,
+        "comparedLociCount": 1,
+        "maxPossibleScore": 2.5,
+        "matchPercentage": "0.0",
+        "details": {
+          "TH01": {
+            "score": -0.5,
+            "weightedScore": -1.25,
+            "status": "partial",
+            "valA": [
+              "12",
+              "13",
+              "14"
+            ],
+            "valB": [
+              "12",
+              "13"
+            ],
+            "allelesA": [
+              "12",
+              "13",
+              "14"
+            ],
+            "allelesB": [
+              "12",
+              "13"
+            ]
+          }
+        },
+        "earlyExit": false
+      },
+      "object": {
+        "score": -0.5,
+        "status": "partial"
+      },
+      "decisions": [
+        {
+          "threshold": {},
+          "plain": false,
+          "fast": false
+        },
+        {
+          "threshold": {
+            "minScore": 1,
+            "minPercentage": 80,
+            "minLoci": 1
+          },
+          "plain": true,
+          "fast": false
+        }
+      ]
+    },
+    {
+      "name": "partial-0",
+      "a": {
+        "TH01": [
+          "12",
+          "14"
+        ]
+      },
+      "b": {
+        "TH01": [
+          "12",
+          "13"
+        ]
+      },
+      "options": {},
+      "plain": {
+        "totalScore": -0.5,
+        "comparedLociCount": 1,
+        "maxPossibleScore": 1,
+        "matchPercentage": "0.0",
+        "details": {
+          "TH01": {
+            "score": -0.5,
+            "weightedScore": -0.5,
+            "status": "partial",
+            "valA": [
+              "12",
+              "14"
+            ],
+            "valB": [
+              "12",
+              "13"
+            ],
+            "allelesA": [
+              "12",
+              "14"
+            ],
+            "allelesB": [
+              "12",
+              "13"
+            ]
+          }
+        }
+      },
+      "fast": {
+        "totalScore": 0,
+        "comparedLociCount": 0,
+        "maxPossibleScore": 0,
+        "matchPercentage": 0,
+        "details": {},
+        "earlyExit": true
+      },
+      "object": {
+        "score": -0.5,
+        "status": "partial"
+      },
+      "decisions": [
+        {
+          "threshold": {},
+          "plain": false,
+          "fast": false
+        },
+        {
+          "threshold": {
+            "minScore": 1,
+            "minPercentage": 80,
+            "minLoci": 1
+          },
+          "plain": false,
+          "fast": false
+        }
+      ]
+    },
+    {
+      "name": "partial-1",
+      "a": {
+        "TH01": [
+          "12",
+          "14"
+        ]
+      },
+      "b": {
+        "TH01": [
+          "12",
+          "13"
+        ]
+      },
+      "options": {
+        "locusWeights": {
+          "TH01": 2.5,
+          "D5S818": 0.5
+        },
+        "ignoredLoci": [
+          "D21S11"
+        ],
+        "thresholds": {
+          "minScore": 1,
+          "minPercentage": 60,
+          "minLoci": 1
+        }
+      },
+      "plain": {
+        "totalScore": -1.25,
+        "comparedLociCount": 1,
+        "maxPossibleScore": 2.5,
+        "matchPercentage": "0.0",
+        "details": {
+          "TH01": {
+            "score": -0.5,
+            "weightedScore": -1.25,
+            "status": "partial",
+            "valA": [
+              "12",
+              "14"
+            ],
+            "valB": [
+              "12",
+              "13"
+            ],
+            "allelesA": [
+              "12",
+              "14"
+            ],
+            "allelesB": [
+              "12",
+              "13"
+            ]
+          }
+        }
+      },
+      "fast": {
+        "totalScore": -1.25,
+        "comparedLociCount": 1,
+        "maxPossibleScore": 2.5,
+        "matchPercentage": "0.0",
+        "details": {
+          "TH01": {
+            "score": -0.5,
+            "weightedScore": -1.25,
+            "status": "partial",
+            "valA": [
+              "12",
+              "14"
+            ],
+            "valB": [
+              "12",
+              "13"
+            ],
+            "allelesA": [
+              "12",
+              "14"
+            ],
+            "allelesB": [
+              "12",
+              "13"
+            ]
+          }
+        },
+        "earlyExit": false
+      },
+      "object": {
+        "score": -0.5,
+        "status": "partial"
+      },
+      "decisions": [
+        {
+          "threshold": {},
+          "plain": false,
+          "fast": false
+        },
+        {
+          "threshold": {
+            "minScore": 1,
+            "minPercentage": 80,
+            "minLoci": 1
+          },
+          "plain": false,
+          "fast": false
+        }
+      ]
+    },
+    {
+      "name": "mismatch-0",
+      "a": {
+        "TH01": [
+          "14",
+          "15"
+        ]
+      },
+      "b": {
+        "TH01": [
+          "12",
+          "13"
+        ]
+      },
+      "options": {},
+      "plain": {
+        "totalScore": -1,
+        "comparedLociCount": 1,
+        "maxPossibleScore": 1,
+        "matchPercentage": "0.0",
+        "details": {
+          "TH01": {
+            "score": -1,
+            "weightedScore": -1,
+            "status": "mismatch",
+            "valA": [
+              "14",
+              "15"
+            ],
+            "valB": [
+              "12",
+              "13"
+            ],
+            "allelesA": [
+              "14",
+              "15"
+            ],
+            "allelesB": [
+              "12",
+              "13"
+            ]
+          }
+        }
+      },
+      "fast": {
+        "totalScore": 0,
+        "comparedLociCount": 0,
+        "maxPossibleScore": 0,
+        "matchPercentage": 0,
+        "details": {},
+        "earlyExit": true
+      },
+      "object": {
+        "score": -1,
+        "status": "mismatch"
+      },
+      "decisions": [
+        {
+          "threshold": {},
+          "plain": false,
+          "fast": false
+        },
+        {
+          "threshold": {
+            "minScore": 1,
+            "minPercentage": 80,
+            "minLoci": 1
+          },
+          "plain": false,
+          "fast": false
+        }
+      ]
+    },
+    {
+      "name": "mismatch-1",
+      "a": {
+        "TH01": [
+          "14",
+          "15"
+        ]
+      },
+      "b": {
+        "TH01": [
+          "12",
+          "13"
+        ]
+      },
+      "options": {
+        "locusWeights": {
+          "TH01": 2.5,
+          "D5S818": 0.5
+        },
+        "ignoredLoci": [
+          "D21S11"
+        ],
+        "thresholds": {
+          "minScore": 1,
+          "minPercentage": 60,
+          "minLoci": 1
+        }
+      },
+      "plain": {
+        "totalScore": -2.5,
+        "comparedLociCount": 1,
+        "maxPossibleScore": 2.5,
+        "matchPercentage": "0.0",
+        "details": {
+          "TH01": {
+            "score": -1,
+            "weightedScore": -2.5,
+            "status": "mismatch",
+            "valA": [
+              "14",
+              "15"
+            ],
+            "valB": [
+              "12",
+              "13"
+            ],
+            "allelesA": [
+              "14",
+              "15"
+            ],
+            "allelesB": [
+              "12",
+              "13"
+            ]
+          }
+        }
+      },
+      "fast": {
+        "totalScore": -2.5,
+        "comparedLociCount": 1,
+        "maxPossibleScore": 2.5,
+        "matchPercentage": "0.0",
+        "details": {
+          "TH01": {
+            "score": -1,
+            "weightedScore": -2.5,
+            "status": "mismatch",
+            "valA": [
+              "14",
+              "15"
+            ],
+            "valB": [
+              "12",
+              "13"
+            ],
+            "allelesA": [
+              "14",
+              "15"
+            ],
+            "allelesB": [
+              "12",
+              "13"
+            ]
+          }
+        },
+        "earlyExit": false
+      },
+      "object": {
+        "score": -1,
+        "status": "mismatch"
+      },
+      "decisions": [
+        {
+          "threshold": {},
+          "plain": false,
+          "fast": false
+        },
+        {
+          "threshold": {
+            "minScore": 1,
+            "minPercentage": 80,
+            "minLoci": 1
+          },
+          "plain": false,
+          "fast": false
+        }
+      ]
+    },
+    {
+      "name": "unknown-0",
+      "a": {
+        "TH01": [
+          "12",
+          "?"
+        ],
+        "D5S818": [
+          "*",
+          "F"
+        ]
+      },
+      "b": {
+        "TH01": [
+          "12",
+          "?"
+        ],
+        "D5S818": [
+          "*",
+          "F"
+        ]
+      },
+      "options": {},
+      "plain": {
+        "totalScore": 1,
+        "comparedLociCount": 1,
+        "maxPossibleScore": 1,
+        "matchPercentage": "100.0",
+        "details": {
+          "TH01": {
+            "score": 1,
+            "weightedScore": 1,
+            "status": "match",
+            "valA": [
+              "12",
+              "?"
+            ],
+            "valB": [
+              "12",
+              "?"
+            ],
+            "allelesA": [
+              "12"
+            ],
+            "allelesB": [
+              "12"
+            ]
+          },
+          "D5S818": {
+            "status": "no_call",
+            "score": 0,
+            "valA": [
+              "*",
+              "F"
+            ],
+            "valB": [
+              "*",
+              "F"
+            ]
+          }
+        }
+      },
+      "fast": {
+        "totalScore": 0,
+        "comparedLociCount": 0,
+        "maxPossibleScore": 0,
+        "matchPercentage": 0,
+        "details": {},
+        "earlyExit": true
+      },
+      "object": {
+        "score": 1,
+        "status": "match"
+      },
+      "decisions": [
+        {
+          "threshold": {},
+          "plain": false,
+          "fast": false
+        },
+        {
+          "threshold": {
+            "minScore": 1,
+            "minPercentage": 80,
+            "minLoci": 1
+          },
+          "plain": true,
+          "fast": false
+        }
+      ]
+    },
+    {
+      "name": "unknown-1",
+      "a": {
+        "TH01": [
+          "12",
+          "?"
+        ],
+        "D5S818": [
+          "*",
+          "F"
+        ]
+      },
+      "b": {
+        "TH01": [
+          "12",
+          "?"
+        ],
+        "D5S818": [
+          "*",
+          "F"
+        ]
+      },
+      "options": {
+        "locusWeights": {
+          "TH01": 2.5,
+          "D5S818": 0.5
+        },
+        "ignoredLoci": [
+          "D21S11"
+        ],
+        "thresholds": {
+          "minScore": 1,
+          "minPercentage": 60,
+          "minLoci": 1
+        }
+      },
+      "plain": {
+        "totalScore": 2.5,
+        "comparedLociCount": 1,
+        "maxPossibleScore": 2.5,
+        "matchPercentage": "100.0",
+        "details": {
+          "TH01": {
+            "score": 1,
+            "weightedScore": 2.5,
+            "status": "match",
+            "valA": [
+              "12",
+              "?"
+            ],
+            "valB": [
+              "12",
+              "?"
+            ],
+            "allelesA": [
+              "12"
+            ],
+            "allelesB": [
+              "12"
+            ]
+          },
+          "D5S818": {
+            "status": "no_call",
+            "score": 0,
+            "valA": [
+              "*",
+              "F"
+            ],
+            "valB": [
+              "*",
+              "F"
+            ]
+          }
+        }
+      },
+      "fast": {
+        "totalScore": 2.5,
+        "comparedLociCount": 2,
+        "maxPossibleScore": 3,
+        "matchPercentage": "83.3",
+        "details": {
+          "TH01": {
+            "score": 1,
+            "weightedScore": 2.5,
+            "status": "match",
+            "valA": [
+              "12",
+              "?"
+            ],
+            "valB": [
+              "12",
+              "?"
+            ],
+            "allelesA": [
+              "12",
+              "?"
+            ],
+            "allelesB": [
+              "12",
+              "?"
+            ]
+          },
+          "D5S818": {
+            "score": 0,
+            "weightedScore": 0,
+            "status": "no_call",
+            "valA": [
+              "*",
+              "F"
+            ],
+            "valB": [
+              "*",
+              "F"
+            ],
+            "allelesA": [
+              "*",
+              "F"
+            ],
+            "allelesB": [
+              "*",
+              "F"
+            ]
+          }
+        },
+        "earlyExit": false
+      },
+      "object": {
+        "score": 1,
+        "status": "match"
+      },
+      "decisions": [
+        {
+          "threshold": {},
+          "plain": false,
+          "fast": false
+        },
+        {
+          "threshold": {
+            "minScore": 1,
+            "minPercentage": 80,
+            "minLoci": 1
+          },
+          "plain": true,
+          "fast": true
+        }
+      ]
+    },
+    {
+      "name": "missing-0",
+      "a": {
+        "TH01": []
+      },
+      "b": {
+        "TH01": [
+          "12",
+          "13"
+        ],
+        "D5S818": [
+          "11",
+          "12"
+        ]
+      },
+      "options": {},
+      "plain": {
+        "totalScore": 0,
+        "comparedLociCount": 0,
+        "maxPossibleScore": 0,
+        "matchPercentage": 0,
+        "details": {
+          "TH01": {
+            "status": "no_call",
+            "score": 0,
+            "valA": [],
+            "valB": [
+              "12",
+              "13"
+            ]
+          },
+          "D5S818": {
+            "status": "no_call",
+            "score": 0,
+            "valB": [
+              "11",
+              "12"
+            ]
+          }
+        }
+      },
+      "fast": {
+        "totalScore": 0,
+        "comparedLociCount": 0,
+        "maxPossibleScore": 0,
+        "matchPercentage": 0,
+        "details": {},
+        "earlyExit": true
+      },
+      "object": {
+        "score": 0,
+        "status": "no_call"
+      },
+      "decisions": [
+        {
+          "threshold": {},
+          "plain": false,
+          "fast": false
+        },
+        {
+          "threshold": {
+            "minScore": 1,
+            "minPercentage": 80,
+            "minLoci": 1
+          },
+          "plain": false,
+          "fast": false
+        }
+      ]
+    },
+    {
+      "name": "missing-1",
+      "a": {
+        "TH01": []
+      },
+      "b": {
+        "TH01": [
+          "12",
+          "13"
+        ],
+        "D5S818": [
+          "11",
+          "12"
+        ]
+      },
+      "options": {
+        "locusWeights": {
+          "TH01": 2.5,
+          "D5S818": 0.5
+        },
+        "ignoredLoci": [
+          "D21S11"
+        ],
+        "thresholds": {
+          "minScore": 1,
+          "minPercentage": 60,
+          "minLoci": 1
+        }
+      },
+      "plain": {
+        "totalScore": 0,
+        "comparedLociCount": 0,
+        "maxPossibleScore": 0,
+        "matchPercentage": 0,
+        "details": {
+          "TH01": {
+            "status": "no_call",
+            "score": 0,
+            "valA": [],
+            "valB": [
+              "12",
+              "13"
+            ]
+          },
+          "D5S818": {
+            "status": "no_call",
+            "score": 0,
+            "valB": [
+              "11",
+              "12"
+            ]
+          }
+        }
+      },
+      "fast": {
+        "totalScore": 0,
+        "comparedLociCount": 0,
+        "maxPossibleScore": 0,
+        "matchPercentage": 0,
+        "details": {},
+        "earlyExit": true
+      },
+      "object": {
+        "score": 0,
+        "status": "no_call"
+      },
+      "decisions": [
+        {
+          "threshold": {},
+          "plain": false,
+          "fast": false
+        },
+        {
+          "threshold": {
+            "minScore": 1,
+            "minPercentage": 80,
+            "minLoci": 1
+          },
+          "plain": false,
+          "fast": false
+        }
+      ]
+    },
+    {
+      "name": "object-0",
+      "a": {
+        "TH01": {
+          "allele1": "12",
+          "allele2": "13"
+        }
+      },
+      "b": {
+        "TH01": {
+          "allele1": "13",
+          "allele2": "12"
+        }
+      },
+      "options": {},
+      "plain": {
+        "totalScore": 1,
+        "comparedLociCount": 1,
+        "maxPossibleScore": 1,
+        "matchPercentage": "100.0",
+        "details": {
+          "TH01": {
+            "score": 1,
+            "weightedScore": 1,
+            "status": "match",
+            "valA": {
+              "allele1": "12",
+              "allele2": "13"
+            },
+            "valB": {
+              "allele1": "13",
+              "allele2": "12"
+            },
+            "allelesA": [
+              "12",
+              "13"
+            ],
+            "allelesB": [
+              "13",
+              "12"
+            ]
+          }
+        }
+      },
+      "fast": {
+        "totalScore": 0,
+        "comparedLociCount": 0,
+        "maxPossibleScore": 0,
+        "matchPercentage": 0,
+        "details": {},
+        "earlyExit": true
+      },
+      "object": {
+        "score": 1,
+        "status": "match"
+      },
+      "decisions": [
+        {
+          "threshold": {},
+          "plain": false,
+          "fast": false
+        },
+        {
+          "threshold": {
+            "minScore": 1,
+            "minPercentage": 80,
+            "minLoci": 1
+          },
+          "plain": true,
+          "fast": false
+        }
+      ]
+    },
+    {
+      "name": "object-1",
+      "a": {
+        "TH01": {
+          "allele1": "12",
+          "allele2": "13"
+        }
+      },
+      "b": {
+        "TH01": {
+          "allele1": "13",
+          "allele2": "12"
+        }
+      },
+      "options": {
+        "locusWeights": {
+          "TH01": 2.5,
+          "D5S818": 0.5
+        },
+        "ignoredLoci": [
+          "D21S11"
+        ],
+        "thresholds": {
+          "minScore": 1,
+          "minPercentage": 60,
+          "minLoci": 1
+        }
+      },
+      "plain": {
+        "totalScore": 2.5,
+        "comparedLociCount": 1,
+        "maxPossibleScore": 2.5,
+        "matchPercentage": "100.0",
+        "details": {
+          "TH01": {
+            "score": 1,
+            "weightedScore": 2.5,
+            "status": "match",
+            "valA": {
+              "allele1": "12",
+              "allele2": "13"
+            },
+            "valB": {
+              "allele1": "13",
+              "allele2": "12"
+            },
+            "allelesA": [
+              "12",
+              "13"
+            ],
+            "allelesB": [
+              "13",
+              "12"
+            ]
+          }
+        }
+      },
+      "fast": {
+        "totalScore": 0,
+        "comparedLociCount": 0,
+        "maxPossibleScore": 0,
+        "matchPercentage": 0,
+        "details": {},
+        "earlyExit": true
+      },
+      "object": {
+        "score": 1,
+        "status": "match"
+      },
+      "decisions": [
+        {
+          "threshold": {},
+          "plain": false,
+          "fast": false
+        },
+        {
+          "threshold": {
+            "minScore": 1,
+            "minPercentage": 80,
+            "minLoci": 1
+          },
+          "plain": true,
+          "fast": false
+        }
+      ]
+    },
+    {
+      "name": "strings-0",
+      "a": {
+        "TH01": "12,13"
+      },
+      "b": {
+        "TH01": "13,12"
+      },
+      "options": {},
+      "plain": {
+        "totalScore": 1,
+        "comparedLociCount": 1,
+        "maxPossibleScore": 1,
+        "matchPercentage": "100.0",
+        "details": {
+          "TH01": {
+            "score": 1,
+            "weightedScore": 1,
+            "status": "match",
+            "valA": "12,13",
+            "valB": "13,12",
+            "allelesA": [
+              "12",
+              "13"
+            ],
+            "allelesB": [
+              "13",
+              "12"
+            ]
+          }
+        }
+      },
+      "fast": {
+        "totalScore": 0,
+        "comparedLociCount": 0,
+        "maxPossibleScore": 0,
+        "matchPercentage": 0,
+        "details": {},
+        "earlyExit": true
+      },
+      "object": {
+        "score": 0,
+        "status": "no_call"
+      },
+      "decisions": [
+        {
+          "threshold": {},
+          "plain": false,
+          "fast": false
+        },
+        {
+          "threshold": {
+            "minScore": 1,
+            "minPercentage": 80,
+            "minLoci": 1
+          },
+          "plain": true,
+          "fast": false
+        }
+      ]
+    },
+    {
+      "name": "strings-1",
+      "a": {
+        "TH01": "12,13"
+      },
+      "b": {
+        "TH01": "13,12"
+      },
+      "options": {
+        "locusWeights": {
+          "TH01": 2.5,
+          "D5S818": 0.5
+        },
+        "ignoredLoci": [
+          "D21S11"
+        ],
+        "thresholds": {
+          "minScore": 1,
+          "minPercentage": 60,
+          "minLoci": 1
+        }
+      },
+      "plain": {
+        "totalScore": 2.5,
+        "comparedLociCount": 1,
+        "maxPossibleScore": 2.5,
+        "matchPercentage": "100.0",
+        "details": {
+          "TH01": {
+            "score": 1,
+            "weightedScore": 2.5,
+            "status": "match",
+            "valA": "12,13",
+            "valB": "13,12",
+            "allelesA": [
+              "12",
+              "13"
+            ],
+            "allelesB": [
+              "13",
+              "12"
+            ]
+          }
+        }
+      },
+      "fast": {
+        "totalScore": 0,
+        "comparedLociCount": 0,
+        "maxPossibleScore": 0,
+        "matchPercentage": 0,
+        "details": {},
+        "earlyExit": true
+      },
+      "object": {
+        "score": 0,
+        "status": "no_call"
+      },
+      "decisions": [
+        {
+          "threshold": {},
+          "plain": false,
+          "fast": false
+        },
+        {
+          "threshold": {
+            "minScore": 1,
+            "minPercentage": 80,
+            "minLoci": 1
+          },
+          "plain": true,
+          "fast": false
+        }
+      ]
+    },
+    {
+      "name": "weighted-0",
+      "a": {
+        "TH01": [
+          "12",
+          "13"
+        ],
+        "D5S818": [
+          "11",
+          "12"
+        ],
+        "D21S11": [
+          "29",
+          "30"
+        ],
+        "id": "a",
+        "year": 2026
+      },
+      "b": {
+        "TH01": [
+          "13",
+          "12"
+        ],
+        "D5S818": [
+          "11",
+          "13"
+        ],
+        "D21S11": [
+          "29",
+          "30"
+        ],
+        "id": "b",
+        "year": 2026
+      },
+      "options": {},
+      "plain": {
+        "totalScore": 1.5,
+        "comparedLociCount": 3,
+        "maxPossibleScore": 3,
+        "matchPercentage": "50.0",
+        "details": {
+          "TH01": {
+            "score": 1,
+            "weightedScore": 1,
+            "status": "match",
+            "valA": [
+              "12",
+              "13"
+            ],
+            "valB": [
+              "13",
+              "12"
+            ],
+            "allelesA": [
+              "12",
+              "13"
+            ],
+            "allelesB": [
+              "13",
+              "12"
+            ]
+          },
+          "D5S818": {
+            "score": -0.5,
+            "weightedScore": -0.5,
+            "status": "partial",
+            "valA": [
+              "11",
+              "12"
+            ],
+            "valB": [
+              "11",
+              "13"
+            ],
+            "allelesA": [
+              "11",
+              "12"
+            ],
+            "allelesB": [
+              "11",
+              "13"
+            ]
+          },
+          "D21S11": {
+            "score": 1,
+            "weightedScore": 1,
+            "status": "match",
+            "valA": [
+              "29",
+              "30"
+            ],
+            "valB": [
+              "29",
+              "30"
+            ],
+            "allelesA": [
+              "29",
+              "30"
+            ],
+            "allelesB": [
+              "29",
+              "30"
+            ]
+          }
+        }
+      },
+      "fast": {
+        "totalScore": 0,
+        "comparedLociCount": 0,
+        "maxPossibleScore": 0,
+        "matchPercentage": 0,
+        "details": {},
+        "earlyExit": true
+      },
+      "object": {
+        "score": 1,
+        "status": "match"
+      },
+      "decisions": [
+        {
+          "threshold": {},
+          "plain": false,
+          "fast": false
+        },
+        {
+          "threshold": {
+            "minScore": 1,
+            "minPercentage": 80,
+            "minLoci": 1
+          },
+          "plain": false,
+          "fast": false
+        }
+      ]
+    },
+    {
+      "name": "weighted-1",
+      "a": {
+        "TH01": [
+          "12",
+          "13"
+        ],
+        "D5S818": [
+          "11",
+          "12"
+        ],
+        "D21S11": [
+          "29",
+          "30"
+        ],
+        "id": "a",
+        "year": 2026
+      },
+      "b": {
+        "TH01": [
+          "13",
+          "12"
+        ],
+        "D5S818": [
+          "11",
+          "13"
+        ],
+        "D21S11": [
+          "29",
+          "30"
+        ],
+        "id": "b",
+        "year": 2026
+      },
+      "options": {
+        "locusWeights": {
+          "TH01": 2.5,
+          "D5S818": 0.5
+        },
+        "ignoredLoci": [
+          "D21S11"
+        ],
+        "thresholds": {
+          "minScore": 1,
+          "minPercentage": 60,
+          "minLoci": 1
+        }
+      },
+      "plain": {
+        "totalScore": 2.25,
+        "comparedLociCount": 2,
+        "maxPossibleScore": 3,
+        "matchPercentage": "75.0",
+        "details": {
+          "TH01": {
+            "score": 1,
+            "weightedScore": 2.5,
+            "status": "match",
+            "valA": [
+              "12",
+              "13"
+            ],
+            "valB": [
+              "13",
+              "12"
+            ],
+            "allelesA": [
+              "12",
+              "13"
+            ],
+            "allelesB": [
+              "13",
+              "12"
+            ]
+          },
+          "D5S818": {
+            "score": -0.5,
+            "weightedScore": -0.25,
+            "status": "partial",
+            "valA": [
+              "11",
+              "12"
+            ],
+            "valB": [
+              "11",
+              "13"
+            ],
+            "allelesA": [
+              "11",
+              "12"
+            ],
+            "allelesB": [
+              "11",
+              "13"
+            ]
+          }
+        }
+      },
+      "fast": {
+        "totalScore": 2.25,
+        "comparedLociCount": 2,
+        "maxPossibleScore": 3,
+        "matchPercentage": "75.0",
+        "details": {
+          "TH01": {
+            "score": 1,
+            "weightedScore": 2.5,
+            "status": "match",
+            "valA": [
+              "12",
+              "13"
+            ],
+            "valB": [
+              "13",
+              "12"
+            ],
+            "allelesA": [
+              "12",
+              "13"
+            ],
+            "allelesB": [
+              "13",
+              "12"
+            ]
+          },
+          "D5S818": {
+            "score": -0.5,
+            "weightedScore": -0.25,
+            "status": "partial",
+            "valA": [
+              "11",
+              "12"
+            ],
+            "valB": [
+              "11",
+              "13"
+            ],
+            "allelesA": [
+              "11",
+              "12"
+            ],
+            "allelesB": [
+              "11",
+              "13"
+            ]
+          }
+        },
+        "earlyExit": false
+      },
+      "object": {
+        "score": 1,
+        "status": "match"
+      },
+      "decisions": [
+        {
+          "threshold": {},
+          "plain": false,
+          "fast": false
+        },
+        {
+          "threshold": {
+            "minScore": 1,
+            "minPercentage": 80,
+            "minLoci": 1
+          },
+          "plain": false,
+          "fast": true
+        }
+      ]
+    }
+  ]
+}

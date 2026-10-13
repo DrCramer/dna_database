@@ -310,7 +310,7 @@ test('Спецтокены не становятся совпадениями в
   const { DNAAnalysisService } = require('../src/services/dnaAnalysisService');
   const Staff = require('../src/services/staffContaminationAnalyzer');
   const { utils, calculateDuplicateSimilarity } = require('../src/services/duplicateDetectionService');
-  const { compareLocusObjects } = require('../src/services/duplicateDetectionServiceOptimized');
+  const { compareLocusObjects } = require('../src/services/duplicateDetectionService');
   const analysis = new DNAAnalysisService({ enableBayesianAnalysis: false });
   assert.deepEqual(informativeAlleles(['*','**','?','F','17?','9.3','12']), ['9.3','12']);
   assert.deepEqual(new Staff().parseAlleles(['*','**','?','F','12']), ['12']);
@@ -321,7 +321,7 @@ test('Спецтокены не становятся совпадениями в
     assert.equal(compareLocusObjects([special], [special]).status, 'no_call');
     assert.equal(calculateDuplicateSimilarity({ TH01: special }, { TH01: special }).comparedLociCount, 0);
   }
-  const { compareLocusV5 } = require('../src/utils/contaminationAlgorithmV5');
+  const { compareLocusV5 } = require('../src/utils/contaminationAlgorithm');
   assert.equal(compareLocusV5(['*','F'], ['*','F'], 'TH01').score, 0);
   assert.equal(compareLocusObjects(['11','12'], ['12','11']).score, 1);
   assert.equal(calculateDuplicateSimilarity({ TH01: '11,12' }, { TH01: '12,11' }).totalScore, 1);

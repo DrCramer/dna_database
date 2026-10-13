@@ -12,18 +12,18 @@ import GeneticExcelConverterPage from './components/Converter/GeneticExcelConver
 import { useNotifications } from './hooks/useNotifications';
 import PageTransition from './components/Common/PageTransition';
 import { Navigate, Route, SimpleRouter } from './components/Common/SimpleRouter';
-import { AccessDeniedState } from './components/Common/LegacyRouteHelpers';
+import { AccessDeniedState } from './components/Common/RouteHelpers';
 import {
   DepartmentsPage,
   ExpertGroupsPage,
   OrganizationsPage,
   ProfilesPage,
   UsersPage
-} from './components/Common/LegacyManagementPages';
-import LegacyTasksPageView from './components/Task/LegacyTasksPageView';
-import LegacyCreateTaskPageView from './components/Task/LegacyCreateTaskPageView';
-import LegacyDashboardView from './components/Dashboard/LegacyDashboardView';
-import LegacyBayesianShell from './components/Analysis/LegacyBayesianShell';
+} from './components/Common/ManagementPages';
+import TasksPageView from './components/Task/TasksPageView';
+import CreateTaskPageView from './components/Task/CreateTaskPageView';
+import DashboardView from './components/Dashboard/DashboardView';
+import BayesianShell from './components/Analysis/BayesianShell';
 import MasterObjectSearchPage from './components/Search/MasterObjectSearchPage';
 import { getTaskNumberLabel, getTaskNumberRangeLabel } from '../../src/utils/taskLabels';
 import { useProfileFieldLabel } from './hooks/useProfileFieldLabel';
@@ -485,7 +485,7 @@ const Dashboard = ({ onNavigate, selectedActiveTask, setSelectedActiveTask, onNo
   const taskSelectionTitle = analystNeedsTask ? '🔒 Выберите активную задачу для начала работы' : '';
 
   return (
-    <LegacyDashboardView
+    <DashboardView
       numberLabel={getTaskNumberLabel(activeDepartment)}
       user={user}
       loading={loading}
@@ -1020,7 +1020,7 @@ const TasksPage = ({ onNavigate, onSelectActiveTask }) => {
   };
 
   return (
-    <LegacyTasksPageView
+    <TasksPageView
       numberLabel={getTaskNumberLabel(activeDepartment)}
       onNavigate={onNavigate}
       isManager={hasRole('department_head') || hasRole('admin')}
@@ -1198,7 +1198,7 @@ const CreateTaskPage = ({ onNavigate }) => {
   }
 
   return (
-    <LegacyCreateTaskPageView
+    <CreateTaskPageView
       onNavigate={onNavigate}
       error={error}
       success={success}
@@ -1219,7 +1219,7 @@ const CreateTaskPage = ({ onNavigate }) => {
 };
 
 // Main App Component
-function FixedApp() {
+function App() {
   const [currentPath, setCurrentPath] = useState(window.location.pathname);
 
   // Глобальный state для активной задачи (для передачи между компонентами)
@@ -1488,7 +1488,7 @@ function FixedApp() {
               element={
                 <ProtectedRoute onNavigate={navigate}>
                   <PageTransition>
-                    <LegacyBayesianShell onNavigate={navigate} />
+                    <BayesianShell onNavigate={navigate} />
                   </PageTransition>
                 </ProtectedRoute>
               }
@@ -1558,4 +1558,4 @@ function FixedApp() {
   );
 }
 
-export default FixedApp;
+export default App;

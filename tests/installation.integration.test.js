@@ -42,4 +42,15 @@ test('Новая схема: параметры анализа, мастер-м�
       assert.equal(errors.length, 1);
     } finally { logger.error = original; }
   });
+
+  await t.test('DB-01: один номер и год в разных отделениях не должны конфликтовать', { todo: 'Исторический idx_dna_profiles_year_internal_user не учитывает scope; исправление схемы относится к Фазе 5' }, async () => {
+    const suffix = randomUUID();
+    const org = (await query('INSERT INTO organizations(name) VALUES ($1) RETURNING id', [`Index fixture ${suffix}`])).rows[0].id;
+    const departments = (await query("INSERT INTO departments(organization_id,name) VALUES ($1,'Index department A'),($1,'Index department B') RETURNING id", [org])).rows;
+    const user = (await query("INSERT INTO users(username,email,password_hash,role,organization_id,department_id) VALUES ($1,$2,'synthetic-not-a-login-hash','user_analyst',$3,$4) RETURNING id", [`index_${suffix}`, `${suffix}@example.invalid`, org, departments[0].id])).rows[0].id;
+    for (const department of departments) {
+      await query("INSERT INTO dna_profiles(user_id,department_id,organization_id,year,sample_name,internal_number,import_format,str_data) VALUES ($1,$2,$3,2026,'INDEX','INDEX-1','genetic','{\"TH01\":[\"12\",\"13\"]}')", [user, department.id, org]);
+    }
+    assert.equal((await query("SELECT count(*)::int AS count FROM dna_profiles WHERE user_id=$1 AND internal_number='INDEX-1'", [user])).rows[0].count, 2);
+  });
 });

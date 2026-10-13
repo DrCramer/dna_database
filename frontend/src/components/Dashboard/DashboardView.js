@@ -11,7 +11,7 @@ const NotificationBadge = ({ count }) => {
   );
 };
 
-const LegacyDashboardView = ({
+const DashboardView = ({
   user,
   numberLabel,
   loading,
@@ -311,4 +311,4 @@ const LegacyDashboardView = ({
   );
 };
 
-export default LegacyDashboardView;
+export default DashboardView;

@@ -13,7 +13,7 @@ export const AccessDeniedState = ({ message, onNavigate }) => (
   </div>
 );
 
-export const LegacyFeaturePage = ({ title, accent = false, description, actions = [], onNavigate }) => (
+export const FeaturePage = ({ title, accent = false, description, actions = [], onNavigate }) => (
   <div className="legacy-page-shell">
     <div className={`legacy-page-header page-header${accent ? ' is-accent' : ''}`}>
       <h2 className={`legacy-page-title page-title${accent ? ' is-accent' : ''}`}>{title}</h2>
@@ -49,7 +49,7 @@ export const LegacyFeaturePage = ({ title, accent = false, description, actions 
 );
 
 export const ProfilesFeaturePage = ({ onNavigate }) => (
-  <LegacyFeaturePage
+  <FeaturePage
     title="📊 Просмотр всех профилей"
     description="Эта страница покажет все ДНК-профили в системе."
     onNavigate={onNavigate}
@@ -69,7 +69,7 @@ export const ProfilesFeaturePage = ({ onNavigate }) => (
 );
 
 export const ExpertGroupsFeaturePage = ({ onNavigate }) => (
-  <LegacyFeaturePage
+  <FeaturePage
     title="👨‍🔬 Управление экспертными группами"
     accent
     description="Эта страница позволит вам управлять экспертными группами и их участниками."

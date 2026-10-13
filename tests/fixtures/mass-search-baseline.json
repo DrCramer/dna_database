@@ -1,0 +1,357 @@
+{
+  "sourceRevision": "71dcbf7",
+  "synthetic": true,
+  "records": [
+    {
+      "name": "empty",
+      "result": {
+        "success": true,
+        "results": [],
+        "totalAnalyzed": 0,
+        "resultsWithMatches": 0,
+        "comparisons": 0,
+        "earlyExits": 0
+      },
+      "pairCount": 0
+    },
+    {
+      "name": "small",
+      "result": {
+        "success": true,
+        "results": [
+          {
+            "reference": {
+              "id": "a",
+              "sample_name": "a",
+              "internal_number": "a",
+              "import_number": "258"
+            },
+            "matches": [
+              {
+                "id": "b",
+                "sample_name": "b",
+                "internal_number": "b",
+                "import_number": "258",
+                "matchCount": 3,
+                "matchedLoci": [
+                  "TH01",
+                  "D5S818",
+                  "D21S11"
+                ],
+                "loci": {
+                  "TH01": [
+                    "13",
+                    "12"
+                  ],
+                  "D5S818": [
+                    "11",
+                    "12"
+                  ],
+                  "D21S11": [
+                    "29",
+                    "30"
+                  ]
+                }
+              }
+            ],
+            "matchCount": 1,
+            "displayedCount": 1
+          }
+        ],
+        "totalAnalyzed": 4,
+        "resultsWithMatches": 1,
+        "comparisons": 2,
+        "earlyExits": 4
+      },
+      "pairCount": 1
+    },
+    {
+      "name": "partial",
+      "result": {
+        "success": true,
+        "results": [
+          {
+            "reference": {
+              "id": "a",
+              "sample_name": "a",
+              "internal_number": "a",
+              "import_number": "258"
+            },
+            "matches": [
+              {
+                "id": "b",
+                "sample_name": "b",
+                "internal_number": "b",
+                "import_number": "258",
+                "matchCount": 3,
+                "matchedLoci": [
+                  "TH01",
+                  "D5S818",
+                  "D21S11"
+                ],
+                "loci": {
+                  "TH01": [
+                    "13",
+                    "12"
+                  ],
+                  "D5S818": [
+                    "11",
+                    "12"
+                  ],
+                  "D21S11": [
+                    "29",
+                    "30"
+                  ]
+                }
+              }
+            ],
+            "matchCount": 1,
+            "displayedCount": 1
+          },
+          {
+            "reference": {
+              "id": "c",
+              "sample_name": "c",
+              "internal_number": "c",
+              "import_number": "258"
+            },
+            "matches": [
+              {
+                "id": "a",
+                "sample_name": "a",
+                "internal_number": "a",
+                "import_number": "258",
+                "matchCount": 1,
+                "matchedLoci": [
+                  "D5S818"
+                ],
+                "loci": {
+                  "TH01": [
+                    "12",
+                    "13"
+                  ],
+                  "D5S818": [
+                    "11",
+                    "12"
+                  ],
+                  "D21S11": [
+                    "29",
+                    "30"
+                  ]
+                }
+              },
+              {
+                "id": "b",
+                "sample_name": "b",
+                "internal_number": "b",
+                "import_number": "258",
+                "matchCount": 1,
+                "matchedLoci": [
+                  "D5S818"
+                ],
+                "loci": {
+                  "TH01": [
+                    "13",
+                    "12"
+                  ],
+                  "D5S818": [
+                    "11",
+                    "12"
+                  ],
+                  "D21S11": [
+                    "29",
+                    "30"
+                  ]
+                }
+              }
+            ],
+            "matchCount": 2,
+            "displayedCount": 2
+          }
+        ],
+        "totalAnalyzed": 4,
+        "resultsWithMatches": 2,
+        "comparisons": 6,
+        "earlyExits": 5
+      },
+      "pairCount": 3
+    },
+    {
+      "name": "ignored",
+      "result": {
+        "success": true,
+        "results": [],
+        "totalAnalyzed": 4,
+        "resultsWithMatches": 0,
+        "comparisons": 0,
+        "earlyExits": 0
+      },
+      "pairCount": 0
+    },
+    {
+      "name": "selected",
+      "result": {
+        "success": true,
+        "results": [
+          {
+            "reference": {
+              "id": "a",
+              "sample_name": "a",
+              "internal_number": "a",
+              "import_number": "258"
+            },
+            "matches": [
+              {
+                "id": "b",
+                "sample_name": "b",
+                "internal_number": "b",
+                "import_number": "258",
+                "matchCount": 3,
+                "matchedLoci": [
+                  "TH01",
+                  "D5S818",
+                  "D21S11"
+                ],
+                "loci": {
+                  "TH01": [
+                    "13",
+                    "12"
+                  ],
+                  "D5S818": [
+                    "11",
+                    "12"
+                  ],
+                  "D21S11": [
+                    "29",
+                    "30"
+                  ]
+                }
+              }
+            ],
+            "matchCount": 1,
+            "displayedCount": 1
+          }
+        ],
+        "totalAnalyzed": 2,
+        "resultsWithMatches": 1,
+        "comparisons": 2,
+        "earlyExits": 0
+      },
+      "pairCount": 1
+    },
+    {
+      "name": "genetic-same-name",
+      "result": {
+        "success": true,
+        "results": [
+          {
+            "reference": {
+              "id": "year-a",
+              "sample_name": "258-1",
+              "internal_number": "year-a",
+              "import_number": "258"
+            },
+            "matches": [
+              {
+                "id": "year-b",
+                "sample_name": "258-1",
+                "internal_number": "year-b",
+                "import_number": "258",
+                "matchCount": 3,
+                "matchedLoci": [
+                  "TH01",
+                  "D5S818",
+                  "D21S11"
+                ],
+                "loci": {
+                  "TH01": [
+                    "12",
+                    "13"
+                  ],
+                  "D5S818": [
+                    "11",
+                    "12"
+                  ],
+                  "D21S11": [
+                    "29",
+                    "30"
+                  ]
+                }
+              }
+            ],
+            "matchCount": 1,
+            "displayedCount": 1
+          }
+        ],
+        "totalAnalyzed": 2,
+        "resultsWithMatches": 1,
+        "comparisons": 2,
+        "earlyExits": 0
+      },
+      "pairCount": 1
+    },
+    {
+      "name": "emergency-same-name",
+      "result": {
+        "success": true,
+        "results": [],
+        "totalAnalyzed": 2,
+        "resultsWithMatches": 0,
+        "comparisons": 2,
+        "earlyExits": 0
+      },
+      "pairCount": 0
+    },
+    {
+      "name": "large",
+      "result": {
+        "success": true,
+        "results": [
+          {
+            "reference": {
+              "id": "large-0",
+              "sample_name": "large-0",
+              "internal_number": "large-0",
+              "import_number": "258"
+            },
+            "matches": [
+              {
+                "id": "large-1",
+                "sample_name": "large-1",
+                "internal_number": "large-1",
+                "import_number": "258",
+                "matchCount": 3,
+                "matchedLoci": [
+                  "TH01",
+                  "D5S818",
+                  "D21S11"
+                ],
+                "loci": {
+                  "TH01": [
+                    "12",
+                    "13"
+                  ],
+                  "D5S818": [
+                    "11",
+                    "12"
+                  ],
+                  "D21S11": [
+                    "29",
+                    "30"
+                  ]
+                }
+              }
+            ],
+            "matchCount": 1,
+            "displayedCount": 1
+          }
+        ],
+        "totalAnalyzed": 104,
+        "resultsWithMatches": 1,
+        "comparisons": 10712,
+        "earlyExits": 10710
+      },
+      "pairCount": 1
+    }
+  ]
+}

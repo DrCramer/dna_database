@@ -1,8 +1,9 @@
+const { isAlleleSubset, hasIntersection, equalAlleleArrays: arraysEqual, multisetIntersection } = require('./alleleComparison');
 const { informativeAlleles } = require('./alleleTokens');
 /**
  * Алгоритм контаминации v5.0
  * Поддержка LCN (Low Copy Number) и деградированных образцов
- * 
+ *
  * Основные улучшения:
  * - Учет вероятности выпадения аллелей (Drop-out)
  * - Корректировка на деградацию (длинные vs короткие локусы)
@@ -72,16 +73,16 @@ const RARE_CRITICAL_LOCI = [
 function isRareAllele(allele, locus) {
   // Проверка на десятичные значения (микроварианты)
   const hasDecimal = allele.includes('.') || allele.includes(',');
-  
+
   if (!hasDecimal) {
     return false;
   }
-  
+
   // TH01 9.3 - частый аллель, не считаем редким
   if (locus === 'TH01' && (allele === '9.3' || allele === '9,3')) {
     return false;
   }
-  
+
   return true;
 }
 
@@ -112,17 +113,17 @@ function calculateDegradationPenalty(locus, isMismatch) {
   if (!isMismatch) {
     return 0;
   }
-  
+
   // Короткие локусы должны были сохраниться - сильный штраф
   if (SHORT_LOCI.includes(locus)) {
     return -2.0;
   }
-  
+
   // Длинные локусы могли разрушиться - малый штраф
   if (LONG_LOCI.includes(locus)) {
     return -0.5;
   }
-  
+
   // Средний штраф для остальных
   return -1.0;
 }
@@ -133,41 +134,8 @@ function calculateDegradationPenalty(locus, isMismatch) {
  * @param {Array} arr2 - Второй массив
  * @returns {boolean}
  */
-function isSubset(arr1, arr2) {
-  if (arr1.length === 0) return false;
-  return arr1.every(item => arr2.includes(item));
-}
+function isSubset(first, second) { return first.length > 0 && isAlleleSubset(first, second); }
 
-/**
- * Проверяет, есть ли пересечение между массивами
- * @param {Array} arr1 - Первый массив
- * @param {Array} arr2 - Второй массив
- * @returns {boolean}
- */
-function hasIntersection(arr1, arr2) {
-  return arr1.some(item => arr2.includes(item));
-}
-
-/**
- * Проверяет равенство массивов (порядок не важен)
- * @param {Array} arr1 - Первый массив
- * @param {Array} arr2 - Второй массив
- * @returns {boolean}
- */
-function arraysEqual(arr1, arr2) {
-  if (arr1.length !== arr2.length) return false;
-  const sorted1 = [...arr1].sort();
-  const sorted2 = [...arr2].sort();
-  return sorted1.every((val, idx) => val === sorted2[idx]);
-}
-
-/**
- * Сравнивает локус с учетом LCN и деградации (v5.0)
- * @param {Array<string>} sampleAlleles - Аллели образца
- * @param {Array<string>} staffAlleles - Аллели сотрудника
- * @param {string} locus - Название локуса
- * @returns {Object} - Результат сравнения
- */
 function compareLocusV5(sampleAlleles, staffAlleles, locus) {
   sampleAlleles = informativeAlleles(sampleAlleles); staffAlleles = informativeAlleles(staffAlleles);
   // Пропускаем пустые локусы
@@ -181,11 +149,11 @@ function compareLocusV5(sampleAlleles, staffAlleles, locus) {
       isRareCritical: false
     };
   }
-  
+
   const baseWeight = LOCUS_WEIGHTS_V5[locus] || 1.0;
   let matchCoeff = 0;
   let matchType = 'none';
-  
+
   // 1. Полное совпадение: Sample(12,13) == Staff(12,13)
   if (arraysEqual(sampleAlleles, staffAlleles)) {
     matchCoeff = MATCH_COEFFICIENTS_V5.fullMatch;
@@ -213,14 +181,14 @@ function compareLocusV5(sampleAlleles, staffAlleles, locus) {
     matchCoeff = calculateDegradationPenalty(locus, true);
     matchType = 'mismatch';
   }
-  
+
   // Бонус за редкость
   const rarityBonus = calculateRarityBonus(sampleAlleles, staffAlleles, locus);
-  
+
   // Проверка на критический редкий локус
-  const isRareCritical = RARE_CRITICAL_LOCI.includes(locus) && 
+  const isRareCritical = RARE_CRITICAL_LOCI.includes(locus) &&
                          (matchType === 'fullMatch' || matchType === 'inclusiveDropout');
-  
+
   // Вычисляем совпавшие аллели (explainedAlleles) с учетом количества повторений
   let explainedAlleles = [];
   if (matchType === 'fullMatch') {
@@ -233,24 +201,15 @@ function compareLocusV5(sampleAlleles, staffAlleles, locus) {
     // Staff ⊂ Sample или частичное пересечение
     // Вычисляем РЕАЛЬНОЕ пересечение с учетом количества повторений
     // Пример: образец [8,9,11,14], сотрудник [11,11] → совпадение [11] (только одна!)
-    const sampleCopy = [...sampleAlleles];
-    const staffCopy = [...staffAlleles];
-    
-    for (const staffAllele of staffCopy) {
-      const index = sampleCopy.indexOf(staffAllele);
-      if (index !== -1) {
-        explainedAlleles.push(staffAllele);
-        sampleCopy.splice(index, 1); // Удаляем использованную аллель из образца
-      }
-    }
+    explainedAlleles = multisetIntersection(staffAlleles, sampleAlleles);
   } else {
     // Mismatch - нет совпадений
     explainedAlleles = [];
   }
-  
+
   // Итоговый скор локуса
   const locusScore = baseWeight * matchCoeff * rarityBonus;
-  
+
   return {
     score: locusScore,
     matchType,
@@ -277,58 +236,58 @@ function calculateContaminationScoreV5(sampleProfile, staffProfile, ignoredLoci 
   let rareCriticalMatches = 0;
   const matchedLociNames = [];
   const locusDetails = [];
-  
+
   // Получаем все локусы из обоих профилей
   const allLoci = new Set([
     ...Object.keys(sampleProfile),
     ...Object.keys(staffProfile)
   ]);
-  
+
   for (const locus of allLoci) {
     // Пропускаем игнорируемые локусы
     if (ignoredLoci.has(locus)) continue;
-    
+
     const sampleAlleles = informativeAlleles(sampleProfile[locus]);
     const staffAlleles = informativeAlleles(staffProfile[locus]);
-    
+
     // Пропускаем, если нет данных
     if (sampleAlleles.length === 0 || staffAlleles.length === 0) continue;
-    
+
     // Сравниваем локус
     const comparison = compareLocusV5(sampleAlleles, staffAlleles, locus);
-    
+
     // Добавляем к общему скору
     totalScore += comparison.score;
-    
+
     // Считаем совпадения
     if (comparison.matchType !== 'mismatch' && comparison.matchType !== 'empty') {
       matchedLociCount++;
       matchedLociNames.push(locus);
-      
+
       // Считаем критические редкие совпадения
       if (comparison.isRareCritical) {
         rareCriticalMatches++;
       }
     }
-    
+
     // Сохраняем детали для отладки
     locusDetails.push({
       locus,
       ...comparison
     });
   }
-  
+
   // Применяем "правило трех редких"
   // Даже при низком общем скоре, 3+ редких совпадения = CRITICAL
   const rareRuleTriggered = rareCriticalMatches >= 3;
-  
+
   // Итоговый скор не может быть отрицательным
   const finalScore = Math.max(0, totalScore);
-  
+
   // Определяем уровень контаминации
   let level = 'CLEAN';
   let severity = 'low';
-  
+
   if (rareRuleTriggered || finalScore > 12.0) {
     level = 'STRONG_CRITICAL';
     severity = 'critical';
@@ -339,7 +298,7 @@ function calculateContaminationScoreV5(sampleProfile, staffProfile, ignoredLoci 
     level = 'WARNING';
     severity = 'medium';
   }
-  
+
   return {
     score: parseFloat(finalScore.toFixed(2)),
     matchedLoci: matchedLociCount,

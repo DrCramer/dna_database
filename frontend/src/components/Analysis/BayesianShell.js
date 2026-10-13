@@ -1,7 +1,7 @@
 import React from 'react';
 import BayesianAnalysisApp from '../../../../src/components/bayesian/BayesianAnalysisApp';
 
-const LegacyBayesianShell = ({ onNavigate }) => {
+const BayesianShell = ({ onNavigate }) => {
   return (
     <div className="legacy-page-shell bayesian-page-shell">
       <div className="legacy-page-card bayesian-page-header page-header">
@@ -20,4 +20,4 @@ const LegacyBayesianShell = ({ onNavigate }) => {
   );
 };
 
-export default LegacyBayesianShell;
+export default BayesianShell;

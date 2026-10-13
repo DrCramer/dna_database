@@ -1,6 +1,6 @@
 import React from 'react';
 
-const LegacyCreateTaskPageView = ({
+const CreateTaskPageView = ({
   onNavigate,
   error,
   success,
@@ -214,4 +214,4 @@ const LegacyCreateTaskPageView = ({
   );
 };
 
-export default LegacyCreateTaskPageView;
+export default CreateTaskPageView;

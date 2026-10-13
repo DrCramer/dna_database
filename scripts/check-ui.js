@@ -74,7 +74,7 @@ for (const [name, value] of [['page-max-width', 1400], ['control-height-sm', 36]
   ['control-height-md', 42], ['control-height-lg', 48]]) {
   assert(tokens.includes(`--${name}: ${value}px;`), `Shared size contract changed: ${name}`);
 }
-assert(fs.readFileSync(path.join(source, 'App-fixed.js'), 'utf8')
+assert(fs.readFileSync(path.join(source, 'App.js'), 'utf8')
   .match(/path="\/analysis"\s+element=\{\s*<ProtectedRoute[^>]*\bfluid\b/),
   'Analysis must use the fluid PageShell');
 assert(fs.readFileSync(path.join(source, 'styles/layout/grid.css'), 'utf8')

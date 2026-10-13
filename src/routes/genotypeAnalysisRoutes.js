@@ -1,16 +1,17 @@
+const { prepareMassSearchProfiles, runMassSearchComparisons, groupMassSearchResults } = require('../services/massSearchService');
+const { multisetIntersection } = require('../utils/alleleComparison');
 const { informativeAlleles, isSpecialAllele } = require('../utils/alleleTokens');
 /**
  * API маршруты для анализа генотипов и поиска дубликатов
- * ОПТИМИЗИРОВАННАЯ ОДНОПОТОЧНАЯ ВЕРСИЯ
+ * Массовый поиск поддерживает обработку в Worker Threads.
  */
 
 const express = require('express');
 const router = express.Router();
 const { authenticate } = require('../middleware/auth');
 const { logger } = require('../utils/logger');
-const { calculateContaminationScoreV5 } = require('../utils/contaminationAlgorithmV5');
-const { calculateDuplicateSimilarity, isDuplicate } = require('../services/duplicateDetectionService');
-const { calculateDuplicateSimilarityOptimized, isDuplicateOptimized } = require('../services/duplicateDetectionServiceOptimized');
+const { calculateContaminationScoreV5 } = require('../utils/contaminationAlgorithm');
+const { calculateDuplicateSimilarityOptimized, isDuplicateOptimized } = require('../services/duplicateDetectionService');
 
 const DNAProfile = require('../models/DNAProfile');
 const { ProfileAccessService } = require('../services/profileAccessService');
@@ -93,20 +94,7 @@ function parseAlleles(value) { return informativeAlleles(value); }
 /**
  * Вычисляет пересечение двух массивов с учетом количества повторений
  */
-function intersect(arr1, arr2) {
-  const result = [];
-  const arr2Copy = [...arr2];
-  
-  for (const value of arr1) {
-    const index = arr2Copy.indexOf(value);
-    if (index !== -1) {
-      result.push(value);
-      arr2Copy.splice(index, 1);
-    }
-  }
-  
-  return result;
-}
+const intersect = multisetIntersection;
 
 /**
  * Проверка совпадения между двумя значениями аллелей (СТАНДАРТНЫЙ АЛГОРИТМ)
@@ -620,7 +608,8 @@ router.post('/mass-search', authenticate, async (req, res) => {
     const { 
       minMatches = 15,
       ignoredLoci = [],
-      profileIds = []
+      profileIds = [],
+      useWorkers = true
     } = req.body;
     
     const { pool } = req.app.locals;
@@ -670,184 +659,12 @@ router.post('/mass-search', authenticate, async (req, res) => {
       loadTimeMs: loadTime
     });
     
-    const massSearchResults = [];
-    let comparisonCount = 0;
-    let earlyExits = 0;
-    
-    // Создаем Set для игнорируемых локусов (быстрая проверка)
-    const ignoredSet = new Set(ignoredLoci);
-    
-    // Set для отслеживания уже обработанных пар (чтобы избежать дубликатов)
-    const processedPairs = new Set();
-    
-    // ОПТИМИЗАЦИЯ 1: Предобработка всех профилей один раз
-    const processedProfiles = profiles.map(profile => {
-      const loci = profile.str_data || {};
-      const processedLoci = {};
-      let validLociCount = 0;
-      
-      for (const locus of Object.keys(loci)) {
-        if (ignoredSet.has(locus)) continue;
-        
-        const locusData = loci[locus];
-        if (!locusData) continue;
-        
-        // Используем parseAlleles для правильной фильтрации
-        const parts = parseAlleles(locusData);
-        
-        // Проверяем что есть валидные аллели
-        if (parts.length > 0) {
-          processedLoci[locus] = {
-            parts: parts,
-            isHomozygote: parts.length === 2 && parts[0] === parts[1],
-            partsSet: new Set(parts)  // Для быстрой проверки вхождения
-          };
-          validLociCount++;
-        }
-      }
-      
-      return {
-        id: profile.id,
-        import_format: profile.import_format,
-        sample_name: profile.sample_name,
-        internal_number: profile.internal_number || profile.sample_name,
-        import_number: extractImportNumber(profile),
-        loci: profile.str_data || {},  // Добавляем оригинальные данные локусов
-        processedLoci,
-        validLociCount
-      };
-    });
-    
-    // ОПТИМИЗАЦИЯ 2: Сравнение с ранним выходом
-    for (let i = 0; i < processedProfiles.length; i++) {
-      const referenceProfile = processedProfiles[i];
-      const referenceLoci = referenceProfile.processedLoci;
-      const refLociKeys = Object.keys(referenceLoci);
-      const maxPossibleMatches = refLociKeys.length;
-      
-      // Ранний выход: если у эталона меньше локусов чем нужно
-      if (maxPossibleMatches < minMatches) {
-        continue;
-      }
-      
-      const matches = [];
-      
-      for (let j = 0; j < processedProfiles.length; j++) {
-        if (i === j) continue;
-        
-        const compareProfile = processedProfiles[j];
-        const compareLoci = compareProfile.processedLoci;
-        
-        // Ранний выход: если у сравниваемого профиля меньше локусов чем нужно
-        if (compareProfile.validLociCount < minMatches) {
-          earlyExits++;
-          continue;
-        }
-        
-        let numericMatchCount = 0;
-        const matchedLoci = [];
-        
-        comparisonCount++;
-        
-        // ОПТИМИЗАЦИЯ 3: Сравнение с ранним выходом
-        for (let k = 0; k < refLociKeys.length; k++) {
-          const locus = refLociKeys[k];
-          
-          if (!compareLoci[locus]) {
-            // Ранний выход: проверяем можем ли еще достичь порога
-            const remainingLoci = refLociKeys.length - k - 1;
-            if (numericMatchCount + remainingLoci < minMatches) {
-              earlyExits++;
-              break;
-            }
-            continue;
-          }
-          
-          const refData = referenceLoci[locus];
-          const compData = compareLoci[locus];
-          
-          let isMatched = false;
-          
-          if (refData.isHomozygote) {
-            // Гомозигота - быстрая проверка
-            isMatched = compData.isHomozygote && refData.parts[0] === compData.parts[0];
-          } else {
-            // Гетерозигота - используем Set для быстрой проверки
-            isMatched = refData.parts.every(part => compData.partsSet.has(part));
-          }
-          
-          if (isMatched) {
-            numericMatchCount++;
-            matchedLoci.push(locus);
-          } else {
-            // Ранний выход: проверяем можем ли еще достичь порога
-            const remainingLoci = refLociKeys.length - k - 1;
-            if (numericMatchCount + remainingLoci < minMatches) {
-              earlyExits++;
-              break;
-            }
-          }
-        }
-        
-        if (numericMatchCount >= minMatches) {
-          // Дополнительная проверка: не добавляем сам эталонный профиль
-          if (compareProfile.id === referenceProfile.id) {
-            continue;
-          }
-          
-          // Проверка по sample_name (на случай дубликатов)
-          if (referenceProfile.import_format !== 'genetic' && compareProfile.sample_name === referenceProfile.sample_name) {
-            continue;
-          }
-          
-          matches.push({
-            id: compareProfile.id,
-            sample_name: compareProfile.sample_name,
-            internal_number: compareProfile.internal_number,
-            import_number: compareProfile.import_number,
-            matchCount: numericMatchCount,
-            matchedLoci: matchedLoci,
-            loci: compareProfile.loci
-          });
-        }
-      }
-      
-      if (matches.length > 0) {
-        matches.sort((a, b) => b.matchCount - a.matchCount);
-        
-        // Фильтруем дубликаты пар (A→B и B→A)
-        const refId = referenceProfile.id;
-        const uniqueMatches = [];
-        
-        for (const match of matches) {
-          const pairKey = [refId, match.id].sort().join('_');
-          if (!processedPairs.has(pairKey)) {
-            processedPairs.add(pairKey);
-            uniqueMatches.push(match);
-          }
-        }
-        
-        // Если есть уникальные совпадения, добавляем результат
-        if (uniqueMatches.length > 0) {
-          // Ограничиваем количество результатов для ускорения передачи
-          const limitedMatches = uniqueMatches.slice(0, 100); // Топ-100 совпадений
-          
-          massSearchResults.push({
-            reference: {
-              id: referenceProfile.id,
-              sample_name: referenceProfile.sample_name,
-              internal_number: referenceProfile.internal_number,
-              import_number: referenceProfile.import_number
-            },
-            matches: limitedMatches,
-            exportMatches: uniqueMatches,
-            matchCount: matches.length,  // Полное количество
-            displayedCount: limitedMatches.length  // Показываем только топ
-          });
-        }
-      }
-    }
-    
+    const processedProfiles = prepareMassSearchProfiles(profiles, ignoredLoci, extractImportNumber);
+    const comparison = await runMassSearchComparisons(processedProfiles, minMatches, useWorkers);
+    const massSearchResults = groupMassSearchResults(processedProfiles, comparison.groups);
+    const comparisonCount = comparison.comparisons;
+    const earlyExits = comparison.earlyExits;
+
     const endTime = Date.now();
     const duration = endTime - startTime;
     const durationSeconds = (duration / 1000).toFixed(2);
@@ -890,7 +707,7 @@ router.post('/mass-search', authenticate, async (req, res) => {
         comparisonsPerSecond: Math.round(comparisonCount / (duration / 1000)),
         loadTimeMs: loadTime,
         processingTimeMs: duration - loadTime,
-        mode: 'single-threaded-optimized'
+        mode: comparison.mode
       }
     });
     
@@ -1225,10 +1042,7 @@ router.post('/task-search', authenticate, async (req, res) => {
             continue;
           }
           
-          const meetsScoreThreshold = v5Result.totalScore >= thresholds.minScore;
-          const meetsPercentageThreshold = parseFloat(v5Result.matchPercentage) >= thresholds.minPercentage && v5Result.comparedLociCount >= thresholds.minLoci;
-          
-          if (meetsScoreThreshold || meetsPercentageThreshold) {
+          if (isDuplicateOptimized(v5Result, thresholds)) {
             // Подсчитываем количество совпадений для обратной совместимости
             matchCount = Object.values(v5Result.details).filter(d => 
               d.status === 'match' || d.status === 'contamination' || d.status === 'dropout'
@@ -1663,10 +1477,7 @@ router.post('/department-tasks-search', authenticate, async (req, res) => {
             continue;
           }
           
-          const meetsScoreThreshold = v5Result.totalScore >= thresholds.minScore;
-          const meetsPercentageThreshold = parseFloat(v5Result.matchPercentage) >= thresholds.minPercentage && v5Result.comparedLociCount >= thresholds.minLoci;
-          
-          if (meetsScoreThreshold || meetsPercentageThreshold) {
+          if (isDuplicateOptimized(v5Result, thresholds)) {
             matches.push({
               id: compareProfile.id,
               task_id: compareProfile.task_id,

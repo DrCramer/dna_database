@@ -65,7 +65,7 @@ test('Реальные PostgreSQL, authenticate, preview и upload', { skip: !da
   }
   async function upload(endpoint, department, rows, fields = {}) {
     if (department === genetic && !rows[0]?.some(value => String(value || '').trim().toLocaleLowerCase('ru') === 'год')) {
-      rows = [[rows[0][0], 'Год', ...rows[0].slice(1)], ...rows.slice(1).map(row => [row[0], 2024, ...row.slice(1)])];
+      rows = [[rows[0][0], 'Год', ...rows[0].slice(1)], ...rows.slice(1).map(row => row.length ? [row[0], 2024, ...row.slice(1)] : [])];
     }
     const form = new FormData();
     form.append('file', new Blob([buffer(rows)]), 'fixture.xlsx');
@@ -177,7 +177,7 @@ test('Реальные PostgreSQL, authenticate, preview и upload', { skip: !da
     const preview = await upload('/upload/preview', genetic, [columns, ['A-1', ...values]]);
     assert.equal(preview.status, 200, JSON.stringify(preview.body));
     assert.equal(preview.body.preview.profiles[0].sampleName, 'A');
-    assert.equal(preview.body.preview.profiles[0].year, null);
+    assert.equal(preview.body.preview.profiles[0].year, 2024);
     assert.equal(preview.body.preview.profiles[0].action, 'create');
     const saved = await upload('/upload', genetic, [['Объект', 'D21S11', 'TH01', 'D5S818'], ['A-1', '29,30', '7,9', '11,12']]);
     assert.equal(saved.status, 200, JSON.stringify(saved.body));
@@ -186,7 +186,7 @@ test('Реальные PostgreSQL, authenticate, preview и upload', { skip: !da
     assert.equal(profile.department_id, genetic);
     assert.equal(profile.organization_id, organization);
     assert.equal(profile.internal_number, 'A-1');
-    assert.equal(profile.year, null);
+    assert.equal(profile.year, 2024);
     assert.deepEqual(profile.str_data, { TH01: ['7', '9'], D5S818: ['11', '12'], D21S11: ['29', '30'] });
     assert.equal(JSON.parse(profile.notes).importFormat, 'genetic');
     assert.equal(JSON.parse(profile.notes).rowNumber, 2);
@@ -198,13 +198,22 @@ test('Реальные PostgreSQL, authenticate, preview и upload', { skip: !da
     const repeated = await upload('/upload', genetic, [columns, ['a-1', ...values]], { performDeduplication: 'false', allowDuplicates: 'true' });
     assert.equal(repeated.body.processing.created, 0);
     assert.equal(repeated.body.processing.duplicates, 1);
-    const profile = { importFormat: 'genetic', year: 2024, departmentId: otherDepartment, organizationId: otherOrganization, userId, sampleName: 'A-1', internalNumber: 'A-1', strData: { TH01: ['7', '9'], D5S818: ['11', '12'], D21S11: ['29', '30'] } };
+    // Коллизия года между отделениями проверяется отдельно в DB-01.
+    const profile = { importFormat: 'genetic', year: 2025, departmentId: otherDepartment, organizationId: otherOrganization, userId, sampleName: 'A-1', internalNumber: 'A-1', strData: { TH01: ['7', '9'], D5S818: ['11', '12'], D21S11: ['29', '30'] } };
     await DNAProfile.create(profile);
     const checks = await DNAProfile.checkExistingProfiles(userId, [{ ...profile, sampleName: 'A', internalNumber: 'A-2' }], { departmentId: genetic, organizationId: organization });
     assert.equal(checks[0].action, 'create');
     await assert.rejects(DNAProfile.create(profile), error => error.code === '23505');
     const sameGenotype = await upload('/upload', genetic, [columns, ['A-2', ...values]]);
     assert.equal(sameGenotype.body.processing.created, 1);
+  });
+
+  await t.test('Генетический профиль без года отклоняется до записи', async () => {
+    const rows = [['Объект', 'Год', ...columns.slice(1)], ['MISSING-YEAR-1', '', ...values]];
+    const rejected = await upload('/upload', genetic, rows);
+    assert.equal(rejected.status, 400, JSON.stringify(rejected.body));
+    assert.match(JSON.stringify(rejected.body), /год/i);
+    assert.equal((await query("SELECT count(*)::int AS count FROM dna_profiles WHERE internal_number='MISSING-YEAR-1'", [])).rows[0].count, 0);
   });
 
   await t.test('Preview отличает деактивированный профиль от конфликта и допускает замену', async () => {
@@ -252,7 +261,7 @@ test('Реальные PostgreSQL, authenticate, preview и upload', { skip: !da
     const response = await fetch(baseUrl, { headers: { Authorization: `Bearer ${accessToken}`, 'X-Active-Department-Id': genetic } });
     const body = await response.json();
     assert.equal(response.status, 200, JSON.stringify(body));
-    assert(body.profiles.some(p => p.sampleName === 'A' && p.internalNumber === 'A-1' && p.year === null));
+    assert(body.profiles.some(p => p.sampleName === 'A' && p.internalNumber === 'A-1' && p.year === 2024));
     assert(body.profiles.every(p => p.departmentId === genetic));
     const analysisResponse = await fetch(baseUrl.replace('/api/profiles', '/api/genotype-analysis/profiles'), { headers: { Authorization: `Bearer ${accessToken}`, 'X-Active-Department-Id': genetic } });
     const analysisBody = await analysisResponse.json();
@@ -348,7 +357,7 @@ test('Реальные PostgreSQL, authenticate, preview и upload', { skip: !da
     const headers = token => ({ Authorization: `Bearer ${token}`, 'X-Active-Department-Id': genetic, 'Content-Type': 'application/json' });
     async function requestUpload(endpoint, taskId, name = 'PERMISSION-PROFILE', extra = {}) {
       const form = new FormData();
-      form.append('file', new Blob([buffer([columns, [name, ...values]])]), 'permissions.xlsx');
+      form.append('file', new Blob([buffer([['Объект', 'Год', ...columns.slice(1)], [name, 2024, ...values]])]), 'permissions.xlsx');
       if (taskId !== undefined) form.append('taskId', taskId);
       Object.entries(extra).forEach(([key, value]) => form.append(key, value));
       const response = await fetch(`${baseUrl}${endpoint}`, { method: 'POST', headers: { Authorization: `Bearer ${restrictedToken}`, 'X-Active-Department-Id': genetic }, body: form });

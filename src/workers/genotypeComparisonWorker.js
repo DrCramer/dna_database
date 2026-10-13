@@ -122,6 +122,10 @@ function extractPrivoz(profile) {
 }
 
 // Получаем данные от главного потока
+if (workerData.operation === 'mass-search') {
+  const { compareMassSearchRange } = require('../services/massSearchService');
+  parentPort.postMessage(compareMassSearchRange(workerData.profiles, workerData));
+} else {
 const { referenceProfiles, allProfiles, minMatches, ignoredLoci, startIndex, endIndex } = workerData;
 
 const results = [];
@@ -177,3 +181,5 @@ parentPort.postMessage({
   results: results,
   comparisons: comparisonCount
 });
+
+}

@@ -9,7 +9,7 @@ import {
   TaskStatusBadge
 } from './TaskPagePrimitives';
 
-const LegacyTasksPageView = ({
+const TasksPageView = ({
   onNavigate,
   numberLabel,
   isManager,
@@ -546,4 +546,4 @@ const LegacyTasksPageView = ({
   );
 };
 
-export default LegacyTasksPageView;
+export default TasksPageView;

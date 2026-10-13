@@ -65,14 +65,16 @@ test('Legacy API: единый доступ к профилям в active depart
   async function profile(owner, dept, name, options = {}) {
     return DNAProfile.create({
       userId: owner.id, departmentId: dept, organizationId: options.organizationId || organization,
-      importFormat: dept === genetic ? 'genetic' : 'emergency', year: dept === genetic ? null : 2024,
+      // Проверка доступа не зависит от года; одинаковый год между отделениями
+      // отдельно проверяется DB-01 в installation.integration.test.js.
+      importFormat: dept === genetic ? 'genetic' : 'emergency', year: dept === genetic ? 2025 : 2024,
       sampleName: name, internalNumber: `${name}-1`, strData, ...options
     });
   }
   const ownGenetic = await profile(multi, genetic, '256');
   const ownEmergency = await profile(multi, emergency, '256');
   const colleague = await profile(primary, genetic, '256');
-  const foreignProfile = await profile(multi, foreign, '256', { organizationId: otherOrganization, year: 2025 });
+  const foreignProfile = await profile(multi, foreign, '256', { organizationId: otherOrganization, year: 2026 });
   const viewerProfile = await profile(viewer, genetic, '256');
   const legacyProfile = await profile(legacy, genetic, '256');
   const masterArray = (await query('INSERT INTO master_arrays (name, department_id) VALUES ($1, $2) RETURNING id', [`Master ${fixture}`, genetic])).rows[0].id;
