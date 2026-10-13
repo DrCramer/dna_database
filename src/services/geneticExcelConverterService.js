@@ -251,8 +251,18 @@ class GeneticExcelConverterService {
     if (!options || typeof options !== 'object' || Array.isArray(options) || options.hideEmptyLoci != null && typeof options.hideEmptyLoci !== 'boolean') throw new ConversionError('Некорректные настройки скрытия пустых локусов.');
     const book = XLSX.utils.book_new();
     const exportLoci = orderNormalizedLoci(result.exportLoci || result.catalogLoci);
-    const sheet = XLSX.utils.aoa_to_sheet([['Объект', 'Год', ...exportLoci], ...result.profiles.map(profile => [profile.objectNumber, profile.year ?? '', ...exportLoci.map(locus => (profile.strData[locus] || []).join(','))])]);
-    if (options.hideEmptyLoci) sheet['!cols'] = [{}, {}, ...exportLoci.map(locus => ({ hidden: result.profiles.every(profile => !(profile.strData[locus] || []).some(allele => !isMissingAllele(allele))) }))];
+    const rows = [['Объект', 'Год', ...exportLoci], ...result.profiles.map(profile => [profile.objectNumber, profile.year ?? '', ...exportLoci.map(locus => (profile.strData[locus] || []).join(','))])];
+    const sheet = XLSX.utils.aoa_to_sheet(rows);
+    const columns = rows[0].map((header, index) => ({ wch: Math.min(40, Math.max(12, header.length + 2)), hidden: options.hideEmptyLoci === true && index > 1 }));
+    // Видимость определяется фактическими ячейками выгрузки. Для совместимости
+    // с Excel у каждой колонки записываем положительную ширину.
+    for (const row of rows.slice(1)) row.forEach((value, index) => {
+      if (!isMissingAllele(value)) {
+        columns[index].hidden = false;
+        columns[index].wch = Math.max(columns[index].wch, Math.min(40, String(value).length + 2));
+      }
+    });
+    sheet['!cols'] = columns;
     XLSX.utils.book_append_sheet(book, sheet, 'Импорт');
     return XLSX.write(book, { type: 'buffer', bookType: 'xlsx', compression: true });
   }

@@ -108,6 +108,17 @@ test('Экспорт скрывает только локусы, пустые у
   const visible = names.filter((name, index) => !sheet['!cols'][index]?.hidden);
   assert.deepEqual(visible, ['Объект', 'Год', ...ALL_LOCI.filter(locus => ['TH01', 'D5S818', 'D21S11', 'AMEL', 'SRY'].includes(locus))]);
   assert(sheet['!cols'][names.indexOf('D19S433')].hidden);
+  const rawBook = XLSX.read(output, { type: 'buffer', bookFiles: true });
+  const xml = Buffer.from(rawBook.files['xl/worksheets/sheet1.xml'].content).toString('utf8');
+  const xmlColumns = [...xml.matchAll(/<col\b([^>]*)\/>/g)].map(match => Object.fromEntries([...match[1].matchAll(/(\w+)="([^"]*)"/g)].map(attribute => [attribute[1], attribute[2]])));
+  assert.equal(xmlColumns.length, names.length);
+  for (const [index, column] of xmlColumns.entries()) {
+    assert(Number(column.width) > 0, `${names[index]} must have an explicit positive width in the XLSX XML`);
+    assert.equal(Number(column.min), index + 1);
+    assert.equal(Number(column.max), index + 1);
+    const shouldBeVisible = visible.includes(names[index]);
+    assert.equal(column.hidden === 'true' || column.hidden === '1', !shouldBeVisible, names[index]);
+  }
   const parsed = await new ExcelService().parseExcelFile(output, 'hidden-empty.xlsx', { importFormat: 'genetic' });
   assert.equal(parsed.length, 2);
   for (const [index, profile] of parsed.entries()) {
@@ -116,6 +127,7 @@ test('Экспорт скрывает только локусы, пустые у
   for (const settings of [{}, { hideEmptyLoci: false }]) {
     const expanded = XLSX.read(converter.export(result, settings), { type: 'buffer', cellStyles: true });
     assert(!(expanded.Sheets['Импорт']['!cols'] || []).some(column => column?.hidden));
+    assert(expanded.Sheets['Импорт']['!cols'].every(column => column.width > 0));
   }
   assert.throws(() => converter.export(result, { hideEmptyLoci: 'true' }), /настройки скрытия/);
 });
