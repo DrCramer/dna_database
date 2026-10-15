@@ -23,6 +23,28 @@ test('search snapshots are bound to their owner and active department and finger
   assert.notEqual(profileFingerprint(matched), profileFingerprint({ ...matched, loci: { TH01: ['8', '9'] } }));
 });
 
+test('snapshot pair identities stay unique across repeated searches and reversed comparisons', () => {
+  const { uniqueDuplicatePairs } = require('../src/utils/duplicateExportPairs');
+  const a = { id: 'a', internal_number: '258-1', year: 2026, loci: { TH01: ['7', '9'] } };
+  const b = { id: 'b', internal_number: '258-2', year: 2026, loci: { TH01: ['7', '9'] } };
+  const create = comparisons => createSearchSnapshot({ userId: 'dedup-user', departmentId: 'dedup-dept', comparisons });
+  const first = create([{ reference: a, profile: b }, { reference: b, profile: a }, { reference: a, profile: b }, { reference: a, profile: a }]);
+  const second = create([{ reference: b, profile: a }]);
+  assert.equal(first.pairCount, 1);
+  assert.equal(new Set([...first.pairKeys, ...second.pairKeys]).size, 1);
+  assert.deepEqual(first.groups.map(group => group.label), ['258-1 (2026)', '258-2 (2026)']);
+  const stored = getSearchSnapshots([first.id, second.id], { userId: 'dedup-user', departmentId: 'dedup-dept' });
+  assert.equal(uniqueDuplicatePairs(stored.flatMap(snapshot => snapshot.pairs)).length, 1);
+
+  const manual = { internal_number: 'Ввод вручную', year: 2026, loci: { TH01: ['7', '9'] } };
+  const one = create([{ reference: manual, profile: a }]);
+  const two = create([{ reference: { ...manual }, profile: a }]);
+  assert.equal(one.groups[0].key, two.groups[0].key, 'same manual reference has a stable identity across searches');
+  assert.equal(new Set([...one.pairKeys, ...two.pairKeys]).size, 1);
+  const changed = create([{ reference: { ...manual, loci: { TH01: ['8', '9'] } }, profile: a }]);
+  assert.notEqual(changed.groups[0].key, one.groups[0].key, 'different manually entered genotype remains separate');
+});
+
 test('one temporary reference remains a single group across all matches in its search', () => {
   const reference = { sample_name: 'Эталон', internal_number: 'Ввод вручную', loci: { TH01: ['7', '9'] } };
   const snapshot = createSearchSnapshot({

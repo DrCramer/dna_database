@@ -61,7 +61,7 @@ test('duplicate XLSX round-trip keeps compact comparison columns, full-match cou
   assert.equal(validateGeneticHeaders(profiles.getRow(1).values.slice(1)).valid, true);
 
   const comparisons = workbook.getWorksheet('Сравнения');
-  assert.equal(comparisons.rowCount, 7, 'each pair keeps its own reference and matched rows');
+  assert.equal(comparisons.rowCount, 6, 'each reference appears once before its matches');
   const comparisonHeaders = comparisons.getRow(1).values.slice(1);
   assert.deepEqual(comparisonHeaders.slice(0, 4), ['Роль', 'Объект', 'Эталон', 'Совпавшие локусы']);
   assert.equal(comparisons.getCell('A2').value, 'Эталон');
@@ -98,8 +98,49 @@ test('duplicate XLSX handles 1000 distinct profiles without dropping rows', asyn
   const workbook = new ExcelJS.Workbook();
   await workbook.xlsx.load(buffer);
   assert.equal(workbook.getWorksheet('Профили').rowCount, 1001);
-  assert.equal(workbook.getWorksheet('Сравнения').rowCount, 1999);
+  assert.equal(workbook.getWorksheet('Сравнения').rowCount, 1001);
   assert.equal(workbook.getWorksheet('Профили').getCell('A1001').value, 'EXP-1000');
+});
+
+test('duplicate XLSX removes repeated and reversed pairs while retaining different matches and years', async () => {
+  const a = profile('a', '258-1', { TH01: ['7', '9'] });
+  const b = profile('b', '258-2', { TH01: ['7', '9'] });
+  const c = { ...profile('c', '258-2', { TH01: ['7', '9'] }), year: 2025 };
+  const comparisons = [
+    { reference: a, matched: a },
+    { reference: a, matched: b },
+    { reference: b, matched: a },
+    { reference: a, matched: b },
+    { reference: a, matched: c },
+    { reference: b, matched: c }
+  ];
+  const workbook = new ExcelJS.Workbook();
+  await workbook.xlsx.load(await service.createWorkbookBuffer({ comparisons, metadata: { importFormat: 'genetic' } }));
+  const rows = workbook.getWorksheet('Сравнения').getSheetValues().slice(2).map(row => row.slice(1, 5));
+  assert.deepEqual(rows, [
+    ['Эталон', '258-1', '258-1', ''],
+    ['Совпавший профиль', '258-2', '258-1', '1'],
+    ['Совпавший профиль', '258-2', '258-1', '1'],
+    ['Эталон', '258-2', '258-2', ''],
+    ['Совпавший профиль', '258-2', '258-2', '1']
+  ]);
+  const profiles = workbook.getWorksheet('Профили');
+  assert.equal(profiles.rowCount, 4, 'different records with the same number are retained');
+  assert.equal(profiles.getCell('B4').value, '2025');
+  const summary = workbook.getWorksheet('Сводка');
+  assert.equal(summary.getSheetValues().find(row => row?.[1] === 'Найдено пар')[2], '3');
+
+  const scoped = new ExcelJS.Workbook();
+  await scoped.xlsx.load(await service.createWorkbookBuffer({
+    comparisons,
+    metadata: { importFormat: 'genetic' },
+    options: { scope: 'reference', referenceKey: 'db:b' }
+  }));
+  const sheet = scoped.getWorksheet('Сравнения');
+  assert.equal(sheet.rowCount, 4);
+  assert.equal(sheet.getCell('B2').value, '258-2', 'selected reference survives reverse-pair deduplication');
+  assert.equal(sheet.getCell('B3').value, '258-1');
+  assert.equal(sheet.getCell('C3').value, '258-2');
 });
 
 test('ЧС export keeps the legacy first-sheet column order', async () => {

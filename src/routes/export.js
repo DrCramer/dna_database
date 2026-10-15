@@ -11,6 +11,7 @@ const { DuplicateExcelExportService, XLSX_MIME } = require("../services/audit/du
 const { getSearchSnapshots, profileFingerprint } = require("../services/profiles/searchSnapshotStore");
 const { resolveProfileImportFormat } = require('../utils/profileImportFormat');
 const { normalizeMatchColors } = require('../utils/locusComparisonPresentation');
+const { uniqueDuplicatePairs } = require('../utils/duplicateExportPairs');
 
 const router = express.Router();
 const exportService = new ExportService();
@@ -54,9 +55,9 @@ router.post('/duplicates/excel', authenticate, async (req, res) => {
       ...pair,
       ignoredLoci: snapshot.settings.ignoredLoci || []
     })));
-    const selectedPairs = options.scope === 'reference'
+    const selectedPairs = uniqueDuplicatePairs(options.scope === 'reference'
       ? pairs.filter(pair => pair.referenceKey === options.referenceKey)
-      : pairs;
+      : pairs);
     if (!selectedPairs.length) return res.status(400).json({ message: 'Нет найденных дубликатов для выгрузки.' });
     if (selectedPairs.length > 20000) {
       return res.status(413).json({ message: 'Слишком много пар для формирования одного файла (максимум 20 000). Выберите группу одного эталона и повторите экспорт.' });

@@ -1,5 +1,6 @@
 const crypto = require('crypto');
 const { profileLoci } = require("../../utils/analysisLoci");
+const { duplicatePairKey } = require('../../utils/duplicateExportPairs');
 
 const SNAPSHOT_TTL_MS = 30 * 60 * 1000;
 const MAX_SNAPSHOTS = 500;
@@ -51,7 +52,7 @@ function createSearchSnapshot({ userId, departmentId, searchMode, algorithm, set
         identity: displayProfile(reference),
         loci: profileLoci(reference)
       })).digest('hex');
-      if (!temporaryReferenceIds.has(key)) temporaryReferenceIds.set(key, `temporary-${crypto.randomUUID()}`);
+      if (!temporaryReferenceIds.has(key)) temporaryReferenceIds.set(key, `temporary-${key}`);
       temporaryId = temporaryReferenceIds.get(key);
     }
 
@@ -77,7 +78,7 @@ function createSearchSnapshot({ userId, departmentId, searchMode, algorithm, set
       matchPercentage: Number.isFinite(Number(comparison.matchPercentage)) ? Number(comparison.matchPercentage) : null,
       totalScore: Number.isFinite(Number(comparison.totalScore ?? comparison.matchScore ?? comparison.score)) ? Number(comparison.totalScore ?? comparison.matchScore ?? comparison.score) : null
     };
-  }).filter(Boolean);
+  }).filter(pair => pair && duplicatePairKey(pair));
   if (!pairs.length) return null;
 
   const id = crypto.randomUUID();
@@ -101,7 +102,7 @@ function createSearchSnapshot({ userId, departmentId, searchMode, algorithm, set
   });
   const groups = [...new Map(pairs.map(pair => [pair.referenceKey, {
     key: pair.referenceKey,
-    label: String(pair.reference.internal_number || pair.reference.sample_name || 'Эталон').slice(0, 160),
+    label: `${String(pair.reference.internal_number || pair.reference.sample_name || 'Эталон').slice(0, 160)}${pair.reference.year ? ` (${pair.reference.year})` : ''}`,
     referenceProfileId: pair.referenceProfileId
   }])).values()];
   const profileKeys = new Set(pairs.flatMap(pair => [
@@ -115,7 +116,8 @@ function createSearchSnapshot({ userId, departmentId, searchMode, algorithm, set
   return {
     id,
     groups,
-    pairCount: pairs.length,
+    pairCount: new Set(pairs.map(duplicatePairKey)).size,
+    pairKeys: [...new Set(pairs.map(duplicatePairKey))],
     profileCount: profileKeys.size,
     profileKeys: [...profileKeys],
     locusNames: [...loci],

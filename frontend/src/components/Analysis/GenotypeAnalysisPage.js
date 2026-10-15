@@ -393,7 +393,8 @@ const GenotypeAnalysisPage = ({ onNavigate, selectedActiveTask }) => {
 
   const duplicateExportSnapshotIds = [...new Set(duplicateExportSnapshots.map(snapshot => snapshot?.id).filter(Boolean))];
   const duplicateExportGroups = [...new Map(duplicateExportSnapshots.flatMap(snapshot => snapshot?.groups || []).map(group => [group.key, group])).values()];
-  const duplicateExportPairCount = duplicateExportSnapshots.reduce((total, snapshot) => total + (snapshot?.pairCount || 0), 0);
+  const duplicateExportPairCount = new Set(duplicateExportSnapshots.flatMap(snapshot => snapshot?.pairKeys || [])).size
+    + duplicateExportSnapshots.filter(snapshot => !snapshot?.pairKeys).reduce((total, snapshot) => total + (snapshot?.pairCount || 0), 0);
   const duplicateExportProfileCount = new Set(duplicateExportSnapshots.flatMap(snapshot => snapshot?.profileKeys || [])).size;
   const duplicateExportLocusCount = new Set(duplicateExportSnapshots.flatMap(snapshot => snapshot?.locusNames || [])).size;
 

@@ -1,5 +1,6 @@
 const ExcelJS = require('exceljs');
 const { getAnalysisLoci, profileLoci } = require("../../utils/analysisLoci");
+const { profileKey, uniqueDuplicatePairs } = require('../../utils/duplicateExportPairs');
 const {
   normalizeHexColor,
   normalizeMatchColors,
@@ -8,10 +9,6 @@ const {
 } = require("../../utils/locusComparisonPresentation");
 
 const XLSX_MIME = 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet';
-
-function profileKey(profile) {
-  return profile.id ? `db:${profile.id}` : `temporary:${profile.temporaryId}`;
-}
 
 function objectIdentifier(profile, genetic) {
   if (genetic) return String(profile.internal_number ?? profile.internalNumber ?? '').trim();
@@ -123,7 +120,9 @@ function addLegendRow(sheet, label, color, status) {
 class DuplicateExcelExportService {
   async createWorkbookBuffer({ comparisons, metadata = {}, options = {} }) {
     const opts = validateOptions(options);
-    const pairs = filterPairs(comparisons, opts);
+    // Сначала выбираем эталон, затем убираем A–B / B–A: выбранная
+    // пользователем ориентация сравнения должна сохраниться вместе с подсветкой.
+    const pairs = uniqueDuplicatePairs(filterPairs(comparisons, opts));
     if (!pairs.length) throw new Error('Нет найденных дубликатов для выгрузки.');
 
     const genetic = metadata.importFormat === 'genetic';
@@ -186,9 +185,14 @@ class DuplicateExcelExportService {
       const comparisonsSheet = workbook.addWorksheet('Сравнения');
       const fixedHeaders = ['Роль', 'Объект', 'Эталон', 'Совпавшие локусы'];
       comparisonsSheet.addRow([...fixedHeaders, ...loci]);
+      const groups = new Map();
       pairs.forEach(pair => {
-        const reference = pair.reference;
-        const matched = pair.matched;
+        const key = profileKey(pair.reference);
+        if (!groups.has(key)) groups.set(key, []);
+        groups.get(key).push(pair);
+      });
+      groups.forEach(group => {
+        const reference = group[0].reference;
         const refLabel = displayIdentifier(reference, genetic);
         const refRow = comparisonsSheet.addRow([
           'Эталон', refLabel, refLabel, '',
@@ -201,31 +205,34 @@ class DuplicateExcelExportService {
         refRow.getCell(2).font = { bold: true, color: { argb: 'FF244C68' } };
         refRow.getCell(2).fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFEAF2F8' } };
 
-        const matchedPresentations = new Map(loci.map(locus => [locus, getLocusComparisonPresentation({
-          referenceData: profileLoci(reference)[locus],
-          comparedData: profileLoci(matched)[locus],
-          matchedLoci: pair.matchedLoci,
-          details: pair.details,
-          locus,
-          ignoredLoci: pair.ignoredLoci || metadata.ignoredLoci || [],
-          colors
-        })]));
-        const fullMatchCount = [...matchedPresentations.values()].filter(presentation => presentation.status === 'full').length;
-        const matchedRow = comparisonsSheet.addRow([
-          'Совпавший профиль', displayIdentifier(matched, genetic), refLabel, fullMatchCount,
-          ...loci.map(locus => formatLocusValue(profileLoci(matched)[locus]))
-        ]);
-        matchedRow.eachCell((cell, column) => {
-          if (column <= fixedHeaders.length) {
-            setText(cell, matchedRow.getCell(column).value);
-            applyBodyCellStyle(cell);
-            return;
-          }
-          const locus = loci[column - fixedHeaders.length - 1];
-          const presentation = matchedPresentations.get(locus);
-          setComparisonCell(matchedRow.getCell(column), profileLoci(matched)[locus], presentation, {
-            highlight: opts.includeHighlights,
-            highlightAlleles: opts.highlightAlleles
+        group.forEach(pair => {
+          const matched = pair.matched;
+          const matchedPresentations = new Map(loci.map(locus => [locus, getLocusComparisonPresentation({
+            referenceData: profileLoci(reference)[locus],
+            comparedData: profileLoci(matched)[locus],
+            matchedLoci: pair.matchedLoci,
+            details: pair.details,
+            locus,
+            ignoredLoci: pair.ignoredLoci || metadata.ignoredLoci || [],
+            colors
+          })]));
+          const fullMatchCount = [...matchedPresentations.values()].filter(presentation => presentation.status === 'full').length;
+          const matchedRow = comparisonsSheet.addRow([
+            'Совпавший профиль', displayIdentifier(matched, genetic), refLabel, fullMatchCount,
+            ...loci.map(locus => formatLocusValue(profileLoci(matched)[locus]))
+          ]);
+          matchedRow.eachCell((cell, column) => {
+            if (column <= fixedHeaders.length) {
+              setText(cell, matchedRow.getCell(column).value);
+              applyBodyCellStyle(cell);
+              return;
+            }
+            const locus = loci[column - fixedHeaders.length - 1];
+            const presentation = matchedPresentations.get(locus);
+            setComparisonCell(matchedRow.getCell(column), profileLoci(matched)[locus], presentation, {
+              highlight: opts.includeHighlights,
+              highlightAlleles: opts.highlightAlleles
+            });
           });
         });
       });
