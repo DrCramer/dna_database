@@ -21,7 +21,7 @@ function Decision({ issue, apply, disabled }) {
   </div>;
 }
 export default function ConverterIssues({ result, options, update, disabled }) {
-  const [status, setStatus] = useState('hard');
+  const [status, setStatus] = useState(result.issues.some(issue => issue.hard) ? 'hard' : result.issues.some(issue => issue.status === 'WARNING') ? 'WARNING' : 'all');
   const [search, setSearch] = useState('');
   const [page, setPage] = useState(0);
   const filtered = useMemo(() => result.issues.filter(issue => (status === 'all' || status === 'hard' ? status === 'all' || issue.hard : issue.status === status) && `${issue.objectNumber || ''} ${issue.locus || ''} ${issue.sourceFile || ''}`.toLowerCase().includes(search.toLowerCase())), [result, status, search]);

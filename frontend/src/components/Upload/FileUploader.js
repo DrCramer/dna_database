@@ -3,7 +3,6 @@ import React, { useState } from 'react';
 import { useAuth } from '../../contexts/AuthContext';
 import { resolveProfileImportFormat } from '../../../../src/utils/profileImportFormat';
 import { getProfileUploadBlockReason } from '../../../../src/utils/profileUploadPermissions';
-import { getTaskNumberLabel } from '../../../../src/utils/taskLabels';
 
 
 // Функция склонения слова "профиль"
@@ -576,26 +575,11 @@ const FileUploader = ({ onNavigate, onUploadSuccess, selectedActiveTask, onSelec
       {/* Left Column - Upload Section */}
       <div className="upload-section">
         {/* Header */}
-        <div className="section-header">
-          <div>
-            <h2 className="section-title">📁 Загрузка ДНК профилей</h2>
-            <p className="section-subtitle">
-              Пользователь: <strong>{user?.username}</strong> ({user?.role})
-            </p>
-          </div>
-          <div className="section-header-actions">
-            <button
-              onClick={() => onNavigate('/dashboard')}
-              className="nav-button btn btn-secondary"
-            >
-              Назад к дашборду
-            </button>
-          </div>
-        </div>
+        <div className="section-header"><div><h2 className="section-title">Загрузка профилей</h2><p className="section-subtitle">Выберите задачу и файл с профилями.</p></div></div>
 
         <div className="form-group">
-          <label className="form-label" htmlFor="upload-task">Куда загрузить профили *</label>
-          <select id="upload-task" className="form-control" disabled={taskLoading || uploading || showReplaceConfirm}
+          <label className="form-label" htmlFor="upload-task">Задача загрузки *</label>
+          <select id="upload-task" className="form-input" disabled={taskLoading || uploading || showReplaceConfirm}
             value={selectedActiveTask?.id || (uploadTarget === 'without_task' ? '__without_task__' : '')}
             onChange={event => {
               const value = event.target.value;
@@ -609,84 +593,31 @@ const FileUploader = ({ onNavigate, onUploadSuccess, selectedActiveTask, onSelec
           {uploadTarget === 'without_task' && <p>Профили будут загружены без привязки к задаче.</p>}
         </div>
 
-        {/* Индикатор активной задачи */}
-        {selectedActiveTask && (
-          <div className="upload-task-banner">
-            <p className="upload-task-banner-label">
-              📤 Загрузка профилей в задачу:
-            </p>
-            <p className="upload-task-banner-title">
-              "{selectedActiveTask.title}" ({getTaskNumberLabel(activeDepartment)}: {selectedActiveTask.internal_number_start || 'не указан'})
-            </p>
-          </div>
-        )}
-
         {permissionLoading ? <p role="status">Проверяем права загрузки…</p> : uploadBlockReason ? (
           <div className="alert alert-warning" role="alert">
             <p>{uploadBlockReason}</p>
-            <button type="button" className="btn btn-secondary" onClick={() => onNavigate('/dashboard')}>Выбрать активную задачу</button>
           </div>
-        ) : !selectedActiveTask && <p className="upload-subtitle">Профили будут загружены без привязки к задаче: это разрешено в настройках вашей учётной записи.</p>}
+        ) : null}
 
         {geneFiles.length > 0 && <GeneticExcelConverterPage embedded initialFiles={geneFiles} onPreparedFile={prepared => {
           if (prepared.departmentId !== activeDepartmentId || prepared.ownerId !== user.id) return;
           setFile(prepared.file); setGeneFiles([]); setPreviewData(null); setUploadResult(null); setError(null);
         }} />}
         {/* Upload Area */}
-        <form onSubmit={handleUpload}>
-          <button type="button" className="btn btn-secondary" onClick={() => onNavigate('/excel-converter')}>Конвертер генетических профилей</button>
-          {isGenetic && <div className="form-group"><label className="form-label" htmlFor="upload-panel">Панель (необязательно)</label><select id="upload-panel" className="form-input" value={panelId} disabled={uploading} onChange={event => { setPanelId(event.target.value); setPanelWarnings([]); }}><option value="">Не указана</option>{panels.map(panel => <option key={panel.id} value={panel.id}>{panel.name}</option>)}</select>{panelsError && <p role="alert">{panelsError}</p>}</div>}
-          {isGenetic && panelWarnings.length > 0 && <div className="alert alert-warning" role="status"><strong>Проверка панели {panels.find(panel => panel.id === panelId)?.name}</strong><ul>{panelWarnings.map(warning => <li key={warning}>{warning}</li>)}</ul><p>Эти предупреждения не блокируют загрузку.</p></div>}
-          <div className="upload-area">
-            <div className="upload-icon">📁</div>
-            <h3 className="upload-title">Выберите Excel или GeneMapper TXT</h3>
-            <p className="upload-subtitle">
-              Поддерживаемые форматы: .xlsx, .xls, .txt (GeneMapper)
-            </p>
-            <input
-              id="file-input"
-              type="file"
-              accept=".xlsx,.xls,.txt"
-              multiple
-              onChange={handleFileChange}
-              disabled={uploading || permissionLoading || !!uploadBlockReason}
-              hidden
-              ref={fileInputRef}
-            />
-            <button
-              type="button"
-              className="browse-btn btn btn-secondary btn-lg"
-              disabled={uploading || permissionLoading || !!uploadBlockReason}
-              onClick={() => fileInputRef.current?.click()}
-            >
-              {uploading ? '⏳ Загрузка...' : '📂 Выбрать файл'}
-            </button>
+        {!geneFiles.length && <form className="upload-form" onSubmit={handleUpload}>
+          <div className="upload-file-picker">
+            <div><strong className={file ? 'file-name' : undefined}>{file ? file.name : 'Excel или GeneMapper TXT'}</strong><p className="upload-subtitle">{file ? `${(file.size / 1024).toFixed(1)} КБ` : 'Файлы .xlsx, .xls, .txt · до 10 МиБ'}</p></div>
+            <input id="file-input" type="file" accept=".xlsx,.xls,.txt" multiple onChange={handleFileChange} disabled={uploading || permissionLoading || !!uploadBlockReason} hidden ref={fileInputRef} />
+            <button type="button" className="btn btn-secondary" disabled={uploading || permissionLoading || !!uploadBlockReason} onClick={() => fileInputRef.current?.click()}>{file ? 'Другой файл' : 'Выбрать файл'}</button>
           </div>
+          <details className="upload-options"><summary>Дополнительные настройки</summary>
+            {isGenetic && <div className="form-group"><label className="form-label" htmlFor="upload-panel">Панель (необязательно)</label><select id="upload-panel" className="form-input" value={panelId} disabled={uploading} onChange={event => { setPanelId(event.target.value); setPanelWarnings([]); }}><option value="">Не указана</option>{panels.map(panel => <option key={panel.id} value={panel.id}>{panel.name}</option>)}</select>{panelsError && <p role="alert">{panelsError}</p>}</div>}
+            <button type="button" className="btn btn-secondary" onClick={() => onNavigate('/excel-converter')}>Открыть конвертер</button>
+          </details>
+          {isGenetic && panelWarnings.length > 0 && <div className="alert alert-warning" role="status"><strong>Проверка панели</strong><ul>{panelWarnings.map(warning => <li key={warning}>{warning}</li>)}</ul></div>}
+          <button type="submit" disabled={!file || uploading || permissionLoading || !!uploadBlockReason} className="upload-file-btn btn btn-primary">{uploading ? 'Загрузка…' : 'Загрузить профили'}</button>
+        </form>}
 
-          {/* File List */}
-          {file && (
-            <div className="file-list">
-              <h4>Выбранный файл:</h4>
-              <div className="file-item">
-                <div className="file-info">
-                  <div className="file-name">📄 {file.name}</div>
-                  <div className="file-meta">{(file.size / 1024).toFixed(1)} KB</div>
-                </div>
-              </div>
-            </div>
-          )}
-
-          {/* Upload Button */}
-          <div className="upload-btn-container">
-            <button
-              type="submit"
-              disabled={!file || uploading || permissionLoading || !!uploadBlockReason}
-              className="upload-file-btn btn btn-primary btn-lg btn-block"
-            >
-              {uploading ? '⏳ Загрузка...' : '📤 Загрузить файл'}
-            </button>
-          </div>
-        </form>
 
         {/* Error Display */}
         {error && (
@@ -925,7 +856,7 @@ const FileUploader = ({ onNavigate, onUploadSuccess, selectedActiveTask, onSelec
                 const replacedProfiles = uploadResult.data?.duplicates?.filter(d => d.action === 'replace') || [];
                 return replacedProfiles.length > 0 && (
                   <div className="upload-detail-block">
-                    <details className="upload-detail-collapsible" open>
+                    <details className="upload-detail-collapsible">
                       <summary className="duplicates-summary">
                         🔄 Заменено профилей: {replacedProfiles.length}
                       </summary>
@@ -1057,7 +988,7 @@ const FileUploader = ({ onNavigate, onUploadSuccess, selectedActiveTask, onSelec
       </div>
 
       {/* Right Column - Requirements Section */}
-      <div className="requirements-section">
+      <details className="upload-help"><summary>Как подготовить файл</summary><div className="requirements-section">
         <div className="requirements-section-header">
           <div className="requirements-section-eyebrow">Справка по загрузке</div>
           <h2 className="requirements-section-title">Подготовка Excel файла</h2>
@@ -1208,7 +1139,7 @@ const FileUploader = ({ onNavigate, onUploadSuccess, selectedActiveTask, onSelec
             </div>
           </div>
         </div>
-      </div>
+      </div></details>
 
       {/* DNA Loading Animation */}
       {showDnaLoading && (

@@ -25,6 +25,7 @@ export default function NgsSourcePreview({ file, options, update, disabled }) {
     {ngs.locusReport && <details><summary>Каталог маркеров: {ngs.locusReport.total} исходных · {ngs.locusReport.supported.length} поддерживаются · {ngs.locusReport.aliases.length} aliases · {ngs.locusReport.unknown.length} неизвестны · {ngs.locusReport.ambiguous.length} неоднозначны</summary>
       <p>Поддерживаются: {ngs.locusReport.supported.join(', ') || '—'}</p><p>Aliases: {ngs.locusReport.aliases.map(alias => `${alias.original} → ${alias.canonical}`).join(', ') || '—'}</p><p>Неизвестны: {ngs.locusReport.unknown.join(', ') || '—'}</p><p>Неоднозначны: {ngs.locusReport.ambiguous.join(', ') || '—'}</p>
     </details>}
+    <details open={ngs.objectConfirmed && ngs.records.some(item => item.cell?.hard)}><summary>Проверка локусов · {ngs.records.filter(item => item.cell?.hard).length} требуют решения</summary>
     <p>Result: {ngs.resultCount || 0} строк · Detail: {ngs.detailCount || 0} строк. Нажмите на локус для просмотра доказательств QC и принятия решения.</p>
     <div className="converter-scroll"><table className="converter-issue-table"><thead><tr>{['Локус', 'Исходный Genotype', 'QC Result', 'Coverage', 'Аллелей', 'Принятое значение / статус'].map(title => <th key={title}>{title}</th>)}</tr></thead><tbody>
       {ngs.records.map(item => <tr key={item.key}>
@@ -33,6 +34,7 @@ export default function NgsSourcePreview({ file, options, update, disabled }) {
         <td>{item.cell?.normalizedValue || '—'}<br />{item.cell?.userDecision ? 'Решение пользователя сохранено' : statusNames[item.qc.status] || item.qc.status}{item.cell?.hard && ' · Требуется решение'}{!item.cell && ' · Проверьте сопоставление маркера и источник'}</td>
       </tr>)}
     </tbody></table></div>
+    </details>
     {record && <div className="modal-overlay"><div className="modal-content modal-lg converter-ngs-dialog" role="dialog" aria-modal="true" aria-labelledby="ngs-locus-title">
       <h2 id="ngs-locus-title">{record.cell?.locus || record.originalLocus} · {file.name}</h2>
       <p>Исходный генотип: <strong>{record.rawGenotype || '—'}</strong>. Предлагаемый: <strong>{record.qc.suggestedValue || 'нет'}</strong>.</p>

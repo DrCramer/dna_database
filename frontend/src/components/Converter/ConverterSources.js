@@ -1,14 +1,9 @@
-import React, { useState } from 'react';
+import React from 'react';
 import GeneMapperSourcePreview from './GeneMapperSourcePreview';
 import NgsSourcePreview from './NgsSourcePreview';
-function SourceYear({ file, disabled, apply }) {
-  const [year, setYear] = useState(String(file.year ?? file.geneMapper?.suggestedYear ?? ''));
-  const valid = year === '' || /^\d{4}$/.test(year) && Number(year) >= 1900 && Number(year) <= 2100;
-  return <div className="converter-source-year"><label>Год исследования<input className="form-input" type="number" min="1900" max="2100" step="1" value={year} disabled={disabled} onChange={event => setYear(event.target.value)} placeholder="Например, 2026" aria-invalid={!valid} /></label><button type="button" className="btn btn-secondary" disabled={disabled || !valid || year === String(file.year ?? '')} onClick={() => apply(year)}>Применить год</button>{!valid && <p>Введите целый год от 1900 до 2100.</p>}</div>;
-}
 export default function ConverterSources({ result, options, update, disabled }) {
   const set = (id, patch) => update({ ...options, files: { ...options.files, [id]: { ...options.files?.[id], ...patch } } });
-  return <section className="converter-card"><h2>Источники и панели</h2>{result.files.map(file => <details key={file.id} open={result.files.length === 1 || file.objectColumn == null || file.columns.some(column => !column.locus && !column.ignored && column.index !== file.objectColumn)}>
+  return <section className="converter-card"><h2>Параметры источников</h2>{result.files.map(file => <details key={file.id} open={result.files.length === 1 || file.objectColumn == null || file.columns.some(column => !column.locus && !column.ignored && column.index !== file.objectColumn)}>
     <summary>{file.name} · {file.rowCount} строк · {file.sourceLoci.length} локусов</summary>
     <div className="converter-source-controls">
       {file.geneMapper ? <p><strong>GeneMapper TXT</strong></p> : <label>Формат<select className="form-input" value={options.files?.[file.id]?.format || 'auto'} disabled={disabled} onChange={event => set(file.id, { format: event.target.value, columns: {} })}><option value="auto">Определять автоматически</option><option value="NGS_ASTR_RESULT_DETAIL">NGS ASTR+ (Result / Detail)</option><option value="legacy">Обычная таблица Excel</option></select></label>}
@@ -18,7 +13,6 @@ export default function ConverterSources({ result, options, update, disabled }) 
       </>}
       {file.ngs && file.detection?.ambiguous && <><label>Лист Result<select className="form-input" disabled={disabled} value={file.sheet || ''} onChange={event => set(file.id, { sheetName: event.target.value })}><option value="">Выберите</option>{file.sheets.filter(name => name.trim().toLowerCase() === 'result').map(name => <option key={name}>{name}</option>)}</select></label><label>Лист Detail<select className="form-input" disabled={disabled} value={file.detection.detailSheet || ''} onChange={event => set(file.id, { detailSheetName: event.target.value })}><option value="">Выберите</option>{file.sheets.filter(name => name.trim().toLowerCase() === 'detail').map(name => <option key={name}>{name}</option>)}</select></label></>}
       {file.ngs && file.detection?.ambiguous && <><label>Строка заголовков Result<input className="form-input" type="number" min="1" max="30" value={options.files?.[file.id]?.resultHeaderRow || ''} placeholder={String(file.detection.resultHeader?.row || 1)} disabled={disabled} onChange={event => set(file.id, { resultHeaderRow: event.target.value ? Number(event.target.value) : undefined })} /></label><label>Строка заголовков Detail<input className="form-input" type="number" min="1" max="30" value={options.files?.[file.id]?.detailHeaderRow || ''} placeholder={String(file.detection.detailHeader?.row || 1)} disabled={disabled} onChange={event => set(file.id, { detailHeaderRow: event.target.value ? Number(event.target.value) : undefined })} /></label></>}
-      <SourceYear file={file} disabled={disabled} apply={year => set(file.id, { year })} />
       <label>Панель<select className="form-input" value={file.detectedPanelId || ''} disabled={disabled} onChange={event => set(file.id, { panelId: event.target.value })}><option value="">Не указана</option>{file.panelCandidates.map(panel => <option key={panel.id} value={panel.id}>{panel.name} — {panel.matches}/{panel.expected}, отсутствуют {panel.missing.length}, лишние {panel.extra.length}</option>)}</select></label>
       <label>Версия лестницы для файла<select className="form-input" value={options.files?.[file.id]?.referenceSetId || 'auto'} disabled={disabled} onChange={event => set(file.id, { referenceSetId: event.target.value })}><option value="auto">Автоматически по панели</option><option value="none">Не использовать</option>{result.referenceSets?.filter(set => set.type === 'KIT_LADDER').map(set => <option key={set.id} value={set.id}>{set.name} · {set.sourceVersion}</option>)}</select></label>
     </div>

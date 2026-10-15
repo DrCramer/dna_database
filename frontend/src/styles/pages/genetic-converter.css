@@ -52,3 +52,29 @@
 :where(.converter-page) .converter-gene-preview td label { display: grid; gap: 6px; margin-bottom: 12px; }
 :where(.converter-page) .converter-gene-preview dl { display: grid; grid-template-columns: auto auto; gap: 6px 12px; min-width: 200px; }
 :where(.converter-page) .converter-gene-preview dd { margin: 0; white-space: nowrap; }
+
+:where(.converter-page) .converter-file-picker { display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 16px; }
+:where(.converter-page) .converter-file-picker p { margin: 6px 0 0; font-size: 14px; color: var(--text-secondary); }
+:where(.converter-page) .converter-results { display: grid; gap: 16px; min-width: 0; }
+:where(.converter-page) .converter-result-heading { display: flex; align-items: flex-start; justify-content: space-between; flex-wrap: wrap; gap: 20px; }
+:where(.converter-page) .converter-result-heading > div:first-child { flex: 1; min-width: 220px; overflow-wrap: anywhere; }
+:where(.converter-page) .converter-result-heading h2 { font-size: 17px; line-height: 1.5; margin: 0 0 6px; }
+:where(.converter-page) .converter-result-heading p { margin: 0; color: var(--text-secondary); font-size: 14px; }
+:where(.converter-page) .converter-year-input { display: flex; align-items: center; gap: 10px; }
+:where(.converter-page) .converter-year-input input { width: 110px; }
+:where(.converter-page) .converter-year-confirmed { color: var(--text-secondary); font-size: 13px; }
+:where(.converter-page) .converter-hint { font-size: 14px; line-height: 1.6; color: var(--text-secondary); margin: 10px 0 0; }
+:where(.converter-page) .converter-exclusions { margin: 16px 0 0; font-size: 14px; color: var(--text-secondary); }
+:where(.converter-page) .converter-text-button { border: 0; padding: 0; background: transparent; color: var(--brand-primary); font: inherit; cursor: pointer; text-decoration: underline; text-underline-offset: 3px; }
+:where(.converter-page) .converter-review-notice { display: flex; align-items: center; justify-content: space-between; gap: 16px; padding: 16px 20px; background: var(--status-warning-bg); border: 1px solid var(--border-default); border-radius: var(--radius-md); }
+:where(.converter-page) .converter-disclosure { margin: 0; padding: 16px 20px; background: var(--surface-card); border: 1px solid var(--border-default); scroll-margin-top: 150px; }
+:where(.converter-page) .converter-disclosure > summary { font-weight: 500; color: var(--text-secondary); }
+:where(.converter-page) .converter-disclosure > .converter-card { border: 0; padding: 20px 0 0; margin: 0; }
+:where(.converter-page) .converter-technical-summary { display: grid; grid-template-columns: 1fr auto; gap: 10px 20px; font-size: 14px; }
+:where(.converter-page) .converter-technical-summary dd { margin: 0; }
+:where(.converter-page) .converter-zip { justify-self: start; }
+@media (max-width: 640px) {
+  :where(.converter-page) .converter-file-picker,
+  :where(.converter-page) .converter-review-notice { align-items: stretch; flex-direction: column; }
+  :where(.converter-page) .converter-year-input { flex-wrap: wrap; }
+}
