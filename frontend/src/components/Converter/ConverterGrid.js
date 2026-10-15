@@ -11,8 +11,8 @@ export default function ConverterGrid({ result, options, update, disabled }) {
   const populated = useMemo(() => new Set(result.profiles.flatMap(profile => profile.populatedLoci)), [result]);
   const loci = orderNormalizedLoci(result.catalogLoci).filter(locus => mode === 'all' || (mode === 'source' ? result.sourceLoci.includes(locus) : mode === 'populated' ? populated.has(locus) : problem.has(locus)));
   const current = Math.min(page, Math.max(0, Math.ceil(result.profiles.length / 50) - 1));
-  const editorProfile = editor && result.profiles.find(profile => profile.objectNumber === editor.object && profile.year === editor.year);
-  const identityKey = profile => profile.year == null ? `legacy:${geneticObjectKey(profile.objectNumber)}` : geneticProfileKey(profile.year, profile.objectNumber);
+  const editorProfile = editor && result.profiles.find(profile => profile.key === editor.key);
+  const identityKey = profile => profile.key || (profile.year == null ? `legacy:${geneticObjectKey(profile.objectNumber)}` : geneticProfileKey(profile.year, profile.objectNumber));
 
   return <section className="converter-card">
     <h2>Подготовленные профили</h2>
@@ -22,10 +22,10 @@ export default function ConverterGrid({ result, options, update, disabled }) {
     </div>
     <div className="converter-scroll converter-grid-scroll" tabIndex={0} aria-label="Таблица генотипов, горизонтальная прокрутка">
       <table className="converter-genotypes"><thead><tr><th>Год</th><th>Объект</th>{loci.map(locus => <th key={locus}>{locus}</th>)}</tr></thead>
-        <tbody>{result.profiles.slice(current * 50, current * 50 + 50).map(profile => <tr key={`${profile.year ?? 'без-года'}:${profile.objectNumber}`}>
+        <tbody>{result.profiles.slice(current * 50, current * 50 + 50).map(profile => <tr key={identityKey(profile)}>
           <td>{profile.year ?? '—'}</td><th scope="row">{profile.objectNumber}</th>
           {loci.map(locus => <td key={locus} className={problem.has(locus) ? 'converter-problem-cell' : undefined}>
-            <button className="converter-cell-button" disabled={disabled || !profile.sourceLoci.includes(locus)} title="Изменить результат" onClick={() => setEditor({ object: profile.objectNumber, year: profile.year, locus, value: profile.strData[locus].join(',') })}>{profile.strData[locus].join(',') || '—'}</button>
+            <button className="converter-cell-button" disabled={disabled || !profile.sourceLoci.includes(locus)} title="Изменить результат" onClick={() => setEditor({ key: profile.key, object: profile.objectNumber, year: profile.year, locus, value: profile.strData[locus].join(',') })}>{profile.strData[locus].join(',') || '—'}</button>
           </td>)}
         </tr>)}</tbody>
       </table>
@@ -37,7 +37,7 @@ export default function ConverterGrid({ result, options, update, disabled }) {
         <p>Источник: {issue.sourceFile || 'Ручной результат'} · исходное: {issue.rawValue}</p><ReferenceEvidence reference={issue.reference} />
         {issue.hard && issue.reference.suggestedDecision && <button className="btn btn-primary" disabled={disabled} onClick={() => { update({ ...options, cells: { ...options.cells, [issue.id]: issue.reference.suggestedDecision } }); setEditor(null); }}>Принять предложение: {issue.reference.suggestedValue}</button>}
       </div>)}
-      <p>Введите отдельные аллели через запятую. Одна числовая аллель диплоидного локуса требует уточнения: 12,12 или 12,?.</p>
+      <p>Введите отдельные аллели через запятую. Исходное одиночное значение сохраняется как есть; при необходимости введите явную пару.</p>
       <label>Результат<input autoFocus className="form-input" maxLength={500} value={editor.value} onChange={event => setEditor({ ...editor, value: event.target.value })} /></label>
       <div className="converter-actions"><button className="btn btn-primary" disabled={disabled} onClick={() => { update({ ...options, conflicts: { ...options.conflicts, [`merge:${identityKey(editorProfile)}:${editor.locus}`]: { action: 'manual', value: editor.value } } }); setEditor(null); }}>Проверить и сохранить</button><button className="btn btn-secondary" onClick={() => setEditor(null)}>Отмена</button></div>
     </div></div>}

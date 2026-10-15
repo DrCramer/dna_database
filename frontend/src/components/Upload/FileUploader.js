@@ -1,3 +1,4 @@
+import GeneticExcelConverterPage from '../Converter/GeneticExcelConverterPage';
 import React, { useState } from 'react';
 import { useAuth } from '../../contexts/AuthContext';
 import { resolveProfileImportFormat } from '../../../../src/utils/profileImportFormat';
@@ -121,6 +122,8 @@ const FileUploader = ({ onNavigate, onUploadSuccess, selectedActiveTask, onSelec
   const [autoReplaceDeactivated, setAutoReplaceDeactivated] = useState(true);
 
   const { user, activeDepartment, activeDepartmentId, refreshUser } = useAuth();
+  const [geneFiles, setGeneFiles] = useState([]);
+  React.useEffect(() => { setGeneFiles([]); }, [activeDepartmentId]);
   const isGenetic = resolveProfileImportFormat(activeDepartment) === 'genetic';
   const [panels, setPanels] = useState([]);
   const [panelId, setPanelId] = useState('');
@@ -202,7 +205,15 @@ const FileUploader = ({ onNavigate, onUploadSuccess, selectedActiveTask, onSelec
 
   const handleFileChange = (e) => {
     onPreparedFileConsumed?.();
-    const selectedFile = e.target.files[0];
+    const incoming = Array.from(e.target.files || []);
+    setPreviewData(null); setGeneFiles([]);
+    if (incoming.some(file => /\.txt$/i.test(file.name))) {
+      setFile(null); setUploadResult(null);
+      if (incoming.some(file => !/\.txt$/i.test(file.name))) { setError('Выберите TXT вместе с другими источниками в конвертере или загрузите один готовый Excel.'); return; }
+      setError(null); setGeneFiles(incoming); return;
+    }
+    if (incoming.length > 1) { setError('Для обычной загрузки выберите один Excel-файл.'); return; }
+    const selectedFile = incoming[0];
     setFile(selectedFile);
     setError(null);
     setUploadResult(null);
@@ -561,7 +572,7 @@ const FileUploader = ({ onNavigate, onUploadSuccess, selectedActiveTask, onSelec
   };
 
   return (
-    <div className="upload-page-container">
+    <div className={`upload-page-container${geneFiles.length ? ' upload-converting' : ''}`}>
       {/* Left Column - Upload Section */}
       <div className="upload-section">
         {/* Header */}
@@ -617,21 +628,26 @@ const FileUploader = ({ onNavigate, onUploadSuccess, selectedActiveTask, onSelec
           </div>
         ) : !selectedActiveTask && <p className="upload-subtitle">Профили будут загружены без привязки к задаче: это разрешено в настройках вашей учётной записи.</p>}
 
+        {geneFiles.length > 0 && <GeneticExcelConverterPage embedded initialFiles={geneFiles} onPreparedFile={prepared => {
+          if (prepared.departmentId !== activeDepartmentId || prepared.ownerId !== user.id) return;
+          setFile(prepared.file); setGeneFiles([]); setPreviewData(null); setUploadResult(null); setError(null);
+        }} />}
         {/* Upload Area */}
         <form onSubmit={handleUpload}>
-          {isGenetic && <button type="button" className="btn btn-secondary" onClick={() => onNavigate('/excel-converter')}>Конвертер старых Excel-файлов</button>}
+          <button type="button" className="btn btn-secondary" onClick={() => onNavigate('/excel-converter')}>Конвертер генетических профилей</button>
           {isGenetic && <div className="form-group"><label className="form-label" htmlFor="upload-panel">Панель (необязательно)</label><select id="upload-panel" className="form-input" value={panelId} disabled={uploading} onChange={event => { setPanelId(event.target.value); setPanelWarnings([]); }}><option value="">Не указана</option>{panels.map(panel => <option key={panel.id} value={panel.id}>{panel.name}</option>)}</select>{panelsError && <p role="alert">{panelsError}</p>}</div>}
           {isGenetic && panelWarnings.length > 0 && <div className="alert alert-warning" role="status"><strong>Проверка панели {panels.find(panel => panel.id === panelId)?.name}</strong><ul>{panelWarnings.map(warning => <li key={warning}>{warning}</li>)}</ul><p>Эти предупреждения не блокируют загрузку.</p></div>}
           <div className="upload-area">
             <div className="upload-icon">📁</div>
-            <h3 className="upload-title">Выберите Excel файл</h3>
+            <h3 className="upload-title">Выберите Excel или GeneMapper TXT</h3>
             <p className="upload-subtitle">
-              Поддерживаемые форматы: .xlsx, .xls
+              Поддерживаемые форматы: .xlsx, .xls, .txt (GeneMapper)
             </p>
             <input
               id="file-input"
               type="file"
-              accept=".xlsx,.xls"
+              accept=".xlsx,.xls,.txt"
+              multiple
               onChange={handleFileChange}
               disabled={uploading || permissionLoading || !!uploadBlockReason}
               hidden
@@ -1173,7 +1189,7 @@ const FileUploader = ({ onNavigate, onUploadSuccess, selectedActiveTask, onSelec
           <div className="requirements-list">
             <div className="requirement-item">
               <div className="requirement-title">Формат файла</div>
-              <div className="requirement-desc">Файлы Excel (.xlsx, .xls)</div>
+              <div className="requirement-desc">Excel (.xlsx, .xls) и GeneMapper (.txt)</div>
             </div>
 
             <div className="requirement-item">

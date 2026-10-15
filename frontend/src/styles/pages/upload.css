@@ -10,6 +10,10 @@
   align-items: start;
 }
 
+.upload-page-container.upload-converting { grid-template-columns: minmax(0, 1fr); }
+:where(.upload-page-container.upload-converting) .upload-section { min-width: 0; }
+:where(.upload-page-container.upload-converting) .requirements-section { display: none; }
+
 /* Левая колонка - загрузка */
 :where(.upload-page-container) .upload-left-column {
   display: flex;

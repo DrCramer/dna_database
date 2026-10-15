@@ -804,7 +804,7 @@ class ExcelService {
       }
 
       // Validate and extract profiles with enhanced 40 STR/SNP support
-      const profiles = this.extractProfiles(jsonData, filename, { ...options, converted: isGenetic && !!workbook.Sheets[CONVERSION_META_SHEET] });
+      const profiles = this.extractProfiles(jsonData, filename, { ...options, converted: (isGenetic && !!workbook.Sheets[CONVERSION_META_SHEET]) || workbook.Custprops?.DNAProfileSourceFormat === 'GENEMAPPER_TXT' });
       if (isGenetic) {
         const columns = validateGeneticHeaders(jsonData[0]).columns.map(column => column.locus);
         const metadata = readConversionMetadata(workbook, profiles, columns);
@@ -1526,7 +1526,7 @@ class ExcelService {
       }
 
       // Парсим значения аллелей
-      const alleles = this.parseAlleleValue(cellValue, locusName, locusType, rowNumber, filename);
+      const alleles = this.parseAlleleValue(cellValue, locusName, locusType, rowNumber, filename, { preserveAlleleCount: options.converted });
       lociData[locusName] = alleles;
     }
 

@@ -2,6 +2,7 @@ const XLSX = require('xlsx');
 const { LociTypeDetector } = require("../../utils/lociTypeDetector");
 const { normalizeObjectName } = require("../../utils/profileImportFormat");
 const detector = new LociTypeDetector();
+const { detectGeneMapperTxt, GENEMAPPER_FORMAT } = require('./geneMapperTxtParser');
 const normalizeHeader = value => String(value ?? '').trim().toLocaleLowerCase('ru').replace(/[\s_]+/g, ' ');
 
 function objectPriority(header) {
@@ -92,6 +93,10 @@ function ngsHeader(sheet, required, selectedRow) {
 }
 
 function detectSourceFormat(workbook, settings = {}) {
+  if (Buffer.isBuffer(workbook)) {
+    const { rows, headers, ...detection } = detectGeneMapperTxt(workbook, settings);
+    return detection;
+  }
   const results = workbook.SheetNames.filter(name => name.trim().toLowerCase() === 'result');
   const details = workbook.SheetNames.filter(name => name.trim().toLowerCase() === 'detail');
   const resultSheet = results.includes(settings.sheetName) ? settings.sheetName : results[0];
@@ -106,4 +111,4 @@ function detectSourceFormat(workbook, settings = {}) {
     ambiguous, resultSheet, detailSheet, resultHeader, detailHeader };
 }
 
-module.exports = { objectPriority, isServiceColumn, headerCandidates, objectCandidates, chooseObjectColumn, meaningfulSheets, readRows, suggestLoci, panelCandidates, detectSourceFormat, NGS_FORMAT };
+module.exports = { objectPriority, isServiceColumn, headerCandidates, objectCandidates, chooseObjectColumn, meaningfulSheets, readRows, suggestLoci, panelCandidates, detectSourceFormat, NGS_FORMAT, GENEMAPPER_FORMAT };

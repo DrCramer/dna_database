@@ -555,7 +555,7 @@ test('Реальные PostgreSQL, authenticate, preview и upload', { skip: !da
     });
 
     await t.test('Создание пользователя сохраняет выбранные права загрузки', async () => {
-      const response = await fetch(`${apiUrl}/auth/register-with-department`, { method: 'POST', headers: headers(adminToken), body: JSON.stringify({ username: `created_${fixtureId}`, email: `created_${fixtureId}@example.invalid`, password: 'CreatedFixture!123', role: 'user_analyst', organization_id: organization, department_ids: [genetic], can_upload_with_task: false, can_upload_without_task: true }) });
+      const response = await fetch(`${apiUrl}/auth/register-with-department`, { method: 'POST', headers: headers(adminToken), body: JSON.stringify({ username: `created_${fixtureId}`, email: `created_${fixtureId}@example.com`, password: 'CreatedFixture!123', role: 'user_analyst', organization_id: organization, department_ids: [genetic], can_upload_with_task: false, can_upload_without_task: true }) });
       const body = await response.json();
       assert.equal(response.status, 201, JSON.stringify(body));
       assert.equal(body.data.user.can_upload_with_task, false);

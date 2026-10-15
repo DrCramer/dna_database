@@ -6,6 +6,8 @@ const { normalizeAlleleValue } = require("../../utils/alleleNormalizer");
 const { informativeAlleles, isMissingAllele } = require("../../utils/alleleTokens");
 const { orderNormalizedLoci } = require("../../utils/normalizedExcelLayout");
 const sourceDetector = require('./geneticSourceDetector');
+const { parseGeneMapperTxt } = require('./geneMapperTxtParser');
+const { adaptGeneMapper, applyGeneMapperCell, finalizeGeneMapper } = require('./geneMapperSourceAdapter');
 const { parseNgsAstrWorkbook, suggestObjectNumber, applyNgsDecision } = require('./ngsAstrExcelParser');
 
 class ConversionError extends Error {
@@ -18,7 +20,11 @@ const sameAlleles = (a, b) => JSON.stringify([...a].sort()) === JSON.stringify([
 class GeneticExcelConverterService {
   constructor() { this.detector = new LociTypeDetector(); this.sourceCache = new Map(); }
 
-  readSource(buffer, settings) {
+  readSource(buffer, settings, filename) {
+    if (/\.txt$/i.test(filename || '')) {
+      const geneMapper = parseGeneMapperTxt(buffer, { filename, encoding: settings.encoding });
+      return { detection: { format: sourceDetector.GENEMAPPER_FORMAT, confidence: 'HIGH' }, geneMapper };
+    }
     const cacheKey = createHash('sha256').update(buffer).digest('hex') + JSON.stringify([settings.format, settings.sheetName, settings.detailSheetName, settings.resultHeaderRow, settings.detailHeaderRow]);
     for (const [key, entry] of this.sourceCache) if (Date.now() - entry.createdAt > 300000) this.sourceCache.delete(key);
     if (this.sourceCache.has(cacheKey)) return this.sourceCache.get(cacheKey).source;
@@ -39,21 +45,21 @@ class GeneticExcelConverterService {
   }
 
   convert(files, options = {}, panels = [], referenceService = null) {
-    if (!Array.isArray(files) || !files.length || files.length > 100) throw new ConversionError('Выберите от 1 до 100 Excel-файлов.');
+    if (!Array.isArray(files) || !files.length || files.length > 100) throw new ConversionError('Выберите от 1 до 100 файлов Excel или GeneMapper TXT.');
     if (files.some(file => !Buffer.isBuffer(file?.buffer))) throw new ConversionError('Некорректные файлы.');
     if (files.reduce((sum, file) => sum + file.buffer.length, 0) > 50 * 1024 * 1024) throw new ConversionError('Общий размер файлов превышает 50 МиБ.');
     if (!options || typeof options !== 'object' || Array.isArray(options) || JSON.stringify(options).length > 2 * 1024 * 1024) throw new ConversionError('Некорректные или слишком большие настройки конвертации.');
     for (const key of ['files', 'cells', 'conflicts', 'objects', 'rows']) if (options[key] != null && (typeof options[key] !== 'object' || Array.isArray(options[key]))) throw new ConversionError('Некорректные настройки решений.');
     if (options.rules != null && (!Array.isArray(options.rules) || options.rules.length > 1000 || options.rules.some(rule => !rule || typeof rule !== 'object' || typeof rule.code !== 'string'))) throw new ConversionError('Некорректные массовые правила.');
     if (options.objects && Object.values(options.objects).some(value => typeof value !== 'string')) throw new ConversionError('Номер объекта должен быть строкой.');
-    const result = { version: 1, files: [], profiles: [], catalogLoci: this.detector.getAllSupportedLoci(), sourceLoci: [], detectedPanels: [], issues: [], conflicts: [], summary: {} };
+    const result = { version: 1, importFormat: options.importFormat || 'genetic', files: [], profiles: [], catalogLoci: this.detector.getAllSupportedLoci(), sourceLoci: [], detectedPanels: [], issues: [], conflicts: [], summary: {} };
     const objects = new Map();
     let originalRows = 0, unchanged = 0, fixed = 0;
     const issue = data => result.issues.push({ hard: hard(data.status), ...data });
     for (let fileIndex = 0; fileIndex < files.length; fileIndex++) {
       const file = files[fileIndex];
-      if (!/\.(?:xlsx|xls)$/i.test(file.originalname || '') || !Buffer.isBuffer(file.buffer) || file.buffer.length > 10 * 1024 * 1024) throw new ConversionError('Поддерживаются .xlsx/.xls размером до 10 МиБ на файл.');
-      if (!(file.buffer[0] === 0x50 && file.buffer[1] === 0x4b || file.buffer.subarray(0, 4).equals(Buffer.from([0xd0, 0xcf, 0x11, 0xe0])))) throw new ConversionError('Содержимое файла не соответствует Excel .xlsx/.xls.');
+      if (!/\.(?:xlsx|xls|txt)$/i.test(file.originalname || '') || !Buffer.isBuffer(file.buffer) || file.buffer.length > 10 * 1024 * 1024) throw new ConversionError('Поддерживаются .xlsx/.xls/.txt размером до 10 МиБ на файл.');
+      if (!/\.txt$/i.test(file.originalname) && !(file.buffer[0] === 0x50 && file.buffer[1] === 0x4b || file.buffer.subarray(0, 4).equals(Buffer.from([0xd0, 0xcf, 0x11, 0xe0])))) throw new ConversionError('Содержимое файла не соответствует Excel .xlsx/.xls.');
       const fileId = `${fileIndex}-${createHash('sha256').update(file.buffer).digest('hex').slice(0, 20)}`;
       const settings = options.files?.[fileId] || {};
       if (typeof settings !== 'object' || Array.isArray(settings) || settings.columns != null && (typeof settings.columns !== 'object' || Array.isArray(settings.columns))) throw new ConversionError('Некорректные настройки файла.');
@@ -61,8 +67,8 @@ class GeneticExcelConverterService {
       if (year != null && (!Number.isInteger(year) || year < 1900 || year > 2100)) throw new ConversionError(`Укажите год для файла ${file.originalname} целым числом от 1900 до 2100.`);
       const info = { id: fileId, name: file.originalname, year, sheets: [], sheet: null, headerRow: null, objectColumn: null, objectCandidates: [], sourceLoci: [], rowCount: 0, detectedPanelId: null, panelCandidates: [], columns: [] };
       result.files.push(info);
-      let workbook, detection, ngs;
-      try { ({ workbook, detection, ngs } = this.readSource(file.buffer, settings)); }
+      let workbook, detection, ngs, geneMapper, gene;
+      try { ({ workbook, detection, ngs, geneMapper } = this.readSource(file.buffer, { ...settings, encoding: settings.encoding || options.txtEncoding }, file.originalname)); if (geneMapper) { gene = adaptGeneMapper(geneMapper, settings, panels); workbook = gene.workbook; info.geneMapper = gene.preview; info.yearConfirmed = year != null; }; }
       catch (error) { throw new ConversionError(`Не удалось прочитать файл ${file.originalname}: ${error.message}`); }
       info.sourceFormat = detection.format;
       info.detection = detection;
@@ -70,6 +76,15 @@ class GeneticExcelConverterService {
       const preferred = info.sheets.filter(name => name.trim().toLowerCase() === 'sbt_horizont');
       info.sheet = settings.sheetName || (preferred.length === 1 ? preferred[0] : info.sheets.length === 1 ? info.sheets[0] : null);
       const base = { fileId, sourceFile: info.name, sourceSheet: info.sheet || '', sourceRow: null, objectNumber: '', locus: '', rawValue: '', normalizedValue: '' };
+      if (geneMapper) {
+        originalRows += geneMapper.rowCount;
+        if (originalRows > 50000) throw new ConversionError('Превышен лимит 50 000 исходных строк.');
+        for (const sample of gene.preview.samples) {
+          if (!sample.included) issue({ ...base, id: `${fileId}:sample:${sample.sampleIndex}`, objectNumber: sample.sampleName, code: 'GENEMAPPER_SAMPLE_EXCLUDED', status: 'WARNING', reason: sample.reason });
+          if (sample.included && sample.multiplePanels && !sample.panelId) issue({ ...base, id: `${fileId}:sample-panel:${sample.sampleIndex}`, objectNumber: sample.sampleName, code: 'GENEMAPPER_MULTIPLE_PANELS', status: 'NEEDS_REVIEW', reason: 'У образца несколько исходных панелей. Явно выберите панель образца перед экспортом.' });
+          if (sample.included && result.importFormat === 'emergency' && (!sample.emergency.assignedNumber || sample.emergency.assignedNumber.length > 100 || !/^\d{1,12}$/.test(sample.emergency.shippingNumber))) issue({ ...base, id: `${fileId}:sample-emergency:${sample.sampleIndex}`, objectNumber: sample.sampleName, code: 'GENEMAPPER_EMERGENCY_METADATA', status: 'NEEDS_REVIEW', reason: 'Заполните номер, присвоенный в в/ч, и числовой номер привоза для образца ЧС.' });
+        }
+      }
       let ngsSheet;
       if (ngs) {
         info.sheet = detection.resultSheet || '';
@@ -93,7 +108,7 @@ class GeneticExcelConverterService {
       info.sampleRows = rows.slice(0, 30).map((row, index) => ({ row: index + 1, values: row.slice(0, 12).map(value => String(value).slice(0, 100)) }));
       const headersFound = info.headerCandidates;
       const tied = headersFound.length > 1 && headersFound[0].lociCount === headersFound[1].lociCount && headersFound[0].hasObject === headersFound[1].hasObject;
-      info.headerRow = ngs ? 1 : settings.headerRow ?? (!tied ? headersFound[0]?.row : null);
+      info.headerRow = ngs || gene ? 1 : settings.headerRow ?? (!tied ? headersFound[0]?.row : null);
       if (!Number.isInteger(info.headerRow) || info.headerRow < 1 || info.headerRow > rows.length) { issue({ ...base, sourceSheet: info.sheet, id: `${fileId}:header`, code: 'SELECT_HEADER', status: 'NEEDS_REVIEW', reason: 'Не найдена однозначная строка заголовков с минимум тремя локусами. Укажите строку.' }); continue; }
       const headers = [...rows[info.headerRow - 1]];
       const width = Math.max(...rows.map(row => row.length));
@@ -101,7 +116,7 @@ class GeneticExcelConverterService {
       const dataRows = rows.slice(info.headerRow).filter(row => row.some(value => String(value).trim() !== ''));
       info.rowCount = dataRows.length;
       info.objectCandidates = sourceDetector.objectCandidates(headers, dataRows);
-      info.objectColumn = ngs ? 0 : settings.objectColumn ?? sourceDetector.chooseObjectColumn(info.objectCandidates, dataRows);
+      info.objectColumn = ngs || gene ? 0 : settings.objectColumn ?? sourceDetector.chooseObjectColumn(info.objectCandidates, dataRows);
       info.columns = headers.map((value, index) => ({ index, letter: XLSX.utils.encode_col(index), header: String(value ?? ''), locus: this.detector.getCanonicalLocusName(value), ignored: false }));
       if (!Number.isInteger(info.objectColumn) || info.objectColumn < 0 || info.objectColumn >= headers.length) { issue({ ...base, sourceSheet: info.sheet, sourceRow: info.headerRow, id: `${fileId}:object`, code: 'SELECT_OBJECT', status: 'NEEDS_REVIEW', reason: 'Выберите колонку полного номера объекта; значения колонок-кандидатов различаются либо колонка не найдена.' }); continue; }
       info.objectHeader = String(headers[info.objectColumn] ?? '');
@@ -113,6 +128,11 @@ class GeneticExcelConverterService {
         if (choice?.locus) column.locus = this.detector.getCanonicalLocusName(choice.locus);
         const hasData = dataRows.some(row => String(row[column.index] ?? '').trim() !== '');
         if (!column.locus && (!column.header.trim() && !hasData)) { column.ignored = true; continue; }
+        if (gene && !column.locus && ![...gene.rowMetadata.values()].some(row => row.records[column.index - 1])) {
+          column.ignored = true;
+          issue({ ...base, id: `${fileId}:service-column:${column.index}`, code: 'GENEMAPPER_SERVICE_MARKER', status: 'WARNING', rawValue: column.header, reason: 'Маркер встречается только в исключённых служебных образцах; в обычные профили не включён.' });
+          continue;
+        }
         if (!column.locus) {
           column.suggestions = sourceDetector.suggestLoci(column.header);
           issue({ ...base, sourceSheet: info.sheet, sourceRow: info.headerRow, id: `${fileId}:column:${column.index}`, column: column.index, code: ngs ? 'NGS_UNKNOWN_LOCUS' : 'UNKNOWN_LOCUS', status: 'ERROR', rawValue: column.header, reason: 'Неизвестный столбец: сопоставьте с локусом или явно игнорируйте.', suggestions: column.suggestions });
@@ -128,34 +148,46 @@ class GeneticExcelConverterService {
       const exact = info.panelCandidates.filter(panel => panel.exact);
       if (settings.panelId && !panels.some(panel => panel.id === settings.panelId)) throw new ConversionError('Выбранная панель недоступна в активном отделении.', 'PANEL_NOT_FOUND', 404);
       info.detectedPanelId = settings.panelId === '' ? null : settings.panelId || (!ngs && exact.length === 1 ? exact[0].id : null);
+      if (gene) {
+        const selectedPanels = new Set(gene.preview.samples.filter(sample => sample.included).map(sample => sample.panelId));
+        info.detectedPanelId = selectedPanels.size === 1 ? [...selectedPanels][0] : null;
+      }
       if (referenceService) info.reference = referenceService.describe(info.detectedPanelId, settings.referenceSetId);
       info.panelLoci = panels.find(panel => panel.id === info.detectedPanelId)?.lociOrder || [];
       for (let index = info.headerRow; index < rows.length; index++) {
         const row = rows[index];
         if (!row.some(value => String(value).trim() !== '')) continue;
-        originalRows++;
+        if (!gene) originalRows++;
         if (originalRows > 50000) throw new ConversionError('Превышен лимит 50 000 исходных строк. Разделите загрузку.');
+        const geneRow = gene?.rowMetadata.get(index + 1);
+        const rowPanelId = geneRow ? geneRow.sample.panelId : info.detectedPanelId;
+        const sampleMarkers = geneRow && new Set(geneRow.sample.markerKeys);
+        const rowSourceLoci = geneRow ? [...new Set(mapped.filter(column => sampleMarkers.has(geneMapper.markers[column.index - 1].key)).map(column => column.locus))] : info.sourceLoci;
         const objectCell = sheet[XLSX.utils.encode_cell({ r: index, c: info.objectColumn })];
         const rowId = `${fileId}:${info.sheet}:${index + 1}`;
         if (options.rows?.[rowId]?.ignore === true) { issue({ ...base, sourceSheet: info.sheet, sourceRow: index + 1, id: rowId, status: 'AUTO_FIXED', code: 'IGNORED_ROW', reason: 'Строка исключена пользователем.', userDecision: { ignore: true } }); continue; }
         const objectId = `${rowId}:object`;
         const rawObject = String((objectCell?.t === 'n' ? objectCell.w || objectCell.v : row[info.objectColumn]) ?? '');
         const objectNumber = normalizeObjectName(options.objects?.[objectId] ?? rawObject);
-        const source = { ...base, sourceSheet: info.sheet, sourceRow: index + 1, objectNumber };
+        const source = { ...base, sourceSheet: info.sheet, sourceRow: index + 1, objectNumber, ...(geneRow ? { geneMapperSampleName: geneRow.sample.sampleName } : {}) };
         if (!objectNumber || objectNumber.length > 100) { issue({ ...source, id: objectId, code: 'INVALID_OBJECT', status: 'ERROR', reason: 'Укажите полный номер объекта длиной до 100 символов.' }); continue; }
-        const key = year == null ? `legacy:${geneticObjectKey(objectNumber)}` : geneticProfileKey(year, objectNumber);
+        const identity = year == null ? `legacy:${geneticObjectKey(objectNumber)}` : geneticProfileKey(year, objectNumber);
+        const key = gene && options.mergeGeneMapperSources !== true ? `${fileId}:${year ?? 'legacy'}:${objectNumber}` : identity;
         if (!objects.has(key)) objects.set(key, { objectNumber, year, sourceLoci: new Set(), panelIds: new Set(), sources: [], variants: new Map(), audit: [] });
         const object = objects.get(key);
+        if (geneRow) object.emergency = geneRow.sample.emergency;
         if (rawObject !== objectNumber) { const entry = { ...source, id: objectId, rawValue: rawObject, normalizedValue: objectNumber, status: 'AUTO_FIXED', code: options.objects?.[objectId] != null ? 'OBJECT_DECISION' : 'OBJECT_NORMALIZED', hard: false, reason: options.objects?.[objectId] != null ? 'Полный номер объекта исправлен пользователем.' : 'Убраны лишние пробелы в полном номере объекта.', userDecision: options.objects?.[objectId] != null ? { value: objectNumber } : null }; issue(entry); object.audit.push(entry); }
-        object.sources.push({ fileId, file: info.name, sheet: info.sheet, row: index + 1, headerRow: info.headerRow, objectColumn: info.objectColumn, sourceLoci: info.sourceLoci, detectedPanelId: info.detectedPanelId,
+        object.sources.push({ fileId, file: info.name, sheet: info.sheet, row: index + 1, headerRow: info.headerRow, objectColumn: info.objectColumn, sourceLoci: rowSourceLoci, detectedPanelId: rowPanelId,
+          ...(geneRow ? { sourceFormat: sourceDetector.GENEMAPPER_FORMAT, geneMapper: { sampleName: geneRow.sample.sampleName, panelNames: geneRow.sample.panelNames, sampleTypes: geneRow.sample.sampleTypes } } : {}),
           ...(ngs ? { sourceFormat: sourceDetector.NGS_FORMAT, objectConfirmed: info.ngs.objectConfirmed, originalObjectSuggestion: info.ngs.suggestedObjectNumber, qcSummary: { resultRows: ngs.resultCount, detailRows: ngs.detailCount, needsReview: ngs.records.filter(record => record.qc.status === 'NEEDS_REVIEW').length } } : {}) });
         if (ngs) for (const column of info.columns.filter(column => column.ignored && column.index > 0)) {
           const record = ngs.records[column.index - 1];
           object.audit.push({ ...source, id: `${fileId}:ngs:excluded:${column.index}`, locus: column.locus || '', code: 'NGS_LOCUS_EXCLUDED', status: 'WARNING', hard: false, reason: 'Маркер явно исключён пользователем; исходные данные сохранены.', ngs: record, userDecision: settings.columns?.[column.index] });
         }
-        info.sourceLoci.forEach(locus => object.sourceLoci.add(locus));
-        if (info.detectedPanelId) object.panelIds.add(info.detectedPanelId);
+        rowSourceLoci.forEach(locus => object.sourceLoci.add(locus));
+        if (rowPanelId) object.panelIds.add(rowPanelId);
         for (const column of mapped) {
+          if (geneRow && !geneRow.records[column.index - 1]) continue;
           const locus = column.locus;
           const cellId = `${fileId}:${info.sheet}:${index + 1}:${column.index}`;
           const rawValue = String(row[column.index] ?? '');
@@ -166,6 +198,7 @@ class GeneticExcelConverterService {
           const decision = options.cells?.[cellId] || (!ngs ? rule?.decision : null);
           const normalized = decision ? normalizeAlleleValue(rawValue, locus, decision) : original;
           const cell = { ...source, id: cellId, locus, column: column.index, rawValue, normalizedValue: normalized.normalizedValue, status: normalized.status, hard: normalized.hard, code: normalized.events.find(event => event.hard)?.code || normalized.events[0]?.code || 'OK', reason: normalized.events.map(event => event.reason).join(' '), events: normalized.events, alleles: normalized.alleles, userDecision: decision || null };
+          if (geneRow?.records[column.index - 1]) Object.assign(cell, applyGeneMapperCell(geneRow.records[column.index - 1], locus, decision, settings));
           if (ngs) {
             const record = ngs.records[column.index - 1];
             Object.assign(cell, applyNgsDecision(record, locus, decision), { sourceRow: record.resultRows[0]?.sourceRow || record.detailRows[0]?.sourceRow });
@@ -173,12 +206,12 @@ class GeneticExcelConverterService {
             Object.assign(info.ngs.records[column.index - 1], { cell: previewCell });
           }
           if (referenceService) {
-            cell.reference = { ...referenceService.evaluate(rawValue, locus, info.detectedPanelId, settings.referenceSetId), decision: decision || null, appliedValue: cell.normalizedValue };
+            cell.reference = { ...referenceService.evaluate(rawValue, locus, rowPanelId, settings.referenceSetId), decision: decision || null, appliedValue: cell.normalizedValue };
             if (cell.status === 'OK' && cell.reference.status === 'NO_REFERENCE_EVIDENCE') Object.assign(cell, { status: 'WARNING', code: 'NO_REFERENCE_EVIDENCE', reason: cell.reference.reason });
           }
           if (actualCell?.f && actualCell.v == null) Object.assign(cell, { status: 'ERROR', hard: true, code: 'FORMULA_WITHOUT_RESULT', reason: 'Формула не содержит сохранённого результата. Пересчитайте исходный файл или задайте значение вручную.' });
           if (decision && actualCell?.f && actualCell.v == null && !normalized.hard) Object.assign(cell, { status: normalized.status, hard: false, code: 'USER_DECISION', reason: 'Пользователь явно задал результат вместо формулы.' });
-          if (cell.status === 'OK') { unchanged++; if (ngs || cell.reference?.hasData) object.audit.push(cell); }
+          if (cell.status === 'OK') { unchanged++; if (ngs || geneRow?.records[column.index - 1] || cell.reference?.hasData) object.audit.push(cell); }
           else { issue(cell); object.audit.push(cell); if (cell.events.some(event => event.status === 'AUTO_FIXED')) fixed++; }
           if (!object.variants.has(locus)) object.variants.set(locus, []);
           object.variants.get(locus).push(cell);
@@ -187,7 +220,7 @@ class GeneticExcelConverterService {
     }
     for (const [key, object] of objects) {
       if (object.year == null && new Set(object.sources.map(source => source.fileId)).size > 1) {
-        issue({ id: `year:${key}`, objectNumber: object.objectNumber, status: 'NEEDS_REVIEW', code: 'MISSING_SOURCE_YEAR',
+        issue({ id: `year:${key}`, profileKey: key, objectNumber: object.objectNumber, status: 'NEEDS_REVIEW', code: 'MISSING_SOURCE_YEAR',
           reason: `Объект «${object.objectNumber}» встретился в нескольких файлах. Укажите год каждого файла, чтобы правильно объединить данные.` });
       }
       const strData = Object.fromEntries(result.catalogLoci.map(locus => [locus, []]));
@@ -211,7 +244,7 @@ class GeneticExcelConverterService {
             if (!normalized.hard) resolved = true;
             else manualError = normalized.events.map(event => event.reason).join(' ');
           }
-          const conflict = { id: conflictId, objectNumber: object.objectNumber, locus, status: resolved ? 'AUTO_FIXED' : 'CONFLICT', hard: !resolved, code: conflicting.length ? 'REPEATED_RESULT' : 'MANUAL_RESULT', reason: manualError || (resolved ? (conflicting.length ? 'Конфликт повторного исследования разрешён пользователем.' : 'Итоговое значение изменено пользователем.') : 'Разные результаты повторного исследования: выберите источник или введите значение.'), variants: variants.filter(cell => cell.alleles.length), normalizedValue: selected.join(','), userDecision: decision || null, sourceFile: '', sourceSheet: '', sourceRow: null, rawValue: '' };
+          const conflict = { id: conflictId, profileKey: key, objectNumber: object.objectNumber, locus, status: resolved ? 'AUTO_FIXED' : 'CONFLICT', hard: !resolved, code: conflicting.length ? 'REPEATED_RESULT' : 'MANUAL_RESULT', reason: manualError || (resolved ? (conflicting.length ? 'Конфликт повторного исследования разрешён пользователем.' : 'Итоговое значение изменено пользователем.') : 'Разные результаты повторного исследования: выберите источник или введите значение.'), variants: variants.filter(cell => cell.alleles.length), normalizedValue: selected.join(','), userDecision: decision || null, sourceFile: '', sourceSheet: '', sourceRow: null, rawValue: '' };
           if (referenceService && decision?.action === 'manual') conflict.reference = { ...referenceService.evaluate(decision.value, locus, object.panelIds.size === 1 ? [...object.panelIds][0] : null), decision, appliedValue: conflict.normalizedValue };
           result.conflicts.push(conflict); issue(conflict); object.audit.push(conflict);
         } else if (variants.length > 1 && variants.some(cell => cell.alleles.length)) {
@@ -221,11 +254,11 @@ class GeneticExcelConverterService {
         strData[locus] = selected;
       }
       const populatedLoci = result.catalogLoci.filter(locus => strData[locus].length);
-      if (!populatedLoci.length) issue({ id: `empty:${key}`, objectNumber: object.objectNumber, status: 'ERROR', code: 'EMPTY_PROFILE', hard: true, reason: 'В объекте нет ни одного результата генотипирования.' });
+      if (!populatedLoci.length) issue({ id: `empty:${key}`, profileKey: key, objectNumber: object.objectNumber, status: 'ERROR', code: 'EMPTY_PROFILE', hard: true, reason: 'В объекте нет ни одного результата генотипирования.' });
       if (object.panelIds.size > 1) { const entry = { id: `panels:${key}`, objectNumber: object.objectNumber, locus: '', sourceFile: '', sourceSheet: '', sourceRow: null, rawValue: '', normalizedValue: '', status: 'WARNING', code: 'MIXED_PANELS', hard: false, reason: 'Источники относятся к разным панелям; панель не назначена. При необходимости выберите её в обычной загрузке.' }; issue(entry); object.audit.push(entry); }
       const sourceLoci = [...object.sourceLoci];
       for (const entry of object.audit.filter(entry => entry.ngs)) entry.ngs = { ...entry.ngs, selectedGenotype: entry.normalizedValue || '', finalGenotype: (strData[entry.locus] || []).join(',') };
-      result.profiles.push({ objectNumber: object.objectNumber, year: object.year, strData, sourceLoci, populatedLoci, detectedPanelId: object.panelIds.size === 1 ? [...object.panelIds][0] : null,
+      result.profiles.push({ key, emergency: object.emergency, objectNumber: object.objectNumber, year: object.year, strData, sourceLoci, populatedLoci, detectedPanelId: object.panelIds.size === 1 ? [...object.panelIds][0] : null,
         panelLoci: object.panelIds.size === 1 ? panels.find(panel => panel.id === [...object.panelIds][0])?.lociOrder || [] : [], sources: object.sources, audit: object.audit });
     }
     result.sourceLoci = result.catalogLoci.filter(locus => result.files.some(file => file.sourceLoci.includes(locus)));
@@ -243,6 +276,7 @@ class GeneticExcelConverterService {
       medium: ambiguous.filter(item => item.reference.suggestedValue && item.reference.confidence === 'MEDIUM').length,
       insufficient: ambiguous.filter(item => !item.reference.suggestedValue || ['LOW', 'UNKNOWN'].includes(item.reference.confidence)).length };
     if (referenceService) result.referenceSets = referenceService.sets.map(({ index, values, ...set }) => set);
+    finalizeGeneMapper(result);
     return result;
   }
 
@@ -250,10 +284,17 @@ class GeneticExcelConverterService {
     if (!result.canImport) throw new ConversionError('Сначала разрешите все ошибки и конфликты.', 'UNRESOLVED_CONVERSION', 409);
     if (!options || typeof options !== 'object' || Array.isArray(options) || options.hideEmptyLoci != null && typeof options.hideEmptyLoci !== 'boolean') throw new ConversionError('Некорректные настройки скрытия пустых локусов.');
     const book = XLSX.utils.book_new();
+    // Свойство формата сохраняет число аллелей при повторной загрузке без служебных листов.
+    if (result.sourceFormat === sourceDetector.GENEMAPPER_FORMAT) book.Custprops = { DNAProfileSourceFormat: sourceDetector.GENEMAPPER_FORMAT };
     const exportLoci = orderNormalizedLoci(result.exportLoci || result.catalogLoci);
-    const rows = [['Объект', 'Год', ...exportLoci], ...result.profiles.map(profile => [profile.objectNumber, profile.year ?? '', ...exportLoci.map(locus => (profile.strData[locus] || []).join(','))])];
+    const emergency = result.importFormat === 'emergency';
+    const assignedHeader = '№ присвоенный в в/ч № 522 ЦПООП Северо-Кавказского военного округа, г. Ростов-на-Дону';
+    const metadataColumns = emergency ? 4 : 2;
+    const rows = [[...(emergency ? [assignedHeader, 'Привоз', 'Год', 'Sample Name'] : ['Объект', 'Год']), ...exportLoci], ...result.profiles.map(profile => [
+      ...(emergency ? [profile.emergency.assignedNumber, profile.emergency.shippingNumber, profile.year ?? '', profile.objectNumber] : [profile.objectNumber, profile.year ?? '']),
+      ...exportLoci.map(locus => (profile.strData[locus] || []).join(','))])];
     const sheet = XLSX.utils.aoa_to_sheet(rows);
-    const columns = rows[0].map((header, index) => ({ wch: Math.min(40, Math.max(12, header.length + 2)), hidden: options.hideEmptyLoci === true && index > 1 }));
+    const columns = rows[0].map((header, index) => ({ wch: Math.min(40, Math.max(12, header.length + 2)), hidden: options.hideEmptyLoci === true && index >= metadataColumns }));
     // Видимость определяется фактическими ячейками выгрузки. Для совместимости
     // с Excel у каждой колонки записываем положительную ширину.
     for (const row of rows.slice(1)) row.forEach((value, index) => {

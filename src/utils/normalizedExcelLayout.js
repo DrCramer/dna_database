@@ -23,4 +23,10 @@ function normalizedExcelFilename(profiles = []) {
   return `${names.slice(0, 3).join('_').slice(0, 160 - suffix.length)}${suffix}.xlsx`;
 }
 
-module.exports = { isSexLocus, orderNormalizedLoci, normalizedExcelFilename };
+function geneMapperExportFilename(sourceFilename) {
+  const base = String(sourceFilename || 'GeneMapper').split(/[\\/]/).pop().replace(/\.txt$/i, '')
+    .replace(/[<>:"|?*\u0000-\u001f\u007f]/g, '_').replace(/^\.+|[. ]+$/g, '').slice(0, 180) || 'GeneMapper';
+  return `${base}.xlsx`;
+}
+
+module.exports = { isSexLocus, orderNormalizedLoci, normalizedExcelFilename, geneMapperExportFilename };
