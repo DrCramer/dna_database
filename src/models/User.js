@@ -1,3 +1,4 @@
+const { normalizeUserIdentity } = require('../utils/userIdentity');
 const { query, transaction } = require('../config/database');
 const bcrypt = require('bcryptjs');
 const { logger } = require('../utils/logger');
@@ -8,6 +9,7 @@ class User {
         this.id = userData.id;
         this.username = userData.username;
         this.email = userData.email;
+        this.display_name = userData.display_name || null;
         this.role = userData.role;
         Object.assign(this, getProfileUploadPermissions(userData));
         this.created_at = userData.created_at;
@@ -20,17 +22,18 @@ class User {
     }
 
     // Create a new user
-    static async create({ username, email, password, role = 'user_analyst', organization_id = null, department_id = null, can_upload_with_task = true, can_upload_without_task = false }) {
+    static async create({ username, email = null, display_name = null, password, role = 'user_analyst', organization_id = null, department_id = null, can_upload_with_task = true, can_upload_without_task = false }) {
         try {
+            ({ email, display_name } = normalizeUserIdentity({ email, display_name }));
             // Hash password
             const saltRounds = 12;
             const password_hash = await bcrypt.hash(password, saltRounds);
 
             const result = await query(
-                `INSERT INTO users (username, email, password_hash, role, organization_id, department_id, can_upload_with_task, can_upload_without_task)
-                 VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
-                 RETURNING id, username, email, role, created_at, is_active, organization_id, department_id, can_upload_with_task, can_upload_without_task`,
-                [username, email, password_hash, role, organization_id, department_id, can_upload_with_task, can_upload_without_task]
+                `INSERT INTO users (username, email, password_hash, role, organization_id, department_id, can_upload_with_task, can_upload_without_task, display_name)
+                 VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
+                 RETURNING id, username, email, display_name, role, created_at, is_active, organization_id, department_id, can_upload_with_task, can_upload_without_task`,
+                [username, email, password_hash, role, organization_id, department_id, can_upload_with_task, can_upload_without_task, display_name]
             );
 
             logger.info(`User created: ${username} with role: ${role}, department: ${department_id}`);
@@ -62,6 +65,7 @@ class User {
 
     // Find user by email
     static async findByEmail(email) {
+        if (!email) return null;
         try {
             const result = await query(
                 'SELECT * FROM users WHERE email = $1 AND is_active = true',
@@ -135,7 +139,7 @@ class User {
     static async findAll() {
         try {
             const result = await query(
-                `SELECT id, username, email, role, created_at, last_login, is_active, 
+                `SELECT id, username, email, display_name, role, created_at, last_login, is_active,
                         organization_id, department_id, can_upload_with_task, can_upload_without_task
                  FROM users ORDER BY created_at DESC`
             );
@@ -221,6 +225,7 @@ class User {
             id: this.id,
             username: this.username,
             email: this.email,
+            display_name: this.display_name,
             role: this.role,
             created_at: this.created_at,
             last_login: this.last_login,

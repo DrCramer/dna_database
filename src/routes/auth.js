@@ -1,3 +1,4 @@
+const { validateUserIdentity } = require('../utils/userIdentity');
 const express = require('express');
 const rateLimit = require('express-rate-limit');
 const authService = require("../services/security/authService");
@@ -66,7 +67,7 @@ router.post('/login', authLimiter, validateLogin, logAuthOperation(OperationHist
 // POST /api/auth/register - User registration with organizational context
 router.post('/register', authenticate, adminOnly, validateRegister, async (req, res) => {
     try {
-        const { username, email, password, role, organization_id, department_id } = req.body;
+        const { username, email, display_name, password, role, organization_id, department_id } = req.body;
         const clientInfo = getClientInfo(req);
 
         // Only admins can create admin users or system administrators
@@ -106,7 +107,8 @@ router.post('/register', authenticate, adminOnly, validateRegister, async (req, 
             const result = await authService.register(
                 { 
                     username, 
-                    email, 
+                    email,
+                    display_name,
                     password, 
                     role, 
                     organization_id: actualOrgId, 
@@ -124,7 +126,7 @@ router.post('/register', authenticate, adminOnly, validateRegister, async (req, 
         } else {
             // For viewer role, no organizational context required
             const result = await authService.register(
-                { username, email, password, role },
+                { username, email, display_name, password, role },
                 clientInfo.ipAddress,
                 clientInfo.userAgent
             );
@@ -389,9 +391,9 @@ router.delete('/sessions/:sessionId', authenticate, async (req, res) => {
 });
 
 // POST /api/auth/register-with-department - Register user with department assignment (admin/department_head only)
-router.post('/register-with-department', authenticate, adminOnly, async (req, res) => {
+router.post('/register-with-department', authenticate, adminOnly, validateUserIdentity, async (req, res) => {
     try {
-        const { username, email, password, role, department_id, department_ids, organization_id } = req.body;
+        const { username, email, display_name, password, role, department_id, department_ids, organization_id } = req.body;
         if (!validateUploadPermissionFields(req.body)) {
             return res.status(400).json({ code: 'INVALID_UPLOAD_PERMISSIONS', message: 'Права загрузки должны быть логическими значениями true/false.' });
         }
@@ -402,15 +404,15 @@ router.post('/register-with-department', authenticate, adminOnly, async (req, re
             : (department_id ? [department_id] : []);
 
         // Validate required fields
-        if (!username || !email || !password || !role) {
+        if (!username || !password || !role) {
             return res.status(400).json({
                 error: 'Bad Request',
-                message: 'Username, email, password, and role are required'
+                message: 'Логин, пароль и роль обязательны'
             });
         }
 
         // Validate role
-        const validRoles = ['user_analyst', 'department_head', 'system_administrator', 'viewer'];
+        const validRoles = ['admin', 'user_analyst', 'department_head', 'system_administrator', 'viewer'];
         if (!validRoles.includes(role)) {
             return res.status(400).json({
                 error: 'Bad Request',
@@ -450,7 +452,8 @@ router.post('/register-with-department', authenticate, adminOnly, async (req, re
             const result = await authService.register(
                 { 
                     username, 
-                    email, 
+                    email,
+                    display_name,
                     password, 
                     role, 
                     organization_id: actualOrgId, 
@@ -482,7 +485,7 @@ router.post('/register-with-department', authenticate, adminOnly, async (req, re
         } else {
             // Register without organizational context
             const result = await authService.register(
-                { username, email, password, role, ...uploadPermissions },
+                { username, email, display_name, password, role, ...uploadPermissions },
                 clientInfo.ipAddress,
                 clientInfo.userAgent
             );

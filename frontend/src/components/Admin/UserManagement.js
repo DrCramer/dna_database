@@ -1,13 +1,16 @@
+import UserForm from './UserForm';
+import { getUserDisplayName } from '../../../../src/utils/userDisplayName';
 import React, { useState, useEffect } from 'react';
 import { useAuth } from '../../contexts/AuthContext';
 import { getProfileUploadPermissions } from '../../../../src/utils/profileUploadPermissions';
 
 const UserManagement = ({ onBack }) => {
-  const { hasRole } = useAuth();
+  const { hasRole, user: currentUser, refreshUser } = useAuth();
   const canManageUploadPermissions = hasRole('admin');
   const [users, setUsers] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
+  const [notice, setNotice] = useState('');
   const [currentPage, setCurrentPage] = useState(1);
   const [totalPages, setTotalPages] = useState(1);
   const [searchTerm, setSearchTerm] = useState('');
@@ -31,6 +34,7 @@ const UserManagement = ({ onBack }) => {
   const fetchUsers = async () => {
     try {
       setLoading(true);
+      setError(null);
       const token = localStorage.getItem('token');
 
       const params = new URLSearchParams({
@@ -53,7 +57,7 @@ const UserManagement = ({ onBack }) => {
 
       const data = await response.json();
       setUsers(data.data.users || []);
-      setTotalPages(Math.ceil((data.data.total || 0) / usersPerPage));
+      setTotalPages(data.data.pagination?.pages || 1);
     } catch (err) {
       setError(err.message);
     } finally {
@@ -104,56 +108,24 @@ const UserManagement = ({ onBack }) => {
     fetchOrganizationsAndDepartments();
   }, [currentPage, searchTerm, roleFilter]);
 
-  // Создание пользователя
-  const handleCreateUser = async (userData) => {
-    try {
-      const token = localStorage.getItem('token');
-      const response = await fetch('/api/auth/register-with-department', {
-        method: 'POST',
-        headers: {
-          'Authorization': `Bearer ${token}`,
-          'Content-Type': 'application/json'
-        },
-        body: JSON.stringify(userData)
-      });
-
-      if (!response.ok) {
-        const errorData = await response.json();
-        throw new Error(errorData.message || 'Ошибка создания пользователя');
-      }
-
-      setShowCreateForm(false);
-      fetchUsers();
-      alert('Пользователь успешно создан');
-    } catch (err) {
-      alert(`Ошибка: ${err.message}`);
-    }
+  async function saveUser(url, method, userData) {
+    const response = await fetch(url, { method, headers: { Authorization: `Bearer ${localStorage.getItem('token')}`, 'Content-Type': 'application/json' }, body: JSON.stringify(userData) });
+    const data = await response.json();
+    if (!response.ok) throw new Error(data.message || 'Не удалось сохранить пользователя.');
+    return data;
+  }
+  const handleCreateUser = async userData => {
+    await saveUser('/api/auth/register-with-department', 'POST', userData);
+    setShowCreateForm(false);
+    setNotice('Пользователь создан.');
+    await fetchUsers();
   };
-
-  // Обновление пользователя
   const handleUpdateUser = async (userId, userData) => {
-    try {
-      const token = localStorage.getItem('token');
-      const response = await fetch(`/api/users/${userId}`, {
-        method: 'PUT',
-        headers: {
-          'Authorization': `Bearer ${token}`,
-          'Content-Type': 'application/json'
-        },
-        body: JSON.stringify(userData)
-      });
-
-      if (!response.ok) {
-        const errorData = await response.json();
-        throw new Error(errorData.message || 'Ошибка обновления пользователя');
-      }
-
-      setEditingUser(null);
-      fetchUsers();
-      alert('Пользователь успешно обновлен');
-    } catch (err) {
-      alert(`Ошибка: ${err.message}`);
-    }
+    await saveUser(`/api/users/${userId}`, 'PUT', userData);
+    setEditingUser(null);
+    setNotice('Изменения сохранены.');
+    if (userId === currentUser?.id) await refreshUser().catch(() => {});
+    await fetchUsers();
   };
 
   // Деактивация пользователя
@@ -221,254 +193,6 @@ const UserManagement = ({ onBack }) => {
     }
   };
 
-  // Форма создания/редактирования пользователя
-  const UserForm = ({ user, onSubmit, onCancel }) => {
-    const [formData, setFormData] = useState({
-      username: user?.username || '',
-      email: user?.email || '',
-      password: '',
-      role: user?.role || 'user_analyst',
-      organization_id: user?.organization_id || '',
-      ...getProfileUploadPermissions(user),
-      department_ids: Array.isArray(user?.accessible_departments) && user.accessible_departments.length > 0
-        ? user.accessible_departments.map((department) => department.id)
-        : (user?.department_id ? [user.department_id] : [])
-    });
-
-    const handleSubmit = (e) => {
-      e.preventDefault();
-
-      // Валидация
-      if (!formData.username || !formData.email || (!user && !formData.password)) {
-        alert('Заполните все обязательные поля');
-        return;
-      }
-
-      // Валидация организации и отдела (обязательны для всех ролей)
-      if (!formData.organization_id || formData.department_ids.length === 0) {
-        alert('Организация и минимум один отдел являются обязательными полями');
-        return;
-      }
-
-      const submitData = { ...formData };
-      if (user) {
-        const previousDepartments = user.accessible_departments?.length
-          ? user.accessible_departments.map(department => department.id)
-          : (user.department_id ? [user.department_id] : []);
-        if (JSON.stringify(submitData.department_ids) === JSON.stringify(previousDepartments)) delete submitData.department_ids;
-        for (const field of ['username', 'email', 'role', 'organization_id']) {
-          if (submitData[field] === (user[field] || '')) delete submitData[field];
-        }
-      }
-      if (!canManageUploadPermissions) {
-        delete submitData.role;
-        delete submitData.can_upload_with_task;
-        delete submitData.can_upload_without_task;
-      }
-      if (user && !formData.password) {
-        delete submitData.password; // Не обновляем пароль если он не указан
-      }
-
-      onSubmit(submitData);
-    };
-
-    return (
-      <div className="modal-overlay">
-        <div className="modal-content modal-lg">
-          <div className="modal-header">
-            <h3 className="modal-title">
-              {user ? 'Редактировать пользователя' : 'Создать пользователя'}
-            </h3>
-            <button onClick={onCancel} className="modal-close" aria-label="Закрыть">×</button>
-          </div>
-
-          <form onSubmit={handleSubmit}>
-            <div className="user-form-shell">
-              <div className="user-form-column">
-                <div className="form-section">
-                  <h4 className="section-title">Основная информация</h4>
-
-                  <div className="form-grid form-grid-compact">
-                    <div className="form-group">
-                      <label className="form-label required">Имя пользователя</label>
-                      <input
-                        type="text"
-                        value={formData.username}
-                        onChange={(e) => setFormData({...formData, username: e.target.value})}
-                        className="form-input"
-                        required
-                      />
-                    </div>
-
-                    <div className="form-group">
-                      <label className="form-label required">Email</label>
-                      <input
-                        type="email"
-                        value={formData.email}
-                        onChange={(e) => setFormData({...formData, email: e.target.value})}
-                        className="form-input"
-                        required
-                      />
-                    </div>
-
-                    <div className="form-group form-group-full">
-                      <label className={`form-label ${user ? '' : 'required'}`}>
-                        {user ? 'Новый пароль' : 'Пароль'}
-                      </label>
-                      <input
-                        type="password"
-                        value={formData.password}
-                        onChange={(e) => setFormData({...formData, password: e.target.value})}
-                        className="form-input"
-                        placeholder={user ? 'Оставьте пустым, чтобы не менять' : ''}
-                        required={!user}
-                      />
-                      {user && (
-                        <small className="form-hint">
-                          Оставьте пустым, чтобы не менять
-                        </small>
-                      )}
-                    </div>
-                  </div>
-                </div>
-
-                <div className="form-section">
-                  <h4 className="section-title">Организация</h4>
-
-                  <div className="form-group">
-                    <label className="form-label required">Организация</label>
-                    <div className="select-wrapper">
-                      <select
-                        value={formData.organization_id}
-                        onChange={(e) => setFormData({
-                          ...formData,
-                          organization_id: e.target.value,
-                          department_ids: []
-                        })}
-                        className="form-select"
-                        required
-                      >
-                        <option value="">Выберите организацию</option>
-                        {organizations.map(org => (
-                          <option key={org.id} value={org.id}>
-                            {org.name}
-                          </option>
-                        ))}
-                      </select>
-                    </div>
-                  </div>
-                </div>
-              </div>
-
-              <div className="user-form-column user-form-column-narrow">
-                <div className="form-section">
-                  <h4 className="section-title">Роль</h4>
-
-                  <div className="role-options role-options-compact">
-                    {roles.map(role => (
-                      <label
-                        key={role.value}
-                        className={`role-option ${formData.role === role.value ? 'selected' : ''}`}
-                      >
-                        <input
-                          type="radio"
-                          name="role"
-                          value={role.value}
-                          checked={formData.role === role.value}
-                          disabled={!canManageUploadPermissions}
-                          onChange={(e) => setFormData({...formData, role: e.target.value})}
-                        />
-                        <div>
-                          <div className="role-name">{role.label}</div>
-                          <div className="role-desc">{role.description}</div>
-                        </div>
-                      </label>
-                    ))}
-                  </div>
-                </div>
-
-                <div className="form-section">
-                  <h4 className="section-title">Отделы</h4>
-
-                  <div className="form-group">
-                    <label className="form-label required">Доступные отделы</label>
-                    <div className="department-checkboxes department-checkboxes-compact">
-                      {departments
-                        .filter(dept => !formData.organization_id || dept.organization_id === formData.organization_id)
-                        .map((dept) => {
-                          const isChecked = formData.department_ids.includes(dept.id);
-                          return (
-                            <label
-                              key={dept.id}
-                              className={`department-checkbox ${isChecked ? 'is-selected' : ''}`}
-                            >
-                              <input
-                                type="checkbox"
-                                checked={isChecked}
-                                onChange={(e) => {
-                                  setFormData((prev) => ({
-                                    ...prev,
-                                    department_ids: e.target.checked
-                                      ? [...prev.department_ids, dept.id]
-                                      : prev.department_ids.filter((departmentId) => departmentId !== dept.id)
-                                  }));
-                                }}
-                              />
-                              <span>{dept.name}</span>
-                            </label>
-                          );
-                        })}
-                    </div>
-                  </div>
-                </div>
-              </div>
-            </div>
-
-            <div className="form-section">
-              <h4 className="section-title">Права загрузки ДНК-профилей</h4>
-              <div className="form-group">
-                <label className="checkbox-label">
-                  <input type="checkbox" checked={formData.can_upload_with_task} disabled={!canManageUploadPermissions}
-                    onChange={e => setFormData(prev => ({ ...prev, can_upload_with_task: e.target.checked }))} />
-                  <span>Разрешить загрузку в активную задачу</span>
-                </label>
-                <p className="form-help">Задача должна быть доступна пользователю, относиться к активному отделению и иметь статус «В работе».</p>
-              </div>
-              <div className="form-group">
-                <label className="checkbox-label">
-                  <input type="checkbox" checked={formData.can_upload_without_task} disabled={!canManageUploadPermissions}
-                    onChange={e => setFormData(prev => ({ ...prev, can_upload_without_task: e.target.checked }))} />
-                  <span>Разрешить загрузку без задачи</span>
-                </label>
-                <p className="form-help">По умолчанию выключено. Такие профили сохраняются без привязки к задаче.</p>
-              </div>
-              {!canManageUploadPermissions && <p className="form-help">Права загрузки изменяет администратор.</p>}
-            </div>
-
-            {/* Кнопки действий */}
-            <div className="form-actions">
-              <button
-                type="button"
-                onClick={onCancel}
-                className="btn btn-secondary"
-              >
-                <span>←</span>
-                <span>Отмена</span>
-              </button>
-              <button
-                type="submit"
-                className="btn btn-primary"
-              >
-                <span>✓</span>
-                <span>{user ? 'Обновить' : 'Создать'}</span>
-              </button>
-            </div>
-          </form>
-        </div>
-      </div>
-    );
-  };
-
   // Детали пользователя
   const UserDetails = ({ user, onClose }) => {
     const [sessions, setSessions] = useState([]);
@@ -507,8 +231,9 @@ const UserManagement = ({ onBack }) => {
 
           <div className="user-details-section">
             <h4>Основная информация</h4>
-            <p><strong>Имя пользователя:</strong> {user.username}</p>
-            <p><strong>Email:</strong> {user.email}</p>
+            <p><strong>Фамилия И.О.:</strong> {getUserDisplayName(user)}</p>
+            <p><strong>Логин:</strong> {user.username}</p>
+            <p><strong>Почта:</strong> {user.email || 'Не указана'}</p>
             <p><strong>Роль:</strong> {roles.find(r => r.value === user.role)?.label || user.role}</p>
             <p><strong>Статус:</strong> {user.is_active ? 'Активен' : 'Неактивен'}</p>
             <p><strong>Загрузка в задачу:</strong> {getProfileUploadPermissions(user).can_upload_with_task ? 'Разрешена' : 'Запрещена'}</p>
@@ -577,7 +302,7 @@ const UserManagement = ({ onBack }) => {
         <div className="user-management-filters">
           <button
             className={`role-filter btn btn-secondary ${!roleFilter ? 'active' : ''}`}
-            onClick={() => setRoleFilter('')}
+            onClick={() => { setRoleFilter(''); setCurrentPage(1); }}
           >
             Все роли
           </button>
@@ -585,7 +310,7 @@ const UserManagement = ({ onBack }) => {
             <button
               key={role.value}
               className={`role-filter btn btn-secondary ${roleFilter === role.value ? 'active' : ''}`}
-              onClick={() => setRoleFilter(role.value)}
+              onClick={() => { setRoleFilter(role.value); setCurrentPage(1); }}
             >
               {role.label}
             </button>
@@ -602,6 +327,7 @@ const UserManagement = ({ onBack }) => {
       </div>
 
       {/* Ошибка */}
+      {notice && <div className="user-save-notice" role="status">{notice}</div>}
       {error && (
         <div className="user-error-banner organization-alert">
           {error}
@@ -626,8 +352,9 @@ const UserManagement = ({ onBack }) => {
               <tr key={user.id}>
                 <td>
                   <div>
-                    <strong>{user.username}</strong>
-                    <div className="user-email">{user.email}</div>
+                    <strong>{getUserDisplayName(user)}</strong>
+                    <div className="user-email">Логин: {user.username}</div>
+                    {user.email && <div className="user-email">{user.email}</div>}
                   </div>
                 </td>
                 <td>
@@ -728,6 +455,7 @@ const UserManagement = ({ onBack }) => {
       {/* Модальные окна */}
       {showCreateForm && (
         <UserForm
+          roles={roles} organizations={organizations} departments={departments} canManageUploadPermissions={canManageUploadPermissions}
           onSubmit={handleCreateUser}
           onCancel={() => setShowCreateForm(false)}
         />
@@ -735,6 +463,7 @@ const UserManagement = ({ onBack }) => {
 
       {editingUser && (
         <UserForm
+          roles={roles} organizations={organizations} departments={departments} canManageUploadPermissions={canManageUploadPermissions}
           user={editingUser}
           onSubmit={(userData) => handleUpdateUser(editingUser.id, userData)}
           onCancel={() => setEditingUser(null)}

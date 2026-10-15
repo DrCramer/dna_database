@@ -12,7 +12,7 @@ class UserManagementService {
                 throw new Error('Creator not found');
             }
 
-            const { username, email, password, role, organization_id, department_id } = userData;
+            const { username, email, display_name, password, role, organization_id, department_id } = userData;
 
             // Validate role assignment based on creator's role
             const canCreateRole = await this.validateRoleCreation(creator.role, role);
@@ -47,6 +47,7 @@ class UserManagementService {
                 const user = await User.create({
                     username,
                     email,
+                    display_name,
                     password,
                     role,
                     organization_id: actualOrgId,
@@ -60,6 +61,7 @@ class UserManagementService {
                 const user = await User.create({
                     username,
                     email,
+                    display_name,
                     password,
                     role
                 });
@@ -97,7 +99,7 @@ class UserManagementService {
             }
 
             let query_text = `
-                SELECT u.id, u.username, u.email, u.role, u.created_at, u.last_login, 
+                SELECT u.id, u.username, u.email, u.display_name, u.role, u.created_at, u.last_login,
                        u.is_active, u.organization_id, u.department_id,
                        o.name as organization_name, d.name as department_name
                 FROM users u

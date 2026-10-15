@@ -267,7 +267,8 @@ class AuthService {
         try {
             const { 
                 username, 
-                email, 
+                email,
+                display_name,
                 password, 
                 role = 'user_analyst',
                 organization_id = null,
@@ -277,7 +278,7 @@ class AuthService {
             } = userData;
 
             // Check if user already exists
-            const existingUser = await User.findByUsername(username) || await User.findByEmail(email);
+            const existingUser = await User.findByUsername(username) || (email ? await User.findByEmail(email) : null);
             if (existingUser) {
                 throw new Error('User already exists');
             }
@@ -285,7 +286,8 @@ class AuthService {
             // Create user with organizational context
             const user = await User.create({ 
                 username, 
-                email, 
+                email,
+                display_name,
                 password, 
                 role,
                 organization_id,

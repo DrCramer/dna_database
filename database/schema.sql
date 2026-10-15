@@ -233,7 +233,8 @@ COMMENT ON TABLE public.staff_profiles IS 'Профили сотрудников
 CREATE TABLE public.users (
     id uuid DEFAULT gen_random_uuid() NOT NULL,
     username character varying(50) NOT NULL,
-    email character varying(100) NOT NULL,
+    email character varying(100),
+    display_name character varying(150),
     password_hash character varying(255) NOT NULL,
     role character varying(20) DEFAULT 'analyst'::character varying NOT NULL,
     created_at timestamp without time zone DEFAULT CURRENT_TIMESTAMP,

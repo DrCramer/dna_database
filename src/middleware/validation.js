@@ -1,3 +1,4 @@
+const { userIdentityFields } = require('../utils/userIdentity');
 const Joi = require('joi');
 const { logger } = require('../utils/logger');
 
@@ -64,15 +65,7 @@ const authSchemas = {
                 'string.pattern.base': 'Username can only contain letters, numbers, underscores, and hyphens',
                 'any.required': 'Username is required'
             }),
-        email: Joi.string()
-            .email()
-            .max(100)
-            .required()
-            .messages({
-                'string.email': 'Please provide a valid email address',
-                'string.max': 'Email must not exceed 100 characters',
-                'any.required': 'Email is required'
-            }),
+        ...userIdentityFields,
         password: Joi.string()
             .min(8)
             .max(128)
@@ -163,15 +156,7 @@ const userSchemas = {
             })
     }),
 
-    updateProfile: Joi.object({
-        email: Joi.string()
-            .email()
-            .max(100)
-            .messages({
-                'string.email': 'Please provide a valid email address',
-                'string.max': 'Email must not exceed 100 characters'
-            })
-    }),
+    updateProfile: Joi.object(userIdentityFields),
 
     resetPassword: Joi.object({
         newPassword: Joi.string()
@@ -238,15 +223,7 @@ const userSchemas = {
                 'string.pattern.base': 'Username can only contain letters, numbers, underscores, and hyphens',
                 'any.required': 'Username is required'
             }),
-        email: Joi.string()
-            .email()
-            .max(100)
-            .required()
-            .messages({
-                'string.email': 'Please provide a valid email address',
-                'string.max': 'Email must not exceed 100 characters',
-                'any.required': 'Email is required'
-            }),
+        ...userIdentityFields,
         password: Joi.string()
             .min(8)
             .max(128)
@@ -655,6 +632,11 @@ module.exports = {
     validateOrgParams: validate(commonSchemas.orgParams, 'params'),
     validateOrgDeptParams: validate(commonSchemas.orgDeptParams, 'params'),
     validatePagination: validate(commonSchemas.pagination, 'query'),
+    validateUsersList: validate(commonSchemas.pagination.keys({
+        search: Joi.string().trim().max(200).allow(''),
+        role: Joi.string().valid('admin', 'system_administrator', 'department_head', 'user_analyst', 'analyst', 'viewer').allow(''),
+        organization_id: Joi.string().uuid(), department_id: Joi.string().uuid()
+    }), 'query'),
     
     // Raw schemas for custom validation
     schemas: {

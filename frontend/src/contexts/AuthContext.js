@@ -164,6 +164,7 @@ export const AuthProvider = ({ children }) => {
       const userData = normalizeUser({
         id: data.data.user.id,
         username: data.data.user.username,
+        display_name: data.data.user.display_name,
         email: data.data.user.email,
         role: data.data.user.role,
         can_upload_with_task: data.data.user.can_upload_with_task,
@@ -211,6 +212,15 @@ export const AuthProvider = ({ children }) => {
     }
     return nextUser;
   }, [normalizeUser]);
+
+  useEffect(() => {
+    if (!user?.id) return undefined;
+    const controller = new AbortController();
+    const syncProfile = () => refreshUser(controller.signal).catch(() => {});
+    syncProfile();
+    window.addEventListener('focus', syncProfile);
+    return () => { controller.abort(); window.removeEventListener('focus', syncProfile); };
+  }, [user?.id, refreshUser]);
 
   const setActiveDepartment = React.useCallback((departmentId) => {
     setUser((prevUser) => {

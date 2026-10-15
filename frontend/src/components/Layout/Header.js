@@ -1,3 +1,4 @@
+import { getUserDisplayName } from '../../../../src/utils/userDisplayName';
 import React, { useState, useRef, useEffect } from 'react';
 import { useAuth } from '../../contexts/AuthContext';
 import DepartmentSwitcher from '../Common/DepartmentSwitcher';
@@ -6,6 +7,7 @@ import ThemeSwitcher from '../Common/ThemeSwitcher';
 
 const Header = ({ user, onNavigate, onLogout, hasRole }) => {
   const { activeDepartment } = useAuth();
+  const displayName = getUserDisplayName(user);
   const isGenetic = resolveProfileImportFormat(activeDepartment) === 'genetic';
   const [showSettingsMenu, setShowSettingsMenu] = useState(false);
   const settingsMenuRef = useRef(null);
@@ -217,21 +219,21 @@ const Header = ({ user, onNavigate, onLogout, hasRole }) => {
           <button
             onClick={() => setShowUserMenu(!showUserMenu)}
             className="user-button"
-            aria-label={`Меню пользователя ${user?.username || ''}`}
+            aria-label={`Меню пользователя ${displayName}`}
             aria-expanded={showUserMenu}
             aria-controls="user-menu"
           >
             <div className="user-avatar">
-              {user?.username?.charAt(0).toUpperCase() || 'U'}
+              {displayName.charAt(0).toUpperCase()}
             </div>
-            <span className="user-name">{user?.username || 'Пользователь'}</span>
+            <span className="user-name" title={displayName}>{displayName}</span>
             <span className="dropdown-arrow">{showUserMenu ? '▲' : '▼'}</span>
           </button>
 
           {showUserMenu && (
             <div className="dropdown-menu user-dropdown" id="user-menu">
               <div className="user-info">
-                <div className="user-info-name">{user?.username}</div>
+                <div className="user-info-name">{displayName}</div>
                 <div className="user-info-role">
                   {user?.role === 'admin'
                     ? 'Администратор'

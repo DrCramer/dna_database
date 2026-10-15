@@ -1,3 +1,4 @@
+const { validateUserIdentity } = require('../utils/userIdentity');
 const express = require('express');
 const User = require('../models/User');
 const authService = require("../services/security/authService");
@@ -7,6 +8,7 @@ const {
     validateUpdateProfile,
     validateUUID,
     validatePagination,
+    validateUsersList,
     validateRegister,
     validateResetPassword,
     validateUpdateStatus,
@@ -26,9 +28,9 @@ function getClientInfo(req) {
 }
 
 // GET /api/users - Get all users with organizational filtering
-router.get('/', authenticate, departmentHeadOrAdmin, validatePagination, async (req, res) => {
+router.get('/', authenticate, departmentHeadOrAdmin, validateUsersList, async (req, res) => {
     try {
-        const { page, limit, organization_id, department_id } = req.query;
+        const { page, limit, organization_id, department_id, search, role } = req.query;
         const offset = (page - 1) * limit;
 
         const { query } = require('../config/database');
@@ -60,6 +62,11 @@ router.get('/', authenticate, departmentHeadOrAdmin, validatePagination, async (
             }
         }
 
+        if (search) {
+            whereConditions.push(`(users.username ILIKE $${paramIndex} OR users.display_name ILIKE $${paramIndex} OR users.email ILIKE $${paramIndex})`);
+            queryParams.push(`%${search}%`); paramIndex++;
+        }
+        if (role) { whereConditions.push(`users.role = $${paramIndex++}`); queryParams.push(role); }
         const whereClause = whereConditions.join(' AND ');
 
         // Get total count
@@ -75,7 +82,7 @@ router.get('/', authenticate, departmentHeadOrAdmin, validatePagination, async (
 
         // Get paginated users with organizational context
         const usersQuery = `
-            SELECT users.id, users.username, users.email, users.role, 
+            SELECT users.id, users.username, users.email, users.display_name, users.role,
                    users.created_at, users.last_login, users.is_active,
                    users.organization_id, users.department_id,
                    users.can_upload_with_task, users.can_upload_without_task,
@@ -156,7 +163,7 @@ router.get('/context', authenticate, async (req, res) => {
         // Get user's organizational context
         const result = await query(`
             SELECT 
-                u.id, u.username, u.role,
+                u.id, u.username, u.display_name, u.role,
                 o.id as organization_id, o.name as organization_name, o.description as organization_description,
                 d.id as department_id, d.name as department_name, d.description as department_description,
                 d.master_array_id
@@ -183,6 +190,7 @@ router.get('/context', authenticate, async (req, res) => {
                 user: {
                     id: row.id,
                     username: row.username,
+                    display_name: row.display_name,
                     role: row.role,
                     active_department_id: activeDepartmentId,
                     accessible_departments: accessibleDepartments
@@ -226,7 +234,7 @@ router.get('/department', authenticate, async (req, res) => {
         }
         
         let queryText = `
-            SELECT DISTINCT u.id, u.username, u.email, u.role, u.created_at, u.is_active, u.can_upload_with_task, u.can_upload_without_task
+            SELECT DISTINCT u.id, u.username, u.email, u.display_name, u.role, u.created_at, u.is_active, u.can_upload_with_task, u.can_upload_without_task
             FROM users u
             JOIN user_departments ud ON ud.user_id = u.id
             WHERE ud.department_id = $1 AND u.is_active = true
@@ -330,7 +338,7 @@ router.get('/search', authenticate, adminOnly, validateSearchUsers, async (req, 
 
         // Build search conditions
         if (q) {
-            whereConditions.push(`(username ILIKE $${paramIndex} OR email ILIKE $${paramIndex})`);
+            whereConditions.push(`(username ILIKE $${paramIndex} OR email ILIKE $${paramIndex} OR display_name ILIKE $${paramIndex})`);
             queryParams.push(`%${q}%`);
             paramIndex++;
         }
@@ -356,7 +364,7 @@ router.get('/search', authenticate, adminOnly, validateSearchUsers, async (req, 
 
         // Get paginated results
         const searchQuery = `
-            SELECT id, username, email, role, created_at, last_login, is_active 
+            SELECT id, username, email, display_name, role, created_at, last_login, is_active
             FROM users 
             ${whereClause}
             ORDER BY created_at DESC 
@@ -394,11 +402,11 @@ router.get('/search', authenticate, adminOnly, validateSearchUsers, async (req, 
 // POST /api/users - Create new user (admin only)
 router.post('/', authenticate, adminOnly, validateRegister, async (req, res) => {
     try {
-        const { username, email, password, role } = req.body;
+        const { username, email, display_name, password, role } = req.body;
         const clientInfo = getClientInfo(req);
 
         const result = await authService.register(
-            { username, email, password, role },
+            { username, email, display_name, password, role },
             clientInfo.ipAddress,
             clientInfo.userAgent
         );
@@ -633,12 +641,12 @@ router.get('/me/profile', authenticate, async (req, res) => {
 });
 
 // PUT /api/users/me/profile - Update current user profile (authenticated users)
-router.put('/me/profile', authenticate, validateUpdateProfile, async (req, res) => {
+router.put('/me/profile', authenticate, validateUpdateProfile, validateUserIdentity, async (req, res) => {
     try {
-        const { email } = req.body;
+        const { email, display_name } = req.body;
         const clientInfo = getClientInfo(req);
 
-        if (email) {
+        if (email !== undefined) {
             // Check if email is already taken by another user
             const existingUser = await User.findByEmail(email);
             if (existingUser && existingUser.id !== req.user.id) {
@@ -656,6 +664,11 @@ router.put('/me/profile', authenticate, validateUpdateProfile, async (req, res) 
             );
 
             req.user.email = email;
+        }
+
+        if (display_name !== undefined) {
+            await require('../config/database').query('UPDATE users SET display_name=$1 WHERE id=$2', [display_name, req.user.id]);
+            req.user.display_name = display_name;
         }
 
         // Log operation
@@ -801,7 +814,7 @@ router.get('/search', authenticate, adminOnly, validateSearchUsers, async (req, 
 
         // Build search conditions
         if (q) {
-            whereConditions.push(`(username ILIKE $${paramIndex} OR email ILIKE $${paramIndex})`);
+            whereConditions.push(`(username ILIKE $${paramIndex} OR email ILIKE $${paramIndex} OR display_name ILIKE $${paramIndex})`);
             queryParams.push(`%${q}%`);
             paramIndex++;
         }
@@ -827,7 +840,7 @@ router.get('/search', authenticate, adminOnly, validateSearchUsers, async (req, 
 
         // Get paginated results
         const searchQuery = `
-            SELECT id, username, email, role, created_at, last_login, is_active 
+            SELECT id, username, email, display_name, role, created_at, last_login, is_active
             FROM users 
             ${whereClause}
             ORDER BY created_at DESC 
@@ -863,10 +876,10 @@ router.get('/search', authenticate, adminOnly, validateSearchUsers, async (req, 
 });
 
 // PUT /api/users/:id - Update user (admin only)
-router.put('/:id', authenticate, departmentHeadOrAdmin, validateUUID, async (req, res) => {
+router.put('/:id', authenticate, departmentHeadOrAdmin, validateUUID, validateUserIdentity, async (req, res) => {
     try {
         const { id } = req.params;
-        const { username, email, role, organization_id, department_id, department_ids } = req.body;
+        const { username, email, display_name, role, organization_id, department_id, department_ids } = req.body;
         const permissionChanges = UPLOAD_PERMISSION_FIELDS.filter(field => req.body[field] !== undefined);
         if (role !== undefined && req.user.role !== 'admin') {
             return res.status(403).json({ code: 'ROLE_ADMIN_ONLY', message: 'Роль пользователя может изменять только администратор.' });
@@ -911,7 +924,7 @@ router.put('/:id', authenticate, departmentHeadOrAdmin, validateUUID, async (req
             paramIndex++;
         }
 
-        if (email && email !== user.email) {
+        if (email !== undefined && email !== user.email) {
             // Check if email is already taken
             const existingUser = await User.findByEmail(email);
             if (existingUser && existingUser.id !== id) {
@@ -923,6 +936,11 @@ router.put('/:id', authenticate, departmentHeadOrAdmin, validateUUID, async (req
             updates.push(`email = $${paramIndex}`);
             values.push(email);
             paramIndex++;
+        }
+
+        if (display_name !== undefined && display_name !== user.display_name) {
+            updates.push(`display_name = $${paramIndex++}`);
+            values.push(display_name);
         }
 
         if (role && role !== user.role) {
@@ -960,7 +978,7 @@ router.put('/:id', authenticate, departmentHeadOrAdmin, validateUUID, async (req
                 UPDATE users 
                 SET ${updates.join(', ')} 
                 WHERE id = $${paramIndex}
-                RETURNING id, username, email, role, organization_id, department_id, created_at, is_active, can_upload_with_task, can_upload_without_task
+                RETURNING id, username, email, display_name, role, organization_id, department_id, created_at, is_active, can_upload_with_task, can_upload_without_task
             `;
 
             const result = await query(updateQuery, values);

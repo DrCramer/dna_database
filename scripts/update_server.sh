@@ -40,11 +40,11 @@ if [[ -n "$schema_changes" ]]; then
     known_release=true
     while IFS= read -r changed_file; do
         case "$changed_file" in
-            database/schema.sql|database/migrations/031_allele_references.sql|database/migrations/032_genetic_profile_year_identity.sql) ;;
+            database/schema.sql|database/migrations/031_allele_references.sql|database/migrations/032_genetic_profile_year_identity.sql|database/migrations/033_user_display_names.sql) ;;
             *) known_release=false ;;
         esac
     done <<< "$schema_changes"
-    if [[ "$schema_changes" != *database/migrations/031_allele_references.sql* && "$schema_changes" != *database/migrations/032_genetic_profile_year_identity.sql* ]]; then
+    if [[ "$schema_changes" != *database/migrations/031_allele_references.sql* && "$schema_changes" != *database/migrations/032_genetic_profile_year_identity.sql* && "$schema_changes" != *database/migrations/033_user_display_names.sql* ]]; then
         known_release=false
     fi
     if [[ "$known_release" == true ]]; then
@@ -55,6 +55,10 @@ if [[ -n "$schema_changes" ]]; then
         if [[ "$schema_changes" == *database/migrations/032_genetic_profile_year_identity.sql* ]]; then
             echo 'Applying genetic profile year identity migration 032.'
             docker compose exec -T db psql -U dna_user -d dna_analysis -v ON_ERROR_STOP=1 -q < database/migrations/032_genetic_profile_year_identity.sql
+        fi
+        if [[ "$schema_changes" == *database/migrations/033_user_display_names.sql* ]]; then
+            echo 'Applying user display names and optional email migration 033.'
+            docker compose exec -T db psql -U dna_user -d dna_analysis -v ON_ERROR_STOP=1 -q < database/migrations/033_user_display_names.sql
         fi
     else
         echo 'Database schema files changed. Review the release migration instructions before starting new code:' >&2
@@ -77,6 +81,13 @@ reference_tables_ready="$(docker compose exec -T db psql -U dna_user -d dna_anal
 if [[ "$reference_tables_ready" != t ]]; then
     echo 'Installing missing allele reference tables (migration 031).'
     docker compose exec -T db psql -U dna_user -d dna_analysis -v ON_ERROR_STOP=1 -q < database/migrations/031_allele_references.sql
+fi
+
+# Восстановление после отдельного git pull или прерванного обновления.
+user_identity_ready="$(docker compose exec -T db psql -U dna_user -d dna_analysis -Atq -v ON_ERROR_STOP=1 -c "SELECT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_schema='public' AND table_name='users' AND column_name='display_name') AND EXISTS (SELECT 1 FROM information_schema.columns WHERE table_schema='public' AND table_name='users' AND column_name='email' AND is_nullable='YES')" )"
+if [[ "$user_identity_ready" != t ]]; then
+    echo 'Installing user display names and optional email (migration 033).'
+    docker compose exec -T db psql -U dna_user -d dna_analysis -v ON_ERROR_STOP=1 -q < database/migrations/033_user_display_names.sql
 fi
 
 docker compose config --quiet
