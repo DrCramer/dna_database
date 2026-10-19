@@ -1,4 +1,4 @@
-const { equalSets, isAlleleSubset, setIntersection, hasIntersection } = require("../../utils/alleleComparison");
+const { equalSets, isAlleleSubset, setIntersection } = require("../../utils/alleleComparison");
 const { informativeAlleles } = require("../../utils/alleleTokens");
 const DUPLICATE_IGNORED_FIELDS = new Set(['sample_name', 'id', 'gender', 'internal_number', 'created_at', 'year', 'import_number']);
 /**
@@ -140,14 +140,17 @@ const isDuplicate = (result, thresholds = {}) => {
 
 const compareLocusSets = (setA, setB) => {
   if (!setA.size || !setB.size) return { score: 0, status: 'no_call' };
-  if (equalSets(setA, setB)) return { score: 1, status: 'match' };
+  // Один проход без временных массивов [...set] и callback на каждую аллель.
+  let shared = 0;
+  for (const allele of setA) if (setB.has(allele)) shared++;
+  if (setA.size === setB.size && shared === setA.size) return { score: 1, status: 'match' };
   // Сохраняем историческую асимметрию быстрого пути, зафиксированную в baseline.
-  if (isAlleleSubset(setA, setB) || (setB.size >= setA.size && isAlleleSubset(setB, setA))) {
+  if (shared === setA.size || (setB.size >= setA.size && shared === setB.size)) {
     return Math.max(setA.size, setB.size) > 2
       ? { score: 0.8, status: 'contamination' }
       : { score: 0.6, status: 'dropout' };
   }
-  if (hasIntersection(setA, setB)) return { score: -0.5, status: 'partial' };
+  if (shared > 0) return { score: -0.5, status: 'partial' };
   return { score: -1, status: 'mismatch' };
 };
 
