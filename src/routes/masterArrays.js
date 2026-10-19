@@ -1,5 +1,6 @@
 const express = require('express');
 const router = express.Router();
+router.use(require('./masterArrayExport'));
 const MasterArrayService = require("../services/profiles/masterArrayService");
 const PermissionService = require("../services/security/permissionService");
 const { authenticate } = require('../middleware/auth');

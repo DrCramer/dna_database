@@ -1,10 +1,10 @@
+const { createImportWorkbook } = require('../../utils/importWorkbook');
 const XLSX = require('xlsx');
 const { createHash } = require('node:crypto');
 const { LociTypeDetector } = require("../../utils/lociTypeDetector");
 const { normalizeObjectName, geneticObjectKey, geneticProfileKey } = require("../../utils/profileImportFormat");
 const { normalizeAlleleValue } = require("../../utils/alleleNormalizer");
 const { informativeAlleles, isMissingAllele } = require("../../utils/alleleTokens");
-const { orderNormalizedLoci } = require("../../utils/normalizedExcelLayout");
 const sourceDetector = require('./geneticSourceDetector');
 const { parseGeneMapperTxt } = require('./geneMapperTxtParser');
 const { adaptGeneMapper, applyGeneMapperCell, finalizeGeneMapper } = require('./geneMapperSourceAdapter');
@@ -283,29 +283,12 @@ class GeneticExcelConverterService {
   export(result, options = {}) {
     if (!result.canImport) throw new ConversionError('Сначала разрешите все ошибки и конфликты.', 'UNRESOLVED_CONVERSION', 409);
     if (!options || typeof options !== 'object' || Array.isArray(options) || options.hideEmptyLoci != null && typeof options.hideEmptyLoci !== 'boolean') throw new ConversionError('Некорректные настройки скрытия пустых локусов.');
-    const book = XLSX.utils.book_new();
-    // Свойство формата сохраняет число аллелей при повторной загрузке без служебных листов.
-    if (result.sourceFormat === sourceDetector.GENEMAPPER_FORMAT) book.Custprops = { DNAProfileSourceFormat: sourceDetector.GENEMAPPER_FORMAT };
-    const exportLoci = orderNormalizedLoci(result.exportLoci || result.catalogLoci);
-    const emergency = result.importFormat === 'emergency';
-    const assignedHeader = '№ присвоенный в в/ч № 522 ЦПООП Северо-Кавказского военного округа, г. Ростов-на-Дону';
-    const metadataColumns = emergency ? 4 : 2;
-    const rows = [[...(emergency ? [assignedHeader, 'Привоз', 'Год', 'Sample Name'] : ['Объект', 'Год']), ...exportLoci], ...result.profiles.map(profile => [
-      ...(emergency ? [profile.emergency.assignedNumber, profile.emergency.shippingNumber, profile.year ?? '', profile.objectNumber] : [profile.objectNumber, profile.year ?? '']),
-      ...exportLoci.map(locus => (profile.strData[locus] || []).join(','))])];
-    const sheet = XLSX.utils.aoa_to_sheet(rows);
-    const columns = rows[0].map((header, index) => ({ wch: Math.min(40, Math.max(12, header.length + 2)), hidden: options.hideEmptyLoci === true && index >= metadataColumns }));
-    // Видимость определяется фактическими ячейками выгрузки. Для совместимости
-    // с Excel у каждой колонки записываем положительную ширину.
-    for (const row of rows.slice(1)) row.forEach((value, index) => {
-      if (!isMissingAllele(value)) {
-        columns[index].hidden = false;
-        columns[index].wch = Math.max(columns[index].wch, Math.min(40, String(value).length + 2));
-      }
+    return createImportWorkbook({
+      profiles: result.profiles, loci: result.exportLoci || result.catalogLoci,
+      importFormat: result.importFormat,
+      sourceFormat: result.sourceFormat === sourceDetector.GENEMAPPER_FORMAT ? sourceDetector.GENEMAPPER_FORMAT : undefined,
+      hideEmptyLoci: options.hideEmptyLoci === true
     });
-    sheet['!cols'] = columns;
-    XLSX.utils.book_append_sheet(book, sheet, 'Импорт');
-    return XLSX.write(book, { type: 'buffer', bookType: 'xlsx', compression: true });
   }
 }
 

@@ -65,6 +65,7 @@ const Header = ({ user, onNavigate, onLogout, hasRole }) => {
   const adminSearchItem = { path: '/master-object-search', label: 'Поиск объектов', icon: '🔎' };
 
   const adminSystemMenu = [
+    { path: '/admin/master-array-export', label: 'Экспорт мастер-массива', icon: '📤' },
     { path: '/users', label: 'Пользователи', icon: '👥' },
     { path: '/organizations', label: 'Организации', icon: '🏢' },
     { path: '/departments', label: 'Отделы', icon: '🏛️' },
@@ -73,10 +74,10 @@ const Header = ({ user, onNavigate, onLogout, hasRole }) => {
   ];
 
   const renderNavigation = () => {
-    if (hasRole('admin')) {
+    if (hasRole('admin') || user?.role === 'system_administrator') {
       return (
         <>
-          {adminMainMenu.map((item) => (
+          {(hasRole('admin') ? adminMainMenu : analystMenu.filter(item => item.path !== adminSearchItem.path)).map((item) => (
             <button
               key={item.path}
               title={item.label}
@@ -104,7 +105,7 @@ const Header = ({ user, onNavigate, onLogout, hasRole }) => {
 
             {showSystemMenu && (
               <div className="dropdown-menu" id="system-menu">
-                {adminSystemMenu.map((item) => (
+                {adminSystemMenu.filter(item => hasRole('admin') || item.path === '/admin/master-array-export').map((item) => (
                   <button
                     key={item.path}
                     title={item.label}

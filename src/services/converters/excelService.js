@@ -804,7 +804,7 @@ class ExcelService {
       }
 
       // Validate and extract profiles with enhanced 40 STR/SNP support
-      const profiles = this.extractProfiles(jsonData, filename, { ...options, converted: (isGenetic && !!workbook.Sheets[CONVERSION_META_SHEET]) || workbook.Custprops?.DNAProfileSourceFormat === 'GENEMAPPER_TXT' });
+      const profiles = this.extractProfiles(jsonData, filename, { ...options, converted: (isGenetic && !!workbook.Sheets[CONVERSION_META_SHEET]) || ['GENEMAPPER_TXT', 'MASTER_ARRAY_EXPORT'].includes(workbook.Custprops?.DNAProfileSourceFormat) });
       if (isGenetic) {
         const columns = validateGeneticHeaders(jsonData[0]).columns.map(column => column.locus);
         const metadata = readConversionMetadata(workbook, profiles, columns);
@@ -1323,7 +1323,7 @@ class ExcelService {
       if (!value) return null;
       const str = value.toString().trim();
       // Извлекаем 4 цифры подряд (год)
-      const yearMatch = str.match(/\b(19\d{2}|20\d{2})\b/);
+      const yearMatch = str.match(/\b(19\d{2}|20\d{2}|2100)\b/);
       if (yearMatch) {
         const year = parseInt(yearMatch[1], 10);
         // Проверяем что год в разумных пределах

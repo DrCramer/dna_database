@@ -1,0 +1,19 @@
+.master-export-page { display: grid; gap: 20px; max-width: 1120px; margin: 0 auto; min-width: 0; }
+.master-export-card { padding: 24px; display: grid; gap: 18px; min-width: 0; }
+.master-export-card h2 { margin: 0; }
+.master-export-fields { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 16px; }
+.master-export-fields label { display: grid; gap: 8px; min-width: 0; }
+.master-export-scope { display: flex; flex-wrap: wrap; gap: 16px; border: 0; padding: 0; }
+.master-export-scope legend { margin-bottom: 8px; font-weight: 600; }
+.master-export-scope label, .master-export-checks label { display: flex; align-items: flex-start; gap: 8px; }
+.master-export-checks { display: grid; gap: 12px; }
+.master-export-hint { color: var(--text-secondary); margin: 0; }
+.master-export-summary { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 12px; margin: 0; }
+.master-export-summary div { padding: 14px; border: 1px solid var(--border-default); border-radius: 8px; background: var(--surface-muted); }
+.master-export-summary dt { color: var(--text-secondary); }
+.master-export-summary dd { margin: 8px 0 0; font-size: 24px; font-weight: 700; }
+.master-export-problems { display: grid; gap: 16px; padding: 18px; border: 1px solid var(--border-default); border-radius: 8px; }
+.master-export-card details > summary { cursor: pointer; padding: 8px 0; }
+.master-export-card li { overflow-wrap: anywhere; margin: 6px 0; }
+.master-export-card .btn { justify-self: start; }
+@media (max-width: 760px) { .master-export-fields { grid-template-columns: 1fr; } .master-export-summary { grid-template-columns: repeat(2, minmax(0, 1fr)); } .master-export-card { padding: 16px; } }

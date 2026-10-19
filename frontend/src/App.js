@@ -7,6 +7,7 @@ import AlleleReferencesPage from './components/Settings/AlleleReferencesPage';
 import GenotypeAnalysisPage from './components/Analysis/GenotypeAnalysisPage';
 import LoginPage from './components/Auth/LoginPage';
 import AdminDashboard from './components/Dashboard/AdminDashboard';
+import MasterArrayExportPage from './components/Admin/MasterArrayExportPage';
 import FileUploader from './components/Upload/FileUploader';
 import GeneticExcelConverterPage from './components/Converter/GeneticExcelConverterPage';
 import { useNotifications } from './hooks/useNotifications';
@@ -1534,6 +1535,7 @@ function App() {
               path="/settings/allele-references"
               element={<ProtectedRoute onNavigate={navigate}><PageTransition><AlleleReferencesPage /></PageTransition></ProtectedRoute>}
             />
+            <Route path="/admin/master-array-export" element={<ProtectedRoute onNavigate={navigate}><PageTransition><MasterArrayExportPage /></PageTransition></ProtectedRoute>} />
             <Route
               path="/admin-dashboard"
               element={
