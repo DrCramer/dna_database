@@ -1,5 +1,6 @@
 const { equalSets, isAlleleSubset, setIntersection, hasIntersection } = require("../../utils/alleleComparison");
 const { informativeAlleles } = require("../../utils/alleleTokens");
+const DUPLICATE_IGNORED_FIELDS = new Set(['sample_name', 'id', 'gender', 'internal_number', 'created_at', 'year', 'import_number']);
 /**
  * DNA Duplicate Detection Service v5.0
  * Оптимизирован для поиска дубликатов с учетом:
@@ -137,6 +138,19 @@ const isDuplicate = (result, thresholds = {}) => {
   );
 };
 
+const compareLocusSets = (setA, setB) => {
+  if (!setA.size || !setB.size) return { score: 0, status: 'no_call' };
+  if (equalSets(setA, setB)) return { score: 1, status: 'match' };
+  // Сохраняем историческую асимметрию быстрого пути, зафиксированную в baseline.
+  if (isAlleleSubset(setA, setB) || (setB.size >= setA.size && isAlleleSubset(setB, setA))) {
+    return Math.max(setA.size, setB.size) > 2
+      ? { score: 0.8, status: 'contamination' }
+      : { score: 0.6, status: 'dropout' };
+  }
+  if (hasIntersection(setA, setB)) return { score: -0.5, status: 'partial' };
+  return { score: -1, status: 'mismatch' };
+};
+
 const compareLocusArrays = (locusA, locusB) => {
   locusA = informativeAlleles(locusA); locusB = informativeAlleles(locusB);
   // Проверка на no call
@@ -148,15 +162,7 @@ const compareLocusArrays = (locusA, locusB) => {
   const setA = new Set(locusA.filter(Boolean));
   const setB = new Set(locusB.filter(Boolean));
 
-  if (equalSets(setA, setB)) return { score: 1, status: 'match' };
-  // Сохраняем историческую асимметрию быстрого пути, зафиксированную в baseline.
-  if (isAlleleSubset(setA, setB) || (setB.size >= setA.size && isAlleleSubset(setB, setA))) {
-    return Math.max(setA.size, setB.size) > 2
-      ? { score: 0.8, status: 'contamination' }
-      : { score: 0.6, status: 'dropout' };
-  }
-  if (hasIntersection(setA, setB)) return { score: -0.5, status: 'partial' };
-  return { score: -1, status: 'mismatch' };
+  return compareLocusSets(setA, setB);
 };
 
 /**
@@ -210,10 +216,10 @@ const calculateDuplicateSimilarityOptimized = (profileA, profileB, options = {})
   const minLoci = thresholds.minLoci || 15;
 
   // Создаем Set для быстрой проверки игнорируемых локусов
-  const ignoredSet = new Set(ignoredLoci);
+  const ignoredSet = options.prepared?.ignoredSet || new Set(ignoredLoci);
 
   // Собираем все уникальные локусы из двух профилей
-  const allLoci = new Set([...Object.keys(profileA), ...Object.keys(profileB)]);
+  const allLoci = options.prepared?.allLoci || new Set([...Object.keys(profileA), ...Object.keys(profileB)]);
 
   let totalScore = 0;
   let maxPossibleScore = 0;
@@ -223,11 +229,11 @@ const calculateDuplicateSimilarityOptimized = (profileA, profileB, options = {})
   const details = {};
 
   // Список служебных полей
-  const ignoredFields = new Set(['sample_name', 'id', 'gender', 'internal_number', 'created_at', 'year', 'import_number']);
+  const ignoredFields = DUPLICATE_IGNORED_FIELDS;
 
   // Подсчитываем максимально возможное количество локусов
-  let maxPossibleLoci = 0;
-  for (const locus of allLoci) {
+  let maxPossibleLoci = options.prepared ? allLoci.length : 0;
+  if (!options.prepared) for (const locus of allLoci) {
     if (!ignoredFields.has(locus) && !ignoredSet.has(locus)) {
       maxPossibleLoci++;
     }
@@ -286,13 +292,15 @@ const calculateDuplicateSimilarityOptimized = (profileA, profileB, options = {})
     maxPossibleScore += weight;
 
     // Сравниваем локусы (массивы)
-    const result = compareLocusArrays(locusA, locusB);
+    const result = options.prepared
+      ? compareLocusSets(options.prepared.a[locus], options.prepared.b[locus])
+      : compareLocusArrays(locusA, locusB);
 
     // Применяем вес локуса
     const weightedScore = result.score * weight;
     totalScore += weightedScore;
 
-    details[locus] = {
+    if (options.includeDetails !== false) details[locus] = {
       score: result.score,
       weightedScore: weightedScore,
       status: result.status,
@@ -348,11 +356,43 @@ const isDuplicateOptimized = (result, thresholds = {}) => {
   return meetsScoreThreshold || meetsPercentageThreshold;
 };
 
+// Кэш живёт только в пределах одного поиска/worker. Разбор аллелей — O(N·L),
+// вместо повторного разбора при каждом из O(N²·L) сравнений.
+function createDuplicateSimilarityComparator(options = {}) {
+  const profiles = new WeakMap();
+  const schemas = new Map();
+  const unions = new Map();
+  const ignoredSet = new Set(options.ignoredLoci || []);
+  function prepare(profile) {
+    if (profiles.has(profile)) return profiles.get(profile);
+    const keys = Object.keys(profile);
+    const schema = JSON.stringify(keys);
+    if (!schemas.has(schema)) schemas.set(schema, { id: schemas.size, keys });
+    const sets = Object.fromEntries(keys.map(locus => [locus, new Set(informativeAlleles(profile[locus]))]));
+    const prepared = { schema: schemas.get(schema).id, keys, sets };
+    profiles.set(profile, prepared);
+    return prepared;
+  }
+  return (profileA, profileB) => {
+    const a = prepare(profileA), b = prepare(profileB);
+    const unionKey = `${a.schema}:${b.schema}`;
+    const allLoci = unions.get(unionKey) || [...new Set([...a.keys, ...b.keys])]
+      .filter(locus => !DUPLICATE_IGNORED_FIELDS.has(locus) && !ignoredSet.has(locus));
+    if (unions.size < 256) unions.set(unionKey, allLoci);
+    const prepared = { a: a.sets, b: b.sets, ignoredSet, allLoci };
+    const fast = calculateDuplicateSimilarityOptimized(profileA, profileB, { ...options, prepared, includeDetails: false });
+    // Подробные объекты и массивы нужны только для найденных совпадений.
+    if (fast.earlyExit || !isDuplicateOptimized(fast, options.thresholds)) return fast;
+    return calculateDuplicateSimilarityOptimized(profileA, profileB, { ...options, prepared });
+  };
+}
+
 module.exports = {
   calculateDuplicateSimilarity,
   isDuplicate,
   utils,
   calculateDuplicateSimilarityOptimized,
   isDuplicateOptimized,
-  compareLocusObjects
+  compareLocusObjects,
+  createDuplicateSimilarityComparator
 };
