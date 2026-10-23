@@ -107,74 +107,14 @@
             ],
             "matchCount": 1,
             "displayedCount": 1
-          },
-          {
-            "reference": {
-              "id": "c",
-              "sample_name": "c",
-              "internal_number": "c",
-              "import_number": "258"
-            },
-            "matches": [
-              {
-                "id": "a",
-                "sample_name": "a",
-                "internal_number": "a",
-                "import_number": "258",
-                "matchCount": 1,
-                "matchedLoci": [
-                  "D5S818"
-                ],
-                "loci": {
-                  "TH01": [
-                    "12",
-                    "13"
-                  ],
-                  "D5S818": [
-                    "11",
-                    "12"
-                  ],
-                  "D21S11": [
-                    "29",
-                    "30"
-                  ]
-                }
-              },
-              {
-                "id": "b",
-                "sample_name": "b",
-                "internal_number": "b",
-                "import_number": "258",
-                "matchCount": 1,
-                "matchedLoci": [
-                  "D5S818"
-                ],
-                "loci": {
-                  "TH01": [
-                    "13",
-                    "12"
-                  ],
-                  "D5S818": [
-                    "11",
-                    "12"
-                  ],
-                  "D21S11": [
-                    "29",
-                    "30"
-                  ]
-                }
-              }
-            ],
-            "matchCount": 2,
-            "displayedCount": 2
           }
         ],
         "totalAnalyzed": 4,
-        "resultsWithMatches": 2,
+        "resultsWithMatches": 1,
         "comparisons": 6,
-        "earlyExits": 5
+        "earlyExits": 7
       },
-      "pairCount": 3
+      "pairCount": 1
     },
     {
       "name": "ignored",
@@ -353,5 +293,6 @@
       },
       "pairCount": 1
     }
-  ]
+  ],
+  "criteriaCorrection": "Exact locus matching: singleton equals repeated identical pair; subsets and unknown alleles are not exact matches."
 }

@@ -47,7 +47,10 @@ test('Все локусы и панели, одиночные вызовы, сп
   assert(result.loci.slice(firstSex).every(isSexLocus));
   assert.equal(result.loci[0], 'D3S1358');
   const parsed = await excel.parseExcelFile(workbook(result), 'all-loci.xlsx', { importFormat: 'genetic' });
-  for (const [locus, alleles] of Object.entries(loci)) assert.deepEqual(parsed[0].strData[locus], alleles, locus);
+  for (const [locus, alleles] of Object.entries(loci)) {
+    const compact = locus === 'DXS6795' || /^RS\d+$/i.test(locus);
+    assert.deepEqual(parsed[0].strData[locus], compact && alleles.length === 2 && alleles[0] === alleles[1] ? [alleles[0]] : alleles, locus);
+  }
 });
 
 test('ЧС: реальные legacy-заголовки и обратное сопоставление полей', async () => {

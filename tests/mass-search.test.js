@@ -3,7 +3,7 @@ const assert = require('node:assert/strict');
 const { invoke, stable, cases } = require('./fixtures/mass-search-harness');
 const fixtures = require('./fixtures/mass-search-baseline.json');
 
-test('Массовый API: параллельный и последовательный пути сохраняют baseline и SQL-изоляцию', async () => {
+test('Массовый API: параллельный и последовательный пути сохраняют точные совпадения и SQL-изоляцию', async () => {
   for (const scenario of cases()) {
     const expected = fixtures.records.find(record => record.name === scenario.name);
     const original = structuredClone(scenario.profiles);

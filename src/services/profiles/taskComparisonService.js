@@ -1,11 +1,14 @@
 const { parseAlleles, compareLocus, compareWithContaminationAlgorithm, extractImportNumber } = require('./genotypeComparisonMath');
 const { createDuplicateSimilarityComparator, isDuplicateOptimized } = require('./duplicateDetectionService');
+const { prepareLocusData, isExactLocusMatch } = require('../../utils/exactLocusComparison');
+
+const contaminationPasses = (result, minMatches) => result.matchingLoci >= minMatches;
 
 function compareTaskProfiles({ referenceProfiles, compareProfiles, minMatches = 15, ignoredLoci = [], comparisonAlgorithm = 'standard', useV5Algorithm = true, searchMode = 'task', duplicateSettings = {} }) {
     const thresholds = {
-      minScore: duplicateSettings.minScore || 15,
-      minPercentage: duplicateSettings.minPercentage || 80,
-      minLoci: duplicateSettings.minLoci || 15
+      minScore: duplicateSettings.minScore ?? 15,
+      minPercentage: duplicateSettings.minPercentage ?? 80,
+      minLoci: duplicateSettings.minLoci ?? 15
     };
     const compareDuplicate = createDuplicateSimilarityComparator({
       locusWeights: duplicateSettings.locusWeights || {}, ignoredLoci, thresholds
@@ -30,11 +33,7 @@ function compareTaskProfiles({ referenceProfiles, compareProfiles, minMatches = 
 
         // Проверяем что есть валидные аллели
         if (parts.length > 0) {
-          processedLoci[locus] = {
-            parts: parts,
-            isHomozygote: parts.length === 2 && parts[0] === parts[1],
-            partsSet: new Set(parts)
-          };
+          processedLoci[locus] = prepareLocusData(locusData);
           validLociCount++;
         }
       }
@@ -62,11 +61,7 @@ function compareTaskProfiles({ referenceProfiles, compareProfiles, minMatches = 
 
         // Проверяем что есть валидные аллели
         if (parts.length > 0) {
-          processedLoci[locus] = {
-            parts: parts,
-            isHomozygote: parts.length === 2 && parts[0] === parts[1],
-            partsSet: new Set(parts)
-          };
+          processedLoci[locus] = prepareLocusData(locusData);
           validLociCount++;
         }
       }
@@ -88,7 +83,7 @@ function compareTaskProfiles({ referenceProfiles, compareProfiles, minMatches = 
       const refLociKeys = Object.keys(refLoci);
 
       // Пропускаем эталонные профили с недостаточным количеством локусов
-      if (refProfile.validLociCount < minMatches) {
+      if (comparisonAlgorithm === 'standard' && refProfile.validLociCount < minMatches) {
         continue;
       }
 
@@ -169,12 +164,8 @@ function compareTaskProfiles({ referenceProfiles, compareProfiles, minMatches = 
           matchScore = matchResult.score;
           matchedLoci.push(...matchResult.matchedLoci);
 
-          // Для алгоритма контаминации используем порог по скору
-          // minMatches интерпретируется как минимальное количество совпадений
-          // Для v5.0 используем более гибкую логику с учетом уровня
-          const minScoreThreshold = 5.0; // Минимальный скор качества (WARNING и выше)
-
-          if (matchCount >= minMatches || matchScore >= minScoreThreshold) {
+          // Минимум совпадений обязателен в обоих режимах поиска задач.
+          if (contaminationPasses(matchResult, minMatches)) {
             matches.push({
               id: compProfile.id,
               sample_name: compProfile.sample_name,
@@ -201,13 +192,7 @@ function compareTaskProfiles({ referenceProfiles, compareProfiles, minMatches = 
             const refData = refLoci[locus];
             const compData = compLoci[locus];
 
-            let isMatched = false;
-
-            if (refData.isHomozygote) {
-              isMatched = compData.isHomozygote && refData.parts[0] === compData.parts[0];
-            } else {
-              isMatched = refData.parts.every(part => compData.partsSet.has(part));
-            }
+            const isMatched = isExactLocusMatch(refData, compData);
 
             if (isMatched) {
               matchCount++;
@@ -259,9 +244,9 @@ function compareTaskProfiles({ referenceProfiles, compareProfiles, minMatches = 
 
 function compareDepartmentProfiles({ referenceProfiles, compareProfiles, minMatches = 15, ignoredLoci = [], comparisonAlgorithm = 'standard', useV5Algorithm = true, searchMode = 'task', duplicateSettings = {} }) {
     const thresholds = {
-      minScore: duplicateSettings.minScore || 15,
-      minPercentage: duplicateSettings.minPercentage || 80,
-      minLoci: duplicateSettings.minLoci || 15
+      minScore: duplicateSettings.minScore ?? 15,
+      minPercentage: duplicateSettings.minPercentage ?? 80,
+      minLoci: duplicateSettings.minLoci ?? 15
     };
     const compareDuplicate = createDuplicateSimilarityComparator({
       locusWeights: duplicateSettings.locusWeights || {}, ignoredLoci, thresholds
@@ -284,11 +269,7 @@ function compareDepartmentProfiles({ referenceProfiles, compareProfiles, minMatc
         const parts = parseAlleles(locusData);
 
         if (parts.length > 0) {
-          processedLoci[locus] = {
-            parts: parts,
-            isHomozygote: parts.length === 2 && parts[0] === parts[1],
-            partsSet: new Set(parts)
-          };
+          processedLoci[locus] = prepareLocusData(locusData);
           validLociCount++;
         }
       }
@@ -320,11 +301,7 @@ function compareDepartmentProfiles({ referenceProfiles, compareProfiles, minMatc
         const parts = parseAlleles(locusData);
 
         if (parts.length > 0) {
-          processedLoci[locus] = {
-            parts: parts,
-            isHomozygote: parts.length === 2 && parts[0] === parts[1],
-            partsSet: new Set(parts)
-          };
+          processedLoci[locus] = prepareLocusData(locusData);
           validLociCount++;
         }
       }
@@ -380,7 +357,7 @@ function compareDepartmentProfiles({ referenceProfiles, compareProfiles, minMatc
               import_number: compareProfile.import_number,
               year: compareProfile.year,
               loci: compareProfile.loci,
-              matchingLoci: v5Result.comparedLociCount,
+              matchingLoci: Object.values(v5Result.details).filter(detail => ['match', 'contamination', 'dropout'].includes(detail.status)).length,
               totalLoci: v5Result.comparedLociCount,
               matchedLoci: Object.keys(v5Result.details).filter(locus =>
                 v5Result.details[locus].status === 'match' ||
@@ -403,7 +380,7 @@ function compareDepartmentProfiles({ referenceProfiles, compareProfiles, minMatc
             useV5Algorithm
           );
 
-          if (matchResult.matchingLoci >= minMatches) {
+          if (contaminationPasses(matchResult, minMatches)) {
             matches.push({
               id: compareProfile.id,
               task_id: compareProfile.task_id,
@@ -418,7 +395,11 @@ function compareDepartmentProfiles({ referenceProfiles, compareProfiles, minMatc
               totalLoci: matchResult.totalLoci,
               matchedLoci: matchResult.matchedLoci,
               score: matchResult.score || 0,
-              algorithm: 'contamination'
+              algorithm: matchResult.algorithm || 'contamination',
+              level: matchResult.level,
+              severity: matchResult.severity,
+              rareCriticalMatches: matchResult.rareCriticalMatches,
+              rareRuleTriggered: matchResult.rareRuleTriggered
             });
           }
         } else {

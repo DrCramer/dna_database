@@ -15,6 +15,7 @@ const DNAProfile = require('../models/DNAProfile');
 const { ProfileAccessService } = require("../services/security/profileAccessService");
 const { getAnalysisLoci } = require('../utils/analysisLoci');
 const { createSearchSnapshot } = require("../services/profiles/searchSnapshotStore");
+const { validateSearchParameters, getAnalysisTask } = require('../services/profiles/analysisTaskAccess');
 
 function getActiveDepartmentId(req) {
   return req.activeDepartmentId || req.user.department_id || null;
@@ -450,7 +451,7 @@ router.post('/mass-search', authenticate, async (req, res) => {
  * - "task": сравнение профилей внутри задачи между собой
  * - "master_array": сравнение профилей задачи с мастер массивом
  */
-router.post('/task-search', authenticate, async (req, res) => {
+router.post('/task-search', authenticate, validateSearchParameters, async (req, res) => {
   const startTime = Date.now();
   
   try {
@@ -489,9 +490,10 @@ router.post('/task-search', authenticate, async (req, res) => {
     
     const DNAProfile = require('../models/DNAProfile');
     const MasterArray = require('../models/MasterArray');
+    const analysisTask = await getAnalysisTask(req, taskId);
     
     // Получаем профили задачи
-    const taskProfilesData = await DNAProfile.findByTaskId(taskId);
+    const taskProfilesData = await DNAProfile.findByTaskId(taskId, { departmentId: analysisTask.department_id, organizationId: analysisTask.organization_id });
     
     logger.info('🔍 Профили задачи загружены', {
       taskId,
@@ -703,7 +705,7 @@ router.post('/task-search', authenticate, async (req, res) => {
  * POST /api/genotype-analysis/department-tasks-search
  * Поиск дубликатов в активных задачах других пользователей отдела
  */
-router.post('/department-tasks-search', authenticate, async (req, res) => {
+router.post('/department-tasks-search', authenticate, validateSearchParameters, async (req, res) => {
   const startTime = Date.now();
   
   try {
@@ -734,20 +736,7 @@ router.post('/department-tasks-search', authenticate, async (req, res) => {
     });
     
     // Получаем информацию о текущей задаче и отделе пользователя
-    const taskQuery = await pool.query(`
-      SELECT t.id, t.department_id, t.assigned_to_user
-      FROM tasks t
-      WHERE t.id = $1
-    `, [taskId]);
-    
-    if (taskQuery.rows.length === 0) {
-      return res.status(404).json({
-        success: false,
-        error: 'Задача не найдена'
-      });
-    }
-    
-    const currentTask = taskQuery.rows[0];
+    const currentTask = await getAnalysisTask(req, taskId);
     const departmentId = currentTask.department_id;
     
     // Получаем профили из текущей задачи (эталонные)
@@ -760,8 +749,8 @@ router.post('/department-tasks-search', authenticate, async (req, res) => {
         dp.import_number,
         dp.str_data
       FROM dna_profiles dp
-      WHERE dp.task_id = $1 AND dp.is_active = true
-    `, [taskId]);
+      WHERE dp.task_id = $1 AND dp.is_active = true AND dp.department_id=$2 AND dp.organization_id=$3
+    `, [taskId, departmentId, currentTask.organization_id]);
     
     const referenceProfiles = referenceProfilesQuery.rows;
     
@@ -778,13 +767,15 @@ router.post('/department-tasks-search', authenticate, async (req, res) => {
     const departmentTasksQuery = await pool.query(`
       SELECT DISTINCT t.id, t.title as name, t.assigned_to_user, t.created_at, u.username
       FROM tasks t
+      JOIN departments d ON d.id=t.department_id JOIN organizations o ON o.id=d.organization_id
       LEFT JOIN users u ON t.assigned_to_user = u.id
       WHERE t.department_id = $1 
         AND t.id != $2
         AND t.status = 'in_progress'
         AND t.is_active = true
+        AND d.organization_id = $3 AND d.is_active=true AND o.is_active=true
       ORDER BY t.created_at DESC
-    `, [departmentId, taskId]);
+    `, [departmentId, taskId, currentTask.organization_id]);
     
     const departmentTasks = departmentTasksQuery.rows;
     
@@ -816,9 +807,12 @@ router.post('/department-tasks-search', authenticate, async (req, res) => {
         u.username as task_owner
       FROM dna_profiles dp
       JOIN tasks t ON dp.task_id = t.id
+      JOIN departments d ON d.id=t.department_id JOIN organizations o ON o.id=d.organization_id
       LEFT JOIN users u ON t.assigned_to_user = u.id
       WHERE dp.task_id = ANY($1) AND dp.is_active = true
-    `, [taskIds]);
+        AND dp.department_id=$2 AND dp.organization_id=$3
+        AND t.department_id=$2 AND d.organization_id=$3 AND d.is_active=true AND o.is_active=true AND t.is_active=true AND t.status='in_progress'
+    `, [taskIds, departmentId, currentTask.organization_id]);
     
     const compareProfiles = compareProfilesQuery.rows;
     
@@ -903,7 +897,7 @@ router.post('/department-tasks-search', authenticate, async (req, res) => {
  * POST /api/genotype-analysis/department-profiles
  * Загрузка всех профилей из активных задач отдела (для восстановления из истории)
  */
-router.post('/department-profiles', authenticate, async (req, res) => {
+router.post('/department-profiles', authenticate, validateSearchParameters, async (req, res) => {
   try {
     const { taskId } = req.body;
     const { pool } = req.app.locals;
@@ -916,29 +910,19 @@ router.post('/department-profiles', authenticate, async (req, res) => {
     }
     
     // Получаем информацию о текущей задаче и отделе
-    const taskQuery = await pool.query(`
-      SELECT t.id, t.department_id
-      FROM tasks t
-      WHERE t.id = $1
-    `, [taskId]);
-    
-    if (taskQuery.rows.length === 0) {
-      return res.status(404).json({
-        success: false,
-        error: 'Задача не найдена'
-      });
-    }
-    
-    const departmentId = taskQuery.rows[0].department_id;
+    const currentTask = await getAnalysisTask(req, taskId);
+    const departmentId = currentTask.department_id;
     
     // Получаем все активные задачи отдела (кроме текущей)
     const departmentTasksQuery = await pool.query(`
-      SELECT id FROM tasks
-      WHERE department_id = $1 
-        AND id != $2
-        AND status = 'in_progress'
-        AND is_active = true
-    `, [departmentId, taskId]);
+      SELECT t.id FROM tasks t
+      JOIN departments d ON d.id=t.department_id JOIN organizations o ON o.id=d.organization_id
+      WHERE t.department_id = $1
+        AND t.id != $2
+        AND t.status = 'in_progress'
+        AND t.is_active = true
+        AND d.organization_id = $3 AND d.is_active=true AND o.is_active=true
+    `, [departmentId, taskId, currentTask.organization_id]);
     
     const taskIds = departmentTasksQuery.rows.map(t => t.id);
     
@@ -959,8 +943,12 @@ router.post('/department-profiles', authenticate, async (req, res) => {
         dp.import_number as "importNumber",
         dp.str_data as "strData"
       FROM dna_profiles dp
+      JOIN tasks t ON t.id=dp.task_id
+      JOIN departments d ON d.id=t.department_id JOIN organizations o ON o.id=d.organization_id
       WHERE dp.task_id = ANY($1) AND dp.is_active = true
-    `, [taskIds]);
+        AND dp.department_id=$2 AND dp.organization_id=$3
+        AND t.department_id=$2 AND d.organization_id=$3 AND d.is_active=true AND o.is_active=true AND t.is_active=true AND t.status='in_progress'
+    `, [taskIds, departmentId, currentTask.organization_id]);
     
     res.status(200).json({
       success: true,
@@ -969,7 +957,7 @@ router.post('/department-profiles', authenticate, async (req, res) => {
     
   } catch (error) {
     logger.error('Ошибка загрузки профилей из задач отдела:', error);
-    res.status(500).json({
+    res.status(error.status || 500).json({
       success: false,
       error: 'Ошибка загрузки профилей из задач отдела'
     });

@@ -914,6 +914,7 @@ const GenotypeAnalysisPage = ({ onNavigate, selectedActiveTask }) => {
           minMatches: minMatches,
           ignoredLoci: Object.keys(ignoredLoci).filter(locus => ignoredLoci[locus]),
           comparisonAlgorithm: comparisonAlgorithm,
+          useV5Algorithm: contaminationSettings.useV5Algorithm !== undefined ? contaminationSettings.useV5Algorithm : true,
           duplicateSettings: comparisonAlgorithm === 'duplicate_v5' ? duplicateSettings : undefined,
           colors: contaminationSettings.colors
         })

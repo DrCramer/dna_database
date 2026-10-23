@@ -529,7 +529,7 @@
             "minLoci": 1
           },
           "plain": false,
-          "fast": true
+          "fast": false
         }
       ]
     },
@@ -2432,9 +2432,10 @@
             "minLoci": 1
           },
           "plain": false,
-          "fast": true
+          "fast": false
         }
       ]
     }
-  ]
+  ],
+  "criteriaCorrection": "Optimized duplicate decisions require all three configured minima, matching the plain implementation."
 }

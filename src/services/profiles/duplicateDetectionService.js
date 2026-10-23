@@ -214,9 +214,9 @@ const calculateDuplicateSimilarityOptimized = (profileA, profileB, options = {})
   const { locusWeights = {}, ignoredLoci = [], thresholds = {} } = options;
 
   // Пороги для раннего выхода
-  const minScore = thresholds.minScore || 15;
-  const minPercentage = thresholds.minPercentage || 80;
-  const minLoci = thresholds.minLoci || 15;
+  const minScore = thresholds.minScore ?? 15;
+  const minPercentage = thresholds.minPercentage ?? 80;
+  const minLoci = thresholds.minLoci ?? 15;
 
   // Создаем Set для быстрой проверки игнорируемых локусов
   const ignoredSet = options.prepared?.ignoredSet || new Set(ignoredLoci);
@@ -352,11 +352,8 @@ const isDuplicateOptimized = (result, thresholds = {}) => {
     minLoci = 15
   } = thresholds;
 
-  // Используем ИЛИ для более гибкой фильтрации
-  const meetsScoreThreshold = result.totalScore >= minScore;
-  const meetsPercentageThreshold = parseFloat(result.matchPercentage) >= minPercentage && result.comparedLociCount >= minLoci;
-
-  return meetsScoreThreshold || meetsPercentageThreshold;
+  // Все три минимума из настроек обязательны, как в неоптимизированном пути.
+  return result.totalScore >= minScore && parseFloat(result.matchPercentage) >= minPercentage && result.comparedLociCount >= minLoci;
 };
 
 // Кэш живёт только в пределах одного поиска/worker. Разбор аллелей — O(N·L),

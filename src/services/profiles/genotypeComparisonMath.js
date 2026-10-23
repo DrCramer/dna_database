@@ -1,7 +1,8 @@
 const { multisetIntersection } = require('../../utils/alleleComparison');
-const { informativeAlleles, isSpecialAllele } = require('../../utils/alleleTokens');
+const { informativeAlleles } = require('../../utils/alleleTokens');
 const { getAnalysisLoci } = require('../../utils/analysisLoci');
 const { calculateContaminationScoreV5 } = require('../../utils/contaminationAlgorithm');
+const { prepareLocusData, isExactLocusMatch } = require('../../utils/exactLocusComparison');
 // Веса локусов для алгоритма контаминации (v4.0)
 const LOCUS_WEIGHTS = {
   'SE33': 1.3,
@@ -53,37 +54,7 @@ const intersect = multisetIntersection;
 function isMatch(inputValue, cellValue) {
   if (!inputValue || !cellValue) return false;
 
-  const inputStr = inputValue.trim().toUpperCase();
-  const cellStr = cellValue.trim().toUpperCase();
-
-  // Специальные символы - НЕ считаются совпадениями
-  if (inputStr === '*' || inputStr === 'F' || inputStr === '?' || inputStr === '*,*') return false;
-  if (cellStr === '*' || cellStr === 'F' || cellStr === '?' || cellStr === '*,*') return false;
-
-  const inputParts = inputStr.split(',').map(p => p.trim());
-  const cellParts = cellStr.split(',').map(p => p.trim());
-
-  // Проверяем что нет пустых значений или специальных символов в частях
-  if (inputParts.some(p => !p || isSpecialAllele(p) || p.includes('?'))) return false;
-  if (cellParts.some(p => !p || isSpecialAllele(p) || p.includes('?'))) return false;
-
-  const cellSet = new Set(cellParts);
-
-  // Проверка на гомозиготу
-  const isInputHomozygote = inputParts.length === 2 && inputParts[0] === inputParts[1];
-
-  if (isInputHomozygote) {
-    // Гомозигота - должны совпадать оба значения
-    return cellParts.length === 2 &&
-           cellParts[0] === cellParts[1] &&
-           cellParts[0] === inputParts[0];
-  } else {
-    // Гетерозигота - все части эталона должны быть в образце
-    for (const part of inputParts) {
-      if (!cellSet.has(part)) return false;
-    }
-    return true;
-  }
+  return isExactLocusMatch(prepareLocusData(String(inputValue).toUpperCase()), prepareLocusData(String(cellValue).toUpperCase()));
 }
 
 /**
@@ -162,15 +133,7 @@ function compareLocus(refProcessedLoci, compProcessedLoci, ignoredSet) {
 
     totalLoci++;
 
-    let isMatched = false;
-
-    if (refData.isHomozygote) {
-      // Гомозигота - быстрая проверка
-      isMatched = compData.isHomozygote && refData.parts[0] === compData.parts[0];
-    } else {
-      // Гетерозигота - используем Set для быстрой проверки
-      isMatched = refData.parts.every(part => compData.partsSet.has(part));
-    }
+    const isMatched = isExactLocusMatch(refData, compData);
 
     if (isMatched) {
       matchingLoci++;

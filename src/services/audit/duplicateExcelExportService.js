@@ -1,11 +1,11 @@
 const ExcelJS = require('exceljs');
 const { getAnalysisLoci, profileLoci } = require("../../utils/analysisLoci");
 const { profileKey, uniqueDuplicatePairs } = require('../../utils/duplicateExportPairs');
+const { exportAlleles, formatExportLocusValue } = require('../../utils/exportAlleles');
 const {
   normalizeHexColor,
   normalizeMatchColors,
-  getLocusComparisonPresentation,
-  formatLocusValue
+  getLocusComparisonPresentation
 } = require("../../utils/locusComparisonPresentation");
 
 const XLSX_MIME = 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet';
@@ -66,15 +66,17 @@ function toArgb(hex) {
   return `FF${normalizeHexColor(hex, '#000000').slice(1)}`;
 }
 
-function setComparisonCell(cell, rawValue, presentation, { highlight, highlightAlleles }) {
-  setText(cell, formatLocusValue(rawValue));
+function setComparisonCell(cell, rawValue, presentation, { highlight, highlightAlleles, locus }) {
+  setText(cell, formatExportLocusValue(rawValue, locus));
   applyBodyCellStyle(cell);
   if (highlight && presentation.backgroundColor) {
     cell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: toArgb(presentation.backgroundColor) } };
   }
   if (highlightAlleles && presentation.status === 'partial' && presentation.alleles.some(allele => allele.matched)) {
     const runs = [];
-    presentation.alleles.forEach((allele, index) => {
+    const displayed = exportAlleles(presentation.alleles.map(allele => allele.value), locus);
+    const alleles = displayed.length === 1 ? presentation.alleles.slice(0, 1) : presentation.alleles;
+    alleles.forEach((allele, index) => {
       if (index) runs.push({ text: ',', font: { color: { argb: 'FF000000' } } });
       runs.push({
         text: String(allele.value),
@@ -167,8 +169,8 @@ class DuplicateExcelExportService {
     for (const profile of includedProfiles) {
       const raw = profileLoci(profile);
       const rowValues = genetic
-        ? [objectIdentifier(profile, true), profile.year ?? '', ...loci.map(locus => formatLocusValue(raw[locus]))]
-        : [profile.sample_name ?? profile.sampleName ?? '', profile.import_number ?? profile.importNumber ?? '', profile.year ?? '', profile.internal_number ?? profile.internalNumber ?? '', ...loci.map(locus => formatLocusValue(raw[locus]))];
+        ? [objectIdentifier(profile, true), profile.year ?? '', ...loci.map(locus => formatExportLocusValue(raw[locus], locus))]
+        : [profile.sample_name ?? profile.sampleName ?? '', profile.import_number ?? profile.importNumber ?? '', profile.year ?? '', profile.internal_number ?? profile.internalNumber ?? '', ...loci.map(locus => formatExportLocusValue(raw[locus], locus))];
       const row = profilesSheet.addRow(rowValues.map(escapeFormulaText));
       row.eachCell((cell, column) => {
         setText(cell, rowValues[column - 1]);
@@ -196,7 +198,7 @@ class DuplicateExcelExportService {
         const refLabel = displayIdentifier(reference, genetic);
         const refRow = comparisonsSheet.addRow([
           'Эталон', refLabel, refLabel, '',
-          ...loci.map(locus => formatLocusValue(profileLoci(reference)[locus]))
+          ...loci.map(locus => formatExportLocusValue(profileLoci(reference)[locus], locus))
         ]);
         refRow.eachCell((cell, column) => {
           setText(cell, refRow.getCell(column).value);
@@ -219,7 +221,7 @@ class DuplicateExcelExportService {
           const fullMatchCount = [...matchedPresentations.values()].filter(presentation => presentation.status === 'full').length;
           const matchedRow = comparisonsSheet.addRow([
             'Совпавший профиль', displayIdentifier(matched, genetic), refLabel, fullMatchCount,
-            ...loci.map(locus => formatLocusValue(profileLoci(matched)[locus]))
+            ...loci.map(locus => formatExportLocusValue(profileLoci(matched)[locus], locus))
           ]);
           matchedRow.eachCell((cell, column) => {
             if (column <= fixedHeaders.length) {
@@ -230,6 +232,7 @@ class DuplicateExcelExportService {
             const locus = loci[column - fixedHeaders.length - 1];
             const presentation = matchedPresentations.get(locus);
             setComparisonCell(matchedRow.getCell(column), profileLoci(matched)[locus], presentation, {
+              locus,
               highlight: opts.includeHighlights,
               highlightAlleles: opts.highlightAlleles
             });

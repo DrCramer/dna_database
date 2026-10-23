@@ -21,7 +21,7 @@ test('Предобработка duplicate_v5 сохраняет скор, ра�
   }
 });
 
-test('Поиск задач: результаты, порядок, детали и экспорт совпадают с прежним API для всех алгоритмов', async () => {
+test('Поиск задач: эталонные критерии, порядок, детали и экспорт одинаковы с workers и без них', async () => {
   for (const { input, expected } of fixtures) {
     const original = structuredClone(input);
     for (const useWorkers of [false, true]) {

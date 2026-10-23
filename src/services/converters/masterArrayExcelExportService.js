@@ -6,6 +6,7 @@ const { resolveProfileImportFormat, normalizeObjectName, geneticProfileKey } = r
 const { orderNormalizedLoci } = require('../../utils/normalizedExcelLayout');
 const { createImportWorkbook, MASTER_EXPORT_FORMAT } = require('../../utils/importWorkbook');
 const { ExcelService } = require('./excelService');
+const { exportAlleles } = require('../../utils/exportAlleles');
 
 const MAX_ROWS = 50000, MAX_CELLS = 2000000, MAX_SOURCE_BYTES = 50 * 1024 * 1024;
 const detector = new LociTypeDetector();
@@ -60,8 +61,9 @@ function prepareMasterExport(rows, importFormat, options = {}) {
       if (!alleles || alleles.length > 100 || alleles.some(a => !['number', 'string'].includes(typeof a) || !String(a) || String(a).length > 500)) { add('ALLELES', `Некорректная структура аллелей ${locus}.`); continue; }
       const tokens = alleles.map(String);
       try {
-        const parsed = excel.parseAlleleValue(tokens.join(','), locus, detector.detectLocusType(locus), 0, 'master-export.xlsx', { genetic: importFormat === 'genetic', preserveAlleleCount: true });
-        if (JSON.stringify(parsed) !== JSON.stringify(tokens)) add('ALLELE_ROUND_TRIP', `Штатный импорт изменит аллели ${locus}; требуется проверка.`);
+        const exported = exportAlleles(tokens, locus);
+        const parsed = excel.parseAlleleValue(exported.join(','), locus, detector.detectLocusType(locus), 0, 'master-export.xlsx', { genetic: importFormat === 'genetic', preserveAlleleCount: true });
+        if (JSON.stringify(parsed) !== JSON.stringify(exported)) add('ALLELE_ROUND_TRIP', `Штатный импорт изменит аллели ${locus}; требуется проверка.`);
       } catch { add('ALLELE_VALIDATION', `Аллели ${locus} не проходят штатную проверку импорта.`); }
       profile.strData[locus] = tokens;
     }

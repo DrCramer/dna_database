@@ -1,4 +1,5 @@
 const { informativeAlleles: parseAlleles } = require("../../utils/alleleTokens");
+const { prepareLocusData, isExactLocusMatch } = require('../../utils/exactLocusComparison');
 const { Worker } = require('worker_threads');
 const os = require('os');
 const path = require('path');
@@ -22,11 +23,7 @@ function prepareMassSearchProfiles(profiles, ignoredLoci, extractImportNumber) {
 
         // Проверяем что есть валидные аллели
         if (parts.length > 0) {
-          processedLoci[locus] = {
-            parts: parts,
-            isHomozygote: parts.length === 2 && parts[0] === parts[1],
-            partsSet: new Set(parts)  // Для быстрой проверки вхождения
-          };
+          processedLoci[locus] = prepareLocusData(locusData);
           validLociCount++;
         }
       }
@@ -97,15 +94,7 @@ function compareMassSearchRange(processedProfiles, { minMatches = 15, startIndex
           const refData = referenceLoci[locus];
           const compData = compareLoci[locus];
 
-          let isMatched = false;
-
-          if (refData.isHomozygote) {
-            // Гомозигота - быстрая проверка
-            isMatched = compData.isHomozygote && refData.parts[0] === compData.parts[0];
-          } else {
-            // Гетерозигота - используем Set для быстрой проверки
-            isMatched = refData.parts.every(part => compData.partsSet.has(part));
-          }
+          const isMatched = isExactLocusMatch(refData, compData);
 
           if (isMatched) {
             numericMatchCount++;

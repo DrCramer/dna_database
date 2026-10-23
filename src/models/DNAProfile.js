@@ -315,15 +315,20 @@ class DNAProfile {
    * @param {string} taskId - Task ID
    * @returns {Promise<Array<DNAProfile>>} Array of profiles
    */
-  static async findByTaskId(taskId) {
+  static async findByTaskId(taskId, scope = {}) {
+    const params = [taskId];
+    const scoped = scope.departmentId != null || scope.organizationId != null;
+    if (scoped && (!scope.departmentId || !scope.organizationId)) throw new Error('Для чтения задачи необходимы отделение и организация.');
+    if (scoped) params.push(scope.departmentId, scope.organizationId);
     const queryText = `
       SELECT * FROM dna_profiles 
       WHERE task_id = $1 AND is_active = true
+      ${scoped ? 'AND department_id=$2 AND organization_id=$3' : ''}
       ORDER BY upload_date DESC
     `;
 
     try {
-      const result = await query(queryText, [taskId]);
+      const result = await query(queryText, params);
       return await this.fromRows(result.rows);
     } catch (error) {
       logger.error('Error finding DNA profiles by task ID', { error: error.message, taskId });
