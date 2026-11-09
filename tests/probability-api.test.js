@@ -38,6 +38,20 @@ test('Probability API: department scope, every profile, sealed TXT, immutable sa
   i.participants[1].sourceDigest='stale-source-digest';assert.equal((await request('/calculate',i)).status,409);
   delete i.participants[1].sourceDigest;i.participants[1].sourceId=randomUUID();assert.equal((await request('/calculate',i)).status,404);
  });
+ await t.test('Один TXT с тремя образцами: один preview, отдельные роли TRIO, сохранение и XLSX',async()=>{
+  const txt=['Sample Name\tMarker\tAllele 1\tAllele 2',
+    'SYN-MOTHER\tD5S818\t11\t12','SYN-CHILD\tD5S818\t11\t12','SYN-FATHER\tD5S818\t11\t11',
+    'SYN-MOTHER\tTH01\t7\t9','SYN-CHILD\tTH01\t7\t9','SYN-FATHER\tTH01\t7\t7'].join('\n');
+  const form=new FormData();form.append('files',new Blob([txt]),'synthetic-trio.txt');
+  const preview=await request('/txt/preview',form);assert.equal(preview.status,200);const sources=(await preview.json()).files[0].samples;
+  assert.equal(sources.length,3);assert.ok(sources.every(s=>s.selectable&&s.proof));
+  const input={mode:'TRIO',includedLoci:['D5S818','TH01'],participants:['mother','child','father'].map((role,i)=>({...sources[i],role}))};
+  const response=await request('/calculations',input);assert.equal(response.status,201);const saved=await response.json();
+  assert.equal(saved.status,'calculated');assert.equal(new Set(saved.participants.map(p=>p.sourceId)).size,3);
+  assert.deepEqual(saved.rows.find(row=>row.locus==='D5S818').paternalAlleles,['11']);
+  assert.deepEqual((await(await request('/calculations/'+saved.id)).json()).participants,saved.participants);
+  assert.equal((await request('/calculations/'+saved.id+'/export?format=xlsx')).status,200);
+ });
  let proof;
  await t.test('incomplete loci are off by default in calculate/save/report; forcing one still blocks export',async()=>{
   const input={mode:'TRIO',participants:['mother','child','father'].map(role=>({role,sourceType:'manual',displayName:'Synthetic '+role,
