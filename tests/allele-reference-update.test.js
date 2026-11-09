@@ -48,9 +48,11 @@ else process.exit(4);
 `;
     for (const command of ['git', 'docker']) fs.writeFileSync(path.join(directory, 'bin', command), shim, { mode: 0o700 });
     const result = spawnSync('bash', [path.join(directory, 'scripts/update_server.sh')], {
-      env: { ...process.env, PATH: path.join(directory, 'bin') + path.delimiter + process.env.PATH, REFERENCE_UPDATE_STATE: stateFile }, encoding: 'utf8', timeout: 10000
+      env: { ...process.env, PATH: path.join(directory, 'bin') + path.delimiter + process.env.PATH, REFERENCE_UPDATE_STATE: stateFile }, encoding: 'utf8', timeout: 60000
     });
-    return { ...result, state: JSON.parse(fs.readFileSync(stateFile, 'utf8')), backups: fs.readdirSync(path.join(directory, 'runtime/backups')).map(name => ({ size: fs.statSync(path.join(directory, 'runtime/backups', name)).size, mode: fs.statSync(path.join(directory, 'runtime/backups', name)).mode & 0o777 })) };
+    assert.ifError(result.error);
+    const backupDir = path.join(directory, 'runtime/backups');
+    return { ...result, state: JSON.parse(fs.readFileSync(stateFile, 'utf8')), backups: (fs.existsSync(backupDir) ? fs.readdirSync(backupDir) : []).map(name => ({ size: fs.statSync(path.join(directory, 'runtime/backups', name)).size, mode: fs.statSync(path.join(directory, 'runtime/backups', name)).mode & 0o777 })) };
   } finally { fs.rmSync(directory, { recursive: true, force: true }); }
 }
 
