@@ -15,6 +15,19 @@ const DNAProfile = require('../models/DNAProfile');
 const { logger } = require('../utils/logger');
 
 const router = express.Router();
+const { ProfileAccessService } = require('../services/security/profileAccessService');
+router.use(authenticate);
+router.use(async (req,res,next) => {
+    try {
+        req.bayesianScope = await ProfileAccessService.getScope({ userId:req.user.id, activeDepartmentId:req.activeDepartmentId });
+        for (const key of ['profileId','profile1Id','profile2Id','targetProfileId']) if(req.body?.[key]) {
+            if (!await ProfileAccessService.validateProfileAccess({userId:req.user.id,activeDepartmentId:req.activeDepartmentId,profileId:req.body[key]}))
+                return res.status(403).json({error:'Профиль недоступен в активном отделении.'});
+        }
+        next();
+    } catch(error) { res.status(error.status||500).json({error:'Не удалось проверить область анализа.'}); }
+});
+
 
 // Custom validation middleware that returns 400 for validation errors
 const validateRequest = (schema) => {
@@ -52,9 +65,14 @@ bayesianEngine.systemParameters = systemParameters;
 bayesianEngine.qualityMetrics = qualityMetrics;
 
 // Initialize the engine
-bayesianEngine.initialize().catch(error => {
+const initialization = bayesianEngine.initialize().catch(error => {
     logger.error('Failed to initialize Bayesian Engine:', error);
 });
+router.close = async () => {
+    await initialization;
+    await bayesianEngine.cacheService.close();
+    await bayesianEngine.connectionPool.shutdown();
+};
 
 // Rate limiting for Bayesian endpoints (DISABLED for development)
 const bayesianRateLimit = (req, res, next) => next(); // Disabled
@@ -351,18 +369,9 @@ router.post('/duplicates',
             }
 
             // Get search space based on permissions and options
-            let searchSpace;
-            if (req.user.role === 'admin' && options.searchScope === 'all') {
-                logger.debug(`Admin user searching in all profiles`);
-                searchSpace = await DNAProfile.findAll({ limit: 10000 });
-            } else if (req.user.role === 'admin') {
-                // Админ по умолчанию ищет во всех профилях, если не указано иное
-                logger.debug(`Admin user searching in all profiles (default)`);
-                searchSpace = await DNAProfile.findAll({ limit: 10000 });
-            } else {
-                logger.debug(`Regular user searching in own profiles only`);
-                searchSpace = await DNAProfile.findByUserId(userId, { limit: 10000 });
-            }
+            const scope = req.bayesianScope;
+            const selected = await require('../config/database').query(`SELECT dp.* FROM dna_profiles dp WHERE ${scope.clause} LIMIT 10000`,scope.params);
+            let searchSpace = await DNAProfile.fromRows(selected.rows);
 
             logger.debug(`Initial search space size: ${searchSpace.length}`);
 

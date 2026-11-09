@@ -43,7 +43,7 @@ test('Новая схема: параметры анализа, мастер-м�
     } finally { logger.error = original; }
   });
 
-  await t.test('DB-01: один номер и год в разных отделениях не должны конфликтовать', { todo: 'Исторический idx_dna_profiles_year_internal_user не учитывает scope; исправление схемы относится к Фазе 5' }, async () => {
+  await t.test('DB-01: один номер и год в разных отделениях не должны конфликтовать', async () => {
     const suffix = randomUUID();
     const org = (await query('INSERT INTO organizations(name) VALUES ($1) RETURNING id', [`Index fixture ${suffix}`])).rows[0].id;
     const departments = (await query("INSERT INTO departments(organization_id,name) VALUES ($1,'Index department A'),($1,'Index department B') RETURNING id", [org])).rows;

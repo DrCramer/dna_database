@@ -12,7 +12,7 @@ const { parentPort, workerData } = require('worker_threads');
 function isNumericValue(value) {
   if (!value) return false;
   const str = value.trim().toUpperCase();
-  return str !== '' && !/^[*?F]$/i.test(str);
+  return str !== '' && !/[*?F]/i.test(str);
 }
 
 /**

@@ -107,7 +107,7 @@ for (const operation of operations) {
   });
   test(`Engine ${operation.name}: кэш БД возвращает результат и заполняет Redis`, async t => {
     const h = harness(t), e = h.engine, cached = { source: 'database-cache' };
-    e.getCachedResult = h.mock(async () => ({ resultData: cached }));
+    e.getCachedResult = h.mock(async () => ({ resultData: cached, parametersUsed: { searchSpaceHash: e.generateSearchSpaceHashForDB([a(),b()]) } }));
     assert.equal(await operation.invoke(e, a()), cached);
     assert.equal(e.cacheService[operation.put].mock.callCount(), 1);
     assert.equal(e.cacheService[operation.put].mock.calls[0].arguments.at(-1), cached);
@@ -169,7 +169,7 @@ test('Engine: ошибки кэширования БД не превращают
   assert.deepEqual(await engine.getSystemParameters(), { duplicateProbabilityThreshold: 0.95, contaminationThreshold: 0.05, degradationThreshold: 0.3 });
 });
 
-test('MATH-06: хэш БД должен различать наборы с разными профилями после первых пяти', { todo: 'generateSearchSpaceHashForDB использует только первые 5 ID; отдельное исправление ключей кэша' }, () => {
+test('MATH-06: хэш БД должен различать наборы с разными профилями после первых пяти', () => {
   const engine = new BayesianEngine(), shared = ['a', 'b', 'c', 'd', 'e'].map(id => ({ id }));
   assert.notEqual(engine.generateSearchSpaceHashForDB([...shared, { id: 'f' }]), engine.generateSearchSpaceHashForDB([...shared, { id: 'g' }]));
 });

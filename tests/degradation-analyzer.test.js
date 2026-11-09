@@ -74,13 +74,13 @@ test('Ошибка параметров не маскируется успешн
   await assert.rejects(() => a.calculateDegradationIndex(objects()), /synthetic parameter failure/);
 });
 
-test('MATH-02: массивы STR из БД должны учитываться как объектные генотипы', { todo: 'countSTRLoci не читает элементы массива; поведение ядра пока сохранено' }, async () => {
+test('MATH-02: массивы STR из БД должны учитываться как объектные генотипы', async () => {
   const result = await analyzer().calculateDegradationIndex(profile('array', { TH01: ['12', '12'], D5S818: ['11', '12'], D21S11: ['29', '30'] }));
   close(result.degradationIndex, 1 / 3);
   assert.equal(result.strLociAnalyzed, 3);
 });
 
-test('MATH-03: Map локусов должен учитываться при анализе деградации', { todo: 'Object.entries(Map) теряет локусы; исправление после согласования' }, async () => {
+test('MATH-03: Map локусов должен учитываться при анализе деградации', async () => {
   const p = objects();
   const result = await analyzer().calculateDegradationIndex({ id: p.id, loci: new Map(Object.entries(p.str_data)) });
   close(result.degradationIndex, 1 / 3);

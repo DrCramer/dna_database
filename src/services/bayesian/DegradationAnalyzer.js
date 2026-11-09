@@ -273,7 +273,7 @@ class DegradationAnalyzer {
                                 'D11S4463', 'D1S1627', 'D3S4529', 'D6S1017', 'D4S2408', 'D1GATA113', 'D18S853', 'D2S1776'];
             
             // Check all loci in the genetic data, not just the predefined list
-            for (const [locus, locusData] of Object.entries(geneticData)) {
+            for (const [locus, locusData] of (geneticData instanceof Map ? geneticData.entries() : Object.entries(geneticData))) {
                 // Skip non-STR loci like AMEL
                 if (locus === 'AMEL' || locus === 'Amelogenin' || locusTypeDetector.detectLocusType(locus) !== LOCI_TYPES.STR) {
                     continue;
@@ -287,8 +287,8 @@ class DegradationAnalyzer {
                 totalSTR++;
                 
                 // Check if locus is homozygous or heterozygous
-                const allele1 = locusData.allele1 || locusData.alleles?.[0];
-                const allele2 = locusData.allele2 || locusData.alleles?.[1];
+                const allele1 = locusData.allele1 || locusData.alleles?.[0] || (Array.isArray(locusData) ? locusData[0] : undefined);
+                const allele2 = locusData.allele2 || locusData.alleles?.[1] || (Array.isArray(locusData) ? locusData[1] : undefined);
                 
                 if (allele1 && allele2 && allele1 !== '0' && allele2 !== '0' && 
                     allele1 !== '' && allele2 !== '' && allele1 !== 'null' && allele2 !== 'null') {

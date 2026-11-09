@@ -285,6 +285,7 @@ router.post('/change-password', authenticate, validateChangePassword, async (req
 
         // Update password
         await req.user.changePassword(newPassword);
+        await authService.invalidateAllUserSessions(req.user.id);
 
         // Log operation
         const clientInfo = getClientInfo(req);

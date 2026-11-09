@@ -25,6 +25,7 @@ import TasksPageView from './components/Task/TasksPageView';
 import CreateTaskPageView from './components/Task/CreateTaskPageView';
 import DashboardView from './components/Dashboard/DashboardView';
 import BayesianShell from './components/Analysis/BayesianShell';
+import ProbabilityPage from './components/Probability/ProbabilityPage';
 import MasterObjectSearchPage from './components/Search/MasterObjectSearchPage';
 import { getTaskNumberLabel, getTaskNumberRangeLabel } from '../../src/utils/taskLabels';
 import { useProfileFieldLabel } from './hooks/useProfileFieldLabel';
@@ -1484,6 +1485,8 @@ function App() {
                 </ProtectedRoute>
               }
             />
+            <Route path="/probability" element={<ProtectedRoute onNavigate={navigate} fluid><PageTransition><ProbabilityPage /></PageTransition></ProtectedRoute>} />
+
             <Route
               path="/bayesian"
               element={

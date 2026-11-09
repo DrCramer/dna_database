@@ -656,7 +656,11 @@ class StaffContaminationAnalyzer {
      * @param {Object} options - Дополнительные параметры анализа
      * @returns {Promise<Object>} Результаты анализа контаминации
      */
-    async analyzeSample(sampleProfileId, analyzedBy, options = {}) {
+    async analyzeSample(sampleProfileId, analyzedBy, options = {}, activeDepartmentId) {
+        const { ProfileAccessService } = require('../security/profileAccessService');
+        const actor = await require('../../models/User').findById(analyzedBy);
+        if (!actor || !['admin','system_administrator','department_head','user_analyst','analyst'].includes(actor.role)) throw Object.assign(new Error('Нет прав на анализ.'),{status:403});
+        const scope = await ProfileAccessService.getScope({ userId: analyzedBy, activeDepartmentId });
         const client = await this.pool.connect();
         
         try {
@@ -666,11 +670,11 @@ class StaffContaminationAnalyzer {
             const sampleResult = await client.query(`
                 SELECT id, sample_name, internal_number, str_data
                 FROM dna_profiles 
-                WHERE id = $1 AND is_active = true
-            `, [sampleProfileId]);
+                WHERE id = $1 AND EXISTS (SELECT 1 FROM dna_profiles dp WHERE dp.id=$1 AND ${scope.clause.replace(/\$(\d+)/g, (_, n) => '$' + (Number(n)+1))})
+            `, [sampleProfileId, ...scope.params]);
 
             if (sampleResult.rows.length === 0) {
-                throw new Error(`Образец с ID ${sampleProfileId} не найден`);
+                throw Object.assign(new Error('Профиль недоступен.'), { status: 403 });
             }
 
             const sampleProfile = sampleResult.rows[0];
@@ -679,9 +683,9 @@ class StaffContaminationAnalyzer {
             const staffResult = await client.query(`
                 SELECT id, staff_id, full_name, str_data
                 FROM staff_profiles
-                WHERE is_active = true
+                WHERE is_active = true AND created_by IN (SELECT id FROM users WHERE organization_id=$1)
                 ORDER BY full_name
-            `);
+            `, [scope.params[1]]);
 
             const staffProfiles = staffResult.rows;
 
@@ -758,7 +762,7 @@ class StaffContaminationAnalyzer {
      * @param {Object} options - Параметры анализа
      * @returns {Promise<Object>} Результаты массового анализа
      */
-    async bulkAnalyze(sampleProfileIds, analyzedBy, options = {}) {
+    async bulkAnalyze(sampleProfileIds, analyzedBy, options = {}, activeDepartmentId) {
         try {
             logger.info('Начало массового анализа контаминации', {
                 samplesCount: sampleProfileIds.length,
@@ -770,7 +774,7 @@ class StaffContaminationAnalyzer {
 
             for (const sampleId of sampleProfileIds) {
                 try {
-                    const result = await this.analyzeSample(sampleId, analyzedBy, options);
+                    const result = await this.analyzeSample(sampleId, analyzedBy, options, activeDepartmentId);
                     results.push(result);
                 } catch (error) {
                     logger.error('Ошибка при анализе образца', {
@@ -806,7 +810,10 @@ class StaffContaminationAnalyzer {
      * @param {string} sampleProfileId - ID образца
      * @returns {Promise<Array>} История анализов
      */
-    async getHistory(sampleProfileId) {
+    async getHistory(sampleProfileId, userId, activeDepartmentId) {
+        const { ProfileAccessService } = require('../security/profileAccessService');
+        if (!await ProfileAccessService.validateProfileAccess({ userId, activeDepartmentId, profileId: sampleProfileId }))
+            throw Object.assign(new Error('Профиль недоступен.'), { status: 403 });
         try {
             const result = await this.pool.query(`
                 SELECT 

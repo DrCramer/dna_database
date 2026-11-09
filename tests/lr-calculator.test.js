@@ -138,7 +138,7 @@ test('Интервалы, вероятность совпадения и гра�
   assert.equal(lr.applyBrennerCorrection(100, 0, 4), 100);
 });
 
-test('MATH-01: отчёт должен принимать собственный результат calculateProfileLR', { todo: 'locusLRs экспортируется как Object, отчёт ожидает Map; исправление требует отдельного согласования' }, async () => {
+test('MATH-01: отчёт должен принимать собственный результат calculateProfileLR', async () => {
   const lr = calculator();
   const result = await lr.calculateProfileLR(profile('a', { TH01: ['12', '13'] }), profile('b', { TH01: ['12', '13'] }), population());
   const report = lr.generateLRReport(result);

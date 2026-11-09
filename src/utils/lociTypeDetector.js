@@ -199,6 +199,7 @@ class LociTypeDetector {
     // и конвертер также принимают явно перечисленные дополнительные локусы.
     normalizeName(name) {
         return String(name).trim().replace(/\s+/g, ' ').toUpperCase()
+            .replace(/^THO1$/, 'TH01')
             .replace(/^PENTA[\s_]*([EDC])$/, 'PENTA $1');
     }
 

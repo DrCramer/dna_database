@@ -1,6 +1,7 @@
 const express = require('express');
 const router = express.Router();
 const { authenticate } = require('../middleware/auth');
+const { scopeFor, requireProfiles } = require('../services/contamination/contaminationAccess');
 const ProfileContaminationLog = require('../models/ProfileContaminationLog');
 const { logger } = require('../utils/logger');
 
@@ -14,7 +15,7 @@ router.get('/by-import', authenticate, async (req, res) => {
 
         const stats = await ProfileContaminationLog.getStatsByImport(
             importNumber,
-            year ? parseInt(year) : null
+            year ? parseInt(year) : null, await scopeFor(req)
         );
 
         res.json({
@@ -27,9 +28,9 @@ router.get('/by-import', authenticate, async (req, res) => {
             error: error.message
         });
 
-        res.status(500).json({
+        res.status(error.status || 500).json({
             success: false,
-            error: error.message
+            error: error.status ? error.message : 'Не удалось получить статистику.'
         });
     }
 });
@@ -44,7 +45,7 @@ router.get('/by-period', authenticate, async (req, res) => {
 
         const stats = await ProfileContaminationLog.getStatsByPeriod(
             startDate,
-            endDate
+            endDate, await scopeFor(req)
         );
 
         res.json({
@@ -57,9 +58,9 @@ router.get('/by-period', authenticate, async (req, res) => {
             error: error.message
         });
 
-        res.status(500).json({
+        res.status(error.status || 500).json({
             success: false,
-            error: error.message
+            error: error.status ? error.message : 'Не удалось получить статистику.'
         });
     }
 });
@@ -81,6 +82,7 @@ router.get('/history', authenticate, async (req, res) => {
             offset
         } = req.query;
 
+        if (departmentId && departmentId !== req.activeDepartmentId) return res.status(403).json({ success: false, error: 'Отделение недоступно.' });
         const history = await ProfileContaminationLog.getSearchHistory({
             profileId,
             taskId,
@@ -90,7 +92,7 @@ router.get('/history', authenticate, async (req, res) => {
             endDate,
             limit: limit ? parseInt(limit) : 100,
             offset: offset ? parseInt(offset) : 0
-        });
+        }, await scopeFor(req));
 
         res.json({
             success: true,
@@ -103,9 +105,9 @@ router.get('/history', authenticate, async (req, res) => {
             error: error.message
         });
 
-        res.status(500).json({
+        res.status(error.status || 500).json({
             success: false,
-            error: error.message
+            error: error.status ? error.message : 'Не удалось получить статистику.'
         });
     }
 });
@@ -118,7 +120,7 @@ router.get('/profile/:profileId', authenticate, async (req, res) => {
     try {
         const { profileId } = req.params;
 
-        const stats = await ProfileContaminationLog.getProfileContaminationStats(profileId);
+        const stats = await ProfileContaminationLog.getProfileContaminationStats(profileId, await requireProfiles(req, [profileId]));
 
         res.json({
             success: true,
@@ -131,9 +133,9 @@ router.get('/profile/:profileId', authenticate, async (req, res) => {
             error: error.message
         });
 
-        res.status(500).json({
+        res.status(error.status || 500).json({
             success: false,
-            error: error.message
+            error: error.status ? error.message : 'Не удалось получить статистику.'
         });
     }
 });

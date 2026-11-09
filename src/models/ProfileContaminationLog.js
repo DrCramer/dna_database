@@ -126,135 +126,47 @@ class ProfileContaminationLog {
     /**
      * Получение статистики по привозам
      */
-    static async getStatsByImport(importNumber, year) {
-        let query = 'SELECT * FROM contamination_stats_by_import';
-        const conditions = [];
-        const values = [];
-        let paramCount = 1;
-
-        if (importNumber) {
-            conditions.push(`reference_import_number = $${paramCount++}`);
-            values.push(importNumber);
-        }
-
-        if (year) {
-            conditions.push(`reference_year = $${paramCount++}`);
-            values.push(year);
-        }
-
-        if (conditions.length > 0) {
-            query += ' WHERE ' + conditions.join(' AND ');
-        }
-
-        const result = await pool.query(query, values);
-        return result.rows;
+    static aggregate() {
+        return `COUNT(*) AS total_searches, COUNT(*) FILTER(WHERE l.match_type='full_match') AS full_matches,
+            COUNT(*) FILTER(WHERE l.match_type='partial_match') AS contaminations, AVG(l.match_percentage) AS avg_match_percentage`;
     }
-
-    /**
-     * Получение статистики по периодам
-     */
-    static async getStatsByPeriod(startDate, endDate) {
-        let query = 'SELECT * FROM contamination_stats_by_period';
-        const conditions = [];
-        const values = [];
-        let paramCount = 1;
-
-        if (startDate) {
-            conditions.push(`period >= $${paramCount++}`);
-            values.push(startDate);
-        }
-
-        if (endDate) {
-            conditions.push(`period <= $${paramCount++}`);
-            values.push(endDate);
-        }
-
-        if (conditions.length > 0) {
-            query += ' WHERE ' + conditions.join(' AND ');
-        }
-
-        query += ' ORDER BY period DESC';
-
-        const result = await pool.query(query, values);
-        return result.rows;
+    static async getStatsByImport(importNumber, year, scope) {
+        const { logScope } = require('../services/contamination/contaminationAccess');
+        const values = [...scope.params]; let where = logScope(scope);
+        if (importNumber) { values.push(importNumber); where += ` AND l.reference_import_number=$${values.length}`; }
+        if (year) { values.push(year); where += ` AND l.reference_year=$${values.length}`; }
+        return (await pool.query(`SELECT l.reference_import_number,l.reference_year,${this.aggregate()},
+            MIN(l.search_date) AS first_search,MAX(l.search_date) AS last_search FROM profile_contamination_log l
+            WHERE ${where} GROUP BY l.reference_import_number,l.reference_year ORDER BY l.reference_year DESC,l.reference_import_number DESC`,values)).rows;
     }
-
-    /**
-     * Получение детальной истории поиска
-     */
-    static async getSearchHistory(filters = {}) {
-        const {
-            profileId,
-            taskId,
-            departmentId,
-            matchType,
-            startDate,
-            endDate,
-            limit = 100,
-            offset = 0
-        } = filters;
-
-        let query = 'SELECT * FROM contamination_log_detailed WHERE 1=1';
-        const values = [];
-        let paramCount = 1;
-
-        if (profileId) {
-            query += ` AND (reference_profile_id = $${paramCount} OR matched_profile_id = $${paramCount})`;
-            values.push(profileId);
-            paramCount++;
-        }
-
-        if (taskId) {
-            query += ` AND task_id = $${paramCount++}`;
-            values.push(taskId);
-        }
-
-        if (departmentId) {
-            query += ` AND department_id = $${paramCount++}`;
-            values.push(departmentId);
-        }
-
-        if (matchType) {
-            query += ` AND match_type = $${paramCount++}`;
-            values.push(matchType);
-        }
-
-        if (startDate) {
-            query += ` AND search_date >= $${paramCount++}`;
-            values.push(startDate);
-        }
-
-        if (endDate) {
-            query += ` AND search_date <= $${paramCount++}`;
-            values.push(endDate);
-        }
-
-        query += ` ORDER BY search_date DESC LIMIT $${paramCount++} OFFSET $${paramCount++}`;
-        values.push(limit, offset);
-
-        const result = await pool.query(query, values);
-        return result.rows;
+    static async getStatsByPeriod(startDate, endDate, scope) {
+        const { logScope } = require('../services/contamination/contaminationAccess');
+        const values=[...scope.params];let where=logScope(scope);
+        if(startDate){values.push(startDate);where+=` AND DATE_TRUNC('month',l.search_date)>=$${values.length}`;}
+        if(endDate){values.push(endDate);where+=` AND DATE_TRUNC('month',l.search_date)<=$${values.length}`;}
+        return(await pool.query(`SELECT DATE_TRUNC('month',l.search_date) AS period,${this.aggregate()},
+            COUNT(DISTINCT l.reference_profile_id) AS unique_references,COUNT(DISTINCT l.searched_by) AS unique_users
+            FROM profile_contamination_log l WHERE ${where} GROUP BY DATE_TRUNC('month',l.search_date) ORDER BY period DESC`,values)).rows;
     }
-
-    /**
-     * Получение статистики контаминации для профиля
-     */
-    static async getProfileContaminationStats(profileId) {
-        const query = `
-            SELECT 
-                COUNT(*) as total_searches,
-                COUNT(CASE WHEN match_type = 'full_match' THEN 1 END) as full_matches,
-                COUNT(CASE WHEN match_type = 'partial_match' THEN 1 END) as contaminations,
-                AVG(match_percentage) as avg_match_percentage,
-                MIN(search_date) as first_search,
-                MAX(search_date) as last_search
-            FROM profile_contamination_log
-            WHERE reference_profile_id = $1 OR matched_profile_id = $1
-        `;
-
-        const result = await pool.query(query, [profileId]);
-        return result.rows[0];
+    static async getSearchHistory(filters = {}, scope) {
+        const { logScope } = require('../services/contamination/contaminationAccess');
+        const values=[...scope.params];let where=logScope(scope);
+        for(const [key,column] of [['profileId',null],['taskId','task_id'],['matchType','match_type'],['startDate','search_date'],['endDate','search_date']]){
+            if(filters[key]){values.push(filters[key]);const p='$'+values.length;
+                where+=key==='profileId'?` AND (l.reference_profile_id=${p} OR l.matched_profile_id=${p})`:
+                    ` AND l.${column}${key==='startDate'?'>=':key==='endDate'?'<=':'='}${p}`;}
+        }
+        const limit=Math.min(1000,Math.max(1,Number.isInteger(Number(filters.limit))?Number(filters.limit):100));
+        const offset=Math.max(0,Number.isInteger(Number(filters.offset))?Number(filters.offset):0);
+        values.push(limit,offset);
+        return(await pool.query(`SELECT l.* FROM contamination_log_detailed l WHERE ${where}
+            ORDER BY l.search_date DESC LIMIT $${values.length-1} OFFSET $${values.length}`,values)).rows;
+    }
+    static async getProfileContaminationStats(profileId, scope) {
+        const { logScope } = require('../services/contamination/contaminationAccess');
+        const values=[...scope.params,profileId],p='$'+values.length;
+        return(await pool.query(`SELECT ${this.aggregate()},MIN(l.search_date) AS first_search,MAX(l.search_date) AS last_search
+            FROM profile_contamination_log l WHERE ${logScope(scope)} AND (l.reference_profile_id=${p} OR l.matched_profile_id=${p})`,values)).rows[0];
     }
 }
-
 module.exports = ProfileContaminationLog;

@@ -20,7 +20,11 @@ frontend/src/consolidated/
 coverage/
 .nyc_output/
 .cache/
-.codex/
+# Share only project agent definitions, never local Codex state or credentials.
+.codex/*
+!.codex/agents/
+.codex/agents/*
+!.codex/agents/*.toml
 .playwright-mcp/
 *.log
 *.rar

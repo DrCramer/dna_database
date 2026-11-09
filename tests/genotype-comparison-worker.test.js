@@ -71,7 +71,7 @@ test('Worker: объекты allele1/allele2 и строки с микроалл
   assert.equal(result.results[0].matches[0].matchCount, 1);
 });
 
-test('MATH-05: пара с неизвестной второй аллелью не является полным совпадением', { todo: 'Worker фильтрует целую строку, пропуская ? внутри пары; исправление отдельно' }, async t => {
+test('MATH-05: пара с неизвестной второй аллелью не является полным совпадением', async t => {
   const result = await run(t, [profile('a', { TH01: ['12', '?'] }), profile('b', { TH01: ['12', '?'] })]);
   assert.deepEqual(result.results, []);
 });

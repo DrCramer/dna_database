@@ -13,6 +13,7 @@ const { connectDatabase } = require('./config/database');
 const { errorHandler, apiErrorResponses } = require('./middleware/errorHandler');
 const { logger } = require('./utils/logger');
 const { securityConfig, sessionManager } = require('./config/security');
+const { authenticate, adminOnly } = require('./middleware/auth');
 const { auditApiOperation, setUserContext } = require('./middleware/auditLogger');
 const { conditionalRoute, getFeatureStatus } = require('./middleware/featureToggle');
 const scheduledJobService = require("./services/infrastructure/scheduledJobService");
@@ -89,12 +90,12 @@ app.use(cors(config.getCorsConfig()));
 const rateLimitConfig = config.getRateLimitConfig();
 const limiter = rateLimit({
     windowMs: rateLimitConfig.windowMs,
-    max: 999999, // Effectively unlimited for development
+    max: rateLimitConfig.maxRequests,
     message: 'Слишком много запросов с этого IP, попробуйте позже.',
     skipSuccessfulRequests: rateLimitConfig.skipSuccessfulRequests,
     skipFailedRequests: rateLimitConfig.skipFailedRequests
 });
-// app.use(limiter); // DISABLED for development
+if (config.isProduction()) app.use('/api', limiter);
 
 // Body parsing middleware with configuration
 const uploadConfig = config.getUploadConfig();
@@ -218,7 +219,8 @@ app.get('/health/persistence', async (req, res) => {
 });
 
 // Trigger manual persistence verification
-app.post('/health/persistence/verify', async (req, res) => {
+const persistenceLimiter = rateLimit({ windowMs: 60000, limit: 2, standardHeaders: 'draft-7', legacyHeaders: false });
+app.post('/health/persistence/verify', authenticate, adminOnly, persistenceLimiter, async (req, res) => {
     try {
         const verificationResult = await dataPersistenceService.triggerVerification();
         const statusCode = verificationResult.overall === 'success' ? 200 :
@@ -256,6 +258,7 @@ app.use('/api/genotype-analysis', genotypeAnalysisRoutes);
 app.use('/api/genotype-panels', require('./routes/genotypePanels'));
 app.use('/api/allele-references', require('./routes/alleleReferences'));
 app.use('/api/genetic-excel-converter', require('./routes/geneticExcelConverter'));
+app.use('/api/probability', require('./routes/probability')());
 app.use('/api/staff-contamination', staffContaminationRoutes);
 app.use('/api/contamination-stats', contaminationStatsRoutes);
 app.use('/api/analytics', analyticsRoutes);
@@ -263,11 +266,11 @@ app.use('/api/analytics', analyticsRoutes);
 // Feature status endpoint
 app.get('/api/features', getFeatureStatus);
 
-// API не должен возвращать HTML-страницу SPA для неизвестного маршрута.
-app.use('/api', (req, res) => res.status(404).json({ error: 'Not Found', message: 'API route not found' }));
-
 // Conditionally register Bayesian routes based on feature toggle
 conditionalRoute(app, () => config.isBayesianAnalysisEnabled(), '/api/bayesian', bayesianRoutes);
+
+// API fallback must follow every registered API route.
+app.use('/api', (req, res) => res.status(404).json({ error: 'Not Found', message: 'API route not found' }));
 
 // Serve static files with no-cache headers for development
 app.use(express.static('public', {

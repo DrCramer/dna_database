@@ -135,6 +135,6 @@ test('Полный анализ: параметры порога, причина
   assert.equal(d.validateProfile({ str_data: {} }).isValid, false);
 });
 
-test('MATH-04: специальные токены не должны создавать STR-многоаллельность', { todo: 'ContaminationDetector считает ? и * аллелями смеси; не менять ядро до согласования' }, () => {
+test('MATH-04: специальные токены не должны создавать STR-многоаллельность', () => {
   assert.deepEqual(detector().detectSTRMultiAlleles(profile('unknown', { TH01: ['12', '?', '*'] })), []);
 });

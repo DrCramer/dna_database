@@ -1,20 +1,25 @@
 const jwt = require('jsonwebtoken');
-const { query } = require("../../config/database");
+const { query, transaction } = require("../../config/database");
 const User = require("../../models/User");
 const { logger } = require("../../utils/logger");
 const { sessionManager, securityConfig } = require("../../config/security");
 
-class AuthService {
+const { EventEmitter } = require('node:events');
+const { randomUUID, createHash } = require('node:crypto');
+const tokenHash = token => createHash('sha256').update(token).digest('hex');
+
+class AuthService extends EventEmitter {
     constructor() {
+        super();
         this.jwtSecret = process.env.JWT_SECRET || 'dna-analysis-secret-key-change-in-production';
         this.jwtExpiresIn = process.env.JWT_EXPIRES_IN || '24h';
         this.refreshTokenExpiresIn = process.env.REFRESH_TOKEN_EXPIRES_IN || '7d';
     }
 
     // Generate JWT token
-    generateToken(user) {
+    generateToken(user, sid = randomUUID()) {
         const payload = {
-            id: user.id,
+            id: user.id, type: 'access', sid,
             username: user.username,
             email: user.email,
             role: user.role,
@@ -23,21 +28,21 @@ class AuthService {
         };
 
         return jwt.sign(payload, this.jwtSecret, {
-            expiresIn: this.jwtExpiresIn,
+            expiresIn: this.jwtExpiresIn, jwtid: randomUUID(),
             issuer: 'dna-analysis-app',
             audience: 'dna-analysis-users'
         });
     }
 
     // Generate refresh token
-    generateRefreshToken(user) {
+    generateRefreshToken(user, sid = randomUUID()) {
         const payload = {
             id: user.id,
-            type: 'refresh'
+            type: 'refresh', sid
         };
 
         return jwt.sign(payload, this.jwtSecret, {
-            expiresIn: this.refreshTokenExpiresIn,
+            expiresIn: this.refreshTokenExpiresIn, jwtid: randomUUID(),
             issuer: 'dna-analysis-app',
             audience: 'dna-analysis-users'
         });
@@ -56,8 +61,14 @@ class AuthService {
         }
     }
 
+    verifyAccessToken(token) {
+        const decoded = this.verifyToken(token);
+        if (decoded.type !== 'access' || !decoded.sid) throw new Error('Access token is required');
+        return decoded;
+    }
+
     // Store session in database and memory
-    async createSession(userId, token, ipAddress, userAgent) {
+    async createSession(userId, token, ipAddress, userAgent, refreshToken = null) {
         try {
             // Hash the token for storage
             const crypto = require('crypto');
@@ -69,9 +80,11 @@ class AuthService {
 
             // Store in database
             await query(
-                `INSERT INTO user_sessions (user_id, token_hash, expires_at, ip_address, user_agent) 
-                 VALUES ($1, $2, $3, $4, $5)`,
-                [userId, tokenHash, expiresAt, ipAddress, userAgent]
+                `INSERT INTO user_sessions (id,user_id,token_hash,expires_at,ip_address,user_agent,refresh_token_hash,refresh_expires_at,session_family_id)
+                 VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$1)`,
+                [decoded.sid, userId, tokenHash, expiresAt, ipAddress, userAgent,
+                    refreshToken ? createHash('sha256').update(refreshToken).digest('hex') : null,
+                    refreshToken ? new Date(this.verifyToken(refreshToken).exp * 1000) : null]
             );
 
             // Store in memory session manager
@@ -90,12 +103,7 @@ class AuthService {
     // Validate session exists and is active
     async validateSession(token) {
         try {
-            // First check memory session manager
-            const memorySession = sessionManager.validateSession(token);
-            if (!memorySession) {
-                return null;
-            }
-
+            // The database is authoritative, including after a process restart.
             // Then validate against database
             const crypto = require('crypto');
             const tokenHash = crypto.createHash('sha256').update(token).digest('hex');
@@ -161,13 +169,20 @@ class AuthService {
             const tokenHash = crypto.createHash('sha256').update(token).digest('hex');
 
             // Remove from database
-            await query(
-                'UPDATE user_sessions SET is_active = false WHERE token_hash = $1',
-                [tokenHash]
-            );
+            const familyId = await transaction(async client => {
+                const { rows } = await client.query('SELECT user_id,session_family_id FROM user_sessions WHERE token_hash=$1', [tokenHash]);
+                if (!rows.length) return;
+                await client.query('SELECT pg_advisory_xact_lock(hashtextextended($1,0))', [rows[0].user_id]);
+                // Logout also revokes any refresh token rotated concurrently in this family.
+                await client.query(`UPDATE user_sessions SET is_active=false WHERE session_family_id IN
+                    (SELECT session_family_id FROM user_sessions WHERE token_hash=$1)
+                    OR token_hash=$1`, [tokenHash]);
+                return rows[0].session_family_id;
+            });
 
             // Remove from memory
             sessionManager.destroySession(token);
+            this.emit('sessionRevoked', { tokenHash, familyId });
 
             logger.info('Session invalidated');
         } catch (error) {
@@ -180,13 +195,14 @@ class AuthService {
     async invalidateAllUserSessions(userId) {
         try {
             // Remove from database
-            await query(
-                'UPDATE user_sessions SET is_active = false WHERE user_id = $1',
-                [userId]
-            );
+            await transaction(async client => {
+                await client.query('SELECT pg_advisory_xact_lock(hashtextextended($1,0))', [userId]);
+                await client.query('UPDATE user_sessions SET is_active=false WHERE user_id=$1', [userId]);
+            });
 
             // Remove from memory
             sessionManager.destroyAllUserSessions(userId);
+            this.emit('sessionRevoked', { userId });
 
             logger.info(`All sessions invalidated for user: ${userId}`);
         } catch (error) {
@@ -199,7 +215,7 @@ class AuthService {
     async cleanupExpiredSessions() {
         try {
             const result = await query(
-                'DELETE FROM user_sessions WHERE expires_at < CURRENT_TIMESTAMP'
+                'DELETE FROM user_sessions WHERE expires_at < CURRENT_TIMESTAMP AND COALESCE(refresh_expires_at, expires_at) < CURRENT_TIMESTAMP'
             );
 
             logger.info(`Cleaned up ${result.rowCount} expired sessions`);
@@ -236,11 +252,12 @@ class AuthService {
             const accessibleDepartments = await user.getAccessibleDepartments();
 
             // Generate tokens
-            const accessToken = this.generateToken(user);
-            const refreshToken = this.generateRefreshToken(user);
+            const sid = randomUUID();
+            const accessToken = this.generateToken(user, sid);
+            const refreshToken = this.generateRefreshToken(user, sid);
 
             // Create session
-            await this.createSession(user.id, accessToken, ipAddress, userAgent);
+            await this.createSession(user.id, accessToken, ipAddress, userAgent, refreshToken);
 
             // Log operation
             await this.logOperation(user.id, 'LOGIN', { ipAddress, userAgent });
@@ -299,11 +316,12 @@ class AuthService {
             await user.getAccessibleDepartments();
 
             // Generate tokens with organizational context
-            const accessToken = this.generateToken(user);
-            const refreshToken = this.generateRefreshToken(user);
+            const sid = randomUUID();
+            const accessToken = this.generateToken(user, sid);
+            const refreshToken = this.generateRefreshToken(user, sid);
 
             // Create session
-            await this.createSession(user.id, accessToken, ipAddress, userAgent);
+            await this.createSession(user.id, accessToken, ipAddress, userAgent, refreshToken);
 
             // Log operation
             await this.logOperation(user.id, 'REGISTER', { 
@@ -351,40 +369,46 @@ class AuthService {
 
     // Refresh token
     async refreshToken(refreshToken, ipAddress, userAgent) {
-        try {
-            const decoded = this.verifyToken(refreshToken);
-            
-            if (decoded.type !== 'refresh') {
-                throw new Error('Invalid refresh token');
+        const decoded = this.verifyToken(refreshToken);
+        if (decoded.type !== 'refresh' || !decoded.sid) throw new Error('Invalid refresh token');
+        const user = await User.findById(decoded.id);
+        if (!user) throw new Error('User not found');
+        await user.getAccessibleDepartments();
+        const outcome = await transaction(async client => {
+            await client.query('SELECT pg_advisory_xact_lock(hashtextextended($1,0))', [user.id]);
+            const active = await client.query(`SELECT u.id FROM users u
+                LEFT JOIN departments d ON d.id=u.department_id
+                LEFT JOIN organizations o ON o.id=u.organization_id
+                WHERE u.id=$1 AND u.is_active=true
+                AND (u.department_id IS NULL OR d.is_active=true)
+                AND (u.organization_id IS NULL OR o.is_active=true)`, [user.id]);
+            if (!active.rows.length) return { rejected: true };
+            const { rows } = await client.query(`SELECT * FROM user_sessions
+                WHERE refresh_token_hash=$1 AND user_id=$2 FOR UPDATE`, [tokenHash(refreshToken), user.id]);
+            const old = rows[0];
+            if (!old || old.id !== decoded.sid || !old.is_active || !old.refresh_expires_at || new Date(old.refresh_expires_at) <= new Date()) {
+                if (old?.session_family_id) await client.query('UPDATE user_sessions SET is_active=false WHERE session_family_id=$1', [old.session_family_id]);
+                return { rejected: true, familyId: old?.session_family_id };
             }
-
-            const user = await User.findById(decoded.id);
-            if (!user) {
-                throw new Error('User not found');
+            const sid = randomUUID(), accessToken = this.generateToken(user, sid), nextRefresh = this.generateRefreshToken(user, sid);
+            const access = this.verifyAccessToken(accessToken), refresh = this.verifyToken(nextRefresh);
+            await client.query('UPDATE user_sessions SET is_active=false WHERE id=$1', [old.id]);
+            await client.query(`INSERT INTO user_sessions (id,user_id,token_hash,expires_at,ip_address,user_agent,
+                refresh_token_hash,refresh_expires_at,session_family_id) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9)`,
+                [sid,user.id,tokenHash(accessToken),new Date(access.exp*1000),ipAddress,userAgent,
+                    tokenHash(nextRefresh),new Date(refresh.exp*1000),old.session_family_id]);
+            return { accessToken, refreshToken: nextRefresh, revokedHash: old.token_hash };
+        });
+        if (outcome.rejected) {
+            if (outcome.familyId) {
+                this.emit('sessionRevoked', { familyId: outcome.familyId });
             }
-
-            await user.getAccessibleDepartments();
-
-            // Generate new access token
-            const newAccessToken = this.generateToken(user);
-
-            // Create new session
-            await this.createSession(user.id, newAccessToken, ipAddress, userAgent);
-
-            logger.info(`Token refreshed for user: ${user.username}`);
-
-            return {
-                user: {
-                    ...user.toJSON(),
-                    accessible_departments: user.accessible_departments
-                },
-                accessToken: newAccessToken,
-                expiresIn: this.jwtExpiresIn
-            };
-        } catch (error) {
-            logger.error('Token refresh failed:', error.message);
-            throw error;
+            throw new Error('Invalid or expired refresh token');
         }
+        this.emit('sessionRevoked', { tokenHash: outcome.revokedHash });
+        sessionManager.createSession(user.id, outcome.accessToken, { ipAddress, userAgent });
+        return { user: { ...user.toJSON(), accessible_departments: user.accessible_departments },
+            accessToken: outcome.accessToken, refreshToken: outcome.refreshToken, expiresIn: this.jwtExpiresIn };
     }
 
     // Log operation for audit trail

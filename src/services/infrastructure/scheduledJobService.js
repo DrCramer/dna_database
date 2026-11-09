@@ -84,7 +84,7 @@ class ScheduledJobService {
                 
                 // Clean up expired sessions
                 const result = await query(
-                    'DELETE FROM user_sessions WHERE expires_at < CURRENT_TIMESTAMP OR is_active = false'
+                    'DELETE FROM user_sessions WHERE expires_at < CURRENT_TIMESTAMP AND COALESCE(refresh_expires_at, expires_at) < CURRENT_TIMESTAMP'
                 );
                 
                 if (result.rowCount > 0) {
@@ -276,7 +276,7 @@ class ScheduledJobService {
             
             // Clean up expired sessions
             const result = await query(
-                'DELETE FROM user_sessions WHERE expires_at < CURRENT_TIMESTAMP OR is_active = false'
+                'DELETE FROM user_sessions WHERE expires_at < CURRENT_TIMESTAMP AND COALESCE(refresh_expires_at, expires_at) < CURRENT_TIMESTAMP'
             );
             
             logger.info(`Manual session cleanup completed: ${result.rowCount} sessions removed`);

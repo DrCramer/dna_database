@@ -1,5 +1,5 @@
 const express = require('express');
-const { authenticate, adminOrAnalyst } = require('../middleware/auth');
+const { authenticate, adminOrAnalyst, adminOnly } = require('../middleware/auth');
 const { ExportService } = require("../services/audit/exportService");
 const { jobQueueService } = require("../services/infrastructure/jobQueueService");
 const { logger } = require('../utils/logger');
@@ -49,7 +49,8 @@ router.post('/duplicates/excel', authenticate, async (req, res) => {
     if (error) return res.status(400).json({ message: 'Проверьте настройки экспорта и повторите попытку.' });
 
     const activeDepartmentId = req.activeDepartmentId || req.user.department_id || null;
-    const snapshots = getSearchSnapshots(value.snapshotIds, { userId: req.user.id, departmentId: activeDepartmentId });
+    const snapshots = getSearchSnapshots(value.snapshotIds, { userId: req.user.id,
+      departmentId: req.activeDepartmentId, departmentId: activeDepartmentId });
     const options = value.options;
     const pairs = snapshots.flatMap(snapshot => snapshot.pairs.map(pair => ({
       ...pair,
@@ -77,6 +78,7 @@ router.post('/duplicates/excel', authenticate, async (req, res) => {
 
     const scope = await ProfileAccessService.getScope({
       userId: req.user.id,
+      departmentId: req.activeDepartmentId,
       activeDepartmentId,
       action: 'read'
     });
@@ -136,6 +138,7 @@ router.post('/duplicates/excel', authenticate, async (req, res) => {
     const filename = `Дубликаты_${(departmentResult.rows[0]?.name || 'отделение').replace(/[^\p{L}\p{N}_-]+/gu, '_').slice(0, 40)}_${stamp}.xlsx`;
     logger.info('Duplicate XLSX export generated', {
       userId: req.user.id,
+      departmentId: req.activeDepartmentId,
       departmentId: activeDepartmentId,
       pairCount: selectedPairs.length,
       profileCount: profilesById.size,
@@ -227,6 +230,7 @@ router.post('/excel', authenticate, adminOrAnalyst, async (req, res) => {
     // Prepare user info for logging
     const userInfo = {
       userId: req.user.id,
+      departmentId: req.activeDepartmentId,
       ipAddress: req.ip,
       userAgent: req.get('User-Agent')
     };
@@ -246,6 +250,7 @@ router.post('/excel', authenticate, adminOrAnalyst, async (req, res) => {
 
       logger.info('Large export queued for background processing', {
         userId: req.user.id,
+      departmentId: req.activeDepartmentId,
         jobId,
         recordCount: matchResults.length
       });
@@ -276,6 +281,7 @@ router.post('/excel', authenticate, adminOrAnalyst, async (req, res) => {
 
       logger.info('Excel export completed immediately', {
         userId: req.user.id,
+      departmentId: req.activeDepartmentId,
         exportId: exportResult.exportId,
         recordCount: matchResults.length
       });
@@ -471,10 +477,11 @@ router.post('/department', authenticate, adminOrAnalyst, async (req, res) => {
     }
 
     // Generate department export
-    const exportResult = await exportService.exportDepartmentData(req.user.id, value);
+    const exportResult = await exportService.exportDepartmentData(req.user.id, value, req.activeDepartmentId);
 
     logger.info('Department data export completed', {
       userId: req.user.id,
+      departmentId: req.activeDepartmentId,
       exportId: exportResult.exportId,
       recordCount: exportResult.recordCount
     });
@@ -546,10 +553,11 @@ router.post('/audit', authenticate, adminOrAnalyst, async (req, res) => {
     }
 
     // Generate audit export
-    const exportResult = await exportService.exportAuditTrail(req.user.id, value);
+    const exportResult = await exportService.exportAuditTrail(req.user.id, value, req.activeDepartmentId);
 
     logger.info('Audit trail export completed', {
       userId: req.user.id,
+      departmentId: req.activeDepartmentId,
       exportId: exportResult.exportId,
       recordCount: exportResult.recordCount
     });
@@ -611,6 +619,7 @@ router.post('/pdf', authenticate, adminOrAnalyst, async (req, res) => {
     // Prepare user info for logging
     const userInfo = {
       userId: req.user.id,
+      departmentId: req.activeDepartmentId,
       ipAddress: req.ip,
       userAgent: req.get('User-Agent')
     };
@@ -627,6 +636,7 @@ router.post('/pdf', authenticate, adminOrAnalyst, async (req, res) => {
 
     logger.info('PDF export completed', {
       userId: req.user.id,
+      departmentId: req.activeDepartmentId,
       exportId: exportResult.exportId,
       recordCount: matchResults.length
     });
@@ -676,17 +686,19 @@ router.get('/download/:exportId', authenticate, async (req, res) => {
     }
 
     // Get export file
-    const fileInfo = await exportService.getExportFile(exportId);
+    const scope = await ProfileAccessService.getScope({ userId: req.user.id, activeDepartmentId: req.activeDepartmentId });
+    const fileInfo = await exportService.getExportFile(exportId, { userId: req.user.id, departmentId: scope.params[0], organizationId: scope.params[1] });
 
     logger.info('Export file download requested', {
       userId: req.user.id,
+      departmentId: req.activeDepartmentId,
       exportId,
       filename: fileInfo.filename
     });
 
     // Set headers for file download
     res.setHeader('Content-Type', fileInfo.mimeType);
-    res.setHeader('Content-Disposition', `attachment; filename="${fileInfo.filename}"`);
+    res.attachment(fileInfo.filename);
     res.setHeader('Content-Length', fileInfo.size);
 
     // Stream file to response
@@ -717,17 +729,11 @@ router.get('/download/:exportId', authenticate, async (req, res) => {
       userId: req.user?.id
     });
 
-    if (error.message.includes('not found') || error.message.includes('expired')) {
-      res.status(404).json({
-        error: 'Export Not Found',
-        message: error.message
-      });
-    } else {
-      res.status(500).json({
-        error: 'Download Failed',
-        message: 'Failed to process download request'
-      });
-    }
+    const status = [403, 404].includes(error.status) ? error.status : 500;
+    res.status(status).json({
+      error: status === 404 ? 'Export Not Found' : status === 403 ? 'Access Denied' : 'Download Failed',
+      message: status === 500 ? 'Failed to process download request' : error.message
+    });
   }
 });
 
@@ -770,13 +776,14 @@ router.get('/stats', authenticate, adminOrAnalyst, async (req, res) => {
  * POST /api/export/cleanup
  * Clean up expired export files and old jobs (admin only)
  */
-router.post('/cleanup', authenticate, adminOrAnalyst, async (req, res) => {
+router.post('/cleanup', authenticate, adminOnly, async (req, res) => {
   try {
     const cleanedFiles = await exportService.cleanupExpiredFiles();
     const cleanedJobs = jobQueueService.cleanupOldJobs();
     
     logger.info('Export cleanup performed', {
       userId: req.user.id,
+      departmentId: req.activeDepartmentId,
       cleanedFiles,
       cleanedJobs
     });

@@ -4,7 +4,9 @@
 
 const express = require('express');
 const router = express.Router();
-const { authenticate } = require('../middleware/auth');
+const { authenticate, analystOrAbove } = require('../middleware/auth');
+const { scopeFor, requireProfiles } = require('../services/contamination/contaminationAccess');
+const { getAnalysisTask } = require('../services/profiles/analysisTaskAccess');
 const { logger } = require('../utils/logger');
 const StaffContaminationAnalyzer = require("../services/contamination/staffContaminationAnalyzer");
 
@@ -12,7 +14,7 @@ const StaffContaminationAnalyzer = require("../services/contamination/staffConta
  * POST /api/staff-contamination/analyze
  * Анализ одного образца на контаминацию
  */
-router.post('/analyze', authenticate, async (req, res) => {
+router.post('/analyze', authenticate, analystOrAbove, async (req, res) => {
     try {
         const { 
             sampleProfileId,
@@ -29,10 +31,11 @@ router.post('/analyze', authenticate, async (req, res) => {
         const { pool } = req.app.locals;
         const analyzer = new StaffContaminationAnalyzer(pool);
 
+        await requireProfiles(req, [sampleProfileId]);
         const result = await analyzer.analyzeSample(
             sampleProfileId,
             req.user.id,
-            options
+            options, req.activeDepartmentId
         );
 
         logger.info('Анализ контаминации выполнен', {
@@ -52,9 +55,9 @@ router.post('/analyze', authenticate, async (req, res) => {
             error: error.message
         });
 
-        res.status(500).json({
+        res.status(error.status || 500).json({
             success: false,
-            error: error.message
+            error: error.status ? error.message : 'Не удалось выполнить анализ контаминации.'
         });
     }
 });
@@ -63,7 +66,7 @@ router.post('/analyze', authenticate, async (req, res) => {
  * POST /api/staff-contamination/bulk-analyze
  * Массовый анализ контаминации
  */
-router.post('/bulk-analyze', authenticate, async (req, res) => {
+router.post('/bulk-analyze', authenticate, analystOrAbove, async (req, res) => {
     try {
         const { 
             sampleProfileIds,
@@ -80,10 +83,11 @@ router.post('/bulk-analyze', authenticate, async (req, res) => {
         const { pool } = req.app.locals;
         const analyzer = new StaffContaminationAnalyzer(pool);
 
+        await requireProfiles(req, sampleProfileIds);
         const result = await analyzer.bulkAnalyze(
             sampleProfileIds,
             req.user.id,
-            options
+            options, req.activeDepartmentId
         );
 
         logger.info('Массовый анализ контаминации выполнен', {
@@ -103,9 +107,9 @@ router.post('/bulk-analyze', authenticate, async (req, res) => {
             error: error.message
         });
 
-        res.status(500).json({
+        res.status(error.status || 500).json({
             success: false,
-            error: error.message
+            error: error.status ? error.message : 'Не удалось выполнить анализ контаминации.'
         });
     }
 });
@@ -121,7 +125,8 @@ router.get('/history/:sampleId', authenticate, async (req, res) => {
         const { pool } = req.app.locals;
         const analyzer = new StaffContaminationAnalyzer(pool);
 
-        const history = await analyzer.getHistory(sampleId);
+        await requireProfiles(req, [sampleId]);
+        const history = await analyzer.getHistory(sampleId, req.user.id, req.activeDepartmentId);
 
         res.json({
             success: true,
@@ -134,9 +139,9 @@ router.get('/history/:sampleId', authenticate, async (req, res) => {
             error: error.message
         });
 
-        res.status(500).json({
+        res.status(error.status || 500).json({
             success: false,
-            error: error.message
+            error: error.status ? error.message : 'Не удалось выполнить анализ контаминации.'
         });
     }
 });
@@ -145,10 +150,11 @@ router.get('/history/:sampleId', authenticate, async (req, res) => {
  * GET /api/staff-contamination/staff-profiles
  * Получение списка профилей сотрудников
  */
-router.get('/staff-profiles', authenticate, async (req, res) => {
+router.get('/staff-profiles', authenticate, analystOrAbove, async (req, res) => {
     try {
         const { pool } = req.app.locals;
 
+        const scope = await scopeFor(req);
         const result = await pool.query(`
             SELECT 
                 id,
@@ -157,9 +163,9 @@ router.get('/staff-profiles', authenticate, async (req, res) => {
                 date_added,
                 last_updated
             FROM staff_profiles
-            WHERE is_active = true
+            WHERE is_active = true AND created_by IN (SELECT id FROM users WHERE organization_id=$1)
             ORDER BY full_name
-        `);
+        `, [(await scopeFor(req)).params[1]]);
 
         res.json({
             success: true,
@@ -172,9 +178,9 @@ router.get('/staff-profiles', authenticate, async (req, res) => {
             error: error.message
         });
 
-        res.status(500).json({
+        res.status(error.status || 500).json({
             success: false,
-            error: error.message
+            error: error.status ? error.message : 'Не удалось выполнить анализ контаминации.'
         });
     }
 });
@@ -203,9 +209,9 @@ router.get('/default-parameters', authenticate, async (req, res) => {
             error: error.message
         });
 
-        res.status(500).json({
+        res.status(error.status || 500).json({
             success: false,
-            error: error.message
+            error: error.status ? error.message : 'Не удалось выполнить анализ контаминации.'
         });
     }
 });
@@ -214,7 +220,7 @@ router.get('/default-parameters', authenticate, async (req, res) => {
  * POST /api/staff-contamination/analyze-task
  * Анализ контаминации сотрудников для всех профилей задачи
  */
-router.post('/analyze-task', authenticate, async (req, res) => {
+router.post('/analyze-task', authenticate, analystOrAbove, async (req, res) => {
     try {
         const { 
             taskId,
@@ -237,9 +243,12 @@ router.post('/analyze-task', authenticate, async (req, res) => {
             options
         });
 
+        await getAnalysisTask(req, taskId);
+        const scope = await scopeFor(req);
         // Получаем профили задачи
         const DNAProfile = require('../models/DNAProfile');
-        const taskProfiles = await DNAProfile.findByTaskId(taskId);
+        const selected = await pool.query(`SELECT dp.* FROM dna_profiles dp WHERE dp.task_id=$${scope.params.length+1} AND ${scope.clause}`, [...scope.params, taskId]);
+        const taskProfiles = await DNAProfile.fromRows(selected.rows);
 
         if (taskProfiles.length === 0) {
             return res.json({
@@ -263,9 +272,9 @@ router.post('/analyze-task', authenticate, async (req, res) => {
                 sp.str_data,
                 sp.date_added
             FROM staff_profiles sp
-            WHERE sp.is_active = true
+            WHERE sp.is_active = true AND sp.created_by IN (SELECT id FROM users WHERE organization_id=$1)
             ORDER BY sp.full_name
-        `);
+        `, [scope.params[1]]);
 
         const staffProfiles = staffResult.rows;
 
@@ -385,9 +394,9 @@ router.post('/analyze-task', authenticate, async (req, res) => {
             stack: error.stack
         });
 
-        res.status(500).json({
+        res.status(error.status || 500).json({
             success: false,
-            error: error.message
+            error: error.status ? error.message : 'Не удалось выполнить анализ контаминации.'
         });
     }
 });

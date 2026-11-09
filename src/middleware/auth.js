@@ -61,7 +61,7 @@ async function authenticate(req, res, next) {
         }
 
         // Verify token
-        const decoded = authService.verifyToken(token);
+        const decoded = authService.verifyAccessToken(token);
         
         // Validate session exists and is active
         const session = await authService.validateSession(token);
@@ -256,7 +256,7 @@ async function optionalAuth(req, res, next) {
         }
 
         // Try to verify token
-        const decoded = authService.verifyToken(token);
+        const decoded = authService.verifyAccessToken(token);
         const session = await authService.validateSession(token);
         
         if (session) {

@@ -1496,7 +1496,7 @@ CREATE TABLE public.user_sessions (
     id uuid DEFAULT gen_random_uuid() NOT NULL,
     user_id uuid,
     token_hash character varying(255) NOT NULL,
-    expires_at timestamp without time zone NOT NULL,
+    expires_at timestamp with time zone NOT NULL,
     created_at timestamp without time zone DEFAULT CURRENT_TIMESTAMP,
     ip_address inet,
     user_agent text,
@@ -2480,7 +2480,7 @@ CREATE INDEX idx_dna_profiles_year ON public.dna_profiles USING btree (year) WHE
 -- Name: idx_dna_profiles_year_internal_user; Type: INDEX; Schema: public; Owner: -
 --
 
-CREATE UNIQUE INDEX idx_dna_profiles_year_internal_user ON public.dna_profiles USING btree (year, internal_number, user_id) WHERE ((is_active = true) AND (internal_number IS NOT NULL));
+CREATE UNIQUE INDEX idx_dna_profiles_year_internal_user ON public.dna_profiles USING btree (organization_id, department_id, year, internal_number, user_id) WHERE ((is_active = true) AND (internal_number IS NOT NULL));
 
 
 --
@@ -3935,3 +3935,25 @@ CREATE TABLE IF NOT EXISTS genotype_panel_references (
   FOREIGN KEY (reference_set_id, organization_id, department_id) REFERENCES allele_reference_sets(id, organization_id, department_id)
 );
 CREATE INDEX IF NOT EXISTS idx_panel_reference_set ON genotype_panel_references(reference_set_id);
+
+-- Immutable encrypted IDENT / TRIO calculation snapshots.
+CREATE TABLE IF NOT EXISTS public.probability_calculations (
+ id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+ user_id uuid NOT NULL REFERENCES public.users(id),
+ department_id uuid NOT NULL REFERENCES public.departments(id),
+ organization_id uuid NOT NULL REFERENCES public.organizations(id),
+ mode text NOT NULL CHECK (mode IN ('IDENT','TRIO')),
+ formula_version text NOT NULL,
+ reference_version text NOT NULL,
+ snapshot_encrypted text NOT NULL,
+ created_at timestamptz NOT NULL DEFAULT now()
+);
+CREATE INDEX IF NOT EXISTS probability_calculations_owner_idx ON public.probability_calculations(user_id,department_id,organization_id,created_at DESC);
+COMMENT ON COLUMN public.probability_calculations.snapshot_encrypted IS 'AES-256-GCM snapshot of inputs, frequency/formula version and static result; no raw TXT attachments';
+
+-- Revocable, rotating refresh tokens (035).
+ALTER TABLE public.user_sessions ADD COLUMN IF NOT EXISTS refresh_token_hash text;
+ALTER TABLE public.user_sessions ADD COLUMN IF NOT EXISTS refresh_expires_at timestamptz;
+ALTER TABLE public.user_sessions ADD COLUMN IF NOT EXISTS session_family_id uuid;
+CREATE UNIQUE INDEX IF NOT EXISTS user_sessions_refresh_hash_idx ON public.user_sessions(refresh_token_hash) WHERE refresh_token_hash IS NOT NULL;
+CREATE INDEX IF NOT EXISTS user_sessions_family_idx ON public.user_sessions(session_family_id);

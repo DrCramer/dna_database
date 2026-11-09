@@ -6,7 +6,7 @@ const { isMissingAllele } = require('../../utils/alleleTokens');
 const GENEMAPPER_FORMAT = 'GENEMAPPER_TXT';
 const detector = new LociTypeDetector();
 const headerName = value => String(value).trim().toLowerCase().replace(/\s+/g, ' ');
-const required = ['sample name', 'sample type', 'marker', 'allele 1'];
+const required = ['sample name', 'marker', 'allele 1'];
 
 function decodeText(buffer, encoding = 'auto') {
   if (!Buffer.isBuffer(buffer) || buffer.length > 10 * 1024 * 1024) throw new Error('TXT должен быть не больше 10 МиБ.');
@@ -50,13 +50,19 @@ function detectGeneMapperTxt(buffer, options = {}) {
     || !['allele 2', 'status', 'panel'].some(name => headers.includes(name))) {
     throw new Error('Не удалось распознать структуру GeneMapper TXT.');
   }
-  for (const name of [...required, 'panel', 'status', ...Array.from({ length: 5 }, (_, i) => `allele ${i + 1}`)]) {
+  for (const name of [...required, 'sample type', 'panel', 'status', ...Array.from({ length: 5 }, (_, i) => `allele ${i + 1}`)]) {
     if (headers.filter(header => header === name).length > 1) throw new Error(`Повторяющаяся колонка GeneMapper: ${name}.`);
   }
   return { format: GENEMAPPER_FORMAT, confidence: 'HIGH', encoding: decoded.encoding, headers, rows };
 }
 
 function suggestGeneMapperYear(filename) {
+  const compact = String(filename).match(/(?:^|[^\d])(\d{4})(\d{2})(\d{2})(?=[^\d]|$)/);
+  if (compact) {
+    const year = Number(compact[1]), month = Number(compact[2]), day = Number(compact[3]);
+    const date = new Date(Date.UTC(year, month - 1, day));
+    if (year >= 1900 && year <= 2100 && date.getUTCDate() === day && date.getUTCMonth() === month - 1) return year;
+  }
   const match = String(filename).match(/(?:^|[^\d])(\d{2})[-_.](\d{2})[-_.](\d{4}|\d{2})(?=[^\d]|$)/);
   if (!match) return null;
   const year = match[3].length === 2 ? 2000 + Number(match[3]) : Number(match[3]);
@@ -68,7 +74,7 @@ function classifySample(name, types) {
   const normalized = types.map(headerName);
   if (normalized.includes('allelic ladder')) return { category: 'ladder', included: false, reason: 'Аллельная лестница' };
   if (normalized.some(type => ['negative control', 'positive control'].includes(type))) return { category: 'control', included: false, reason: 'Контрольный образец' };
-  if (/^(?:L[1-6]|ladder|NC|PC|PC_Rt)$/i.test(name)) return { category: 'service_name', included: false, reason: 'Служебное обозначение образца; классификацию можно подтвердить или исправить' };
+  if (/^(?:L[1-6]|(?:allelic[ _-]+)?ladder|NC|PC|PC_Rt|(?:negative|positive)[ _-]+control)$/i.test(name)) return { category: 'service_name', included: false, reason: 'Служебное обозначение образца; классификацию можно подтвердить или исправить' };
   if (normalized.length !== 1 || normalized[0] !== 'sample') return { category: 'unknown_type', included: false, reason: 'Неизвестный или неоднозначный тип образца; требуется классификация' };
   return { category: 'sample', included: true, reason: '' };
 }
@@ -76,6 +82,7 @@ function classifySample(name, types) {
 function parseGeneMapperTxt(buffer, options = {}) {
   const detected = detectGeneMapperTxt(buffer, options);
   const { headers, rows } = detected;
+  const sampleTypeInferred = !headers.includes('sample type');
   const get = (row, name) => String(row[headers.indexOf(name)] ?? '').trim();
   const samples = new Map(), markers = new Map(), issues = [];
   for (const { values, line } of rows.slice(1)) {
@@ -92,7 +99,8 @@ function parseGeneMapperTxt(buffer, options = {}) {
     const rawAlleles = Array.from({ length: 5 }, (_, index) => get(values, `allele ${index + 1}`)).filter(value => !isMissingAllele(value));
     const record = { sourceRow: line, originalLocus: marker, markerKey, locus, rawAlleles,
       originalAlleleFields: Array.from({ length: 5 }, (_, index) => values[headers.indexOf(`allele ${index + 1}`)] ?? ''), rawValue: rawAlleles.join(','),
-      sampleType: get(values, 'sample type'), panelName: get(values, 'panel'), status: get(values, 'status'),
+      sampleType: sampleTypeInferred ? 'Sample' : get(values, 'sample type'), sampleTypeInferred,
+      panelName: get(values, 'panel'), status: get(values, 'status'),
       metadata: Object.fromEntries(headers.map((header, i) => [header, values[i] || '']).filter(([header]) => header && !/^allele [1-5]$/.test(header))) };
     sample.records.push(record); sample.sampleTypes.add(record.sampleType); if (record.panelName) sample.panelNames.add(record.panelName);
     sample.sourceLoci.add(markerKey);
@@ -105,7 +113,7 @@ function parseGeneMapperTxt(buffer, options = {}) {
       classification, empty, included: classification.included && !empty,
       reason: empty && classification.included ? 'Образец без результатов генотипирования' : classification.reason };
   });
-  return { sourceFormat: GENEMAPPER_FORMAT, sourceFilename: options.filename || '', encoding: detected.encoding,
+  return { sourceFormat: GENEMAPPER_FORMAT, sourceFilename: options.filename || '', encoding: detected.encoding, sampleTypeInferred,
     panelNames: [...new Set(result.flatMap(sample => sample.panelNames))], markers: [...markers.values()], samples: result,
     issues, rowCount: rows.length - 1, suggestedYear: suggestGeneMapperYear(options.filename), summary: { totalSamples: result.length,
       ordinarySamples: result.filter(sample => sample.classification.category === 'sample').length,

@@ -242,10 +242,8 @@ class BayesianEngine {
      * @returns {string} Hash string
      */
     generateSearchSpaceHashForDB(searchSpace) {
-        // Простой хэш на основе количества профилей и их ID
-        const profileIds = searchSpace.map(p => p.id).sort();
-        const hashInput = `${profileIds.length}_${profileIds.slice(0, 5).join('')}`;
-        return hashInput.substring(0, 32); // Ограничиваем длину
+        return require('crypto').createHash('sha256').update(JSON.stringify(searchSpace
+            .map(p=>({id:p.id,data:p.str_data||p.strData||p.loci||{}})).sort((a,b)=>String(a.id).localeCompare(String(b.id))))).digest('hex').slice(0,32);
     }
 
     /**
@@ -268,7 +266,7 @@ class BayesianEngine {
             }
 
             // Check Redis cache first
-            const searchSpaceHash = this.cacheService.generateSearchSpaceHash(searchSpace);
+            const searchSpaceHash = this.generateSearchSpaceHashForDB([targetProfile,...searchSpace]);
             const cachedResult = await this.cacheService.getDuplicateResults(targetProfile.id, searchSpaceHash, populationId);
             if (cachedResult) {
                 logger.info(`Duplicate search Redis cache hit for profile ${targetProfile.id}`);
@@ -277,9 +275,9 @@ class BayesianEngine {
 
             // Fallback to database cache
             // Для поиска дубликатов используем хэш вместо составного ключа
-            const searchSpaceHashForDB = this.generateSearchSpaceHashForDB(searchSpace);
+            const searchSpaceHashForDB = searchSpaceHash;
             const dbCachedResult = await this.getCachedResult('duplicate', targetProfile.id, null, populationId);
-            if (dbCachedResult) {
+            if (dbCachedResult && dbCachedResult.parametersUsed?.searchSpaceHash === searchSpaceHashForDB) {
                 logger.info(`Duplicate search database cache hit for profile ${targetProfile.id}`);
                 // Store in Redis for faster future access
                 await this.cacheService.cacheDuplicateResults(targetProfile.id, searchSpaceHash, populationId, dbCachedResult.resultData);
@@ -297,7 +295,7 @@ class BayesianEngine {
             
             // Store result in both Redis and database cache
             await this.cacheService.cacheDuplicateResults(targetProfile.id, searchSpaceHash, populationId, results);
-            await this.storeAnalysisResult('duplicate', targetProfile.id, null, results, populationId, parameters);
+            await this.storeAnalysisResult('duplicate', targetProfile.id, null, results, populationId, { ...parameters, searchSpaceHash: searchSpaceHashForDB });
             
             logger.info(`Duplicate search completed for profile ${targetProfile.id}: ${results.length} potential duplicates found`);
             

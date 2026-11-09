@@ -40,11 +40,11 @@ if [[ -n "$schema_changes" ]]; then
     known_release=true
     while IFS= read -r changed_file; do
         case "$changed_file" in
-            database/schema.sql|database/migrations/031_allele_references.sql|database/migrations/032_genetic_profile_year_identity.sql|database/migrations/033_user_display_names.sql) ;;
+            database/schema.sql|database/migrations/031_allele_references.sql|database/migrations/032_genetic_profile_year_identity.sql|database/migrations/033_user_display_names.sql|database/migrations/034_probability_calculations.sql|database/migrations/035_session_refresh_tokens.sql|database/migrations/036_profile_identity_scope.sql) ;;
             *) known_release=false ;;
         esac
     done <<< "$schema_changes"
-    if [[ "$schema_changes" != *database/migrations/031_allele_references.sql* && "$schema_changes" != *database/migrations/032_genetic_profile_year_identity.sql* && "$schema_changes" != *database/migrations/033_user_display_names.sql* ]]; then
+    if [[ "$schema_changes" != *database/migrations/031_allele_references.sql* && "$schema_changes" != *database/migrations/032_genetic_profile_year_identity.sql* && "$schema_changes" != *database/migrations/033_user_display_names.sql* && "$schema_changes" != *database/migrations/034_probability_calculations.sql* && "$schema_changes" != *database/migrations/035_session_refresh_tokens.sql* && "$schema_changes" != *database/migrations/036_profile_identity_scope.sql* ]]; then
         known_release=false
     fi
     if [[ "$known_release" == true ]]; then
@@ -88,6 +88,25 @@ user_identity_ready="$(docker compose exec -T db psql -U dna_user -d dna_analysi
 if [[ "$user_identity_ready" != t ]]; then
     echo 'Installing user display names and optional email (migration 033).'
     docker compose exec -T db psql -U dna_user -d dna_analysis -v ON_ERROR_STOP=1 -q < database/migrations/033_user_display_names.sql
+fi
+
+probability_ready="$(docker compose exec -T db psql -U dna_user -d dna_analysis -Atq -v ON_ERROR_STOP=1 -c "SELECT to_regclass('public.probability_calculations') IS NOT NULL")"
+if [[ "$probability_ready" != t ]]; then
+    echo 'Installing encrypted probability snapshots (migration 034).'
+    docker compose exec -T db psql -U dna_user -d dna_analysis -v ON_ERROR_STOP=1 -q < database/migrations/034_probability_calculations.sql
+fi
+
+
+# Revocable refresh-token storage (035), safe to repeat after interrupted updates.
+session_refresh_ready="$(docker compose exec -T db psql -U dna_user -d dna_analysis -Atq -v ON_ERROR_STOP=1 -c "SELECT COUNT(*)=3 AND EXISTS (SELECT 1 FROM information_schema.columns WHERE table_schema='public' AND table_name='user_sessions' AND column_name='expires_at' AND data_type='timestamp with time zone') FROM information_schema.columns WHERE table_schema='public' AND table_name='user_sessions' AND column_name IN ('refresh_token_hash','refresh_expires_at','session_family_id')")"
+if [[ "$session_refresh_ready" != t ]]; then
+    docker compose exec -T db psql -U dna_user -d dna_analysis -v ON_ERROR_STOP=1 -q < database/migrations/035_session_refresh_tokens.sql
+fi
+
+
+profile_identity_ready="$(docker compose exec -T db psql -U dna_user -d dna_analysis -Atq -v ON_ERROR_STOP=1 -c "SELECT indexdef LIKE '%department_id%' FROM pg_indexes WHERE schemaname='public' AND indexname='idx_dna_profiles_year_internal_user'")"
+if [[ "$profile_identity_ready" != t ]]; then
+    docker compose exec -T db psql -U dna_user -d dna_analysis -v ON_ERROR_STOP=1 -q < database/migrations/036_profile_identity_scope.sql
 fi
 
 docker compose config --quiet

@@ -1,4 +1,5 @@
 const { nonEmptyNonSexAlleles } = require('../../utils/alleleComparison');
+const { informativeAlleles } = require('../../utils/alleleTokens');
 /**
  * Contamination Detector - Identify statistical anomalies indicating sample contamination
  * 
@@ -126,7 +127,7 @@ class ContaminationDetector {
                     flaggedLoci.push({ locusName, locusType: LOCI_TYPES.Y_INDEL, alleleCount: alleles.length, alleles: [...alleles], reason: 'Multiple alleles at a haploid Y-InDel marker; possible mixture or anomaly', severity: 'MEDIUM' });
                 } else if (type === LOCI_TYPES.STR && Array.isArray(alleles) && alleles.length > 2) {
                     // Filter out non-numeric alleles (like 'X', 'Y', null, undefined)
-                    const numericAlleles = nonEmptyNonSexAlleles(alleles);
+                    const numericAlleles = nonEmptyNonSexAlleles(informativeAlleles(alleles));
 
                     if (numericAlleles.length > 2) {
                         flaggedLoci.push({
@@ -148,7 +149,7 @@ class ContaminationDetector {
                         flaggedLoci.push({ locusName, locusType: LOCI_TYPES.Y_INDEL, alleleCount: locusData.alleles.length, alleles: [...locusData.alleles], reason: 'Multiple alleles at a haploid Y-InDel marker; possible mixture or anomaly', severity: 'MEDIUM' });
                     } else if (locusData.locusType === LOCI_TYPES.STR && Array.isArray(locusData.alleles)) {
                         // Filter out non-numeric alleles
-                        const numericAlleles = nonEmptyNonSexAlleles(locusData.alleles);
+                        const numericAlleles = nonEmptyNonSexAlleles(informativeAlleles(locusData.alleles));
 
                         if (numericAlleles.length > 2) {
                             flaggedLoci.push({

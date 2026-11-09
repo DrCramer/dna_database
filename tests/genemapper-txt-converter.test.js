@@ -48,6 +48,63 @@ test('GeneMapper: строгая кодировка, безопасный выб
   assert.throws(() => converter.convert([{ originalname: 'fake.txt', buffer: Buffer.from('arbitrary text') }]), /GeneMapper TXT/);
   assert.throws(() => converter.convert([{ originalname: 'fake.xlsx', buffer: tsv(basic()) }]), /не соответствует Excel/);
 });
+test('GeneMapper: сокращённый TXT без Sample Type, Panel и Status сохраняет аллели через XLSX', async () => {
+  const records = [...basic(), row('D13S317', ['11']), row('FGA', ['20', '21', '22', '23', '24']), row('SE33', ['22.2', 'OL'])];
+  for (const columns of [
+    ['Sample Name', 'Marker', 'Allele 1', 'Allele 2', 'Allele 3', 'Allele 4', 'Allele 5', ''],
+    ['Allele 2', 'Marker', 'Sample Name', 'Allele 1', ''],
+  ]) {
+    const source = { originalname: '20260508_synthetic.txt', buffer: Buffer.concat([Buffer.from('\uFEFF'), tsv(records, columns)]) };
+    const parsed = parseGeneMapperTxt(source.buffer, { filename: source.originalname });
+    assert.equal(parsed.sampleTypeInferred, true);
+    assert.equal(parsed.samples[0].included, true);
+    assert.equal(parsed.samples[0].records[0].sampleTypeInferred, true);
+    assert.equal(parsed.suggestedYear, 2026);
+    assert.equal(detectSourceFormat(source.buffer).format, GENEMAPPER_FORMAT);
+    const initial = converter.convert([source]);
+    assert.equal(initial.files[0].yearConfirmed, false);
+    assert.equal(initial.preparedFiles[0].canUpload, false, 'Подсказка года не заменяет подтверждение перед загрузкой');
+    const result = convert(source), selected = output(result);
+    assert.equal(result.preparedFiles[0].canUpload, true);
+    assert.equal(result.files[0].geneMapper.sampleTypeInferred, true);
+    assert.equal(result.files[0].geneMapper.samples[0].sampleTypeInferred, true);
+    const imported = await new ExcelService().parseExcelFile(converter.export(selected), selected.filename, { importFormat: 'genetic' });
+    assert.equal(imported.length, 1);
+    assert.deepEqual(imported[0].strData.TPOX, ['8', '8']);
+    assert.deepEqual(imported[0].strData.D13S317, ['11']);
+    assert.deepEqual(imported[0].strData.SE33, ['22.2', '?']);
+    assert.deepEqual(imported[0].strData.FGA, columns.includes('Allele 5') ? ['20', '21', '22', '23', '24'] : ['20', '21']);
+    for (const locus of selected.exportLoci) assert.deepEqual(imported[0].strData[locus], selected.profiles[0].strData[locus], locus);
+  }
+});
+test('GeneMapper: отсутствие Sample Type отличается от явно пустого или неизвестного типа', () => {
+  const columns = ['Sample Name', 'Sample Type', 'Marker', 'Allele 1', 'Allele 2'];
+  for (const type of ['', 'Other', 'Negative Control', 'Positive Control', 'Allelic Ladder']) {
+    const parsed = parseGeneMapperTxt(tsv([row('TH01', ['7', '9.3'], { 'Sample Type': type })], columns));
+    assert.equal(parsed.sampleTypeInferred, false);
+    assert.equal(parsed.samples[0].included, false);
+  }
+  assert.throws(() => parseGeneMapperTxt(tsv(basic(), [...columns, 'Sample Type'])), /Повторяющ/);
+});
+test('GeneMapper: в сокращённом TXT служебные имена исключаются без отсечения номеров по префиксу', () => {
+  const controls = ['L1', 'L6', 'Ladder', 'Allelic Ladder', 'allelic_ladder', 'NC', 'PC', 'PC_Rt', 'Negative Control', 'positive-control'];
+  const records = [...basic(), ...controls.map(name => row('TH01', ['7', '9'], { 'Sample Name': name })),
+    ...basic().map(record => ({ ...record, 'Sample Name': 'PC-265-real' }))];
+  const source = { originalname: '20260508_synthetic.txt', buffer: tsv(records, ['Sample Name', 'Marker', 'Allele 1', 'Allele 2', '']) };
+  const parsed = parseGeneMapperTxt(source.buffer);
+  assert.deepEqual(parsed.samples.filter(sample => sample.included).map(sample => sample.sampleName), ['265-27', 'PC-265-real']);
+  assert.deepEqual(output(convert(source)).profiles.map(profile => profile.objectNumber), ['265-27', 'PC-265-real']);
+});
+test('GeneMapper: год из YYYYMMDD проверяет календарь и границы цифровой даты', () => {
+  for (const [filename, year] of [['20260508_synthetic.txt', 2026], ['prefix_20240229_file.txt', 2024],
+    ['20000229.txt', 2000], ['19000101.txt', 1900], ['21001231.txt', 2100], ['20260508_test_08-05-25.txt', 2026]]) {
+    assert.equal(suggestGeneMapperYear(filename), year, filename);
+  }
+  for (const filename of ['20260230.txt', '20260229.txt', '20261301.txt', '20260008.txt', '20260500.txt',
+    '19000229.txt', '18991231.txt', '21010101.txt', '1202605080.txt']) {
+    assert.equal(suggestGeneMapperYear(filename), null, filename);
+  }
+});
 test('GeneMapper: все пять аллелей, гомозиготы, микроаллели, пустые локусы и специальные значения', async () => {
   const records = [...basic(), row('D19S433', ['14', '15', '17']), row('D18S51', ['12', '13', '14', '15']), row('FGA', ['20', '21', '22', '23', '24']),
     row('AMEL', ['X', 'Y']), row('D5S818', []), row('D13S317', ['11']), row('SE33', ['22.2', 'OL']), row('D2S441', ['*', '?']), row('D7S820', ['F'])];

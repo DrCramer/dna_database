@@ -22,6 +22,8 @@ class CacheService {
      */
     async initialize() {
         try {
+            // Tests use no shared cache unless an isolated Redis URL is explicit.
+            if (process.env.NODE_ENV === 'test' && !process.env.REDIS_URL) return false;
             if (!redisConfig.url && !redisConfig.host) {
                 logger.warn('Redis configuration not found, caching will be disabled');
                 return false;

@@ -1,0 +1,1080 @@
+{
+  "engine": "LibreOffice Calc 24.2.7.2 420(Build:2)",
+  "microsoftExcelValidated": false,
+  "sourceSha256": "daf8670e8388157164b0923b4174d1558a79553862b1efb7ce2ffc5c26121a69",
+  "results": [
+    {
+      "id": "ident-homo",
+      "input": {
+        "D1S1656": [
+          [
+            13,
+            13
+          ],
+          [
+            13,
+            13
+          ]
+        ]
+      },
+      "mode": "IDENT",
+      "reference": {
+        "id": "probability-2.5.1-a29-a57df01a22ea",
+        "label": "FREQ update_27-01-2019",
+        "sourceSha256": "daf8670e8388157164b0923b4174d1558a79553862b1efb7ce2ffc5c26121a69"
+      },
+      "expected": {
+        "count": 1,
+        "index": 223.469135514515,
+        "reciprocal": 0.00447489089577225
+      },
+      "actual": {
+        "lociCount": 1,
+        "mismatches": 0,
+        "logIndex": 5.4092733083855515,
+        "index": 223.46913551451522,
+        "reciprocal": 0.004474890895772253,
+        "indexText": "2.2347E+02",
+        "reciprocalText": "4.4749E-03",
+        "probability": 0.9955450445438396,
+        "complement": 0.00445495545616041,
+        "probabilityText": "99.554504454384%",
+        "probabilityFractionText": "0.9955450445438",
+        "complementText": "0.44549554561604%",
+        "indexLabel": "CLR — индекс идентичности",
+        "probabilityLabel": "P — вероятность идентичности"
+      },
+      "absoluteIndexDifference": 2.2737367544323206e-13,
+      "relativeIndexDifference": 1.0174723901791952e-15,
+      "loci": [
+        {
+          "locus": "D1S1656",
+          "expected": {
+            "factors": [
+              {
+                "address": "AF4",
+                "value": 0.00447489089577225
+              },
+              {
+                "address": "AF68",
+                "value": 1
+              }
+            ],
+            "value": 223.46913551451536
+          },
+          "value": 223.46913551451522,
+          "frequencies": [
+            {
+              "allele": "13",
+              "value": 0.0668946253130418,
+              "origin": "FREQ"
+            }
+          ],
+          "branch": "IDENT_HOMO"
+        }
+      ],
+      "displayDifferences": []
+    },
+    {
+      "id": "ident-hetero",
+      "input": {
+        "D1S1656": [
+          [
+            13,
+            14
+          ],
+          [
+            14,
+            13
+          ]
+        ]
+      },
+      "mode": "IDENT",
+      "reference": {
+        "id": "probability-2.5.1-a29-a57df01a22ea",
+        "label": "FREQ update_27-01-2019",
+        "sourceSha256": "daf8670e8388157164b0923b4174d1558a79553862b1efb7ce2ffc5c26121a69"
+      },
+      "expected": {
+        "count": 1,
+        "index": 89.2462993759809,
+        "reciprocal": 0.0112049463898459
+      },
+      "actual": {
+        "lociCount": 1,
+        "mismatches": 0,
+        "logIndex": 4.491399956225667,
+        "index": 89.24629937598087,
+        "reciprocal": 0.011204946389845864,
+        "indexText": "8.9246E+01",
+        "reciprocalText": "1.1205E-02",
+        "probability": 0.9889192132318486,
+        "complement": 0.011080786768151414,
+        "probabilityText": "98.8919213231849%",
+        "probabilityFractionText": "0.9889192132318",
+        "complementText": "1.10807867681514%",
+        "indexLabel": "CLR — индекс идентичности",
+        "probabilityLabel": "P — вероятность идентичности"
+      },
+      "absoluteIndexDifference": 2.842170943040401e-14,
+      "relativeIndexDifference": 3.1846373047545344e-16,
+      "loci": [
+        {
+          "locus": "D1S1656",
+          "expected": {
+            "factors": [
+              {
+                "address": "AF4",
+                "value": 1
+              },
+              {
+                "address": "AF68",
+                "value": 0.0112049463898459
+              }
+            ],
+            "value": 89.24629937598057
+          },
+          "value": 89.24629937598088,
+          "frequencies": [
+            {
+              "allele": "13",
+              "value": 0.0668946253130418,
+              "origin": "FREQ"
+            },
+            {
+              "allele": "14",
+              "value": 0.0837507224041611,
+              "origin": "FREQ"
+            }
+          ],
+          "branch": "IDENT_HETERO"
+        }
+      ],
+      "displayDifferences": []
+    },
+    {
+      "id": "ident-microvariant",
+      "input": {
+        "TH01": [
+          [
+            9,
+            9.3
+          ],
+          [
+            9.3,
+            9
+          ]
+        ]
+      },
+      "mode": "IDENT",
+      "reference": {
+        "id": "probability-2.5.1-a29-a57df01a22ea",
+        "label": "FREQ update_27-01-2019",
+        "sourceSha256": "daf8670e8388157164b0923b4174d1558a79553862b1efb7ce2ffc5c26121a69"
+      },
+      "expected": {
+        "count": 1,
+        "index": 8.78167881800714,
+        "reciprocal": 0.113873442735057
+      },
+      "actual": {
+        "lociCount": 1,
+        "mismatches": 0,
+        "logIndex": 2.1726675987090704,
+        "index": 8.781678818007142,
+        "reciprocal": 0.11387344273505708,
+        "indexText": "8.7817E+00",
+        "reciprocalText": "1.1387E-01",
+        "probability": 0.8977680602066902,
+        "complement": 0.1022319397933098,
+        "probabilityText": "89.776806020669%",
+        "probabilityFractionText": "0.8977680602067",
+        "complementText": "10.223193979331%",
+        "indexLabel": "CLR — индекс идентичности",
+        "probabilityLabel": "P — вероятность идентичности"
+      },
+      "absoluteIndexDifference": 1.7763568394002505e-15,
+      "relativeIndexDifference": 2.0227986882847143e-16,
+      "loci": [
+        {
+          "locus": "TH01",
+          "expected": {
+            "factors": [
+              {
+                "address": "AF38",
+                "value": 1
+              },
+              {
+                "address": "AF102",
+                "value": 0.113873442735057
+              }
+            ],
+            "value": 8.781678818007148
+          },
+          "value": 8.781678818007142,
+          "frequencies": [
+            {
+              "allele": "9",
+              "value": 0.197098812715435,
+              "origin": "FREQ"
+            },
+            {
+              "allele": "9.3",
+              "value": 0.28887399463807,
+              "origin": "FREQ"
+            }
+          ],
+          "branch": "IDENT_HETERO"
+        }
+      ],
+      "displayDifferences": []
+    },
+    {
+      "id": "ident-frequency-fallback",
+      "input": {
+        "D1S1656": [
+          [
+            999,
+            999
+          ],
+          [
+            999,
+            999
+          ]
+        ]
+      },
+      "mode": "IDENT",
+      "reference": {
+        "id": "probability-2.5.1-a29-a57df01a22ea",
+        "label": "FREQ update_27-01-2019",
+        "sourceSha256": "daf8670e8388157164b0923b4174d1558a79553862b1efb7ce2ffc5c26121a69"
+      },
+      "expected": {
+        "count": 1,
+        "index": 431143696.000001,
+        "reciprocal": 2.31941231955296e-9
+      },
+      "actual": {
+        "lociCount": 1,
+        "mismatches": 0,
+        "logIndex": 19.88195199389424,
+        "index": 431143696.0000008,
+        "reciprocal": 2.3194123195529647e-9,
+        "indexText": "4.3114E+08",
+        "reciprocalText": "2.3194E-09",
+        "probability": 0.9999999976805877,
+        "complement": 2.319412314173291e-9,
+        "probabilityText": "99.9999997680588%",
+        "probabilityFractionText": "0.9999999976806",
+        "complementText": "0.00000023194123%",
+        "indexLabel": "CLR — индекс идентичности",
+        "probabilityLabel": "P — вероятность идентичности"
+      },
+      "absoluteIndexDifference": 2.384185791015625e-7,
+      "relativeIndexDifference": 5.529909895784768e-16,
+      "loci": [
+        {
+          "locus": "D1S1656",
+          "expected": {
+            "factors": [
+              {
+                "address": "AF4",
+                "value": 2.31941231955296e-9
+              },
+              {
+                "address": "AF68",
+                "value": 1
+              }
+            ],
+            "value": 431143696.0000016
+          },
+          "value": 431143696.00000083,
+          "frequencies": [
+            {
+              "allele": "999",
+              "value": 0.0000481602774031978,
+              "origin": "locus_minimum"
+            }
+          ],
+          "branch": "IDENT_HOMO"
+        }
+      ],
+      "displayDifferences": []
+    },
+    {
+      "id": "ident-multiple",
+      "input": {
+        "D1S1656": [
+          [
+            13,
+            14
+          ],
+          [
+            13,
+            14
+          ]
+        ],
+        "TH01": [
+          [
+            9.3,
+            9.3
+          ],
+          [
+            9.3,
+            9.3
+          ]
+        ]
+      },
+      "mode": "IDENT",
+      "reference": {
+        "id": "probability-2.5.1-a29-a57df01a22ea",
+        "label": "FREQ update_27-01-2019",
+        "sourceSha256": "daf8670e8388157164b0923b4174d1558a79553862b1efb7ce2ffc5c26121a69"
+      },
+      "expected": {
+        "count": 2,
+        "index": 1069.48161440826,
+        "reciprocal": 0.000935032436769186
+      },
+      "actual": {
+        "lociCount": 2,
+        "mismatches": 0,
+        "logIndex": 6.974929337545582,
+        "index": 1069.4816144082615,
+        "reciprocal": 0.0009350324367691863,
+        "indexText": "1.0695E+03",
+        "reciprocalText": "9.3503E-04",
+        "probability": 0.9990658410321669,
+        "complement": 0.0009341589678331635,
+        "probabilityText": "99.9065841032167%",
+        "probabilityFractionText": "0.9990658410322",
+        "complementText": "0.09341589678332%",
+        "indexLabel": "CLR — индекс идентичности",
+        "probabilityLabel": "P — вероятность идентичности"
+      },
+      "absoluteIndexDifference": 1.5916157281026244e-12,
+      "relativeIndexDifference": 1.4882123326479617e-15,
+      "loci": [
+        {
+          "locus": "TH01",
+          "expected": {
+            "factors": [
+              {
+                "address": "AF38",
+                "value": 0.0834481847781557
+              },
+              {
+                "address": "AF102",
+                "value": 1
+              }
+            ],
+            "value": 11.983484154370375
+          },
+          "value": 11.983484154370375,
+          "frequencies": [
+            {
+              "allele": "9.3",
+              "value": 0.28887399463807,
+              "origin": "FREQ"
+            }
+          ],
+          "branch": "IDENT_HOMO"
+        },
+        {
+          "locus": "D1S1656",
+          "expected": {
+            "factors": [
+              {
+                "address": "AF4",
+                "value": 1
+              },
+              {
+                "address": "AF68",
+                "value": 0.0112049463898459
+              }
+            ],
+            "value": 89.24629937598057
+          },
+          "value": 89.24629937598088,
+          "frequencies": [
+            {
+              "allele": "13",
+              "value": 0.0668946253130418,
+              "origin": "FREQ"
+            },
+            {
+              "allele": "14",
+              "value": 0.0837507224041611,
+              "origin": "FREQ"
+            }
+          ],
+          "branch": "IDENT_HETERO"
+        }
+      ],
+      "displayDifferences": []
+    },
+    {
+      "id": "formula-sheet-trio-homo",
+      "input": {
+        "D1S1656": [
+          [
+            13,
+            14
+          ],
+          [
+            13,
+            13
+          ],
+          [
+            13,
+            15
+          ]
+        ]
+      },
+      "mode": "TRIO",
+      "reference": {
+        "id": "probability-2.5.1-a29-a57df01a22ea",
+        "label": "FREQ update_27-01-2019",
+        "sourceSha256": "daf8670e8388157164b0923b4174d1558a79553862b1efb7ce2ffc5c26121a69"
+      },
+      "expected": {
+        "count": 1,
+        "index": 7.72536013852941,
+        "reciprocal": 0.129443803533845,
+        "probability": 0.885391550133936,
+        "mismatches": 0
+      },
+      "actual": {
+        "lociCount": 1,
+        "mismatches": 0,
+        "logIndex": 2.0445084415714936,
+        "index": 7.7253601385294095,
+        "reciprocal": 0.1294438035338452,
+        "indexText": "7.72536014E+00",
+        "reciprocalText": "1.29443804E-01",
+        "probability": 0.8853915501339361,
+        "complement": 0.11460844986606387,
+        "probabilityText": "88.5391550133936%",
+        "probabilityFractionText": "0.8853915501339",
+        "complementText": "11.46084498660640%",
+        "indexLabel": "CPI — индекс родительства",
+        "probabilityLabel": "PP — вероятность родительства"
+      },
+      "absoluteIndexDifference": 8.881784197001252e-16,
+      "relativeIndexDifference": 1.149691928626641e-16,
+      "loci": [
+        {
+          "locus": "D1S1656",
+          "expected": {
+            "factors": [
+              {
+                "address": "AN4",
+                "value": 7.72536013852941
+              },
+              {
+                "address": "AN64",
+                "value": 1
+              }
+            ],
+            "value": 7.72536013852941
+          },
+          "value": 7.7253601385294095,
+          "frequencies": [
+            {
+              "allele": "13",
+              "value": 0.0668946253130418,
+              "origin": "FREQ"
+            }
+          ],
+          "branch": "TRIO_ONE_MATCH"
+        }
+      ],
+      "displayDifferences": []
+    },
+    {
+      "id": "formula-sheet-trio-obligate",
+      "input": {
+        "D1S1656": [
+          [
+            13,
+            13
+          ],
+          [
+            13,
+            14
+          ],
+          [
+            14,
+            15
+          ]
+        ]
+      },
+      "mode": "TRIO",
+      "reference": {
+        "id": "probability-2.5.1-a29-a57df01a22ea",
+        "label": "FREQ update_27-01-2019",
+        "sourceSha256": "daf8670e8388157164b0923b4174d1558a79553862b1efb7ce2ffc5c26121a69"
+      },
+      "expected": {
+        "count": 1,
+        "index": 6.22479311987756,
+        "reciprocal": 0.160647909214318,
+        "probability": 0.861587732214961,
+        "mismatches": 0
+      },
+      "actual": {
+        "lociCount": 1,
+        "mismatches": 0,
+        "logIndex": 1.8285402080439097,
+        "index": 6.224793119877563,
+        "reciprocal": 0.16064790921431768,
+        "indexText": "6.22479312E+00",
+        "reciprocalText": "1.60647909E-01",
+        "probability": 0.8615877322149611,
+        "complement": 0.1384122677850389,
+        "probabilityText": "86.1587732214961%",
+        "probabilityFractionText": "0.8615877322150",
+        "complementText": "13.84122677850390%",
+        "indexLabel": "CPI — индекс родительства",
+        "probabilityLabel": "PP — вероятность родительства"
+      },
+      "absoluteIndexDifference": 2.6645352591003757e-15,
+      "relativeIndexDifference": 4.2805201840230576e-16,
+      "loci": [
+        {
+          "locus": "D1S1656",
+          "expected": {
+            "factors": [
+              {
+                "address": "AN4",
+                "value": 6.22479311987756
+              },
+              {
+                "address": "AN64",
+                "value": 1
+              }
+            ],
+            "value": 6.22479311987756
+          },
+          "value": 6.224793119877564,
+          "frequencies": [
+            {
+              "allele": "14",
+              "value": 0.0837507224041611,
+              "origin": "FREQ"
+            }
+          ],
+          "branch": "TRIO_ONE_MATCH"
+        }
+      ],
+      "displayDifferences": []
+    },
+    {
+      "id": "formula-sheet-trio-ambiguous-one",
+      "input": {
+        "D1S1656": [
+          [
+            13,
+            14
+          ],
+          [
+            13,
+            14
+          ],
+          [
+            13,
+            15
+          ]
+        ]
+      },
+      "mode": "TRIO",
+      "reference": {
+        "id": "probability-2.5.1-a29-a57df01a22ea",
+        "label": "FREQ update_27-01-2019",
+        "sourceSha256": "daf8670e8388157164b0923b4174d1558a79553862b1efb7ce2ffc5c26121a69"
+      },
+      "expected": {
+        "count": 1,
+        "index": 3.58582887348146,
+        "reciprocal": 0.278875550195765,
+        "probability": 0.78193691313195,
+        "mismatches": 0
+      },
+      "actual": {
+        "lociCount": 1,
+        "mismatches": 0,
+        "logIndex": 1.2769896533196357,
+        "index": 3.5858288734814567,
+        "reciprocal": 0.2788755501957646,
+        "indexText": "3.58582887E+00",
+        "reciprocalText": "2.78875550E-01",
+        "probability": 0.7819369131319497,
+        "complement": 0.21806308686805026,
+        "probabilityText": "78.1936913131950%",
+        "probabilityFractionText": "0.7819369131320",
+        "complementText": "21.80630868680500%",
+        "indexLabel": "CPI — индекс родительства",
+        "probabilityLabel": "PP — вероятность родительства"
+      },
+      "absoluteIndexDifference": 3.1086244689504383e-15,
+      "relativeIndexDifference": 8.669193591305693e-16,
+      "loci": [
+        {
+          "locus": "D1S1656",
+          "expected": {
+            "factors": [
+              {
+                "address": "AN4",
+                "value": 1
+              },
+              {
+                "address": "AN64",
+                "value": 3.58582887348146
+              }
+            ],
+            "value": 3.58582887348146
+          },
+          "value": 3.585828873481457,
+          "frequencies": [
+            {
+              "allele": "13",
+              "value": 0.0668946253130418,
+              "origin": "FREQ"
+            },
+            {
+              "allele": "14",
+              "value": 0.0837507224041611,
+              "origin": "FREQ"
+            }
+          ],
+          "branch": "TRIO_TWO_MATCH"
+        }
+      ],
+      "displayDifferences": []
+    },
+    {
+      "id": "formula-sheet-trio-ambiguous-both",
+      "input": {
+        "D1S1656": [
+          [
+            13,
+            14
+          ],
+          [
+            13,
+            14
+          ],
+          [
+            13,
+            14
+          ]
+        ]
+      },
+      "mode": "TRIO",
+      "reference": {
+        "id": "probability-2.5.1-a29-a57df01a22ea",
+        "label": "FREQ update_27-01-2019",
+        "sourceSha256": "daf8670e8388157164b0923b4174d1558a79553862b1efb7ce2ffc5c26121a69"
+      },
+      "expected": {
+        "count": 1,
+        "index": 3.58582887348146,
+        "reciprocal": 0.278875550195765,
+        "probability": 0.78193691313195,
+        "mismatches": 0
+      },
+      "actual": {
+        "lociCount": 1,
+        "mismatches": 0,
+        "logIndex": 1.2769896533196357,
+        "index": 3.5858288734814567,
+        "reciprocal": 0.2788755501957646,
+        "indexText": "3.58582887E+00",
+        "reciprocalText": "2.78875550E-01",
+        "probability": 0.7819369131319497,
+        "complement": 0.21806308686805026,
+        "probabilityText": "78.1936913131950%",
+        "probabilityFractionText": "0.7819369131320",
+        "complementText": "21.80630868680500%",
+        "indexLabel": "CPI — индекс родительства",
+        "probabilityLabel": "PP — вероятность родительства"
+      },
+      "absoluteIndexDifference": 3.1086244689504383e-15,
+      "relativeIndexDifference": 8.669193591305693e-16,
+      "loci": [
+        {
+          "locus": "D1S1656",
+          "expected": {
+            "factors": [
+              {
+                "address": "AN4",
+                "value": 1
+              },
+              {
+                "address": "AN64",
+                "value": 3.58582887348146
+              }
+            ],
+            "value": 3.58582887348146
+          },
+          "value": 3.585828873481457,
+          "frequencies": [
+            {
+              "allele": "13",
+              "value": 0.0668946253130418,
+              "origin": "FREQ"
+            },
+            {
+              "allele": "14",
+              "value": 0.0837507224041611,
+              "origin": "FREQ"
+            }
+          ],
+          "branch": "TRIO_TWO_MATCH"
+        }
+      ],
+      "displayDifferences": []
+    },
+    {
+      "id": "formula-sheet-trio-mutation-one",
+      "input": {
+        "D1S1656": [
+          [
+            13,
+            13
+          ],
+          [
+            13,
+            14
+          ],
+          [
+            15,
+            16
+          ]
+        ]
+      },
+      "mode": "TRIO",
+      "reference": {
+        "id": "probability-2.5.1-a29-a57df01a22ea",
+        "label": "FREQ update_27-01-2019",
+        "sourceSha256": "daf8670e8388157164b0923b4174d1558a79553862b1efb7ce2ffc5c26121a69"
+      },
+      "expected": {
+        "count": 1,
+        "index": 0.0011911671543598,
+        "reciprocal": 839.512738694897,
+        "probability": 0.00118974996328164,
+        "mismatches": 1
+      },
+      "actual": {
+        "lociCount": 1,
+        "mismatches": 1,
+        "logIndex": -6.73282165054767,
+        "index": 0.001191167154359797,
+        "reciprocal": 839.5127386948966,
+        "indexText": "1.19116715E-03",
+        "reciprocalText": "8.39512739E+02",
+        "probability": 0.0011897499632816354,
+        "complement": 0.9988102500367183,
+        "probabilityText": "0.1189749963282%",
+        "probabilityFractionText": "0.0011897499633",
+        "complementText": "99.88102500367180%",
+        "indexLabel": "CPI — индекс родительства",
+        "probabilityLabel": "PP — вероятность родительства"
+      },
+      "absoluteIndexDifference": 3.0357660829594124e-18,
+      "relativeIndexDifference": 2.548564298342329e-15,
+      "loci": [
+        {
+          "locus": "D1S1656",
+          "expected": {
+            "factors": [
+              {
+                "address": "AN4",
+                "value": 0.0011911671543598
+              },
+              {
+                "address": "AN64",
+                "value": 1
+              }
+            ],
+            "value": 0.0011911671543598
+          },
+          "value": 0.0011911671543597972,
+          "frequencies": [
+            {
+              "allele": "14",
+              "value": 0.0837507224041611,
+              "origin": "FREQ"
+            }
+          ],
+          "branch": "TRIO_ONE_MUTATION"
+        }
+      ],
+      "displayDifferences": []
+    },
+    {
+      "id": "formula-sheet-trio-mutation-two",
+      "input": {
+        "D1S1656": [
+          [
+            13,
+            14
+          ],
+          [
+            13,
+            14
+          ],
+          [
+            15,
+            16
+          ]
+        ]
+      },
+      "mode": "TRIO",
+      "reference": {
+        "id": "probability-2.5.1-a29-a57df01a22ea",
+        "label": "FREQ update_27-01-2019",
+        "sourceSha256": "daf8670e8388157164b0923b4174d1558a79553862b1efb7ce2ffc5c26121a69"
+      },
+      "expected": {
+        "count": 1,
+        "index": 0.00138618712286735,
+        "reciprocal": 721.403325354431,
+        "probability": 0.00138426826801963,
+        "mismatches": 1
+      },
+      "actual": {
+        "lociCount": 1,
+        "mismatches": 1,
+        "logIndex": -6.581198378043554,
+        "index": 0.001386187122867353,
+        "reciprocal": 721.4033253544312,
+        "indexText": "1.38618712E-03",
+        "reciprocalText": "7.21403325E+02",
+        "probability": 0.0013842682680196305,
+        "complement": 0.9986157317319804,
+        "probabilityText": "0.1384268268020%",
+        "probabilityFractionText": "0.0013842682680",
+        "complementText": "99.86157317319802%",
+        "indexLabel": "CPI — индекс родительства",
+        "probabilityLabel": "PP — вероятность родительства"
+      },
+      "absoluteIndexDifference": 3.0357660829594124e-18,
+      "relativeIndexDifference": 2.190011747245121e-15,
+      "loci": [
+        {
+          "locus": "D1S1656",
+          "expected": {
+            "factors": [
+              {
+                "address": "AN4",
+                "value": 1
+              },
+              {
+                "address": "AN64",
+                "value": 0.00138618712286735
+              }
+            ],
+            "value": 0.00138618712286735
+          },
+          "value": 0.001386187122867353,
+          "frequencies": [
+            {
+              "allele": "13",
+              "value": 0.0668946253130418,
+              "origin": "FREQ"
+            },
+            {
+              "allele": "14",
+              "value": 0.0837507224041611,
+              "origin": "FREQ"
+            }
+          ],
+          "branch": "TRIO_TWO_MUTATION"
+        }
+      ],
+      "displayDifferences": []
+    },
+    {
+      "id": "formula-sheet-trio-incompatible-mother",
+      "input": {
+        "D1S1656": [
+          [
+            15,
+            16
+          ],
+          [
+            13,
+            14
+          ],
+          [
+            13,
+            14
+          ]
+        ]
+      },
+      "status": "blocked",
+      "diagnostics": [
+        {
+          "locus": "D1S1656",
+          "status": "MATERNAL_INCOMPATIBILITY"
+        }
+      ]
+    },
+    {
+      "id": "formula-sheet-trio-absent-mother",
+      "input": {
+        "D1S1656": [
+          [
+            0,
+            0
+          ],
+          [
+            13,
+            14
+          ],
+          [
+            13,
+            14
+          ]
+        ]
+      },
+      "status": "blocked",
+      "diagnostics": [
+        {
+          "locus": "D1S1656",
+          "status": "UNCERTAIN"
+        }
+      ]
+    },
+    {
+      "id": "formula-sheet-trio-multiple",
+      "input": {
+        "D1S1656": [
+          [
+            13,
+            13
+          ],
+          [
+            13,
+            14
+          ],
+          [
+            14,
+            15
+          ]
+        ],
+        "TH01": [
+          [
+            9,
+            9.3
+          ],
+          [
+            9,
+            9.3
+          ],
+          [
+            9.3,
+            9.3
+          ]
+        ]
+      },
+      "mode": "TRIO",
+      "reference": {
+        "id": "probability-2.5.1-a29-a57df01a22ea",
+        "label": "FREQ update_27-01-2019",
+        "sourceSha256": "daf8670e8388157164b0923b4174d1558a79553862b1efb7ce2ffc5c26121a69"
+      },
+      "expected": {
+        "count": 2,
+        "index": 8.45171348966467,
+        "reciprocal": 0.118319202517083,
+        "probability": 0.894199078178419,
+        "mismatches": 0
+      },
+      "actual": {
+        "lociCount": 2,
+        "mismatches": 0,
+        "logIndex": 2.1343692006540023,
+        "index": 8.451713489664671,
+        "reciprocal": 0.11831920251708342,
+        "indexText": "8.45171349E+00",
+        "reciprocalText": "1.18319203E-01",
+        "probability": 0.8941990781784184,
+        "complement": 0.10580092182158159,
+        "probabilityText": "89.4199078178418%",
+        "probabilityFractionText": "0.8941990781784",
+        "complementText": "10.58009218215820%",
+        "indexLabel": "CPI — индекс родительства",
+        "probabilityLabel": "PP — вероятность родительства"
+      },
+      "absoluteIndexDifference": 1.7763568394002505e-15,
+      "relativeIndexDifference": 2.1017712462360448e-16,
+      "loci": [
+        {
+          "locus": "TH01",
+          "expected": {
+            "factors": [
+              {
+                "address": "AN38",
+                "value": 1
+              },
+              {
+                "address": "AN98",
+                "value": 1.35775010139307
+              }
+            ],
+            "value": 1.35775010139307
+          },
+          "value": 1.357750101393074,
+          "frequencies": [
+            {
+              "allele": "9",
+              "value": 0.197098812715435,
+              "origin": "FREQ"
+            },
+            {
+              "allele": "9.3",
+              "value": 0.28887399463807,
+              "origin": "FREQ"
+            }
+          ],
+          "branch": "TRIO_TWO_MATCH"
+        },
+        {
+          "locus": "D1S1656",
+          "expected": {
+            "factors": [
+              {
+                "address": "AN4",
+                "value": 6.22479311987756
+              },
+              {
+                "address": "AN64",
+                "value": 1
+              }
+            ],
+            "value": 6.22479311987756
+          },
+          "value": 6.224793119877564,
+          "frequencies": [
+            {
+              "allele": "14",
+              "value": 0.0837507224041611,
+              "origin": "FREQ"
+            }
+          ],
+          "branch": "TRIO_ONE_MATCH"
+        }
+      ],
+      "displayDifferences": [
+        {
+          "field": "probability",
+          "actual": "89.4199078178418%",
+          "expected": "89.4199078178419%"
+        }
+      ]
+    }
+  ]
+}

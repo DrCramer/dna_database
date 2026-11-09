@@ -1277,7 +1277,7 @@ class LRCalculator {
 
         // Добавляем детали по локусам
         if (lrResult.locusLRs) {
-            for (const [locusName, locusData] of lrResult.locusLRs) {
+            for (const [locusName, locusData] of (lrResult.locusLRs instanceof Map ? lrResult.locusLRs : Object.entries(lrResult.locusLRs))) {
                 report.locusDetails.push({
                     locus: locusName,
                     lr: locusData.lr,

@@ -24,7 +24,7 @@ function adaptGeneMapper(source, settings, panels) {
     const selectedId = choice.panelId ?? (source.panelNames.length <= 1 ? settings.panelId : undefined);
     if (selectedId && !panels.some(panel => panel.id === selectedId)) throw new Error('Выбранная панель образца недоступна в активном отделении.');
     const panelId = selectedId === '' ? null : selectedId || (exact.length === 1 ? exact[0].id : null);
-    const status = { sampleName: sample.sampleName, sampleIndex, sampleTypes: sample.sampleTypes, panelNames: sample.panelNames,
+    const status = { sampleName: sample.sampleName, sampleIndex, sampleTypes: sample.sampleTypes, sampleTypeInferred: source.sampleTypeInferred, panelNames: sample.panelNames,
       panelId, panelCandidates: candidates, totalLoci: sample.sourceLoci.length,
       markerKeys: sample.sourceLoci,
       populatedLoci: new Set(sample.records.filter(record => record.rawValue).map(record => record.markerKey)).size,
@@ -45,7 +45,7 @@ function adaptGeneMapper(source, settings, panels) {
   }
   const workbook = XLSX.utils.book_new();
   XLSX.utils.book_append_sheet(workbook, XLSX.utils.aoa_to_sheet(rows), 'GeneMapper');
-  return { workbook, rowMetadata, preview: { sourceFormat: source.sourceFormat, encoding: source.encoding, suggestedYear: source.suggestedYear,
+  return { workbook, rowMetadata, preview: { sourceFormat: source.sourceFormat, encoding: source.encoding, suggestedYear: source.suggestedYear, sampleTypeInferred: source.sampleTypeInferred,
     panelNames: source.panelNames, originalRows: source.rowCount, samples, summary: { ...source.summary, selectedSamples: samples.filter(sample => sample.included).length } } };
 }
 

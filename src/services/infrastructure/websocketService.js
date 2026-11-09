@@ -1,164 +1,80 @@
 const { Server } = require('socket.io');
-const jwt = require('jsonwebtoken');
-const { logger } = require("../../utils/logger");
+const { createHash } = require('node:crypto');
+const authService = require('../security/authService');
+const { logger } = require('../../utils/logger');
 
 class WebSocketService {
-  constructor() {
-    this.io = null;
-    this.userSockets = new Map(); // userId -> Set of socket IDs
+  constructor() { this.io = null; this.userSockets = new Map(); }
+  async validate(socket) {
+    try {
+      const decoded = authService.verifyAccessToken(socket.accessToken);
+      const session = await authService.validateSession(socket.accessToken);
+      if (!session || session.user_id !== decoded.id || session.department_id !== decoded.department_id
+          || session.organization_id !== decoded.organization_id) throw new Error('Session unavailable');
+      socket.userId = session.user_id; socket.userRole = session.role;
+      socket.departmentId = session.department_id; socket.organizationId = session.organization_id;
+      socket.familyId = session.session_family_id;
+      return decoded;
+    } catch { socket.disconnect(true); return null; }
   }
-
   initialize(server) {
-    this.io = new Server(server, {
-      cors: {
-        origin: process.env.CORS_ORIGIN || '*',
-        methods: ['GET', 'POST'],
-        credentials: true
-      },
-      path: '/socket.io/'
+    this.io = new Server(server, { cors: { origin: process.env.CORS_ORIGIN || '*', methods: ['GET', 'POST'], credentials: true }, path: '/socket.io/' });
+    this.io.use(async (socket, next) => {
+      socket.accessToken = socket.handshake.auth?.token || socket.handshake.headers.authorization?.replace(/^Bearer /, '');
+      if (typeof socket.accessToken !== 'string') return next(new Error('Authentication required'));
+      const decoded = await this.validate(socket);
+      if (!decoded) return next(new Error('Invalid access session'));
+      socket.tokenHash = createHash('sha256').update(socket.accessToken).digest('hex');
+      socket.expiresAt = decoded.exp * 1000;
+      next();
     });
-
-    // Middleware для аутентификации
-    this.io.use((socket, next) => {
-      const token = socket.handshake.auth.token || socket.handshake.headers.authorization?.replace('Bearer ', '');
-      
-      if (!token) {
-        logger.warn('WebSocket: Попытка подключения без токена');
-        return next(new Error('Authentication error: No token provided'));
-      }
-
-      try {
-        const decoded = jwt.verify(token, process.env.JWT_SECRET);
-        socket.userId = decoded.id; // В JWT токене поле называется 'id'
-        socket.userRole = decoded.role;
-        socket.organizationId = decoded.organization_id;
-        socket.departmentId = decoded.department_id;
-        
-        logger.info(`WebSocket: Аутентификация успешна для пользователя ${socket.userId}`);
-        next();
-      } catch (err) {
-        logger.error('WebSocket: Ошибка аутентификации:', err.message);
-        return next(new Error('Authentication error: Invalid token'));
-      }
-    });
-
-    this.io.on('connection', (socket) => {
-      this.handleConnection(socket);
-    });
-
-    logger.info('WebSocket сервер инициализирован');
+    this.revocationListener = ({ userId, tokenHash, familyId }) => {
+      for (const socket of this.io.sockets.sockets.values())
+        if (socket.userId === userId || socket.tokenHash === tokenHash || familyId && socket.familyId === familyId) socket.disconnect(true);
+    };
+    authService.on('sessionRevoked', this.revocationListener);
+    server.once('close', () => authService.off('sessionRevoked', this.revocationListener));
+    this.io.on('connection', socket => this.handleConnection(socket));
+    logger.info('WebSocket server initialized with session validation');
   }
-
   handleConnection(socket) {
-    const userId = socket.userId;
-    
-    logger.info(`WebSocket: Пользователь ${userId} подключился (socket: ${socket.id})`);
-
-    // Добавляем сокет в карту пользователей
-    if (!this.userSockets.has(userId)) {
-      this.userSockets.set(userId, new Set());
-    }
-    this.userSockets.get(userId).add(socket.id);
-
-    // Отправляем подтверждение подключения
-    socket.emit('connected', {
-      message: 'WebSocket connection established',
-      userId: userId,
-      timestamp: new Date().toISOString()
+    const id = socket.userId;
+    if (!this.userSockets.has(id)) this.userSockets.set(id, new Set());
+    this.userSockets.get(id).add(socket.id);
+    const expiry = setTimeout(() => socket.disconnect(true), Math.max(0, Math.min(socket.expiresAt - Date.now(), 2147483647)));
+    expiry.unref();
+    const check = setInterval(() => this.validate(socket), 30000); check.unref();
+    socket.emit('connected', { message: 'WebSocket connection established', userId: id, timestamp: new Date().toISOString() });
+    socket.on('disconnect', () => {
+      clearTimeout(expiry); clearInterval(check);
+      this.userSockets.get(id)?.delete(socket.id);
+      if (!this.userSockets.get(id)?.size) this.userSockets.delete(id);
     });
-
-    // Обработка отключения
-    socket.on('disconnect', (reason) => {
-      logger.info(`WebSocket: Пользователь ${userId} отключился (socket: ${socket.id}), причина: ${reason}`);
-      
-      const userSocketSet = this.userSockets.get(userId);
-      if (userSocketSet) {
-        userSocketSet.delete(socket.id);
-        if (userSocketSet.size === 0) {
-          this.userSockets.delete(userId);
-        }
-      }
-    });
-
-    // Обработка ошибок
-    socket.on('error', (error) => {
-      logger.error(`WebSocket: Ошибка для пользователя ${userId}:`, error);
-    });
-
-    // Heartbeat для проверки соединения
-    socket.on('ping', () => {
-      socket.emit('pong', { timestamp: new Date().toISOString() });
-    });
+    socket.on('ping', async () => { if (await this.validate(socket)) socket.emit('pong', { timestamp: new Date().toISOString() }); });
+    socket.on('error', () => logger.warn('WebSocket client error'));
   }
-
-  // Отправить уведомление конкретному пользователю
+  async deliver(socket, event, data) {
+    if (await this.validate(socket) && socket.connected) socket.emit(event, data);
+  }
   sendToUser(userId, event, data) {
-    const userSocketSet = this.userSockets.get(userId);
-    
-    if (!userSocketSet || userSocketSet.size === 0) {
-      logger.debug(`WebSocket: Пользователь ${userId} не подключен`);
-      return false;
-    }
-
-    userSocketSet.forEach(socketId => {
-      const socket = this.io.sockets.sockets.get(socketId);
-      if (socket) {
-        socket.emit(event, data);
-        logger.debug(`WebSocket: Отправлено событие "${event}" пользователю ${userId} (socket: ${socketId})`);
-      }
-    });
-
+    const sockets = this.userSockets.get(userId);
+    if (!sockets?.size) return false;
+    for (const id of sockets) { const socket = this.io.sockets.sockets.get(id); if (socket) void this.deliver(socket, event, data); }
     return true;
   }
-
-  // Отправить уведомление всем пользователям отдела
   sendToDepartment(departmentId, event, data, excludeUserId = null) {
-    let sentCount = 0;
-
-    this.io.sockets.sockets.forEach(socket => {
-      if (socket.departmentId === departmentId && socket.userId !== excludeUserId) {
-        socket.emit(event, data);
-        sentCount++;
-      }
-    });
-
-    logger.debug(`WebSocket: Отправлено событие "${event}" ${sentCount} пользователям отдела ${departmentId}`);
-    return sentCount;
+    return this.sendWhere(s => s.departmentId === departmentId && s.userId !== excludeUserId, event, data);
   }
-
-  // Отправить уведомление всем пользователям организации
   sendToOrganization(organizationId, event, data, excludeUserId = null) {
-    let sentCount = 0;
-
-    this.io.sockets.sockets.forEach(socket => {
-      if (socket.organizationId === organizationId && socket.userId !== excludeUserId) {
-        socket.emit(event, data);
-        sentCount++;
-      }
-    });
-
-    logger.debug(`WebSocket: Отправлено событие "${event}" ${sentCount} пользователям организации ${organizationId}`);
-    return sentCount;
+    return this.sendWhere(s => s.organizationId === organizationId && s.userId !== excludeUserId, event, data);
   }
-
-  // Отправить уведомление всем подключенным пользователям
-  broadcast(event, data) {
-    this.io.emit(event, data);
-    logger.debug(`WebSocket: Broadcast события "${event}" всем пользователям`);
+  sendWhere(predicate, event, data) {
+    let count = 0;
+    for (const socket of this.io?.sockets.sockets.values() || []) if (predicate(socket)) { void this.deliver(socket, event, data); count++; }
+    return count;
   }
-
-  // Получить количество подключенных пользователей
-  getConnectedUsersCount() {
-    return this.userSockets.size;
-  }
-
-  // Проверить, подключен ли пользователь
-  isUserConnected(userId) {
-    return this.userSockets.has(userId) && this.userSockets.get(userId).size > 0;
-  }
+  broadcast(event, data) { return this.sendWhere(() => true, event, data); }
+  getConnectedUsersCount() { return this.userSockets.size; }
+  isUserConnected(id) { return Boolean(this.userSockets.get(id)?.size); }
 }
-
-// Singleton instance
-const websocketService = new WebSocketService();
-
-module.exports = websocketService;
+module.exports = new WebSocketService();

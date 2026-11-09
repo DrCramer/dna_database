@@ -62,6 +62,12 @@ const Header = ({ user, onNavigate, onLogout, hasRole }) => {
     { path: '/profiles', label: 'Профили', icon: '🗂️' }
   ];
 
+  if (isGenetic && ['admin', 'system_administrator', 'department_head', 'user_analyst', 'analyst'].includes(user?.role)) {
+    const probability = { path: '/probability', label: 'Вероятность', icon: '🧮' };
+    analystMenu.push(probability);
+    adminMainMenu.push(probability);
+  }
+
   const adminSearchItem = { path: '/master-object-search', label: 'Поиск объектов', icon: '🔎' };
 
   const adminSystemMenu = [

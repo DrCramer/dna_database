@@ -128,6 +128,34 @@ if [[ "$(db_sql -c "SELECT EXISTS (SELECT 1 FROM information_schema.columns WHER
     docker compose exec -T db psql -U dna_user -d dna_analysis -v ON_ERROR_STOP=1 -q < database/migrations/033_user_display_names.sql
 fi
 
+# Probability snapshots are isolated from source DNA profiles.
+if [[ "$(db_sql -c "SELECT to_regclass('public.probability_calculations') IS NOT NULL")" != t ]]; then
+    backup_file="runtime/backups/before_install_034_$(date -u +%Y%m%d_%H%M%S).sql"
+    docker compose exec -T db pg_dump -U dna_user -d dna_analysis > "$backup_file"
+    test -s "$backup_file"
+    echo "Database backup saved: $backup_file"
+    docker compose exec -T db psql -U dna_user -d dna_analysis -v ON_ERROR_STOP=1 -q < database/migrations/034_probability_calculations.sql
+fi
+
+
+# Revocable refresh-token storage (035), safe to repeat after interrupted updates.
+session_refresh_ready="$(docker compose exec -T db psql -U dna_user -d dna_analysis -Atq -v ON_ERROR_STOP=1 -c "SELECT COUNT(*)=3 AND EXISTS (SELECT 1 FROM information_schema.columns WHERE table_schema='public' AND table_name='user_sessions' AND column_name='expires_at' AND data_type='timestamp with time zone') FROM information_schema.columns WHERE table_schema='public' AND table_name='user_sessions' AND column_name IN ('refresh_token_hash','refresh_expires_at','session_family_id')")"
+if [[ "$session_refresh_ready" != t ]]; then
+    backup_file="runtime/backups/before_install_035_$(date -u +%Y%m%d_%H%M%S).sql"
+    docker compose exec -T db pg_dump -U dna_user -d dna_analysis > "$backup_file"
+    test -s "$backup_file"
+    docker compose exec -T db psql -U dna_user -d dna_analysis -v ON_ERROR_STOP=1 -q < database/migrations/035_session_refresh_tokens.sql
+fi
+
+
+profile_identity_ready="$(docker compose exec -T db psql -U dna_user -d dna_analysis -Atq -v ON_ERROR_STOP=1 -c "SELECT indexdef LIKE '%department_id%' FROM pg_indexes WHERE schemaname='public' AND indexname='idx_dna_profiles_year_internal_user'")"
+if [[ "$profile_identity_ready" != t ]]; then
+    backup_file="runtime/backups/before_install_036_$(date -u +%Y%m%d_%H%M%S).sql"
+    docker compose exec -T db pg_dump -U dna_user -d dna_analysis > "$backup_file"
+    test -s "$backup_file"
+    docker compose exec -T db psql -U dna_user -d dna_analysis -v ON_ERROR_STOP=1 -q < database/migrations/036_profile_identity_scope.sql
+fi
+
 user_count="$(db_sql -c 'SELECT COUNT(*) FROM users')"
 if [[ "$user_count" == 0 ]]; then
     docker compose run --rm --no-deps web node scripts/bootstrap-admin.js

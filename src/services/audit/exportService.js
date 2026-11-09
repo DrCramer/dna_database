@@ -10,11 +10,14 @@ const { STR_LOCI } = require("../converters/excelService");
 const OperationHistory = require("../../models/OperationHistory");
 const User = require("../../models/User");
 const DNAProfile = require("../../models/DNAProfile");
+const { ExportRegistry } = require('./exportRegistry');
+const { ProfileAccessService } = require('../security/profileAccessService');
 
 class ExportService {
   constructor() {
     this.resultFormatter = new ResultFormattingService();
     this.exportDir = path.join(process.cwd(), 'exports');
+    this.registry = new ExportRegistry(this.exportDir);
     this.ensureExportDirectory();
   }
 
@@ -51,37 +54,9 @@ class ExportService {
     const { userId, ipAddress, userAgent } = userInfo;
 
     try {
-      // Create mock user for testing if no userId provided
-      let user = null;
-      if (userId) {
-        try {
-          const User = require("../../models/User");
-          user = await User.findById(userId);
-        } catch (dbError) {
-          logger.warn('Database not available, using mock user', { userId, error: dbError.message });
-          // Create mock user for testing
-          user = {
-            id: userId,
-            username: 'test-user',
-            role: 'system_administrator',
-            department_id: 'test-dept',
-            organization_id: 'test-org'
-          };
-        }
-      } else {
-        // Create default mock user
-        user = {
-          id: 'anonymous',
-          username: 'anonymous',
-          role: 'system_administrator',
-          department_id: null,
-          organization_id: null
-        };
-      }
-
-      if (!user) {
-        throw new Error('Invalid user ID provided');
-      }
+      const user = userId ? await User.findById(userId) : null;
+      if (!user) throw Object.assign(new Error('Export owner is required'), { status: 403 });
+      const scope = await ProfileAccessService.getScope({ userId, activeDepartmentId: userInfo.departmentId || user.department_id });
 
       // Filter results based on user's access level (simplified for testing)
       const filteredResults = matchResults; // Skip filtering for now
@@ -90,7 +65,7 @@ class ExportService {
       const exportId = uuidv4();
       const timestamp = new Date().toISOString().replace(/[:.]/g, '-');
       const scopePrefix = exportScope.replace('_', '-');
-      const exportFilename = filename || `${scopePrefix}-export-${exportId}.xlsx`;
+      const exportFilename = `${path.parse(path.basename(filename || scopePrefix + '-export')).name}-${exportId}.xlsx`;
       const filePath = path.join(this.exportDir, exportFilename);
 
       // Format data for export with department context and LR values
@@ -121,8 +96,8 @@ class ExportService {
       // Create summary worksheet if metadata is included
       if (includeMetadata) {
         const summaryWorksheet = this.createSummaryWorksheetWithAccess(
-          exportData, 
-          filteredResults, 
+          exportData,
+          filteredResults,
           user,
           exportScope
         );
@@ -140,6 +115,7 @@ class ExportService {
 
       // Get file stats
       const stats = await fs.stat(filePath);
+      await this.registry.register(exportId, exportFilename, { userId, departmentId: scope.params[0], organizationId: scope.params[1] });
 
       const exportResult = {
         exportId,
@@ -252,7 +228,7 @@ class ExportService {
    * @param {Object} exportOptions - Export options
    * @returns {Object} Export result
    */
-  async exportDepartmentData(userId, exportOptions = {}) {
+  async exportDepartmentData(userId, exportOptions = {}, departmentId) {
     const {
       includeUserProfiles = true,
       includeMasterArray = true,
@@ -274,7 +250,7 @@ class ExportService {
 
       // Get accessible profiles for the user's department
       const accessibleProfiles = await DNAProfile.getAccessibleProfiles(userId, {
-        includeMasterArray,
+        includeMasterArray, departmentId,
         limit: 10000
       });
 
@@ -308,7 +284,7 @@ class ExportService {
           exportScope: 'department_data',
           searchInfo: exportData.exportMetadata
         },
-        { userId }
+        { userId, departmentId }
       );
 
     } catch (error) {
@@ -327,7 +303,7 @@ class ExportService {
    * @param {Object} auditOptions - Audit export options
    * @returns {Object} Export result
    */
-  async exportAuditTrail(userId, auditOptions = {}) {
+  async exportAuditTrail(userId, auditOptions = {}, departmentId) {
     const {
       dateRange = null,
       operationTypes = [],
@@ -348,7 +324,7 @@ class ExportService {
 
       // Get audit data based on user's scope
       let auditData = [];
-      
+
       if (user.role === 'system_administrator') {
         // System administrators can see all audit data
         auditData = await OperationHistory.getAuditTrail({
@@ -358,7 +334,7 @@ class ExportService {
         });
       } else if (user.role === 'department_head' && departmentScope) {
         // Department heads can see their department's audit data
-        auditData = await OperationHistory.getDepartmentAuditTrail(user.department_id, {
+        auditData = await OperationHistory.getDepartmentAuditTrail(departmentId || user.department_id, {
           dateRange,
           operationTypes,
           includeUserDetails
@@ -371,7 +347,7 @@ class ExportService {
         exportMetadata: {
           exportedBy: user.username,
           exportedAt: new Date().toISOString(),
-          department: user.role === 'system_administrator' ? 'All Departments' : 
+          department: user.role === 'system_administrator' ? 'All Departments' :
                      (await user.getDepartment())?.name || 'Unknown Department',
           exportScope: 'audit_trail',
           dateRange,
@@ -391,7 +367,7 @@ class ExportService {
           exportScope: 'audit_trail',
           searchInfo: exportData.exportMetadata
         },
-        { userId }
+        { userId, departmentId }
       );
 
     } catch (error) {
@@ -462,7 +438,7 @@ class ExportService {
       for (const result of matchResults) {
         // Check if user has access to this result
         const hasAccess = await this.validateResultAccess(result, user);
-        
+
         if (hasAccess) {
           // Remove sensitive information based on user role
           const sanitizedResult = this.sanitizeResultForUser(result, user);
@@ -633,8 +609,8 @@ class ExportService {
    * @returns {Object} XLSX worksheet
    */
   createResultsWorksheetWithAccess(exportData, options = {}) {
-    const { 
-      includeProfileDetails = true, 
+    const {
+      includeProfileDetails = true,
       includeLocusDetails = true,
       includeLRValues = true,
       includeOrganizationalContext = true,
@@ -659,17 +635,17 @@ class ExportService {
 
     if (includeProfileDetails) {
       headers.push('Profile Source');
-      
+
       // Add organizational context if requested
       if (includeOrganizationalContext) {
         headers.push('Department', 'Organization');
       }
-      
+
       // Add user details only for department heads and system administrators
       if (['department_head', 'system_administrator'].includes(userRole)) {
         headers.push('User ID', 'File Source');
       }
-      
+
       headers.push('Notes');
     }
 
@@ -684,10 +660,10 @@ class ExportService {
 
     // Prepare data rows
     const rows = [headers];
-    
+
     exportData.data.forEach((row, index) => {
       const dataRow = [...row];
-      
+
       // Add LR values if requested and available
       if (includeLRValues && ['department_head', 'system_administrator'].includes(userRole)) {
         const lrValue = exportData.lrValues?.[index] || 'N/A';
@@ -699,7 +675,7 @@ class ExportService {
       if (includeProfileDetails) {
         // Add profile source information
         dataRow.push(row.profileSource || 'Unknown');
-        
+
         // Add organizational context
         if (includeOrganizationalContext) {
           dataRow.push(
@@ -707,12 +683,12 @@ class ExportService {
             exportData.organizationalContext?.[index]?.organization || 'N/A'
           );
         }
-        
+
         // Add user details based on role
         if (['department_head', 'system_administrator'].includes(userRole)) {
           dataRow.push(row.userId || '', row.fileSource || '');
         }
-        
+
         dataRow.push(row.notes || '');
       }
 
@@ -739,15 +715,15 @@ class ExportService {
 
     if (includeProfileDetails) {
       columnWidths.push({ wch: 15 }); // Profile Source
-      
+
       if (includeOrganizationalContext) {
         columnWidths.push({ wch: 20 }, { wch: 20 }); // Department, Organization
       }
-      
+
       if (['department_head', 'system_administrator'].includes(userRole)) {
         columnWidths.push({ wch: 15 }, { wch: 20 }); // User ID, File Source
       }
-      
+
       columnWidths.push({ wch: 30 }); // Notes
     }
 
@@ -766,7 +742,7 @@ class ExportService {
     for (let col = headerRange.s.c; col <= headerRange.e.c; col++) {
       const cellAddress = XLSX.utils.encode_cell({ r: 0, c: col });
       if (!worksheet[cellAddress]) continue;
-      
+
       worksheet[cellAddress].s = {
         font: { bold: true },
         fill: { fgColor: { rgb: 'E6E6FA' } },
@@ -792,10 +768,10 @@ class ExportService {
    */
   createSummaryWorksheetWithAccess(exportData, matchResults, user, exportScope) {
     const summaryStats = this.resultFormatter.generateSummaryStats(matchResults);
-    
+
     // Calculate LR statistics if available
     const lrStats = this.calculateLRStatistics(matchResults);
-    
+
     const summaryData = [
       [`DNA Analysis Export Summary - ${exportScope.replace('_', ' ').toUpperCase()}`],
       [''],
@@ -996,23 +972,23 @@ class ExportService {
   applyLRConditionalFormatting(worksheet, headers) {
     const lrColumnIndex = headers.indexOf('Likelihood Ratio (LR)');
     const significanceColumnIndex = headers.indexOf('LR Significance');
-    
+
     if (lrColumnIndex === -1 || significanceColumnIndex === -1) {
       return;
     }
 
     // Get worksheet range
     const range = XLSX.utils.decode_range(worksheet['!ref']);
-    
+
     // Apply formatting to LR significance column
     for (let row = 1; row <= range.e.r; row++) { // Skip header row
       const significanceCellAddress = XLSX.utils.encode_cell({ r: row, c: significanceColumnIndex });
       const significanceCell = worksheet[significanceCellAddress];
-      
+
       if (significanceCell && significanceCell.v) {
         const significance = significanceCell.v.toString();
         let fillColor = 'FFFFFF'; // Default white
-        
+
         if (significance.includes('Extremely Strong Support')) {
           fillColor = '006400'; // Dark green
         } else if (significance.includes('Very Strong Support')) {
@@ -1034,7 +1010,7 @@ class ExportService {
         } else if (significance.includes('Extremely Strong Opposition')) {
           fillColor = 'DC143C'; // Crimson
         }
-        
+
         significanceCell.s = {
           fill: { fgColor: { rgb: fillColor } },
           font: { color: { rgb: fillColor === '006400' || fillColor === '228B22' || fillColor === 'DC143C' ? 'FFFFFF' : '000000' } }
@@ -1071,7 +1047,7 @@ class ExportService {
     const baseUrl = process.env.BASE_URL || 'http://localhost:3000';
     const timestamp = Date.now();
     const token = this.generateDownloadToken(exportId, user.id, timestamp);
-    
+
     return `${baseUrl}/api/export/download/${exportId}?token=${token}&ts=${timestamp}&scope=${exportScope}`;
   }
 
@@ -1086,7 +1062,7 @@ class ExportService {
     const crypto = require('crypto');
     const secret = process.env.DOWNLOAD_SECRET || 'default-secret';
     const data = `${exportId}:${userId}:${timestamp}`;
-    
+
     return crypto.createHmac('sha256', secret).update(data).digest('hex');
   }
 
@@ -1122,7 +1098,7 @@ class ExportService {
     }
 
     const averageLR = lrValues.reduce((sum, lr) => sum + lr, 0) / lrValues.length;
-    
+
     const stats = {
       averageLR: averageLR.toFixed(2),
       strongSupport: lrValues.filter(lr => lr >= 100).length,
@@ -1160,7 +1136,7 @@ class ExportService {
     const expectedToken = this.generateDownloadToken(exportId, userId, timestamp);
     const tokenAge = Date.now() - timestamp;
     const maxAge = 24 * 60 * 60 * 1000; // 24 hours
-    
+
     return token === expectedToken && tokenAge <= maxAge;
   }
 
@@ -1172,7 +1148,7 @@ class ExportService {
    */
   createSummaryWorksheet(exportData, matchResults) {
     const summaryStats = this.resultFormatter.generateSummaryStats(matchResults);
-    
+
     const summaryData = [
       ['DNA Analysis Export Summary'],
       [''],
@@ -1242,7 +1218,7 @@ class ExportService {
 
     matchResults.forEach(result => {
       const sampleName = result.matchedProfile?.sampleName || 'Unknown';
-      
+
       if (result.locusMatches) {
         Object.entries(result.locusMatches).forEach(([locusName, locusData]) => {
           rows.push([
@@ -1274,7 +1250,7 @@ class ExportService {
     for (let col = headerRange.s.c; col <= headerRange.e.c; col++) {
       const cellAddress = XLSX.utils.encode_cell({ r: 0, c: col });
       if (!worksheet[cellAddress]) continue;
-      
+
       worksheet[cellAddress].s = {
         font: { bold: true },
         fill: { fgColor: { rgb: 'E6E6FA' } },
@@ -1290,146 +1266,8 @@ class ExportService {
    * @param {string} exportId - Export ID
    * @returns {Promise<Object>} File information
    */
-  async getExportFile(exportId) {
-    try {
-      // In a real implementation, you'd store export metadata in database
-      // For now, we'll look for files matching the pattern
-      const files = await fs.readdir(this.exportDir);
-      
-      logger.info('Looking for export file', { 
-        exportId, 
-        totalFiles: files.length,
-        allFiles: files.slice(0, 10) // Log first 10 files for debugging
-      });
-      
-      // Try to find file by exact exportId first - this is the most important match
-      let exportFile = files.find(file => file.includes(exportId));
-      
-      if (exportFile) {
-        logger.info('Found file by exportId', { exportId, foundFile: exportFile });
-      } else {
-        logger.warn('No file found by exportId, trying fallback patterns', { exportId });
-        
-        // Try other patterns only if exact match not found
-        exportFile = files.find(file => 
-          file.startsWith('debug_export') ||
-          file.startsWith('test_export')
-        );
-        
-        if (!exportFile) {
-          // Try broader patterns
-          exportFile = files.find(file => 
-            file.startsWith('search-results-export-')
-          );
-        }
-        
-        if (!exportFile) {
-          // If still not found, get the most recent file (but exclude very old files)
-          const sortedFiles = files
-            .filter(file => file.endsWith('.xlsx') || file.endsWith('.pdf'))
-            .map(file => ({
-              name: file,
-              path: path.join(this.exportDir, file)
-            }));
-            
-          if (sortedFiles.length > 0) {
-            // Get file stats and sort by creation time
-            const filesWithStats = await Promise.all(
-              sortedFiles.map(async (file) => {
-                const stats = await fs.stat(file.path);
-                return { ...file, mtime: stats.mtime };
-              })
-            );
-            
-            // Filter out files older than 1 hour for fallback search
-            const recentFiles = filesWithStats.filter(file => {
-              const fileAge = Date.now() - file.mtime.getTime();
-              return fileAge < 60 * 60 * 1000; // 1 hour
-            });
-            
-            if (recentFiles.length > 0) {
-              // Sort by modification time (newest first)
-              recentFiles.sort((a, b) => b.mtime - a.mtime);
-              exportFile = recentFiles[0].name;
-              
-              logger.info('Using most recent export file as fallback', { 
-                exportId, 
-                foundFile: exportFile,
-                totalFiles: files.length,
-                recentFiles: recentFiles.length
-              });
-            }
-          }
-        }
-      }
-
-      if (!exportFile) {
-        throw new Error('Export file not found or expired');
-      }
-
-      const filePath = path.join(this.exportDir, exportFile);
-      const stats = await fs.stat(filePath);
-
-      // Check if file is expired (24 hours) - but be more lenient for testing
-      const fileAge = Date.now() - stats.mtime.getTime();
-      const maxAge = 24 * 60 * 60 * 1000; // 24 hours
-
-      // For testing, allow files created in the last 10 minutes
-      const testMaxAge = 10 * 60 * 1000; // 10 minutes for testing
-      const isTestFile = exportFile.includes('test_export') || 
-                        exportFile.includes('debug_export') || 
-                        exportFile.includes(exportId);
-      
-      logger.info('File expiration check', {
-        exportId,
-        fileName: exportFile,
-        fileAge,
-        maxAge,
-        testMaxAge,
-        isTestFile,
-        fileAgeSeconds: Math.round(fileAge / 1000)
-      });
-      
-      // Check expiration based on file type
-      if (isTestFile) {
-        // For test files, use shorter expiry
-        if (fileAge > testMaxAge) {
-          logger.warn('Test export file is old but allowing access', { 
-            exportId, 
-            fileAge: Math.round(fileAge / 1000) + 's',
-            fileName: exportFile
-          });
-          // Don't throw error for test files, just warn
-        }
-      } else {
-        // For regular files, use standard expiry
-        if (fileAge > maxAge) {
-          // Clean up expired file
-          await fs.unlink(filePath);
-          throw new Error('Export file has expired');
-        }
-      }
-
-      const mimeType = exportFile.endsWith('.pdf') ? 'application/pdf' : 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet';
-      
-      logger.info('Returning export file', {
-        exportId,
-        fileName: exportFile,
-        fileSize: stats.size,
-        mimeType
-      });
-
-      return {
-        filePath,
-        filename: exportFile,
-        size: stats.size,
-        mimeType
-      };
-
-    } catch (error) {
-      logger.error('Error getting export file', { error: error.message, exportId });
-      throw error;
-    }
+  async getExportFile(exportId, context) {
+    return this.registry.get(exportId, context);
   }
 
   /**
@@ -1484,35 +1322,9 @@ class ExportService {
     const { userId, ipAddress, userAgent } = userInfo;
 
     try {
-      // Create mock user for testing if no userId provided
-      let user = null;
-      if (userId) {
-        try {
-          const User = require("../../models/User");
-          user = await User.findById(userId);
-        } catch (dbError) {
-          logger.warn('Database not available, using mock user', { userId, error: dbError.message });
-          user = {
-            id: userId,
-            username: 'test-user',
-            role: 'system_administrator',
-            department_id: 'test-dept',
-            organization_id: 'test-org'
-          };
-        }
-      } else {
-        user = {
-          id: 'anonymous',
-          username: 'anonymous',
-          role: 'system_administrator',
-          department_id: null,
-          organization_id: null
-        };
-      }
-
-      if (!user) {
-        throw new Error('Invalid user ID provided');
-      }
+      const user = userId ? await User.findById(userId) : null;
+      if (!user) throw Object.assign(new Error('Export owner is required'), { status: 403 });
+      const scope = await ProfileAccessService.getScope({ userId, activeDepartmentId: userInfo.departmentId || user.department_id });
 
       // Filter results based on user's access level (simplified for testing)
       const filteredResults = matchResults;
@@ -1522,8 +1334,8 @@ class ExportService {
       const timestamp = new Date().toISOString().replace(/[:.]/g, '-');
       const scopePrefix = exportScope.replace('_', '-');
       // Always include exportId in filename for proper file lookup
-      const exportFilename = filename ? 
-        `${path.parse(filename).name}-${exportId}.pdf` : 
+      const exportFilename = filename ?
+        `${path.parse(path.basename(filename)).name}-${exportId}.pdf` :
         `${scopePrefix}-report-${exportId}.pdf`;
       const filePath = path.join(this.exportDir, exportFilename);
 
@@ -1558,6 +1370,7 @@ class ExportService {
 
       // Get file stats
       const stats = await fs.stat(filePath);
+      await this.registry.register(exportId, exportFilename, { userId, departmentId: scope.params[0], organizationId: scope.params[1] });
 
       const exportResult = {
         exportId,
@@ -1687,7 +1500,7 @@ class ExportService {
       doc.fontSize(14).font('Helvetica-Bold');
       doc.text('Export Information');
       doc.moveDown(0.5);
-      
+
       doc.fontSize(10).font('Helvetica');
       doc.text('Export Date: ' + new Date().toLocaleDateString('en-US'));
       doc.text('Exported By: ' + (user.username || 'Unknown'));
@@ -1702,7 +1515,7 @@ class ExportService {
       doc.fontSize(14).font('Helvetica-Bold');
       doc.text('Match Statistics');
       doc.moveDown(0.5);
-      
+
       doc.fontSize(10).font('Helvetica');
       doc.text('Average Match Percentage: ' + (summaryStats.averageMatch || 0) + '%');
       doc.text('High Matches (>=80%): ' + (summaryStats.highMatches || 0));
@@ -1714,7 +1527,7 @@ class ExportService {
         doc.fontSize(14).font('Helvetica-Bold');
         doc.text('LR Analysis Statistics');
         doc.moveDown(0.5);
-        
+
         doc.fontSize(10).font('Helvetica');
         doc.text('Average LR Value: ' + (lrStats.averageLR || 'N/A'));
         doc.text('Strong Support (LR >= 100): ' + (lrStats.strongSupport || 0));
@@ -1728,7 +1541,7 @@ class ExportService {
       doc.fontSize(14).font('Helvetica-Bold');
       doc.text('Distribution by Match Range');
       doc.moveDown(0.5);
-      
+
       doc.fontSize(10).font('Helvetica');
       if (summaryStats.distributionByRange) {
         Object.entries(summaryStats.distributionByRange).forEach(([range, count]) => {
@@ -1745,20 +1558,20 @@ class ExportService {
         doc.moveDown(1);
 
         const limitedResults = matchResults.slice(0, 10);
-        
+
         // Простая таблица без сложного форматирования
         doc.fontSize(10).font('Helvetica-Bold');
         doc.text('Sample Name                Match%    Numeric   Total     Threshold');
         doc.text('----------------------------------------------------------------');
         doc.font('Helvetica');
-        
+
         limitedResults.forEach((result, index) => {
           const sampleName = (result.matchedProfile?.sampleName || 'Unknown').substring(0, 20).padEnd(20);
           const matchPercent = String(result.overallMatch || 0).padEnd(8);
           const numeric = String(result.numericMatchCount || 0).padEnd(8);
           const total = String(result.totalComparisons || 0).padEnd(8);
           const threshold = result.passesThreshold ? 'Yes' : 'No';
-          
+
           doc.text(sampleName + '  ' + matchPercent + '  ' + numeric + '  ' + total + '  ' + threshold);
         });
 
@@ -1774,7 +1587,7 @@ class ExportService {
       doc.fontSize(12).font('Helvetica-Bold');
       doc.text('Compliance Information');
       doc.moveDown(0.5);
-      
+
       doc.fontSize(10).font('Helvetica');
       doc.text('Export ID: ' + (exportData.exportId || 'N/A'));
       doc.text('Data Retention Policy: 24 hours');
@@ -1791,18 +1604,18 @@ class ExportService {
 
     } catch (error) {
       logger.error('Error generating PDF content', { error: error.message });
-      
+
       // Fallback - создаем минимальный PDF
       doc.fontSize(16).font('Helvetica-Bold');
       doc.text('DNA Analysis Export Report', { align: 'center' });
       doc.moveDown(2);
-      
+
       doc.fontSize(12).font('Helvetica');
       doc.text('Export Date: ' + new Date().toLocaleDateString('en-US'));
       doc.text('Total Results: ' + matchResults.length);
       doc.text('Export completed with ' + matchResults.length + ' records.');
       doc.moveDown(2);
-      
+
       doc.fontSize(10).font('Helvetica-Oblique');
       doc.text('Note: Detailed content could not be generated due to an error.');
       doc.text('Error: ' + error.message);
