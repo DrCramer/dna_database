@@ -1,6 +1,7 @@
 const ExcelJS = require('exceljs');
 const { ROLE_LABELS, probabilityDisplay } = require('./ProbabilityCalculationService');
 const { reportLayout } = require('./probabilityReportLayout');
+const { wrappedTextHeight } = require('./xlsxRowHeight');
 const reference = require('./data/workbook-reference.json');
 function reportData(calculation) {
   if (!calculation.summary) throw new Error('Нет подтверждённого числового результата для экспорта');
@@ -37,7 +38,10 @@ async function exportXlsx(calculation) {
     margins:{left:0.59,right:0.59,top:0.59,bottom:0.59,header:0.2,footer:0.2}}});
   sheet.columns=Array.from({length:end},(_,i)=>({width:trio?5.8:[15,9,9,10,26,20][i]||15}));
   const border=Object.fromEntries(['top','right','bottom','left'].map(k=>[k,{style:'thin',color:{argb:'FF000000'}}]));
+  const blocks = new Map();
   function block(row,from,to,value,{fill,bold=false,center=false}={}){
+    if(!blocks.has(row))blocks.set(row,[]);
+    blocks.get(row).push({from,to,value});
     if(to>from)sheet.mergeCells(row,from,row,to);
     const cell=sheet.getCell(row,from);cell.value=value;cell.border=border;cell.font={name:'Times New Roman',size:10,bold};
     cell.alignment={vertical:'middle',horizontal:center?'center':'left',wrapText:true};
@@ -74,6 +78,11 @@ async function exportXlsx(calculation) {
   }
   for(const participant of report.participants){block(number,1,end,participant.role+': '+participant.name);sheet.getRow(number++).height=26;}
   for(const text of report.footer){block(number,1,end,text);sheet.getRow(number++).height=26;}
+  // Row 12 contains the long TRIO allele headers (merged horizontal ranges).
+  // Fit the tallest cell, not an individual physical column or a fixed height.
+  const row12 = sheet.getRow(12);
+  row12.height = Math.max(row12.height || 15, ...(blocks.get(12) || []).map(({from,to,value}) =>
+    wrappedTextHeight(value, Array.from({length:to-from+1},(_,i)=>sheet.getColumn(from+i).width), 10)));
   sheet.pageSetup.printArea='A1:'+sheet.getColumn(end).letter+(number-1);
   const metadata = book.addWorksheet('Параметры'); metadata.columns = [{width:30},{width:110}];
   for (const [key, value] of Object.entries(report.metadata)) metadata.addRow([key, typeof value === 'object' ? JSON.stringify(value) : value]);

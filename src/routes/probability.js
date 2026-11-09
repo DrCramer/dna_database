@@ -4,6 +4,7 @@ const rateLimit = require('express-rate-limit');
 const { calculate, ProbabilityError, ROLES, FORMULA_VERSION, participantRoles, probabilityDisplay } = require('../services/probability/ProbabilityCalculationService');
 const { previewTxt, databaseSource } = require('../services/probability/ProbabilitySources');
 const { ProbabilityStore } = require('../services/probability/ProbabilityStore');
+const { probabilityExportFilename } = require('../utils/probabilityExportFilename');
 const { reportData, exportXlsx } = require('../services/probability/probabilityReport');
 const reference = require('../services/probability/data/workbook-reference.json');
 const { resolveProfileImportFormat } = require('../utils/profileImportFormat');
@@ -111,7 +112,7 @@ function createProbabilityRouter(deps = {}) {
   router.get('/calculations/:id', route(async (req, res) => res.json(withReport(await saved(req)))));
   async function sendXlsx(res, calculation) {
     if (!calculation.summary) throw new ProbabilityError('Исправьте или исключите блокирующие локусы перед экспортом.', 'CALCULATION_BLOCKED', 409);
-    res.type('application/vnd.openxmlformats-officedocument.spreadsheetml.sheet').attachment(`probability-${calculation.mode}.xlsx`).send(Buffer.from(await exportXlsx(calculation)));
+    res.type('application/vnd.openxmlformats-officedocument.spreadsheetml.sheet').attachment(probabilityExportFilename(calculation)).send(Buffer.from(await exportXlsx(calculation)));
   }
   router.get('/calculations/:id/export', route(async (req, res) => {
     const c = await saved(req);

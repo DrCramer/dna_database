@@ -50,7 +50,10 @@ test('Probability API: department scope, every profile, sealed TXT, immutable sa
   assert.equal(saved.status,'calculated');assert.equal(new Set(saved.participants.map(p=>p.sourceId)).size,3);
   assert.deepEqual(saved.rows.find(row=>row.locus==='D5S818').paternalAlleles,['11']);
   assert.deepEqual((await(await request('/calculations/'+saved.id)).json()).participants,saved.participants);
-  assert.equal((await request('/calculations/'+saved.id+'/export?format=xlsx')).status,200);
+  const frozenXlsx=await request('/calculations/'+saved.id+'/export?format=xlsx');assert.equal(frozenXlsx.status,200);
+  assert.equal(frozenXlsx.headers.get('content-disposition'),'attachment; filename="Probability_SYN-MOTHER_SYN-CHILD_SYN-FATHER.xlsx"');
+  const currentXlsx=await request('/export',input);assert.equal(currentXlsx.status,200);
+  assert.equal(currentXlsx.headers.get('content-disposition'),frozenXlsx.headers.get('content-disposition'));
  });
  let proof;
  await t.test('incomplete loci are off by default in calculate/save/report; forcing one still blocks export',async()=>{

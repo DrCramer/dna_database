@@ -7,6 +7,7 @@ import { reportPng, downloadBlob, reportView } from './probabilityPng';
 import { isProbabilityLocus } from '../../../../src/utils/probabilityLoci';
 import ProbabilityHelp from './ProbabilityMath';
 import ProbabilityReport from './ProbabilityReport';
+import { probabilityExportFilename } from '../../../../src/utils/probabilityExportFilename';
 import ProbabilitySources, { participantNames } from './ProbabilitySources';
 import { mergeTxtFiles, withoutTxtFile } from '../../../../src/utils/probabilitySampleLibrary';
 const roles = { IDENT: ['object'], TRIO: ['mother','child','father'] };
@@ -165,7 +166,7 @@ function Workspace({ departmentId }) {
         <button className="btn btn-primary" disabled={busy||!complete||!config||readOnly} onClick={()=>run(()=>compute())}>{busy?'Обработка…':'Рассчитать'}</button>
         <button className="btn btn-secondary" disabled={busy||!complete||readOnly||!config} onClick={()=>run(()=>compute(true))}>Сохранить</button>
         <button className="btn btn-secondary" disabled={!result?.report||busy} onClick={()=>run(()=>image())}>PNG</button>
-        <button className="btn btn-secondary" disabled={!result?.summary||busy} onClick={()=>run(async()=>{const response=readOnly?await request('/calculations/'+result.id+'/export?format=xlsx'):await request('/export',{method:'POST',body:JSON.stringify(payload())});downloadBlob(await response.blob(),`probability-${mode}.xlsx`);})}>Выгрузить в формате XLSX</button>
+        <button className="btn btn-secondary" disabled={!result?.summary||busy} onClick={()=>run(async()=>{const response=readOnly?await request('/calculations/'+result.id+'/export?format=xlsx'):await request('/export',{method:'POST',body:JSON.stringify(payload())});downloadBlob(await response.blob(),probabilityExportFilename(result));})}>Выгрузить в формате XLSX</button>
       </div>
       {result?.status==='blocked'&&<p className="probability-blocked" role="alert">Расчёт заблокирован: {result.blockedLoci.join(', ')}. Проверьте значения и статусы или явно исключите эти локусы.</p>}
       {result?.report?<>
