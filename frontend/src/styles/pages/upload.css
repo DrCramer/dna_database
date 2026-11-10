@@ -1518,3 +1518,10 @@
 .workspace-draft-status small { color: var(--text-muted); font-size: 11px; }
 .workspace-draft-warning { color: var(--status-warning); }
 .workspace-table [aria-invalid="true"] { border-color: var(--status-warning); background-color: var(--status-warning-bg); }
+
+.workspace-staff-mapping { display: flex; align-items: center; flex-wrap: wrap; gap: 12px; margin: 0 20px 16px; padding: 13px 15px; border: 1px solid var(--border-default); border-radius: var(--radius-md); background: var(--surface-card); }
+.workspace-staff-mapping > .workspace-icon { color: var(--brand-primary); }
+.workspace-staff-mapping > div { flex: 1; min-width: 200px; }
+.workspace-staff-mapping strong { font-size: 12px; font-weight: 600; }
+.workspace-staff-mapping p { font-size: 11px; line-height: 1.5; margin: 4px 0 0; color: var(--text-secondary); }
+@media (max-width: 760px) { .workspace-staff-mapping { margin-inline: 14px; } }

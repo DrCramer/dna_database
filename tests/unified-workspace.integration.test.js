@@ -235,25 +235,46 @@ test('Единый workspace: импорт, ревизии, поиск, gate, п
     assert.equal((await pool.query('SELECT count(*)::int n FROM master_array_profiles WHERE organization_id=$1 AND internal_number=$2', [org, 'SHARED-IDENTITY'])).rows[0].n, 1);
     assert.equal((await pool.query('SELECT count(*)::int n FROM workspace_publications WHERE workspace_profile_id=$1', [first.ids[0]])).rows[0].n, 2);
   });
-  await t.test('Изменение параметров сравнения инвалидирует готовность на сервере',async()=>{
-    const source=await load(admin,[profile('SETTINGS-REVISION')]);const run=await service.fullSearch(admin,source.ids,{});
-    await service.configureSearch(admin,{minMatches:14});
-    assert.equal((await service.list(admin)).profiles.find(p=>p.id===source.ids[0]).state,'STALE');
-    await assert.rejects(service.publish(admin,source.ids,run.id),/актуальный полный поиск/);
+  await t.test('Изменение параметров сравнения инвалидирует готовность на сервере', async () => {
+    const source = await load(admin, [profile('SETTINGS-REVISION')]);
+    const run = await service.fullSearch(admin, source.ids, {});
+    await service.configureSearch(admin, {
+      minMatches: 14
+    });
+    assert.equal((await service.list(admin)).profiles.find(p => p.id === source.ids[0]).state, 'STALE');
+    await assert.rejects(service.publish(admin, source.ids, run.id), /актуальный полный поиск/);
   });
-
-  await t.test('Отключение общего массива инвалидирует доказательство поиска',async()=>{
-    const source=await load(admin,[profile('ARRAY-REVISION')]);const run=await service.fullSearch(admin,source.ids,{});
-    await pool.query('UPDATE master_arrays SET is_active=false WHERE organization_id=$1 AND organization_default=true',[org]);
-    assert.equal((await service.list(admin)).profiles.find(p=>p.id===source.ids[0]).state,'STALE');
-    await assert.rejects(service.publish(admin,source.ids,run.id),/актуальный полный поиск/);
-    await pool.query('UPDATE master_arrays SET is_active=true WHERE organization_id=$1 AND organization_default=true',[org]);
+  await t.test('Отключение общего массива инвалидирует доказательство поиска', async () => {
+    const source = await load(admin, [profile('ARRAY-REVISION')]);
+    const run = await service.fullSearch(admin, source.ids, {});
+    await pool.query('UPDATE master_arrays SET is_active=false WHERE organization_id=$1 AND organization_default=true', [org]);
+    assert.equal((await service.list(admin)).profiles.find(p => p.id === source.ids[0]).state, 'STALE');
+    await assert.rejects(service.publish(admin, source.ids, run.id), /актуальный полный поиск/);
+    await pool.query('UPDATE master_arrays SET is_active=true WHERE organization_id=$1 AND organization_default=true', [org]);
   });
-
-  await t.test('Мониторинг сохранности не считает отсутствие справочного отдела ошибкой',async()=>{
-    const result=await require('../src/services/infrastructure/dataPersistenceService').verifyDataConsistency();
-    assert.notEqual(result.status,'failed',result.error);
-    assert(!result.checks.some(check=>['users_without_departments','departments_without_master_arrays','workspace_owner_mismatch'].includes(check.type)));
+  await t.test('Мониторинг сохранности не считает отсутствие справочного отдела ошибкой', async () => {
+    const result = await require('../src/services/infrastructure/dataPersistenceService').verifyDataConsistency();
+    assert.notEqual(result.status, 'failed', result.error);
+    assert(!result.checks.some(check => ['users_without_departments', 'departments_without_master_arrays', 'workspace_owner_mismatch'].includes(check.type)));
   });
-
+  await t.test('Старый черновик с Latin-1 именем файла читается корректно без перезаписи исходного генотипа', async () => {
+    const d = await service.createDraft(admin, [file([profile('FILENAME-LEGACY')])]);
+    const {
+      seal,
+      unseal
+    } = require('../src/services/workspace/workspaceCrypto');
+    const raw = (await pool.query('SELECT encrypted_payload FROM workspace_import_drafts WHERE id=$1', [d.id])).rows[0];
+    const payload = unseal(raw.encrypted_payload);
+    const garbled = Buffer.from('Сотрудники_2.xlsx', 'utf8').toString('latin1');
+    payload.rows[0].sourceFilename = garbled;
+    payload.rows[0].provenance.sourceFilename = garbled;
+    delete payload.rows[0].provenance.sourceFilenameDecoded;
+    await pool.query('UPDATE workspace_import_drafts SET encrypted_payload=$1 WHERE id=$2', [seal(payload), d.id]);
+    const loaded = await service.draft(admin, d.id);
+    assert.equal(loaded.rows[0].sourceFilename, 'Сотрудники_2.xlsx');
+    assert.equal(loaded.rows[0].provenance.originalUploadedFilename, garbled);
+    assert.deepEqual(loaded.rows[0].strData, payload.rows[0].strData);
+    const unchanged = unseal((await pool.query('SELECT encrypted_payload FROM workspace_import_drafts WHERE id=$1', [d.id])).rows[0].encrypted_payload);
+    assert.equal(unchanged.rows[0].sourceFilename, garbled);
+  });
 });

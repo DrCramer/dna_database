@@ -6,6 +6,7 @@ const { createHash } = require('node:crypto');
 function previewTxt(files) {
   if (!files.length) throw new ProbabilityError('Выберите TXT-файл.');
   return files.map(file => {
+    file = {...file,originalname:require('../../utils/uploadFilename').decodeUploadFilename(file.originalname)};
     const source = parseGeneMapperTxt(file.buffer, { filename: file.originalname });
     const fileId = createHash('sha256').update(file.buffer).digest('hex');
     return { fileId, filename: file.originalname, sampleTypeInferred: source.sampleTypeInferred, summary: source.summary, samples: source.samples.map(sample => {

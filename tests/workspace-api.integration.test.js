@@ -154,4 +154,66 @@ test('Workspace API: реальные сессии, роли, чужие UUID, l
     f.append('files', new Blob(['SYN']), 'unsupported.csv');
     assert.equal((await call('/api/workspace/import-drafts', 'admin', f)).status, 400);
   });
+  await t.test('Русский multipart filename и перенос ФИО сохраняются после reload без изменения генотипа', async () => {
+    const raw = createImportWorkbook({
+      profiles: [{
+        objectNumber: 'Тестов Т. Т.',
+        year: 2026,
+        expertiseType: 'staff',
+        strData: data
+      }],
+      loci: Object.keys(data),
+      sourceFormat: 'DNA_IMPORT_V2'
+    });
+    const f = new FormData();
+    f.append('files', new Blob([raw]), 'Сотрудники_2.xlsx');
+    const created = await call('/api/workspace/import-drafts', 'admin', f);
+    assert.equal(created.status, 200);
+    const d = await created.json();
+    assert.equal(d.rows[0].sourceFilename, 'Сотрудники_2.xlsx');
+    const {
+      transferStaffName
+    } = require('../src/utils/staffImportMapping');
+    const moved = transferStaffName(d.rows[0]);
+    const saved = await call('/api/workspace/import-drafts/' + d.id + '/rows', 'admin', {
+      revision: d.revision,
+      rows: [{
+        draftRowId: moved.draftRowId,
+        objectNumber: moved.objectNumber,
+        registrationNumber: moved.registrationNumber,
+        fullName: moved.fullName
+      }]
+    }, 'PATCH');
+    assert.equal(saved.status, 200);
+    const current = await saved.json();
+    const reloaded = await (await call('/api/workspace/import-drafts/' + d.id)).json();
+    assert.equal(reloaded.rows[0].fullName, 'Тестов Т. Т.');
+    assert.equal(reloaded.rows[0].objectNumber, '');
+    assert.deepEqual(reloaded.rows[0].strData, data);
+    assert.equal(reloaded.rows[0].provenance.staffNameTransfer.sourceObjectNumber, 'Тестов Т. Т.');
+    const validation = await (await call('/api/workspace/import-drafts/' + d.id + '/validate', 'admin', {
+      revision: current.revision
+    })).json();
+    assert.equal(validation.valid, false);
+    assert(validation.errors[0].issues.some(issue => issue.code === 'REGISTRATION'));
+    const invalid = await call('/api/workspace/import-drafts/' + d.id + '/commit', 'admin', {
+      revision: current.revision,
+      idempotencyKey: d.id
+    });
+    assert.equal(invalid.status, 400);
+    const repaired = await call('/api/workspace/import-drafts/' + d.id + '/rows', 'admin', {
+      revision: current.revision,
+      rows: [{
+        draftRowId: moved.draftRowId,
+        objectNumber: '00870-G',
+        registrationNumber: '00870-G'
+      }]
+    }, 'PATCH');
+    const ready = await repaired.json();
+    const commit = await call('/api/workspace/import-drafts/' + d.id + '/commit', 'admin', {
+      revision: ready.revision,
+      idempotencyKey: d.id
+    });
+    assert.equal(commit.status, 200);
+  });
 });

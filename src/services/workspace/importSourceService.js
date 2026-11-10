@@ -1,5 +1,8 @@
 const XLSX = require('xlsx');
 const {
+  decodeUploadFilename
+} = require('../../utils/uploadFilename');
+const {
   randomUUID,
   createHash
 } = require('node:crypto');
@@ -29,7 +32,14 @@ const {
 const sourceDetector = require('../converters/geneticSourceDetector');
 const detector = new LociTypeDetector();
 const text = v => String(v ?? '').trim();
-const metadataHeaders = new Set([...Object.values(FIELDS), 'Sample Name', 'Наименование образца', '№ Объекта', 'Sample Type', 'Year', 'Год исследования', 'Категория', 'Панель', 'Система', 'Эксперт', 'Место назначения', 'Географическое происхождение', 'Родственные связи', '№ Заключения эксперта', 'Статус проверки', 'ФИО (сотрудник/посетитель)', 'Место рождения', 'Занесение в реестр', 'Дата сдачи образца', 'Привоз'].map(v => String(v).trim().toLowerCase()));
+const fieldAliases = {
+  objectNumber: ['объект', '№ объекта', 'sample name', 'наименование образца'],
+  year: ['год', 'год исследования', 'year'],
+  expertiseType: ['тип экспертизы', 'категория'],
+  fullName: ['фио', 'ф.и.о.', 'фио сотрудника', 'ф.и.о. сотрудника', 'сотрудник', 'full name', 'employee name'],
+  registrationNumber: ['№ рег.', '№ рег', '№ регистрации', 'регистрационный номер', 'registration number', 'staff id']
+};
+const metadataHeaders = new Set([...Object.values(FIELDS), ...Object.values(fieldAliases).flat(), 'Sample Name', 'Наименование образца', '№ Объекта', 'Sample Type', 'Year', 'Год исследования', 'Категория', 'Панель', 'Система', 'Эксперт', 'Место назначения', 'Географическое происхождение', 'Родственные связи', '№ Заключения эксперта', 'Статус проверки', 'ФИО (сотрудник/посетитель)', 'Место рождения', 'Занесение в реестр', 'Дата сдачи образца', 'Привоз'].map(v => String(v).trim().toLowerCase()));
 const key = v => text(v).toLowerCase().replace(/\s+/g, ' ');
 function newRow(file, checksum, location, values = {}) {
   return {
@@ -50,6 +60,7 @@ function newRow(file, checksum, location, values = {}) {
     provenance: {
       checksum,
       sourceFilename: file.originalname,
+      sourceFilenameDecoded: true,
       location
     },
     ...values
@@ -67,11 +78,16 @@ function normalizedCell(raw, locus, row, decision) {
 function parseFiles(files) {
   const rows = [],
     checksums = [];
-  for (const file of files) {
+  for (const input of files) {
+    const file = {
+      ...input,
+      originalname: decodeUploadFilename(input.originalname)
+    };
     const checksum = createHash('sha256').update(file.buffer).digest('hex');
     checksums.push({
       checksum,
-      filename: file.originalname
+      filename: file.originalname,
+      filenameDecoded: true
     });
     if (/\.txt$/i.test(file.originalname)) {
       const parsed = parseGeneMapperTxt(file.buffer, {
@@ -187,36 +203,51 @@ function parseFiles(files) {
     });
     const unified = workbook.Custprops?.DNAProfileSourceFormat === FORMAT;
     const candidate = sourceDetector.headerCandidates(matrix)[0];
-    const explicit = matrix.findIndex(row => row.some(h => ['объект', '№ объекта', 'sample name', 'наименование образца'].includes(key(h))) && row.some(h => ['год', 'тип экспертизы'].includes(key(h))));
+    const explicit = matrix.findIndex(row => {
+      const names = row.map(key);
+      const hasObject = names.some(name => fieldAliases.objectNumber.includes(name));
+      const hasName = names.some(name => fieldAliases.fullName.includes(name));
+      const hasRegistration = names.some(name => fieldAliases.registrationNumber.includes(name));
+      const hasContext = names.some(name => [...fieldAliases.year, ...fieldAliases.expertiseType].includes(name));
+      const hasLoci = row.some(header => detector.getCanonicalLocusName(header));
+      return hasObject && (hasContext || hasLoci || hasName || hasRegistration) || (hasName || hasRegistration) && (hasContext || hasLoci || hasName && hasRegistration) || !candidate && names.filter(Boolean).length === 1 && hasName;
+    });
     const headerIndex = unified ? 0 : explicit >= 0 ? explicit : candidate ? candidate.row - 1 : -1;
     if (headerIndex < 0) throw Object.assign(new Error('Не найдена поддерживаемая таблица объектов. Используйте конвертер для выбора строки заголовков.'), {
       status: 400
     });
     const headers = matrix[headerIndex];
     const column = (...names) => headers.findIndex(h => names.includes(key(h)));
-    const objectIndex = column('объект', '№ объекта', 'sample name', 'наименование образца');
-    if (objectIndex < 0) throw Object.assign(new Error('Не найден полный номер объекта.'), {
+    const objectIndex = column(...fieldAliases.objectNumber);
+    if (objectIndex < 0 && column(...fieldAliases.fullName, ...fieldAliases.registrationNumber) < 0) throw Object.assign(new Error('Не найден полный номер объекта.'), {
       status: 400
     });
-    const fieldColumn = name => name === 'year' ? column('год', 'год исследования', 'year') : name === 'expertiseType' ? column('тип экспертизы', 'категория') : column(FIELDS[name].toLowerCase());
+    const fieldColumns = name => headers.map((header, index) => (fieldAliases[name] || [FIELDS[name].toLowerCase()]).includes(key(header)) ? index : -1).filter(index => index >= 0);
     for (let index = headerIndex + 1; index < matrix.length; index++) {
       const values = matrix[index];
       if (!values.some(v => text(v))) continue;
-      const get = name => text(values[fieldColumn(name)]);
+      const get = name => fieldColumns(name).map(column => text(values[column])).find(Boolean) || '';
+      const objectValue = objectIndex >= 0 ? text(values[objectIndex]) : get('registrationNumber');
       const row = newRow(file, checksum, {
         sheet: sheetName,
         row: index + 1
       }, {
-        objectNumber: text(values[objectIndex]),
-        sourceSampleName: text(values[objectIndex]),
+        objectNumber: objectValue,
+        sourceSampleName: objectValue || get('fullName'),
         year: get('year') ? Number(get('year')) : null,
         expertiseType: normalizeType(get('expertiseType')),
         fullName: get('fullName'),
         registrationNumber: get('registrationNumber') || null,
         comment: get('comment')
       });
+      for (const field of ['fullName', 'registrationNumber']) {
+        if (new Set(fieldColumns(field).map(column => text(values[column])).filter(Boolean)).size > 1) row.sourceIssues.push({
+          code: 'METADATA_COLUMN_CONFLICT',
+          message: `Различаются значения столбцов «${FIELDS[field]}». Проверьте исходный файл.`
+        });
+      }
       const sampleTypeIndex = column('sample type');
-      const classification = classifySample(row.objectNumber, [sampleTypeIndex >= 0 ? text(values[sampleTypeIndex]) : 'Sample']);
+      const classification = classifySample(row.objectNumber || row.fullName, [sampleTypeIndex >= 0 ? text(values[sampleTypeIndex]) : 'Sample']);
       row.provenance.classification = classification;
       if (!classification.included) {
         row.included = false;

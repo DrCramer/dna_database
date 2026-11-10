@@ -150,3 +150,68 @@ test('Повторная выгрузка provenance не вкладывает �
     assert(JSON.stringify(current.provenance).length < 3000);
   }
 });
+test('Staff XLSX columns map full names and registration aliases without an Object column', () => {
+  const book = XLSX.utils.book_new();
+  XLSX.utils.book_append_sheet(book, XLSX.utils.aoa_to_sheet([['ФИО сотрудника', 'Регистрационный номер', 'Год исследования', 'Категория', 'TH01', 'D21S11'], ['Тестов Т. Т.', '00870-G', 2026, 'Сотрудник', '7,9.3', '30,31']]), 'Сотрудники');
+  const filename = 'Сотрудники_2.xlsx';
+  const parsed = parseFiles([{
+    originalname: Buffer.from(filename, 'utf8').toString('latin1'),
+    buffer: XLSX.write(book, {
+      type: 'buffer',
+      bookType: 'xlsx'
+    })
+  }]);
+  const row = parsed.rows[0];
+  assert.equal(row.objectNumber, '00870-G');
+  assert.equal(row.registrationNumber, '00870-G');
+  assert.equal(row.fullName, 'Тестов Т. Т.');
+  assert.equal(row.expertiseType, 'staff');
+  assert.equal(row.sourceFilename, filename);
+  assert.equal(parsed.checksums[0].filename, filename);
+  assert.deepEqual(row.strData.TH01, ['7', '9.3']);
+  assert.deepEqual(row.sourceIssues, []);
+  assert.deepEqual(validateObject(row), []);
+});
+test('Name-only staff source stays unclassified and without an invented registration', () => {
+  const book = XLSX.utils.book_new();
+  XLSX.utils.book_append_sheet(book, XLSX.utils.aoa_to_sheet([['ФИО сотрудника', 'TH01'], ['Тестова Т. Т.', '7,7']]), 'Лист');
+  const row = parseFiles([{
+    originalname: 'SYN.xlsx',
+    buffer: XLSX.write(book, {
+      type: 'buffer',
+      bookType: 'xlsx'
+    })
+  }]).rows[0];
+  assert.equal(row.fullName, 'Тестова Т. Т.');
+  assert.equal(row.objectNumber, '');
+  assert.equal(row.expertiseType, null);
+  assert.deepEqual(row.strData.TH01, ['7', '7']);
+  assert.equal(row.sourceIssues.length, 0);
+});
+test('Conflicting staff name columns remain a visible error; names in Object are not moved silently', () => {
+  const book = XLSX.utils.book_new();
+  XLSX.utils.book_append_sheet(book, XLSX.utils.aoa_to_sheet([['Объект', 'Год', 'Тип экспертизы', 'ФИО', 'ФИО сотрудника', 'TH01'], ['Тестов Т. Т.', 2026, 'staff', 'Один О. О.', 'Другой Д. Д.', '7,7']]), 'Лист');
+  const row = parseFiles([{
+    originalname: 'SYN.xlsx',
+    buffer: XLSX.write(book, {
+      type: 'buffer',
+      bookType: 'xlsx'
+    })
+  }]).rows[0];
+  assert.equal(row.objectNumber, 'Тестов Т. Т.');
+  assert(row.sourceIssues.some(issue => issue.code === 'METADATA_COLUMN_CONFLICT'));
+  assert.equal(row.provenance.sourceObjectNumber, 'Тестов Т. Т.');
+});
+test('Controls in name-only staff tables are not enabled by changing expertise type', () => {
+  const book = XLSX.utils.book_new();
+  XLSX.utils.book_append_sheet(book, XLSX.utils.aoa_to_sheet([['ФИО сотрудника', 'TH01'], ['PC', '7,7']]), 'Лист');
+  const row = parseFiles([{
+    originalname: 'SYN.xlsx',
+    buffer: XLSX.write(book, {
+      type: 'buffer',
+      bookType: 'xlsx'
+    })
+  }]).rows[0];
+  assert.equal(row.included, false);
+  assert(row.sourceIssues.some(issue => issue.code === 'CONTROL'));
+});

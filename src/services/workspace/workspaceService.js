@@ -1,4 +1,8 @@
 const {
+  normalizeStoredImportFilename,
+  decodeUploadFilename
+} = require('../../utils/uploadFilename');
+const {
   randomUUID
 } = require('node:crypto');
 const {
@@ -26,7 +30,9 @@ const err = (message, status = 400, code = 'WORKSPACE_INVALID', details) => Obje
   code,
   details
 });
-const { WORKSPACE_WRITE_ROLES: WRITE_ROLES } = require('../../utils/objectTypes');
+const {
+  WORKSPACE_WRITE_ROLES: WRITE_ROLES
+} = require('../../utils/objectTypes');
 function requireUser(user, write = false) {
   if (!user?.id || !user.organization_id || user.is_active === false || ![...WRITE_ROLES, 'viewer'].includes(user.role)) throw err('Нет организационного контекста.', 403);
   if (write && !WRITE_ROLES.includes(user.role)) throw err('Нет права изменения личного массива.', 403);
@@ -162,9 +168,16 @@ class WorkspaceService {
     if (!rows.length) throw err('Черновик недоступен.', 404);
     const draft = rows[0];
     if (new Date(draft.expires_at) < new Date() && !draft.committed_at) throw err('Срок черновика истёк. Загрузите исходные файлы снова.', 410);
+    const payload = unseal(draft.encrypted_payload);
     return {
       ...draft,
-      ...unseal(draft.encrypted_payload)
+      ...payload,
+      rows: payload.rows.map(normalizeStoredImportFilename),
+      source_checksums: draft.source_checksums.map(source => source.filenameDecoded ? source : {
+        ...source,
+        filename: decodeUploadFilename(source.filename),
+        filenameDecoded: true
+      })
     };
   }
   async patchDraft(user, id, revision, patches) {
@@ -191,6 +204,14 @@ class WorkspaceService {
             };
             row.sourceIssues = row.sourceIssues.filter(issue => issue.locus !== locus);
           }
+        }
+        if ((patch.expertiseType || row.expertiseType) === 'staff' && patch.fullName && patch.fullName === row.objectNumber && Object.hasOwn(patch, 'objectNumber') && patch.objectNumber !== row.objectNumber) {
+          row.provenance.staffNameTransfer = {
+            sourceObjectNumber: row.objectNumber,
+            fullName: patch.fullName,
+            confirmedBy: user.id,
+            confirmedAt: new Date().toISOString()
+          };
         }
         Object.assign(row, Object.fromEntries(Object.entries(patch).filter(([key]) => key !== 'draftRowId')));
       }
