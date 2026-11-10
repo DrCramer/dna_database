@@ -109,7 +109,8 @@ export default function WorkspacePage({
           setDraft(d);
           setRows(d.rows);
           initial.current = d.rows;
-          commitKey.current = localStorage.getItem(storageKey + ':commitKey') || crypto.randomUUID();
+          // UUID черновика уже создан сервером; ключ повтора работает и по обычному HTTP.
+          commitKey.current = localStorage.getItem(storageKey + ':commitKey') || d.id;
           localStorage.setItem(storageKey + ':commitKey', commitKey.current);
         }
       }).catch(e => {
@@ -198,7 +199,7 @@ export default function WorkspacePage({
       setRows(d.rows);
       initial.current = d.rows;
       localStorage.setItem(storageKey, d.id);
-      commitKey.current = localStorage.getItem(storageKey + ':commitKey') || crypto.randomUUID();
+      commitKey.current = localStorage.getItem(storageKey + ':commitKey') || d.id;
       localStorage.setItem(storageKey + ':commitKey', commitKey.current);
       setValidation(null);
       setUndo(null);

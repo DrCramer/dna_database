@@ -100,7 +100,8 @@ test('Единый workspace: импорт, ревизии, поиск, gate, п
     }]);
     assert.equal(changed.revision, 2);
     assert.equal((await service.validateDraft(analyst, draft.id, 2)).valid, true);
-    const key = randomUUID(),
+    // Клиент использует UUID черновика без зависимости от Web Crypto в HTTP-браузере.
+    const key = draft.id,
       result = await service.commitDraft(analyst, draft.id, 2, key);
     ids = result.ids;
     assert.equal(ids.length, 3);
