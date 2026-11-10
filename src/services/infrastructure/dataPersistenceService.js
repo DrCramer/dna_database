@@ -351,6 +351,8 @@ class DataPersistenceService {
                     });
                 }
 
+                const workspaceMode = require('../workspace/workspaceMode').workspaceModeEnabled();
+                if (!workspaceMode) {
                 // Check for departments without master arrays
                 const departmentsWithoutMasterArrays = await query(`
                     SELECT d.id, d.name 
@@ -381,6 +383,14 @@ class DataPersistenceService {
                         count: usersWithoutDepartments.rows.length,
                         severity: 'warning'
                     });
+                }
+
+                } else {
+                    // Departments are optional in the unified model; verify its actual boundaries.
+                    const invalidUsers = await query(`SELECT count(*)::int count FROM users u LEFT JOIN organizations o ON o.id=u.organization_id WHERE u.is_active=true AND o.id IS NULL`);
+                    if (invalidUsers.rows[0].count) checks.push({type:'users_without_organizations',count:invalidUsers.rows[0].count,severity:'warning'});
+                    const invalidProfiles = await query(`SELECT count(*)::int count FROM dna_profiles p LEFT JOIN personal_workspaces w ON w.id=p.workspace_id WHERE p.workspace_id IS NOT NULL AND (w.id IS NULL OR p.organization_id IS DISTINCT FROM w.organization_id OR p.user_id IS DISTINCT FROM w.owner_id OR p.task_id IS NOT NULL)`);
+                    if (invalidProfiles.rows[0].count) checks.push({type:'workspace_owner_mismatch',count:invalidProfiles.rows[0].count,severity:'error'});
                 }
 
                 // Check for profiles with users from different departments (if needed)

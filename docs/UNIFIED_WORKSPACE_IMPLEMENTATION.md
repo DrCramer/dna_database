@@ -53,6 +53,7 @@ Read-only preflight PostgreSQL 15.19: 6165 dna_profiles (43 без года),
 | `workspaceLegacyBridge.js`, AccessPolicyService, routes staff/tasks/auth/users | Совместимое разрешённое чтение и закрытие старых путей записи |
 | `frontend/src/components/Workspace/`, `Admin/MigrationExportPage.js` | Единая таблица загрузки/анализа, checkbox/filter/sort/bulk/undo, исправления черновика, поиск и публикация |
 | ProbabilitySources/Store/routes, GenotypePanel/AlleleReferenceSet | Контекст организации без обязательного отдела; формулы и UUID справочников сохранены |
+| `dataPersistenceService.js` | В новом режиме проверяет организацию и workspace owner вместо обязательного отдела |
 | `scripts/workspace-preflight.js`, `workspace-cutover.sh` | Агрегатный preflight, защищённые копии и только явное согласованное переключение |
 
 Черновик хранится зашифрованно 24 часа, правки автоматически сохраняются с CAS.
@@ -91,9 +92,9 @@ legacy approve/bulk-import и внутренний прямой INSERT не за
 | Проверка | Результат |
 | --- | --- |
 | `npm run check:ui` | 42 CSS, 2989 селекторов, 72 анимации; пройдено |
-| `npm run check:imports` | 343 JS, 1140 относительных импортов; пройдено |
+| `npm run check:imports` | 343 JS, 1141 относительных импортов; пройдено |
 | `npm test` | 329 passed, 15 integration suite skips без отдельных DATABASE_URL, 0 failed |
-| Новые реальные PostgreSQL/API suites | 27 passed, 0 failed: workspace, HTTP/auth и миграционный экспорт |
+| Новые реальные PostgreSQL/API suites | 28 passed, 0 failed: workspace, HTTP/auth и миграционный экспорт |
 | Старые integration suites на новой схеме в legacy mode | 94 passed, 1 skipped; 11 наборов, включая импорт/Probability/DNAEXCEL scopes/экспорт/права/установку |
 | Выборка 10005 строк | 2 XLSX, все строки прочитаны обратно, спецтокены/одиночные/повторы сохранены |
 | Потоковое скачивание | ZIP читается, временные части удаляются после завершения и отмены |

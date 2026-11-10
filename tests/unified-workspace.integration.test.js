@@ -249,4 +249,10 @@ test('Единый workspace: импорт, ревизии, поиск, gate, п
     await pool.query('UPDATE master_arrays SET is_active=true WHERE organization_id=$1 AND organization_default=true',[org]);
   });
 
+  await t.test('Мониторинг сохранности не считает отсутствие справочного отдела ошибкой',async()=>{
+    const result=await require('../src/services/infrastructure/dataPersistenceService').verifyDataConsistency();
+    assert.notEqual(result.status,'failed',result.error);
+    assert(!result.checks.some(check=>['users_without_departments','departments_without_master_arrays','workspace_owner_mismatch'].includes(check.type)));
+  });
+
 });
