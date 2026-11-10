@@ -92,7 +92,7 @@ legacy approve/bulk-import и внутренний прямой INSERT не за
 | Проверка | Результат |
 | --- | --- |
 | `npm run check:ui` | 42 CSS, 2989 селекторов, 72 анимации; пройдено |
-| `npm run check:imports` | 343 JS, 1141 относительных импортов; пройдено |
+| `npm run check:imports` | 343 JS, 1142 относительных импортов; пройдено |
 | `npm test` | 329 passed, 15 integration suite skips без отдельных DATABASE_URL, 0 failed |
 | Новые реальные PostgreSQL/API suites | 28 passed, 0 failed: workspace, HTTP/auth и миграционный экспорт |
 | Старые integration suites на новой схеме в legacy mode | 94 passed, 1 skipped; 11 наборов, включая импорт/Probability/DNAEXCEL scopes/экспорт/права/установку |
@@ -102,12 +102,15 @@ legacy approve/bulk-import и внутренний прямой INSERT не за
 | Восстановление pre-migration dump в другую БД | Контрольная сумма совпадает, новой схемы там нет |
 | Чистая схема и повторное применение 037 | Пройдено |
 | `npm run build`, Dockerfile checks/test/build | Пройдено; остаются 2 предупреждения webpack о размере bundle |
-| Изолированный Docker API | Health/readiness, вход без отдела, импорт, три этапа, пустой профиль и публикация пройдены |
+| Изолированный Docker API | Health/readiness/persistence: HTTP 200; вход без отдела, импорт, три этапа, пустой профиль и публикация пройдены |
 | Несогласованные DB/env flags | Старт отвергается до запуска фоновых задач |
 
 NGS integration skip относится к недоступному внешнему образцу ASTR+, не к сбою
 синтетических NGS/unit тестов. Стандартный npm test не запускает реальные
 интеграции без явно заданных безопасных адресов; они выполнены отдельно.
+В Docker build context проверено 342 JS / 1140 импортов: автономный
+`probability-workbook-fixtures.js` намеренно исключён действующим .dockerignore.
+
 При регрессии был найден конфликт deferred-trigger с CREATE INDEX в старой
 миграции 029. Триггер ограничен действительно анализируемыми изменениями;
 повторный полный genetic-import набор на окончательной схеме: 29/29.
