@@ -3,6 +3,7 @@ import React, { useState } from 'react';
 import { useAuth } from '../../contexts/AuthContext';
 import { resolveProfileImportFormat } from '../../../../src/utils/profileImportFormat';
 import { getProfileUploadBlockReason } from '../../../../src/utils/profileUploadPermissions';
+import { profileUploadError } from '../../../../src/utils/profileUploadError';
 
 
 // Функция склонения слова "профиль"
@@ -286,37 +287,16 @@ const FileUploader = ({ onNavigate, onUploadSuccess, selectedActiveTask, onSelec
 
       if (!previewResponse.ok) {
         const errorText = await previewResponse.text();
-        console.error('Preview error response:', errorText);
+        console.error('Preview failed:', previewResponse.status);
 
         if (previewResponse.status === 401) {
-          throw new Error('Authentication failed. Please login again.');
+          throw new Error('Ошибка авторизации. Войдите в систему повторно.');
         }
 
         try {
           const errorData = JSON.parse(errorText);
 
-          // Обработка специфичных ошибок с понятными сообщениями
-          if (errorData.code === 'INTERNAL_DUPLICATES' && errorData.details?.internalDuplicates) {
-            const duplicates = errorData.details.internalDuplicates;
-            let message = `❌ Обнаружены дубликаты внутри файла!\n\n`;
-            message += `Найдено ${duplicates.length} повторяющихся образцов:\n\n`;
-
-            duplicates.forEach((dup, index) => {
-              message += `${index + 1}. Образец: ${dup.sampleName || 'N/A'}\n`;
-              if (!isGenetic) {
-                message += `   Внутренний номер: ${dup.internalNumber || dup.key || 'N/A'}\n`;
-                message += `   Год: ${dup.year || 'N/A'}\n`;
-              }
-              message += `   Первое упоминание: строка ${dup.firstRow}\n`;
-              message += `   Повторяется в строке: ${dup.duplicateRow}\n\n`;
-            });
-
-            message += `\n📝 Пожалуйста, исправьте дубликаты в файле Excel и попробуйте загрузить снова.`;
-            throw new Error(message);
-          }
-
-          const rowErrors = errorData.details?.validationErrors;
-          throw new Error(rowErrors?.length ? rowErrors.map(item => item.message).join('\n') : (errorData.message || 'Ошибка при проверке файла'));
+          throw profileUploadError(errorData, 'Ошибка при проверке файла');
         } catch (parseError) {
           // Если не удалось распарсить JSON, показываем как есть
           if (parseError instanceof SyntaxError) throw new Error('Сервер вернул некорректный ответ при проверке файла.');
@@ -359,7 +339,7 @@ const FileUploader = ({ onNavigate, onUploadSuccess, selectedActiveTask, onSelec
       await performActualUpload(token, formData);
 
     } catch (err) {
-      console.error('Upload error:', err);
+      console.error('Upload error:', err.code || 'UPLOAD_FAILED');
 
       // Сбрасываем выбранный файл при любой ошибке
       setFile(null);
@@ -367,7 +347,7 @@ const FileUploader = ({ onNavigate, onUploadSuccess, selectedActiveTask, onSelec
         fileInputRef.current.value = '';
       }
 
-      setError(err.message || 'Не удалось загрузить файл. Повторите попытку.');
+      setError(profileUploadError(err, 'Не удалось загрузить файл. Повторите попытку.'));
       setUploading(false);
       setShowDnaLoading(false);
     }
@@ -397,7 +377,7 @@ const FileUploader = ({ onNavigate, onUploadSuccess, selectedActiveTask, onSelec
 
       if (!response.ok) {
         const errorText = await response.text();
-        console.error('Server error response:', errorText);
+        console.error('Upload failed:', response.status);
 
         // Handle 401 Unauthorized with detailed token checking
         if (response.status === 401) {
@@ -428,28 +408,10 @@ const FileUploader = ({ onNavigate, onUploadSuccess, selectedActiveTask, onSelec
           errorData = JSON.parse(errorText);
         } catch (parseError) {
           // If not JSON, use the text as error message
-          throw new Error(`Server error (${response.status}): ${errorText}`);
+          throw new Error(`Сервер вернул некорректный ответ при загрузке файла (HTTP ${response.status}).`);
         }
 
-        // Handle validation errors specially
-        if (errorData.code === 'VALIDATION_FAILED' && errorData.validation) {
-          const validationError = new Error(errorData.message || 'File validation failed');
-          validationError.validation = errorData.validation;
-          validationError.code = 'VALIDATION_FAILED';
-          throw validationError;
-        }
-
-        // Handle Excel parsing errors
-        if (errorData.error === 'Excel parsing failed' || errorData.code) {
-          const parsingError = new Error(errorData.message || 'Excel parsing failed');
-          parsingError.code = errorData.code;
-          parsingError.details = errorData.details;
-          parsingError.isExcelError = true;
-          throw parsingError;
-        }
-
-        // Handle other errors
-        throw new Error(`Server error (${response.status}): ${errorData.message || errorText}`);
+        throw profileUploadError(errorData, `Ошибка загрузки файла (HTTP ${response.status}).`);
       }
 
       // Update progress: saving to database
@@ -457,12 +419,10 @@ const FileUploader = ({ onNavigate, onUploadSuccess, selectedActiveTask, onSelec
 
       const result = await response.json();
 
-      window.lastUploadResult = result; // Сохраняем для отладки (можно удалить в продакшене)
-
       await completePerformActualUpload(result);
 
     } catch (err) {
-      console.error('Actual upload error:', err);
+      console.error('Actual upload error:', err.code || 'UPLOAD_FAILED');
       throw err; // Пробрасываем ошибку выше
     } finally {
       setUploading(false);
@@ -524,8 +484,8 @@ const FileUploader = ({ onNavigate, onUploadSuccess, selectedActiveTask, onSelec
       await performActualUpload(token, formData);
 
     } catch (err) {
-      console.error('Replace confirmation error:', err);
-      setError(err.message || 'Не удалось загрузить файл с заменой');
+      console.error('Replace confirmation error:', err.code || 'UPLOAD_FAILED');
+      setError(profileUploadError(err, 'Не удалось загрузить файл с заменой'));
       setUploading(false);
       setShowDnaLoading(false);
     }
@@ -563,8 +523,8 @@ const FileUploader = ({ onNavigate, onUploadSuccess, selectedActiveTask, onSelec
       await performActualUpload(token, formData);
 
     } catch (err) {
-      console.error('Load as new error:', err);
-      setError(err.message || 'Не удалось загрузить профили как новые');
+      console.error('Load as new error:', err.code || 'UPLOAD_FAILED');
+      setError(profileUploadError(err, 'Не удалось загрузить профили как новые'));
       setUploading(false);
       setShowDnaLoading(false);
     }
@@ -621,7 +581,7 @@ const FileUploader = ({ onNavigate, onUploadSuccess, selectedActiveTask, onSelec
 
         {/* Error Display */}
         {error && (
-          <div className="error-alert">
+          <div className="error-alert" role="alert">
             <div className="error-header">
               <div className="error-icon">❌</div>
               <h3 className="error-title upload-error-title">
@@ -631,7 +591,7 @@ const FileUploader = ({ onNavigate, onUploadSuccess, selectedActiveTask, onSelec
 
             {/* Display multiple validation errors */}
             {error.validationErrors && error.validationErrors.length > 0 && (
-              <details className="validation-errors-details upload-detail-block">
+              <details className="validation-errors-details upload-detail-block" open>
                 <summary className="upload-detail-summary">
                   Показать все ошибки ({error.errorCount})
                 </summary>
@@ -639,7 +599,7 @@ const FileUploader = ({ onNavigate, onUploadSuccess, selectedActiveTask, onSelec
                   {error.validationErrors.map((validationError, index) => (
                     <div key={index} className="upload-detail-item upload-detail-item-danger">
                       <div className="upload-detail-item-title">
-                        Строка {validationError.rowNumber}
+                        {validationError.rowNumber ? `Строка ${validationError.rowNumber}` : 'Ошибка данных'}
                       </div>
                       <div className="upload-detail-item-text">
                         {validationError.message}
@@ -730,10 +690,13 @@ const FileUploader = ({ onNavigate, onUploadSuccess, selectedActiveTask, onSelec
                       <h4 className="error-section-title">
                         Найденные ошибки ({error.validation.errors.length})
                       </h4>
-                      <ul className="error-list">
-                        {error.validation.errors.slice(0, 10).map((err, index) => (
+                      <ul className="error-list upload-detail-content">
+                        {error.validation.errors.map((err, index) => (
                           <li key={index} className="error-item">
                             {err.message}
+                            {err.details?.suggestion && <div className="upload-detail-item-meta">{err.type === 'filename' ? 'Переименуйте файл: ' : 'Подсказка: '}<strong>{err.details.suggestion}</strong></div>}
+                            {!err.details?.cellAddress && (err.details?.rowNumber || err.details?.row) && <span className="upload-muted-inline"> (строка {err.details.rowNumber || err.details.row})</span>}
+                            {err.details?.description && <div className="upload-detail-item-meta">{err.details.description}</div>}
                             {err.details?.cellAddress && (
                               <span className="upload-muted-inline">
                                 {' '}(ячейка {err.details.cellAddress})
@@ -741,11 +704,7 @@ const FileUploader = ({ onNavigate, onUploadSuccess, selectedActiveTask, onSelec
                             )}
                           </li>
                         ))}
-                        {error.validation.errors.length > 10 && (
-                          <li className="error-item upload-list-tail">
-                            ... и еще {error.validation.errors.length - 10} ошибок
-                          </li>
-                        )}
+
                       </ul>
                     </div>
                   )}
@@ -753,20 +712,17 @@ const FileUploader = ({ onNavigate, onUploadSuccess, selectedActiveTask, onSelec
                   {/* Show warnings */}
                   {error.validation.warnings && error.validation.warnings.length > 0 && (
                     <div className="warning-section">
+                      <p>Предупреждения не блокируют загрузку.</p>
                       <h4 className="warning-title">
                         Предупреждения ({error.validation.warnings.length})
                       </h4>
-                      <ul className="warning-list">
-                        {error.validation.warnings.slice(0, 5).map((warn, index) => (
+                      <ul className="warning-list upload-detail-content">
+                        {error.validation.warnings.map((warn, index) => (
                           <li key={index} className="warning-item">
                             {warn.message}
                           </li>
                         ))}
-                        {error.validation.warnings.length > 5 && (
-                          <li className="warning-item upload-list-tail">
-                            ... и еще {error.validation.warnings.length - 5} предупреждений
-                          </li>
-                        )}
+
                       </ul>
                     </div>
                   )}

@@ -43,7 +43,8 @@ const EMERGENCY_REQUIRED_COLUMNS = {
     type: 'string', 
     // УБРАЛИ ПАТТЕРН - номера могут содержать любые символы
     description: 'Номер в/ч (любой формат)' 
-  }
+  },
+  'Год': { required: false, type: 'string', description: 'Год исследования' },
 };
 
 /**
@@ -226,7 +227,7 @@ class FileValidationService {
       const validationHeaders = expertiseType === EXPERTISE_TYPES.EMERGENCY ? headers.map(header => {
         const name = String(header || '').trim().toLowerCase();
         if (name === 'наименование образца') return 'Sample Name';
-        if (name.startsWith('присвоенный в в/ч')) return Object.keys(this.emergencyColumns)[2];
+        if (name.startsWith('присвоенный в в/ч')) return '№ присвоенный в в/ч № 522 ЦПООП Северо-Кавказского военного округа, г. Ростов-на-Дону';
         return header;
       }) : headers;
       // Валидация заголовков
