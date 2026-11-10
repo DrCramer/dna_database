@@ -5,7 +5,8 @@ function canTransferStaffName(row) {
 }
 function transferStaffName(row) {
   if (!canTransferStaffName(row)) return row;
-  const registration = /^\d+-G$/.test(row.registrationNumber || '') ? row.registrationNumber : '';
+  // Keep an explicitly supplied value even if it still needs format correction.
+  const registration = row.registrationNumber || '';
   return {
     ...row,
     fullName: row.objectNumber,

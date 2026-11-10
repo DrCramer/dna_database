@@ -155,16 +155,12 @@ test('Workspace API: реальные сессии, роли, чужие UUID, l
     assert.equal((await call('/api/workspace/import-drafts', 'admin', f)).status, 400);
   });
   await t.test('Русский multipart filename и перенос ФИО сохраняются после reload без изменения генотипа', async () => {
-    const raw = createImportWorkbook({
-      profiles: [{
-        objectNumber: 'Тестов Т. Т.',
-        year: 2026,
-        expertiseType: 'staff',
-        strData: data
-      }],
-      loci: Object.keys(data),
-      sourceFormat: 'DNA_IMPORT_V2'
-    });
+    const XLSX = require('xlsx'), book = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(book,XLSX.utils.aoa_to_sheet([
+      ['Объект','Год','Тип экспертизы',...Object.keys(data)],
+      ['Тестов Т. Т.',2026,'Сотрудник',...Object.values(data).map(alleles=>alleles.join(','))]
+    ]),'Сотрудники');
+    const raw = XLSX.write(book,{type:'buffer',bookType:'xlsx'});
     const f = new FormData();
     f.append('files', new Blob([raw]), 'Сотрудники_2.xlsx');
     const created = await call('/api/workspace/import-drafts', 'admin', f);

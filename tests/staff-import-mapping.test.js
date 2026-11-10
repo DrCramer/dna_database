@@ -64,6 +64,8 @@ test('Staff name transfer preserves source and alleles; registration is never in
     ...row,
     registrationNumber: '00870-G'
   }).objectNumber, '00870-G');
+  assert.equal(transferStaffName({...row,registrationNumber:'00870-g'}).objectNumber,'00870-g');
+  assert.equal(transferStaffName({...row,registrationNumber:'старый номер'}).registrationNumber,'старый номер');
   for (const value of [{
     ...row,
     fullName: 'Уже заполнено'
