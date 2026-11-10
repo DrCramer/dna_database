@@ -48,26 +48,20 @@ function release() {
   else busy = false;
 }
 
-async function executeSearchWorkers({ operation, input, referenceCount, comparisonCount, signal, useWorkers = true, minParallelComparisons = 10000, runSequential }) {
-  if (!useWorkers || !referenceCount || !comparisonCount || referenceCount * comparisonCount < minParallelComparisons) {
-    if (signal?.aborted) throw signal.reason;
-    return { ...runSequential(), mode: 'single-threaded-optimized', workerCount: 0 };
-  }
+// Shared budget for duplicate search and staff analysis: never multiply the CPU
+// limit by the number of concurrent users or analysis stages.
+async function executeWorkerRanges({ workerPath, count, createInput, signal }) {
   const unlock = await acquire(signal);
   const workers = [];
-  const count = Math.min(workerLimit(), referenceCount);
   const abort = () => workers.forEach(worker => worker.terminate());
   signal?.addEventListener('abort', abort, { once: true });
   try {
     if (signal?.aborted) throw signal.reason;
     const ranges = await Promise.all(Array.from({ length: count }, (_, index) => new Promise((resolve, reject) => {
-      const startIndex = Math.floor(index * referenceCount / count);
-      const endIndex = Math.floor((index + 1) * referenceCount / count);
-      const worker = new Worker(path.join(__dirname, '../../workers/profileSearchWorker.js'), {
-        workerData: {
-          operation,
-          input: { ...input, referenceProfiles: input.referenceProfiles.slice(startIndex, endIndex) }
-        }
+      const worker = new Worker(workerPath, {
+        workerData: createInput(index, count),
+        env: { NODE_ENV: process.env.NODE_ENV || 'production', LOG_LEVEL: process.env.LOG_LEVEL || 'info' },
+        resourceLimits: { maxOldGenerationSizeMb: 256 }
       });
       workers.push(worker);
       worker.once('message', resolve);
@@ -75,11 +69,7 @@ async function executeSearchWorkers({ operation, input, referenceCount, comparis
       worker.once('exit', code => reject(signal?.aborted ? signal.reason : new Error(`Search worker exited before a result (${code})`)));
     })));
     if (signal?.aborted) throw signal.reason;
-    return {
-      results: ranges.flatMap(range => range.results),
-      comparisons: ranges.reduce((sum, range) => sum + range.comparisons, 0),
-      mode: 'multi-threaded', workerCount: workers.length
-    };
+    return ranges;
   } finally {
     signal?.removeEventListener('abort', abort);
     await Promise.allSettled(workers.map(worker => worker.terminate()));
@@ -87,17 +77,58 @@ async function executeSearchWorkers({ operation, input, referenceCount, comparis
   }
 }
 
-async function runProfileSearch(input, { signal, useWorkers = true, minParallelComparisons = 10000 } = {}) {
-  const { compareTaskProfiles, compareDepartmentProfiles } = require('./taskComparisonService');
-  const operation = input.searchMode === 'department_tasks' ? 'department' : 'task';
-  return executeSearchWorkers({
-    operation, input, signal, useWorkers, minParallelComparisons,
-    referenceCount: input.referenceProfiles.length, comparisonCount: input.compareProfiles.length,
-    runSequential: () => (operation === 'department' ? compareDepartmentProfiles : compareTaskProfiles)(input)
-  });
+function partitionPlan(referenceCount, comparisonCount) {
+  // One reference against a large array must also use more than one CPU.
+  const axis = referenceCount === 1 ? 'comparisons' : 'references';
+  const length = axis === 'references' ? referenceCount : comparisonCount;
+  return { axis, count: Math.min(workerLimit(), length), length };
+}
+function rangeBounds(index, count, length) {
+  return [Math.floor(index * length / count), Math.floor((index + 1) * length / count)];
+}
+function searchProfile(profile) {
+  // No imported Excel provenance, ciphertext, user records or DB connections in workers.
+  const keys = ['id', 'sample_name', 'internal_number', 'import_number', 'year', 'str_data',
+    'source', 'task_id', 'task_name', 'task_owner', 'panel'];
+  const result = Object.fromEntries(keys.map(key => [key, profile[key]]));
+  if (profile.metadata?.panelLociOrder) result.metadata = { panelLociOrder: profile.metadata.panelLociOrder };
+  return result;
+}
+function mergeComparisonRanges(ranges, operation, algorithm) {
+  const groups = ranges.flatMap(range => range.results);
+  if (!groups.length) return [];
+  const matches = groups.flatMap(group => group.exportMatches || group.matches);
+  matches.sort(operation === 'department'
+    ? (a, b) => ['contamination', 'duplicate_v5'].includes(algorithm) ? b.score - a.score : b.matchingLoci - a.matchingLoci
+    : (a, b) => b.matchCount - a.matchCount);
+  return operation === 'department' ? [{ reference: groups[0].reference, matches }]
+    : [{ reference: groups[0].reference, matches: matches.slice(0, 100), exportMatches: matches,
+      matchCount: matches.length, displayedCount: Math.min(matches.length, 100) }];
 }
 
-async function runProfileSearchForRequest(req, res, input) {
+async function runProfileSearch(input, { signal, useWorkers = true, minParallelComparisons = 2000 } = {}) {
+  const { compareTaskProfiles, compareDepartmentProfiles } = require('./taskComparisonService');
+  const operation = input.searchMode === 'department_tasks' ? 'department' : 'task';
+  const referenceCount = input.referenceProfiles.length, comparisonCount = input.compareProfiles.length;
+  if (!useWorkers || !referenceCount || !comparisonCount || referenceCount * comparisonCount < minParallelComparisons) {
+    if (signal?.aborted) throw signal.reason;
+    return { ...(operation === 'department' ? compareDepartmentProfiles : compareTaskProfiles)(input), mode: 'single-threaded-optimized', workerCount: 0 };
+  }
+  const plan = partitionPlan(referenceCount, comparisonCount);
+  const compact = { ...input, referenceProfiles: input.referenceProfiles.map(searchProfile), compareProfiles: input.compareProfiles.map(searchProfile) };
+  const ranges = await executeWorkerRanges({
+    workerPath: path.join(__dirname, '../../workers/profileSearchWorker.js'), count: plan.count, signal,
+    createInput: (index, count) => {
+      const [start, end] = rangeBounds(index, count, plan.length);
+      const key = plan.axis === 'references' ? 'referenceProfiles' : 'compareProfiles';
+      return { operation, input: { ...compact, [key]: compact[key].slice(start, end) } };
+    }
+  });
+  return { results: plan.axis === 'references' ? ranges.flatMap(range => range.results) : mergeComparisonRanges(ranges, operation, input.comparisonAlgorithm),
+    comparisons: ranges.reduce((sum, range) => sum + range.comparisons, 0), mode: 'multi-threaded', workerCount: plan.count };
+}
+
+async function runSearchForRequest(req, res, run) {
   const controller = new AbortController();
   const abort = () => { if (!res.writableEnded) controller.abort(new Error('Клиент отменил поиск.')); };
   req.once('aborted', abort);
@@ -105,8 +136,12 @@ async function runProfileSearchForRequest(req, res, input) {
   if (req.aborted || res.destroyed) abort();
   const timeout = setTimeout(() => controller.abort(new Error('Превышено время поиска (10 минут).')), 10 * 60 * 1000);
   timeout.unref();
-  try { return await runProfileSearch(input, { signal: controller.signal, useWorkers: req.body.useWorkers !== false }); }
+  try { return await run(controller.signal); }
   finally { clearTimeout(timeout); req.removeListener('aborted', abort); res.removeListener('close', abort); }
 }
 
-module.exports = { runProfileSearch, runProfileSearchForRequest, workerLimit };
+function runProfileSearchForRequest(req, res, input) {
+  return runSearchForRequest(req, res, signal => runProfileSearch(input, { signal, useWorkers: req.body.useWorkers !== false }));
+}
+
+module.exports = { runSearchForRequest, runProfileSearch, runProfileSearchForRequest, workerLimit, executeWorkerRanges, partitionPlan, rangeBounds, searchProfile };

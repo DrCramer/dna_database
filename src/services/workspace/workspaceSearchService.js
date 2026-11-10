@@ -17,7 +17,7 @@ const {
 const {
   runProfileSearch
 } = require('../profiles/searchWorkerExecutor');
-const StaffContaminationAnalyzer = require('../contamination/staffContaminationAnalyzer');
+const { runStaffSearch } = require('../contamination/staffSearchWorkerExecutor');
 const {
   decodeMasterRow
 } = require('../converters/masterArrayExcelExportService');
@@ -48,7 +48,7 @@ class WorkspaceSearchService extends WorkspaceService {
     const w = await this.workspace(user),
       id = randomUUID(),
       reader = await this.pool.connect();
-    let run, profiles, working, master, staff;
+    let run, profiles, working, master, staff, staffLinks;
     try {
       await reader.query('BEGIN ISOLATION LEVEL REPEATABLE READ READ ONLY');
       const workspace = (await reader.query('SELECT * FROM personal_workspaces WHERE id=$1', [w.id])).rows[0];
@@ -59,6 +59,18 @@ class WorkspaceSearchService extends WorkspaceService {
       const legacyMasters = (await reader.query("SELECT * FROM dna_profiles WHERE organization_id=$1 AND is_active=true AND profile_type='master'", [user.organization_id])).rows.map(row => decodeMasterRow(row));
       master.push(...legacyMasters);
       staff = (await reader.query('SELECT * FROM staff_profiles WHERE organization_id=$1 AND is_active=true', [user.organization_id])).rows;
+      // Only the exact current published revision can exclude a self-reference.
+      // Read all links once, in the same scoped snapshot as the reference arrays.
+      staffLinks = (await reader.query(`SELECT pub.workspace_profile_id,pub.published_id
+        FROM workspace_publications pub
+        JOIN staff_profiles target ON target.id=pub.published_id
+        JOIN dna_profiles source ON source.id=pub.workspace_profile_id
+        WHERE source.id=ANY($1::uuid[]) AND source.workspace_id=$2 AND source.user_id=$3
+          AND source.organization_id=$4 AND pub.organization_id=$4 AND target.organization_id=$4
+          AND pub.analysis_revision=source.analysis_revision AND pub.destination='staff'
+          AND target.source_workspace_profile_id=source.id AND target.str_data=source.str_data
+          AND target.year=source.year AND target.registration_number=source.internal_number`,
+      [profiles.map(profile => profile.id), w.id, user.id, user.organization_id])).rows;
       run = {
         id,
         workspace_id: w.id,
@@ -76,7 +88,11 @@ class WorkspaceSearchService extends WorkspaceService {
     await this.pool.query(`INSERT INTO workspace_search_runs(id,workspace_id,owner_id,organization_id,algorithm_version,state,parameters,workspace_revision,master_revision,staff_revision)
    VALUES($1,$2,$3,$4,$5,'running',$6,$7,$8,$9)`, [id, w.id, user.id, user.organization_id, ALGORITHM_VERSION, JSON.stringify(parameters), run.workspace_revision, run.master_revision, run.staff_revision]);
     try {
-      for (const profile of profiles) await this.pool.query("INSERT INTO workspace_search_profiles(search_run_id,profile_id,analysis_revision,analysis_hash,state,stages) VALUES($1,$2,$3,$4,'PENDING','{}')", [id, profile.id, profile.analysis_revision, analysisHash(objectFromDB(profile))]);
+      const hashes = new Map(profiles.map(profile => [profile.id, analysisHash(objectFromDB(profile))]));
+      await this.pool.query(`INSERT INTO workspace_search_profiles(search_run_id,profile_id,analysis_revision,analysis_hash,state,stages)
+        SELECT $1,p.id,p.revision,p.hash,'PENDING','{}'::jsonb
+        FROM jsonb_to_recordset($2::jsonb) AS p(id uuid,revision bigint,hash text)`,
+      [id, JSON.stringify(profiles.map(profile => ({ id: profile.id, revision: profile.analysis_revision, hash: hashes.get(profile.id) })))]);
       if (signal?.aborted) throw err('Поиск отменён.', 409, 'CANCELLED');
       const eligible = profiles.filter(p => hasGenotype(p.str_data));
       const input = {
@@ -101,33 +117,20 @@ class WorkspaceSearchService extends WorkspaceService {
       }, {
         signal
       });
-      const analyzer = new StaffContaminationAnalyzer(this.pool),
-        contamination = [];
-      for (const p of eligible) {
-        if (signal?.aborted) throw err('Поиск отменён.', 409, 'CANCELLED');
-        // An exact current published revision is the only trusted self-reference exclusion.
-        const links = (await this.pool.query(`SELECT pub.published_id FROM workspace_publications pub JOIN staff_profiles target ON target.id=pub.published_id JOIN dna_profiles source ON source.id=pub.workspace_profile_id WHERE pub.workspace_profile_id=$1 AND pub.analysis_revision=$2 AND pub.destination='staff' AND target.source_workspace_profile_id=source.id AND target.str_data=source.str_data AND target.year=source.year AND target.registration_number=source.internal_number`, [p.id, p.analysis_revision])).rows.map(x => x.published_id);
-        const result = await analyzer.detectStaffContamination(p, staff.filter(s => !links.includes(s.id)), {
-          ...parameters.staffOptions,
-          ignoredLoci: input.ignoredLoci
-        });
-        contamination.push({
-          profileId: p.id,
-          matches: result.map(match => ({
-            ...match,
-            registrationNumber: staff.find(s => s.id === match.staffId)?.registration_number || null,
-            staffYear: staff.find(s => s.id === match.staffId)?.year || null
-          }))
-        });
-        await new Promise(resolve => setImmediate(resolve));
+      const exclusions = new Map();
+      for (const link of staffLinks) {
+        if (!exclusions.has(link.workspace_profile_id)) exclusions.set(link.workspace_profile_id, []);
+        exclusions.get(link.workspace_profile_id).push(link.published_id);
       }
+      const staffResult = await runStaffSearch({ referenceProfiles: eligible, staffProfiles: staff,
+        excludedStaffIds: [...exclusions], options: { ...parameters.staffOptions, ignoredLoci: input.ignoredLoci } }, { signal });
       const needed = input.comparisonAlgorithm === 'duplicate_v5' ? input.duplicateSettings.minLoci ?? 15 : input.minMatches;
       const proofs = profiles.map(p => {
         const count = Object.entries(p.str_data).filter(([locus, value]) => !input.ignoredLoci.includes(locus) && informativeAlleles(value).length).length;
         return {
           profileId: p.id,
           analysisRevision: p.analysis_revision,
-          hash: analysisHash(objectFromDB(p)),
+          hash: hashes.get(p.id),
           state: !hasGenotype(p.str_data) ? 'NO_GENOTYPE' : count < Math.max(needed, parameters.staffOptions?.minLociMatch ?? 8) ? 'INSUFFICIENT_DATA' : 'CHECKED',
           comparedLoci: count
         };
@@ -141,7 +144,8 @@ class WorkspaceSearchService extends WorkspaceService {
         parameters,
         internal,
         master: shared,
-        staff: contamination,
+        staff: staffResult.results,
+        staffExecution: { mode: staffResult.mode, workerCount: staffResult.workerCount, comparisons: staffResult.comparisons },
         profiles: proofs,
         referenceCounts: {
           master: master.length,
@@ -154,7 +158,7 @@ class WorkspaceSearchService extends WorkspaceService {
         const refs = (await c.query('SELECT * FROM workspace_reference_versions WHERE organization_id=$1 FOR UPDATE', [user.organization_id])).rows[0];
         if (current.analysis_revision !== run.workspace_revision || refs.master_revision !== run.master_revision || refs.staff_revision !== run.staff_revision) throw err('Данные изменились во время поиска. Повторите полный поиск.', 409, 'SEARCH_STALE');
         if (signal?.aborted) throw err('Поиск отменён.', 409, 'CANCELLED');
-        for (const proof of proofs) await c.query(`INSERT INTO workspace_search_profiles(search_run_id,profile_id,analysis_revision,analysis_hash,state,stages) VALUES($1,$2,$3,$4,$5,$6) ON CONFLICT(search_run_id,profile_id) DO UPDATE SET state=EXCLUDED.state,stages=EXCLUDED.stages`, [id, proof.profileId, proof.analysisRevision, proof.hash, proof.state, JSON.stringify(proof.state === 'CHECKED' ? {
+        const finalProofs = proofs.map(proof => ({ profile_id: proof.profileId, revision: proof.analysisRevision, hash: proof.hash, state: proof.state, stages: proof.state === 'CHECKED' ? {
           internal: true,
           master: true,
           staff: true
@@ -162,7 +166,11 @@ class WorkspaceSearchService extends WorkspaceService {
           internal: false,
           master: false,
           staff: false
-        })]);
+        } }));
+        await c.query(`INSERT INTO workspace_search_profiles(search_run_id,profile_id,analysis_revision,analysis_hash,state,stages)
+          SELECT $1,p.profile_id,p.revision,p.hash,p.state,p.stages
+          FROM jsonb_to_recordset($2::jsonb) AS p(profile_id uuid,revision bigint,hash text,state text,stages jsonb)
+          ON CONFLICT(search_run_id,profile_id) DO UPDATE SET state=EXCLUDED.state,stages=EXCLUDED.stages`, [id, JSON.stringify(finalProofs)]);
         await c.query("UPDATE workspace_search_runs SET state='complete',completed_at=now(),encrypted_result=$1 WHERE id=$2", [seal(result), id]);
       });
       return result;

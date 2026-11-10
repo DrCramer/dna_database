@@ -10,8 +10,11 @@ const { logger } = require("../../utils/logger");
 const { getAnalysisLoci } = require("../../utils/analysisLoci");
 
 class StaffContaminationAnalyzer {
-    constructor(pool) {
+    constructor(pool, { cacheAlleles = false, quiet = false } = {}) {
         this.pool = pool;
+        this.quiet = quiet;
+        this.arrayAlleles = cacheAlleles ? new WeakMap() : null;
+        this.scalarAlleles = cacheAlleles ? new Map() : null;
         
         // Параметры по умолчанию
         this.defaultOptions = {
@@ -78,7 +81,15 @@ class StaffContaminationAnalyzer {
      * - "14.2" - дробный аллель (обрабатывается как строка)
      * - "14,16,18" - многоаллельность (разделяется на массив)
      */
-    parseAlleles(value) { return informativeAlleles(value); }
+    parseAlleles(value) {
+        const cache = value && typeof value === 'object' ? this.arrayAlleles : this.scalarAlleles;
+        if (!cache) return informativeAlleles(value);
+        if (cache.has(value)) return cache.get(value);
+        const parsed = informativeAlleles(value);
+        if (cache instanceof Map && cache.size >= 10000) cache.clear();
+        cache.set(value, parsed);
+        return parsed;
+    }
 
     /**
      * Вычисляет пересечение двух массивов
@@ -151,17 +162,17 @@ class StaffContaminationAnalyzer {
      * @param {Object} options - опции алгоритма
      * @returns {Array} массив результатов для каждого сотрудника
      */
-    async detectStaffContamination(sampleProfile, staffProfiles, options = {}) {
+    async detectStaffContamination(sampleProfile, staffProfiles, options = {}, context = {}) {
         try {
             const opts = { ...this.defaultOptions, ...options };
             const results = [];
             const sampleData = sampleProfile.str_data || {};
             const ignored = Array.isArray(opts.ignoredLoci) ? opts.ignoredLoci : [];
-            const allLoci = getAnalysisLoci([sampleProfile, ...staffProfiles]).filter(locus =>
+            const allLoci = (context.allLoci || getAnalysisLoci([sampleProfile, ...staffProfiles])).filter(locus =>
                 !this.skipLoci.includes(locus) && !ignored.includes(locus)
             );
 
-            logger.info('Начало анализа контаминации (v4.0 с нормализацией)', {
+            if (!this.quiet) logger.info('Начало анализа контаминации (v4.0 с нормализацией)', {
                 sampleId: sampleProfile.id,
                 staffCount: staffProfiles.length,
                 lociCount: allLoci.length,
@@ -213,7 +224,7 @@ class StaffContaminationAnalyzer {
             // Сортировка по finalScore (по убыванию)
             results.sort((a, b) => b.finalScore - a.finalScore);
 
-            logger.info('Анализ контаминации завершен', {
+            if (!this.quiet) logger.info('Анализ контаминации завершен', {
                 sampleId: sampleProfile.id,
                 resultsCount: results.length,
                 highRisk: results.filter(r => r.riskLevel === 'CRITICAL' || r.riskLevel === 'HIGH').length

@@ -277,4 +277,37 @@ test('Единый workspace: импорт, ревизии, поиск, gate, п
     const unchanged = unseal((await pool.query('SELECT encrypted_payload FROM workspace_import_drafts WHERE id=$1', [d.id])).rows[0].encrypted_payload);
     assert.equal(unchanged.rows[0].sourceFilename, garbled);
   });
+  await t.test('Потоки staff и пакетные SQL сохраняют исключение только своей публикации и все три допуска', async () => {
+    const actor = await user('admin');
+    const staffSource = await load(actor, Array.from({ length: 20 }, (_, i) => profile((900000 + i) + '-G', 'staff')));
+    const staffChecked = await service.fullSearch(actor, staffSource.ids);
+    const published = await service.publish(actor, staffSource.ids, staffChecked.id);
+    const ordinary = await load(actor, Array.from({ length: 100 }, (_, i) => profile('SYN-PARALLEL-' + i)));
+    let queries = 0;
+    const measured = new WorkspaceSearchService({
+      query: (...args) => { queries++; return pool.query(...args); },
+      connect: async () => {
+        const client = await pool.connect();
+        return { query: (...args) => { queries++; return client.query(...args); }, release: () => client.release() };
+      }
+    });
+    const result = await measured.fullSearch(actor, [...staffSource.ids, ...ordinary.ids]);
+    assert.equal(result.staffExecution.mode, 'multi-threaded');
+    assert(result.staffExecution.workerCount > 0);
+    assert.equal(result.staffExecution.comparisons, 120 * result.referenceCounts.staff - 20);
+    assert.equal(result.staff.length, 120);
+    assert(result.profiles.every(profile => profile.state === 'CHECKED'));
+    for (const publication of published.published) {
+      const group = result.staff.find(group => group.profileId === publication.profileId);
+      assert(group);
+      assert(!group.matches.some(match => match.staffId === publication.publishedId));
+    }
+    const firstOrdinary = result.staff.find(group => group.profileId === ordinary.ids[0]);
+    assert(published.published.every(publication => firstOrdinary.matches.some(match => match.staffId === publication.publishedId)));
+    assert(queries < 40, 'No SQL round-trip per profile: ' + queries);
+    const proofs = (await pool.query('SELECT state,stages FROM workspace_search_profiles WHERE search_run_id=$1', [result.id])).rows;
+    assert.equal(proofs.length, 120);
+    assert(proofs.every(proof => proof.state === 'CHECKED' && proof.stages.internal && proof.stages.master && proof.stages.staff));
+  });
+
 });
