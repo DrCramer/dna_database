@@ -154,6 +154,36 @@ test('Workspace API: реальные сессии, роли, чужие UUID, l
     f.append('files', new Blob(['SYN']), 'unsupported.csv');
     assert.equal((await call('/api/workspace/import-drafts', 'admin', f)).status, 400);
   });
+  await t.test('Спецтокены Y-InDel проходят XLSX-черновик, валидацию и запись без замены обычными аллелями', async () => {
+    const XLSX = require('xlsx'), book = XLSX.utils.book_new();
+    const names = ['Rs771783753', 'rs199815934', 'rs759551978'];
+    const values = ['*', '**', '?', 'F', '1,*'];
+    XLSX.utils.book_append_sheet(book, XLSX.utils.aoa_to_sheet([
+      ['Объект', 'Год', 'Тип экспертизы', ...Object.keys(data), ...names],
+      ...values.map((value, i) => [`SYN-YINDEL-${i}`, 2026, 'ug', ...Object.values(data).map(a => a.join(',')), value, value, value])
+    ]), 'Профили');
+    const f = new FormData();
+    f.append('files', new Blob([XLSX.write(book, { type: 'buffer', bookType: 'xlsx' })]), 'SYN-YINDEL.xlsx');
+    const response = await call('/api/workspace/import-drafts', 'user_analyst', f);
+    assert.equal(response.status, 200, await response.clone().text());
+    const d = await response.json();
+    assert.equal(d.rows.length, values.length);
+    for (const row of d.rows) assert.equal(row.sourceIssues.length, 0);
+    const checked = await call('/api/workspace/import-drafts/' + d.id + '/validate', 'user_analyst', { revision: d.revision });
+    assert.equal(checked.status, 200);
+    assert.equal((await checked.json()).valid, true);
+    const committed = await call('/api/workspace/import-drafts/' + d.id + '/commit', 'user_analyst', {
+      revision: d.revision, idempotencyKey: randomUUID()
+    });
+    assert.equal(committed.status, 200, await committed.clone().text());
+    const result = await committed.json();
+    assert.equal(result.ids.length, values.length);
+    for (const id of result.ids) {
+      const saved = await pool.query('SELECT internal_number,str_data FROM dna_profiles WHERE id=$1', [id]);
+      const source = d.rows.find(row => row.objectNumber === saved.rows[0].internal_number);
+      for (const locus of names) assert.deepEqual(saved.rows[0].str_data[locus], source.strData[locus]);
+    }
+  });
   await t.test('Русский multipart filename и перенос ФИО сохраняются после reload без изменения генотипа', async () => {
     const XLSX = require('xlsx'), book = XLSX.utils.book_new();
     XLSX.utils.book_append_sheet(book,XLSX.utils.aoa_to_sheet([
