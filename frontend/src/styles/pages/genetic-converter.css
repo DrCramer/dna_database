@@ -1,4 +1,6 @@
-:where(.converter-page) { display: grid; gap: 20px; min-width: 0; }
+:where(.converter-page) { display: grid; gap: var(--space-5); min-width: 0; padding: var(--page-padding-y) var(--page-padding-x); }
+:where(.converter-page) > .page-header { margin-bottom: 0; }
+:where(.workspace-page) .converter-page { padding: 0; }
 :where(.converter-page) .converter-card { padding: 20px; border: 1px solid var(--border-default); border-radius: var(--radius-md); background: var(--surface-card); min-width: 0; }
 :where(.converter-page) .converter-card h2 { margin-bottom: 16px; }
 :where(.converter-page) .converter-drop { border-style: dashed; }

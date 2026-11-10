@@ -2,13 +2,13 @@ import React from 'react';
 
 export const AccessDeniedState = ({ message, onNavigate }) => (
   <div className="access-denied-state">
-    <h2>🚫 Доступ запрещен</h2>
+    <h2>Доступ запрещён</h2>
     <p>{message}</p>
     <button
       onClick={() => onNavigate('/dashboard')}
       className="btn btn-secondary"
     >
-      ← Назад к дашборду
+      ← На главную
     </button>
   </div>
 );
@@ -22,7 +22,7 @@ export const FeaturePage = ({ title, accent = false, description, actions = [], 
           onClick={() => onNavigate('/dashboard')}
           className="btn btn-secondary"
         >
-          ← Назад к дашборду
+          ← На главную
         </button>
       </div>
     </div>
@@ -50,17 +50,17 @@ export const FeaturePage = ({ title, accent = false, description, actions = [], 
 
 export const ProfilesFeaturePage = ({ onNavigate }) => (
   <FeaturePage
-    title="📊 Просмотр всех профилей"
+    title="Просмотр всех профилей"
     description="Эта страница покажет все ДНК-профили в системе."
     onNavigate={onNavigate}
     actions={[
       {
-        label: '📁 Загрузить новые профили',
+        label: 'Загрузить профили',
         onClick: () => onNavigate('/upload'),
         className: 'btn btn-primary'
       },
       {
-        label: '🧬 Байесовский анализ',
+        label: 'Байесовский анализ',
         onClick: () => onNavigate('/bayesian'),
         className: 'btn btn-info'
       }
@@ -70,18 +70,18 @@ export const ProfilesFeaturePage = ({ onNavigate }) => (
 
 export const ExpertGroupsFeaturePage = ({ onNavigate }) => (
   <FeaturePage
-    title="👨‍🔬 Управление экспертными группами"
+    title="Управление экспертными группами"
     accent
     description="Эта страница позволит вам управлять экспертными группами и их участниками."
     onNavigate={onNavigate}
     actions={[
       {
-        label: '➕ Добавить новую экспертную группу',
+        label: 'Добавить экспертную группу',
         onClick: () => onNavigate('/expert-groups'),
         className: 'btn btn-success'
       },
       {
-        label: '👥 Управление участниками',
+        label: 'Управление участниками',
         onClick: () => onNavigate('/expert-groups'),
         className: 'btn btn-secondary'
       }

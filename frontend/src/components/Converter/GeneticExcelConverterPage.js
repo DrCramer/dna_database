@@ -1,3 +1,4 @@
+import PageHeader from '../Layout/PageHeader';
 import React, { useEffect, useRef, useState } from 'react';
 import { useAuth } from '../../contexts/AuthContext';
 import { resolveProfileImportFormat } from '../../../../src/utils/profileImportFormat';
@@ -82,7 +83,7 @@ export default function GeneticExcelConverterPage({ onPreparedFile, initialFiles
   const pendingLegacyYear = Boolean(result?.files.some(file => !file.geneMapper && pendingYear(file)));
   if (!allowed) return <div className="alert alert-info">Выберите отделение «Генетические экспертизы» или «ЧС».</div>;
   return <div className="converter-page" aria-busy={busy}>
-    {!embedded && <header className="page-header"><div><h1>Подготовка профилей</h1><p>Выберите файл, проверьте результат и перейдите к загрузке.</p></div></header>}
+    {!embedded && <PageHeader title="Подготовка профилей" description="Выберите файл, проверьте результат и перейдите к загрузке." />}
     <section className="converter-card converter-drop" onDragOver={event => event.preventDefault()} onDrop={event => { event.preventDefault(); if (!busy) select(Array.from(event.dataTransfer.files)); }}>
       <div className="converter-file-picker">
         <div><strong>{files.length ? `Выбрано файлов: ${files.length}` : importFormat === 'genetic' ? 'Excel или GeneMapper TXT' : 'GeneMapper TXT'}</strong><p>{busy ? 'Подготовка файлов…' : 'До 100 файлов · 10 МиБ на файл'}</p></div>

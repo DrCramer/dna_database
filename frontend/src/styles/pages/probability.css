@@ -1,4 +1,4 @@
-.probability-page { display: grid; gap: 16px; width: 100%; max-width: 1680px; margin: 0 auto; padding: 20px; min-width: 0; box-sizing: border-box; }
+.probability-page { display: grid; gap: 16px; width: 100%; max-width: 1680px; margin: 0 auto; padding: var(--page-padding-y) var(--page-padding-x); min-width: 0; box-sizing: border-box; }
 .probability-toolbar { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; padding-bottom: 4px; }
 .probability-modes { display: inline-flex; gap: 4px; padding: 4px; border: 1px solid var(--border-default); border-radius: 10px; background: var(--surface-muted); margin-right: 6px; }
 .probability-tab { min-width: 92px; padding: 9px 20px; border: 0; border-radius: 7px; background: transparent; color: var(--text-secondary); font: inherit; font-size: 14px; font-weight: 700; cursor: pointer; }

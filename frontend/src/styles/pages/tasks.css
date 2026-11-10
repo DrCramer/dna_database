@@ -1202,3 +1202,6 @@
     flex-direction: column;
   }
 }
+
+.task-page .create-task-card { padding: var(--space-6); border: 1px solid var(--border-default); border-radius: var(--radius-lg); background: var(--surface-card); }
+@media (max-width: 768px) { .task-page .create-task-card { padding: var(--space-4); } }

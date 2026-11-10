@@ -1,3 +1,4 @@
+import UiIcon from '../Common/UiIcon';
 import UserForm from './UserForm';
 import { getUserDisplayName } from '../../../../src/utils/userDisplayName';
 import React, { useState, useEffect } from 'react';
@@ -282,7 +283,7 @@ const UserManagement = ({ onBack }) => {
       <div className="page-header user-management-header">
         <div className="page-title-section">
           <h1 className="page-title">
-            <span>👥</span>
+            <UiIcon name="users" />
             <span>Управление пользователями</span>
           </h1>
           <p className="page-subtitle user-management-subtitle">Создание учетных записей, назначение ролей и контроль доступа по организации.</p>
@@ -292,7 +293,7 @@ const UserManagement = ({ onBack }) => {
             onClick={onBack}
             className="nav-button btn btn-secondary"
           >
-            Назад к дашборду
+            На главную
           </button>
         </div>
       </div>
@@ -388,21 +389,21 @@ const UserManagement = ({ onBack }) => {
                       className="user-action-btn department-action-btn department-action-view user-action-view btn btn-secondary btn-icon btn-sm"
                       title="Просмотр"
                     >
-                      👁️
+                      <UiIcon name="eye" />
                     </button>
                     <button
                       onClick={() => setEditingUser(user)}
                       className="user-action-btn department-action-btn department-action-edit user-action-edit btn btn-secondary btn-icon btn-sm"
                       title="Редактировать"
                     >
-                      ✏️
+                      <UiIcon name="edit" />
                     </button>
                     <button
                       onClick={() => handleResetPassword(user.id)}
                       className="user-action-btn department-action-btn department-action-settings user-action-reset btn btn-secondary btn-icon btn-sm"
                       title="Сбросить пароль"
                     >
-                      🔑
+                      <UiIcon name="key" />
                     </button>
                     {user.is_active && (
                       <button
@@ -410,7 +411,7 @@ const UserManagement = ({ onBack }) => {
                         className="user-action-btn department-action-btn department-action-delete user-action-deactivate btn btn-secondary btn-icon btn-sm btn-outline-danger"
                         title="Деактивировать"
                       >
-                        🚫
+                        <UiIcon name="block" />
                       </button>
                     )}
                   </div>

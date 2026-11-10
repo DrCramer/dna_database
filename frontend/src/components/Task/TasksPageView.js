@@ -1,3 +1,4 @@
+import UiIcon from '../Common/UiIcon';
 import React from 'react';
 import ReactDOM from 'react-dom';
 import {
@@ -66,7 +67,7 @@ const TasksPageView = ({
       <div className="page-header">
         <div className="page-title-section">
           <h1 className="page-title">
-            <span>📋</span>
+            <UiIcon name="archive" />
             <span>{readOnly ? 'Архив задач' : isManager ? 'Управление задачами' : 'Мои задачи'}</span>
           </h1>
           <p className="page-subtitle">
@@ -88,7 +89,7 @@ const TasksPageView = ({
             title="Вернуться на главную страницу"
             className="nav-button btn btn-secondary"
           >
-            Назад к дашборду
+            На главную
           </button>
         </div>
       </div>

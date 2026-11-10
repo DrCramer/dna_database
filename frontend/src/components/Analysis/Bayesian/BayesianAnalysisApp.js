@@ -71,7 +71,7 @@ const BayesianAnalysisApp = () => {
         <div className="bayesian-analysis-app">
             {/* Header */}
             <header className="bayesian-app-header">
-                <h1>Модуль байесовского анализа и сравнения генотипов</h1>
+                <h2>Параметры исследования</h2>
                 <div className="header-controls">
                     <button
                         className="help-button btn btn-secondary btn-icon"

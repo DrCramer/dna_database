@@ -30,8 +30,9 @@
 /* Tabs */
 :where(.admin-dashboard) .dashboard-tabs {
   display: flex;
+  flex-wrap: wrap;
   gap: var(--space-2);
-  margin-bottom: var(--space-8);
+  margin-bottom: var(--space-6);
   padding: var(--space-2);
   border: 1px solid var(--border-color);
   border-radius: var(--border-radius-lg);
@@ -49,7 +50,7 @@
 /* KPI Cards Grid */
 :where(.admin-dashboard) .kpi-grid {
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+  grid-template-columns: repeat(auto-fit, minmax(min(250px, 100%), 1fr));
   gap: var(--space-6);
 }
 
@@ -75,7 +76,14 @@
 }
 
 :where(.admin-dashboard) .kpi-icon {
-  font-size: 2.5rem;
+  display: grid;
+  place-items: center;
+  width: 48px;
+  height: 48px;
+  flex: 0 0 48px;
+  border-radius: var(--radius-md);
+  background: var(--status-info-bg);
+  color: var(--brand-primary);
   line-height: 1;
 }
 
@@ -431,3 +439,8 @@
     grid-template-columns: 1fr;
   }
 }
+
+:where(.admin-dashboard) .dashboard-tabs .btn { white-space: normal; }
+:where(.admin-dashboard) .charts-grid > * { min-width: 0; }
+
+:where(.admin-dashboard) .kpi-icon .ui-icon { width: 26px; height: 26px; }

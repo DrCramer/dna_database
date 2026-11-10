@@ -1,3 +1,5 @@
+import UiIcon from '../Common/UiIcon';
+import { getUserDisplayName } from '../../../../src/utils/userDisplayName';
 import React, { useState, useEffect } from 'react';
 import { BarChart, Bar, PieChart, Pie, Cell, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer } from 'recharts';
 import { useProfileFieldLabel } from '../../hooks/useProfileFieldLabel';
@@ -230,11 +232,11 @@ const AdminDashboard = ({ onNavigate }) => {
         <div className="page-title-section">
           <h1 className="page-title analytics-page-title">Аналитический дашборд</h1>
           <p className="page-subtitle analytics-page-subtitle">
-            Пользователь: <strong>{user?.username}</strong> ({user?.role})
+            Пользователь: <strong>{getUserDisplayName(user)}</strong>
           </p>
         </div>
         <button onClick={() => onNavigate('/dashboard')} className="nav-button btn btn-secondary">
-          Назад к дашборду
+          На главную
         </button>
       </div>
 
@@ -244,19 +246,19 @@ const AdminDashboard = ({ onNavigate }) => {
           className={`tab-button btn btn-ghost ${activeTab === 'summary' ? 'active' : ''}`}
           onClick={() => setActiveTab('summary')}
         >
-          📈 Сводка
+          <UiIcon name="chart" /> Сводка
         </button>
         <button
           className={`tab-button btn btn-ghost ${activeTab === 'in-work' ? 'active' : ''}`}
           onClick={() => setActiveTab('in-work')}
         >
-          📋 Данные в работе
+          <UiIcon name="file" /> Данные в работе
         </button>
         <button
           className={`tab-button btn btn-ghost ${activeTab === 'duplicates' ? 'active' : ''}`}
           onClick={() => setActiveTab('duplicates')}
         >
-          🔍 Анализ дубликатов
+          <UiIcon name="search" /> Анализ дубликатов
         </button>
       </div>
 
@@ -268,7 +270,7 @@ const AdminDashboard = ({ onNavigate }) => {
             {/* KPI Cards */}
             <div className="kpi-grid">
               <div className="kpi-card">
-                <div className="kpi-icon">🗄️</div>
+                <div className="kpi-icon"><UiIcon name="archive" /></div>
                 <div className="kpi-content">
                   <div className="kpi-value">{kpiData?.totalProfiles || 0}</div>
                   <div className="kpi-label">Всего профилей в базе</div>
@@ -276,7 +278,7 @@ const AdminDashboard = ({ onNavigate }) => {
               </div>
 
               <div className="kpi-card">
-                <div className="kpi-icon">📊</div>
+                <div className="kpi-icon"><UiIcon name="chart" /></div>
                 <div className="kpi-content">
                   <div className="kpi-value">
                     {kpiData?.processedThisMonth || 0}
@@ -291,7 +293,7 @@ const AdminDashboard = ({ onNavigate }) => {
               </div>
 
               <div className="kpi-card">
-                <div className="kpi-icon">👥</div>
+                <div className="kpi-icon"><UiIcon name="users" /></div>
                 <div className="kpi-content">
                   <div className="kpi-value">{kpiData?.totalMatches || 0}</div>
                   <div className="kpi-label">Выявлено совпадений</div>
@@ -299,7 +301,7 @@ const AdminDashboard = ({ onNavigate }) => {
               </div>
 
               <div className="kpi-card realtime-card">
-                <div className="kpi-icon">🧪</div>
+                <div className="kpi-icon"><UiIcon name="grid" /></div>
                 <div className="kpi-content">
                   <div className="kpi-value">{kpiData?.awaitingRealtime || 0}</div>
                   <div className="kpi-label">Ожидают данных RealTime</div>

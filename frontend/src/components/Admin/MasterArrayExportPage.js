@@ -78,7 +78,7 @@ export default function MasterArrayExportPage() {
   const departments = [...new Map(arrays.filter(array => array.organization_id === selected?.organization_id).map(array => [array.department_id, array.department_name])).entries()];
   const canDownload = preview?.exportable > 0 && (preview.needsReview === 0 || validOnly && confirmed);
   return <div className="master-export-page">
-    <header className="page-header"><div><h1>Экспорт мастер-массива</h1><p>Активные профили в формате штатной загрузки. Данные мастер-массива не изменяются.</p></div></header>
+    <header className="page-header"><div><h1 className="page-title">Экспорт мастер-массива</h1><p>Активные профили в формате штатной загрузки. Данные мастер-массива не изменяются.</p></div></header>
     {error && <div className="alert alert-danger" role="alert">{error}</div>}
     {loading ? <p role="status">Загрузка доступных массивов…</p> : !arrays.length ? <div className="alert alert-info">Нет доступных активных мастер-массивов ЧС или Генетических экспертиз.</div> : <>
       <section className="card master-export-card"><h2>Источник и настройки</h2>
