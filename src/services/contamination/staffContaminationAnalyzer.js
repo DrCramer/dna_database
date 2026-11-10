@@ -163,7 +163,6 @@ class StaffContaminationAnalyzer {
 
             logger.info('Начало анализа контаминации (v4.0 с нормализацией)', {
                 sampleId: sampleProfile.id,
-                sampleName: sampleProfile.sample_name,
                 staffCount: staffProfiles.length,
                 lociCount: allLoci.length,
                 algorithm: opts.useV4Algorithm ? 'v4.0' : 'v1.5'
@@ -685,7 +684,7 @@ class StaffContaminationAnalyzer {
                 FROM staff_profiles
                 WHERE is_active = true AND created_by IN (SELECT id FROM users WHERE organization_id=$1)
                 ORDER BY full_name
-            `, [scope.params[1]]);
+            `, [scope.organizationId]);
 
             const staffProfiles = staffResult.rows;
 

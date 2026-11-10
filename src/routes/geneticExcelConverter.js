@@ -33,6 +33,7 @@ router.use(authenticate);
 router.use(async (req, res, next) => {
   try {
     if (!['admin', 'system_administrator', 'department_head', 'user_analyst', 'analyst'].includes(req.user.role)) throw new PanelError('Нет прав на конвертацию профилей.', 403);
+    if (require('../services/workspace/workspaceMode').workspaceModeEnabled()) { req.converterFormat = 'genetic'; req.converterScope = {departmentId:null,organizationId:req.user.organization_id}; return next(); }
     const { rows } = await require('../config/database').query('SELECT id,name,organization_id FROM departments WHERE id=$1 AND is_active=true', [req.activeDepartmentId]);
     const department = rows[0];
     req.converterFormat = resolveProfileImportFormat(department);

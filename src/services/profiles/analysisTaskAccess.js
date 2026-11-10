@@ -24,7 +24,7 @@ async function getAnalysisTask(req, taskId) {
     WHERE t.id=$1 AND t.is_active=true AND d.is_active=true AND o.is_active=true`, [taskId]);
   if (!rows.length) throw Object.assign(new Error('Задача не найдена.'), { status: 404 });
   const task = rows[0];
-  if (task.department_id !== scope.params[0] || task.organization_id !== scope.params[1] || !await AccessPolicyService.canManageTask(req.user.id, taskId)) {
+  if (task.department_id !== scope.departmentId || task.organization_id !== scope.organizationId || !await AccessPolicyService.canManageTask(req.user.id, taskId)) {
     throw Object.assign(new Error('Задача недоступна в активном отделении.'), { status: 403 });
   }
   return task;

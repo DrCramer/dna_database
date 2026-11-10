@@ -399,6 +399,7 @@ router.post('/register-with-department', authenticate, adminOnly, validateUserId
             return res.status(400).json({ code: 'INVALID_UPLOAD_PERMISSIONS', message: 'Права загрузки должны быть логическими значениями true/false.' });
         }
         const uploadPermissions = getProfileUploadPermissions(req.body);
+        if (require('../services/workspace/workspaceMode').workspaceModeEnabled() && (organization_id && organization_id !== req.user.organization_id || role === 'system_administrator' && req.user.role !== 'system_administrator')) return res.status(403).json({message:'Недопустимая организация или роль.'});
         const clientInfo = getClientInfo(req);
         const requestedDepartmentIds = Array.isArray(department_ids)
             ? [...new Set(department_ids.filter(Boolean))]
@@ -422,7 +423,7 @@ router.post('/register-with-department', authenticate, adminOnly, validateUserId
         }
 
         // For roles requiring department, validate department assignment
-        if ((role === 'user_analyst' || role === 'department_head') && requestedDepartmentIds.length === 0) {
+        if (!require('../services/workspace/workspaceMode').workspaceModeEnabled() && (role === 'user_analyst' || role === 'department_head') && requestedDepartmentIds.length === 0) {
             return res.status(400).json({
                 error: 'Bad Request',
                 message: 'Department assignment is required for this role'
@@ -486,7 +487,7 @@ router.post('/register-with-department', authenticate, adminOnly, validateUserId
         } else {
             // Register without organizational context
             const result = await authService.register(
-                { username, email, display_name, password, role, ...uploadPermissions },
+                { username, email, display_name, password, role, ...(require('../services/workspace/workspaceMode').workspaceModeEnabled()?{organization_id:req.user.organization_id}:{}), ...uploadPermissions },
                 clientInfo.ipAddress,
                 clientInfo.userAgent
             );

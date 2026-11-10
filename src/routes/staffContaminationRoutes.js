@@ -274,7 +274,7 @@ router.post('/analyze-task', authenticate, analystOrAbove, async (req, res) => {
             FROM staff_profiles sp
             WHERE sp.is_active = true AND sp.created_by IN (SELECT id FROM users WHERE organization_id=$1)
             ORDER BY sp.full_name
-        `, [scope.params[1]]);
+        `, [scope.organizationId]);
 
         const staffProfiles = staffResult.rows;
 

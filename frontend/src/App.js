@@ -4,9 +4,11 @@ import { ThemeProvider } from './contexts/ThemeContext';
 import ThemeSwitcher from './components/Common/ThemeSwitcher';
 import GenotypePanelsPage from './components/Settings/GenotypePanelsPage';
 import AlleleReferencesPage from './components/Settings/AlleleReferencesPage';
+import WorkspaceEntry from './components/Workspace/WorkspaceEntry';
 import GenotypeAnalysisPage from './components/Analysis/GenotypeAnalysisPage';
 import LoginPage from './components/Auth/LoginPage';
 import AdminDashboard from './components/Dashboard/AdminDashboard';
+import MigrationExportPage from './components/Admin/MigrationExportPage';
 import MasterArrayExportPage from './components/Admin/MasterArrayExportPage';
 import FileUploader from './components/Upload/FileUploader';
 import GeneticExcelConverterPage from './components/Converter/GeneticExcelConverterPage';
@@ -513,7 +515,7 @@ const Dashboard = ({ onNavigate, selectedActiveTask, setSelectedActiveTask, onNo
 };
 
 const TasksPage = ({ onNavigate, onSelectActiveTask }) => {
-  const { user, hasRole, activeDepartmentId, activeDepartment } = useAuth();
+  const { user, hasRole, activeDepartmentId, activeDepartment, workspaceMode } = useAuth();
   const [tasks, setTasks] = React.useState([]);
   const [loading, setLoading] = React.useState(true);
   const [error, setError] = React.useState('');
@@ -1023,6 +1025,7 @@ const TasksPage = ({ onNavigate, onSelectActiveTask }) => {
 
   return (
     <TasksPageView
+      readOnly={workspaceMode}
       numberLabel={getTaskNumberLabel(activeDepartment)}
       onNavigate={onNavigate}
       isManager={hasRole('department_head') || hasRole('admin')}
@@ -1385,12 +1388,12 @@ function App() {
               element={
                 <ProtectedRoute onNavigate={navigate}>
                   <PageTransition fast={true}>
-                    <Dashboard
+                    <WorkspaceEntry mode="profiles" legacy={<Dashboard
                       onNavigate={navigate}
                       selectedActiveTask={selectedActiveTask}
                       setSelectedActiveTask={setSelectedActiveTask}
                       onNotification={handleNotification}
-                    />
+                    />} />
                   </PageTransition>
                 </ProtectedRoute>
               }
@@ -1400,13 +1403,13 @@ function App() {
               element={
                 <ProtectedRoute onNavigate={navigate}>
                   <PageTransition>
-                    <FileUploader
+                    <WorkspaceEntry mode="import" preparedFile={preparedImport} legacy={<FileUploader
                       onNavigate={navigate}
                       selectedActiveTask={selectedActiveTask}
                       onSelectActiveTask={handleSelectActiveTask}
                       preparedFile={preparedImport}
                       onPreparedFileConsumed={() => setPreparedImport(null)}
-                    />
+                    />} />
                   </PageTransition>
                 </ProtectedRoute>
               }
@@ -1522,10 +1525,10 @@ function App() {
               element={
                 <ProtectedRoute onNavigate={navigate} fluid>
                   <PageTransition>
-                    <GenotypeAnalysisPage
+                    <WorkspaceEntry mode="profiles" legacy={<GenotypeAnalysisPage
                       onNavigate={navigate}
                       selectedActiveTask={selectedActiveTask}
-                    />
+                    />} />
                   </PageTransition>
                 </ProtectedRoute>
               }
@@ -1538,6 +1541,7 @@ function App() {
               path="/settings/allele-references"
               element={<ProtectedRoute onNavigate={navigate}><PageTransition><AlleleReferencesPage /></PageTransition></ProtectedRoute>}
             />
+            <Route path="/admin/migration-export" element={<ProtectedRoute onNavigate={navigate} fluid><MigrationExportPage /></ProtectedRoute>} />
             <Route path="/admin/master-array-export" element={<ProtectedRoute onNavigate={navigate}><PageTransition><MasterArrayExportPage /></PageTransition></ProtectedRoute>} />
             <Route
               path="/admin-dashboard"

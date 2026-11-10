@@ -40,7 +40,7 @@ function databaseSource(row) {
   const data = typeof row.str_data === 'string' ? JSON.parse(row.str_data) : row.str_data;
   const normalized = normalizeLoci(data || {});
   const source = { sourceType: 'database', sourceId: row.id, displayName: row.internal_number || row.sample_name || 'Объект',
-    year: row.year, expertiseNumber: row.sample_name, loci: normalized.loci, rawLoci: data,
+    year: row.year, expertiseType: row.expertise_type || null, objectNumber: row.internal_number, expertiseNumber: row.expertise_type === 'staff' ? null : row.sample_name, loci: normalized.loci, rawLoci: data,
     qualityFlags: normalized.conflicts.map(locus => ({ locus, code: 'ALIAS_CONFLICT', hard: true, message: 'Разные значения под именами одного локуса' })) };
   source.sourceDigest = createHash('sha256').update(JSON.stringify(source)).digest('hex');
   return source;

@@ -9,7 +9,7 @@ import ConverterGrid from './ConverterGrid';
 import ConverterReferenceSettings from './ConverterReferenceSettings';
 const counters = { files: 'Файлов', sheets: 'Листов', originalRows: 'Исходных строк', uniqueObjects: 'Объектов', sourceLoci: 'Локусов источника', unchanged: 'Без изменений', autoFixed: 'Исправлено автоматически', warnings: 'Предупреждений', unresolved: 'Нерешённых', conflicts: 'Конфликтов' };
 export default function GeneticExcelConverterPage({ onPreparedFile, initialFiles, embedded = false }) {
-  const { activeDepartment, activeDepartmentId, user } = useAuth();
+  const { activeDepartment, activeDepartmentId, user, workspaceMode } = useAuth();
   const [files, setFiles] = useState([]), [options, setOptions] = useState({}), [result, setResult] = useState(null);
   const [busy, setBusy] = useState(false), [error, setError] = useState('');
   const [hideEmptyLoci, setHideEmptyLoci] = useState(true);
@@ -17,9 +17,9 @@ export default function GeneticExcelConverterPage({ onPreparedFile, initialFiles
   const [openSources, setOpenSources] = useState(false), [openIssues, setOpenIssues] = useState(false);
   const [references, setReferences] = useState([]), [populations, setPopulations] = useState([]);
   const request = useRef(null), input = useRef(null);
-  const importFormat = resolveProfileImportFormat(activeDepartment);
+  const importFormat = (workspaceMode ? 'genetic' : resolveProfileImportFormat(activeDepartment));
   const allowed = ['genetic', 'emergency'].includes(importFormat);
-  useEffect(() => { request.current?.abort(); setFiles([]); setOptions({}); setResult(null); setError(''); setBusy(false); if (input.current) input.current.value = ''; return () => request.current?.abort(); }, [activeDepartmentId]);
+  useEffect(() => { request.current?.abort(); setFiles([]); setOptions({}); setResult(null); setError(''); setBusy(false); if (input.current) input.current.value = ''; return () => request.current?.abort(); }, [workspaceMode ? user.organization_id : activeDepartmentId]);
   useEffect(() => {
     const controller = new AbortController(); setReferences([]); setPopulations([]);
     if (importFormat === 'genetic') Promise.all(['', '/populations'].map(async path => {

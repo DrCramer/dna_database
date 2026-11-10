@@ -18,6 +18,18 @@ const { logger } = require('../utils/logger');
 const { UPLOAD_PERMISSION_FIELDS, validateUploadPermissionFields, getProfileUploadPermissions } = require('../utils/profileUploadPermissions');
 
 const router = express.Router();
+router.use((req,res,next)=>{
+ if(!require('../services/workspace/workspaceMode').workspaceModeEnabled())return next();
+ authenticate(req,res,async()=>{
+  if(req.body?.organization_id && req.body.organization_id!==req.user.organization_id)return res.status(403).json({message:'Чужая организация.'});
+  const id=req.path.split('/').filter(Boolean)[0];
+  if(id&&/^[0-9a-f-]{36}$/i.test(id)){
+   try{const target=await User.findById(id);if(!target||target.organization_id!==req.user.organization_id)return res.status(403).json({message:'Пользователь другой организации недоступен.'});}catch{return res.status(503).json({message:'Не удалось проверить права.'});}
+  }
+  next();
+ });
+});
+
 
 // Helper function to get client info
 function getClientInfo(req) {
@@ -62,6 +74,7 @@ router.get('/', authenticate, departmentHeadOrAdmin, validateUsersList, async (r
             }
         }
 
+        if (require('../services/workspace/workspaceMode').workspaceModeEnabled()) { whereConditions.push(`users.organization_id = $${paramIndex++}`); queryParams.push(req.user.organization_id); }
         if (search) {
             whereConditions.push(`(users.username ILIKE $${paramIndex} OR users.display_name ILIKE $${paramIndex} OR users.email ILIKE $${paramIndex})`);
             queryParams.push(`%${search}%`); paramIndex++;

@@ -9,6 +9,20 @@ const { authenticate, adminOnly } = require('../middleware/auth');
 const { logger } = require('../utils/logger');
 const StaffProfileService = require("../services/profiles/staffProfileService");
 
+router.use((req,res,next)=>{
+  if(!require('../services/workspace/workspaceMode').workspaceModeEnabled())return next();
+  authenticate(req,res,()=>adminOnly(req,res,async()=>{
+    if(req.method!=='GET')return res.status(409).json({message:'Подготовьте сотрудника в личном массиве и опубликуйте после полного поиска.'});
+    try{
+      const org=req.user.organization_id;if(!org)return res.status(403).json({message:'Нет организации.'});
+      const rows=(await req.app.locals.pool.query('SELECT id,staff_id,full_name,registration_number,year,comment,str_data,is_active,department FROM staff_profiles WHERE organization_id=$1 AND is_active=true ORDER BY full_name,id',[org])).rows;
+      const requested=req.path.split('/').filter(Boolean)[0];
+      if(requested&&/^[0-9a-f-]{36}$/i.test(requested)){const profile=rows.find(row=>row.id===requested);return profile?res.json({success:true,profile,data:profile}):res.status(404).json({message:'Сотрудник не найден.'});}
+      res.json({success:true,profiles:rows,data:rows,total:rows.length,stats:{total:rows.length}});
+    }catch{res.status(500).json({message:'Не удалось получить сотрудников организации.'});}
+  }));
+});
+
 // Настройка multer для загрузки файлов в память
 const upload = multer({
   storage: multer.memoryStorage(),

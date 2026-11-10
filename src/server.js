@@ -240,6 +240,8 @@ app.post('/health/persistence/verify', authenticate, adminOnly, persistenceLimit
 // API routes
 app.use('/api/auth', authRoutes);
 app.use('/api/users', userRoutes);
+app.use('/api/workspace', require('./routes/workspace')());
+app.use('/api/profiles', require('./routes/workspaceLegacyBridge'));
 app.use('/api/profiles', profileRoutes);
 app.use('/api/analysis', analysisRoutes);
 app.use('/api/export', exportRoutes);
@@ -251,6 +253,7 @@ app.use('/api/audit', auditRoutes);
 app.use('/api/compliance', complianceRoutes);
 app.use('/api/organizations', organizationRoutes);
 app.use('/api/tasks', taskRoutes);
+app.use('/api/migration-export', require('./routes/legacyMigrationExport')());
 app.use('/api/master-arrays', masterArrayRoutes);
 app.use('/api/database-encryption', databaseEncryptionRoutes);
 app.use('/api/staff-profiles', staffProfileRoutes);
@@ -369,6 +372,18 @@ async function startServer() {
         // Verify database connection
         const { pool } = await connectDatabase();
         app.locals.pool = pool;
+        const workspaceEnabled = require('./services/workspace/workspaceMode').workspaceModeEnabled();
+        let databaseWorkspaceEnabled = false;
+        try {
+            databaseWorkspaceEnabled = !!(await pool.query('SELECT enabled FROM workspace_configuration WHERE id=true')).rows[0]?.enabled;
+        } catch (error) {
+            if (error.code !== '42P01' || workspaceEnabled) throw error;
+        }
+        if (workspaceEnabled !== databaseWorkspaceEnabled) throw new Error('UNIFIED_WORKSPACE_ENABLED и workspace_configuration.enabled должны совпадать. Выполните согласованное переключение.');
+        if (workspaceEnabled) {
+            const workspaces = new (require('./services/workspace/workspaceService').WorkspaceService)(pool);
+            setInterval(() => workspaces.pruneDrafts().catch(() => logger.error('WORKSPACE_DRAFT_RETENTION_FAILED')), 3600000).unref();
+        }
         logger.info('Database connected successfully');
         
         // Initialize scheduled jobs for compliance and data retention

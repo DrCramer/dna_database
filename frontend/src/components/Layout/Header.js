@@ -6,9 +6,9 @@ import { resolveProfileImportFormat } from '../../../../src/utils/profileImportF
 import ThemeSwitcher from '../Common/ThemeSwitcher';
 
 const Header = ({ user, onNavigate, onLogout, hasRole }) => {
-  const { activeDepartment } = useAuth();
+  const { activeDepartment, workspaceMode } = useAuth();
   const displayName = getUserDisplayName(user);
-  const isGenetic = resolveProfileImportFormat(activeDepartment) === 'genetic';
+  const isGenetic = workspaceMode || resolveProfileImportFormat(activeDepartment) === 'genetic';
   const [showSettingsMenu, setShowSettingsMenu] = useState(false);
   const settingsMenuRef = useRef(null);
   const navigate = path => { setShowUserMenu(false); setShowSystemMenu(false); setShowSettingsMenu(false); onNavigate(path); };
@@ -45,7 +45,8 @@ const Header = ({ user, onNavigate, onLogout, hasRole }) => {
 
   const isActive = (path) => window.location.pathname === path;
 
-  const analystMenu = [
+  const workspaceMenu = [{path:'/analysis',label:'Мои генотипы',icon:'🔬'},{path:'/upload',label:'Загрузка профилей',icon:'📁'},{path:'/master-object-search',label:'Поиск объектов',icon:'🔎'},{path:'/tasks',label:'Архив задач',icon:'📜'}];
+  const analystMenu = workspaceMode ? [...workspaceMenu] : [
     { path: '/dashboard', label: 'Главная', icon: '🏠' },
     { path: '/tasks', label: 'Задачи', icon: '📋' },
     { path: '/analysis', label: 'Анализ генотипов', icon: '🔬' },
@@ -55,7 +56,7 @@ const Header = ({ user, onNavigate, onLogout, hasRole }) => {
 
   if (isGenetic) analystMenu.push({ path: '/excel-converter', label: 'Конвертер профилей', icon: '📑' });
 
-  const adminMainMenu = [
+  const adminMainMenu = workspaceMode ? [...workspaceMenu] : [
     { path: '/dashboard', label: 'Главная', icon: '🏠' },
     { path: '/tasks', label: 'Задачи', icon: '📋' },
     { path: '/analysis', label: 'Анализ', icon: '🔬' },
@@ -71,6 +72,7 @@ const Header = ({ user, onNavigate, onLogout, hasRole }) => {
   const adminSearchItem = { path: '/master-object-search', label: 'Поиск объектов', icon: '🔎' };
 
   const adminSystemMenu = [
+    { path: '/admin/migration-export', label: 'Выгрузка для переноса', icon: '📦' },
     { path: '/admin/master-array-export', label: 'Экспорт мастер-массива', icon: '📤' },
     { path: '/users', label: 'Пользователи', icon: '👥' },
     { path: '/organizations', label: 'Организации', icon: '🏢' },
@@ -83,7 +85,7 @@ const Header = ({ user, onNavigate, onLogout, hasRole }) => {
     if (hasRole('admin') || user?.role === 'system_administrator') {
       return (
         <>
-          {(hasRole('admin') ? adminMainMenu : analystMenu.filter(item => item.path !== adminSearchItem.path)).map((item) => (
+          {(hasRole('admin') ? adminMainMenu.filter(item => item.path !== adminSearchItem.path) : analystMenu.filter(item => item.path !== adminSearchItem.path)).map((item) => (
             <button
               key={item.path}
               title={item.label}
@@ -111,7 +113,7 @@ const Header = ({ user, onNavigate, onLogout, hasRole }) => {
 
             {showSystemMenu && (
               <div className="dropdown-menu" id="system-menu">
-                {adminSystemMenu.filter(item => hasRole('admin') || item.path === '/admin/master-array-export').map((item) => (
+                {adminSystemMenu.filter(item => hasRole('admin') || ['/admin/master-array-export', '/admin/migration-export'].includes(item.path)).map((item) => (
                   <button
                     key={item.path}
                     title={item.label}
@@ -219,7 +221,7 @@ const Header = ({ user, onNavigate, onLogout, hasRole }) => {
       </nav>
 
       <div className="header-right">
-        <DepartmentSwitcher />
+        {!workspaceMode && <DepartmentSwitcher />}
         <ThemeSwitcher />
 
         <div className="user-menu" ref={userMenuRef}>

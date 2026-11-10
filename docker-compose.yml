@@ -36,6 +36,7 @@ services:
     container_name: dna-prod-web
     environment:
       NODE_ENV: production
+      UNIFIED_WORKSPACE_ENABLED: ${UNIFIED_WORKSPACE_ENABLED:-false}
       DB_HOST: db
       DB_PORT: 5432
       DB_NAME: dna_analysis

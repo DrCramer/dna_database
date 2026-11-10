@@ -22,12 +22,12 @@ class ProbabilityStore {
   }
   async list(context) {
     return (await this.query(`SELECT id,mode,formula_version,reference_version,created_at FROM probability_calculations
-      WHERE user_id=$1 AND department_id=$2 AND organization_id=$3 ORDER BY created_at DESC LIMIT 100`,
+      WHERE user_id=$1 AND ($2::uuid IS NULL OR department_id=$2) AND organization_id=$3 ORDER BY created_at DESC LIMIT 100`,
     [context.userId, context.departmentId, context.organizationId])).rows;
   }
   async get(context, id) {
     const { rows } = await this.query(`SELECT id,snapshot_encrypted FROM probability_calculations
-      WHERE id=$1 AND user_id=$2 AND department_id=$3 AND organization_id=$4`, [id, context.userId, context.departmentId, context.organizationId]);
+      WHERE id=$1 AND user_id=$2 AND ($3::uuid IS NULL OR department_id=$3) AND organization_id=$4`, [id, context.userId, context.departmentId, context.organizationId]);
     return rows[0] ? { id: rows[0].id, ...this.open(rows[0].snapshot_encrypted) } : null;
   }
 }

@@ -11,6 +11,7 @@ import {
 
 const TasksPageView = ({
   onNavigate,
+  readOnly = false,
   numberLabel,
   isManager,
   stats,
@@ -66,14 +67,14 @@ const TasksPageView = ({
         <div className="page-title-section">
           <h1 className="page-title">
             <span>📋</span>
-            <span>{isManager ? 'Управление задачами' : 'Мои задачи'}</span>
+            <span>{readOnly ? 'Архив задач' : isManager ? 'Управление задачами' : 'Мои задачи'}</span>
           </h1>
           <p className="page-subtitle">
-            {isManager ? 'Отслеживание и контроль задач отдела' : 'Список назначенных задач на анализ'}
+            {readOnly ? 'История прежних задач. Для новой работы используйте личный массив.' : isManager ? 'Отслеживание и контроль задач отдела' : 'Список назначенных задач на анализ'}
           </p>
         </div>
         <div className="header-actions">
-          {isManager && (
+          {isManager && !readOnly && (
             <button
               onClick={() => onNavigate('/tasks/create')}
               title="Создать новую задачу для аналитика"
@@ -112,7 +113,7 @@ const TasksPageView = ({
                 <thead>
                   <tr>
                     <TaskSortableHeader field="title" currentField={sortField} currentDirection={sortDirection} onSort={handleSort}>Название</TaskSortableHeader>
-                    {isManager && (
+                    {isManager && !readOnly && (
                       <TaskSortableHeader field="assigned_user_name" currentField={sortField} currentDirection={sortDirection} onSort={handleSort}>Назначена</TaskSortableHeader>
                     )}
                     <TaskSortableHeader field="internal_number_start" currentField={sortField} currentDirection={sortDirection} onSort={handleSort}>{numberLabel}</TaskSortableHeader>
@@ -127,7 +128,7 @@ const TasksPageView = ({
                   {getSortedTasks().map((task) => (
                     <tr key={task.id}>
                       <td className="task-table-cell-strong">{task.title}</td>
-                      {isManager && (
+                      {isManager && !readOnly && (
                         <td className="task-table-cell-muted">
                           {task.assigned_user_name || task.assigned_group_name || '—'}
                         </td>
@@ -142,7 +143,8 @@ const TasksPageView = ({
                       <td className="task-table-cell-muted">{new Date(task.created_at).toLocaleDateString('ru-RU')}</td>
                       <td className="task-table-cell-actions">
                         <div className="task-table-actions">
-                          {!isManager && task.status === 'assigned' && (
+                          {readOnly && <button className="btn btn-secondary btn-sm" onClick={() => openModal(task)}>Открыть историю</button>}
+                          {!readOnly && !isManager && task.status === 'assigned' && (
                             <button
                               onClick={() => {
                                 setActionTask(task);
@@ -155,7 +157,7 @@ const TasksPageView = ({
                             </button>
                           )}
 
-                          {!isManager && task.status === 'in_progress' && (
+                          {!readOnly && !isManager && task.status === 'in_progress' && (
                             <button
                               onClick={() => {
                                 setActionTask(task);
@@ -168,7 +170,7 @@ const TasksPageView = ({
                             </button>
                           )}
 
-                          {!isManager && ['completed', 'cancelled', 'approved'].includes(task.status) && (
+                          {!readOnly && !isManager && ['completed', 'cancelled', 'approved'].includes(task.status) && (
                             <button
                               onClick={() => openModal(task)}
                               title="Просмотреть детали задачи и загруженные генотипы"
@@ -178,7 +180,7 @@ const TasksPageView = ({
                             </button>
                           )}
 
-                          {isManager && (
+                          {isManager && !readOnly && (
                             <>
                               <button
                                 onClick={() => openModal(task)}
@@ -251,7 +253,7 @@ const TasksPageView = ({
                   <p className="task-modal-text">
                     {selectedTask.assigned_user_name || selectedTask.assigned_group_name || '—'}
                   </p>
-                  {isManager && (
+                  {isManager && !readOnly && (
                     <button
                       onClick={() => {
                         setShowAssignModal(true);
@@ -279,7 +281,7 @@ const TasksPageView = ({
             </div>
 
             <div className="task-modal-footer">
-              {selectedTask.status === 'pending' && !isManager && (
+              {!readOnly && selectedTask.status === 'pending' && !isManager && (
                 <button
                   onClick={() => handleStatusChange(selectedTask.id, 'in_progress')}
                   title="Взять задачу в работу и начать загрузку генотипов"
@@ -290,7 +292,7 @@ const TasksPageView = ({
                 </button>
               )}
 
-              {selectedTask.status === 'in_progress' && !isManager && (
+              {!readOnly && selectedTask.status === 'in_progress' && !isManager && (
                 <button
                   onClick={() => handleStatusChange(selectedTask.id, 'completed')}
                   title="Завершить задачу после загрузки всех генотипов"
