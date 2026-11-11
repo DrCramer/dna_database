@@ -81,3 +81,12 @@ test('Старый staff-результат использует свои дет
   assert(book.getWorksheet('Обозначения').getColumn(1).values.includes('Старый результат'));
   await assert.rejects(exportBook({ staff: [{ matches: [] }] }), e => e.status === 400);
 });
+
+test('XLSX сотрудников использует собственные исключённые локусы сохранённого поиска', async () => {
+  const result = fixture();
+  result.parameters.staffOptions = { ignoredLoci: ['TH01'] };
+  const sheet = (await exportBook(result)).getWorksheet('Контаминации');
+  assert.notEqual(at(sheet, 3, 'TH01').fill?.pattern, 'solid');
+  assert.equal(at(sheet, 3, 'FGA').fill.fgColor.argb, 'FF90EE90');
+  assert.equal(at(sheet, 3, 'Совпавшие локусы').value, 2);
+});

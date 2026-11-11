@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useRef, useMemo } from 'react';
 import ColorPicker from './ColorPicker';
+import { legacyContaminationSettings } from '../../../../src/utils/staffSearchOptions';
 import ProfileActionButtons from './ProfileActionButtons';
 import ProfileCommentModal from './ProfileCommentModal';
 import { useProfileFieldLabel } from '../../hooks/useProfileFieldLabel';
@@ -177,63 +178,14 @@ const GenotypeAnalysisPage = ({ onNavigate, selectedActiveTask }) => {
     if (saved) {
       try {
         const parsed = JSON.parse(saved);
-        return {
-          threshold: 5.5,
-          minLociMatch: 8,
-          criticalAlleleCount: 3,
-          weightCriticalLocus: 2,
-          stutterThreshold: 0.15,
-          useV4Algorithm: true,
-          useV5Algorithm: true,
-          searchInMasterArray: false,
-          autoCommentDuplicates: true,
-          locusWeights: {},
-          matchCoefficients: {
-            fullMatch: 1.0,
-            partialMatch: 0.4,
-            penalty: -1.0,
-            inclusiveDropout: 0.85,
-            overInclusiveMix: 0.7
-          },
-          colors: {
-            fullMatch: '#90EE90',
-            partialMatch: '#9d8311',
-            partialMatchAllele: '#1400e8',
-            noMatch: '#FFB6C1'
-          },
-          ...parsed  // Перезаписываем сохранёнными значениями
-        };
+        return legacyContaminationSettings(parsed);
       } catch (e) {
         console.error('Error loading settings from localStorage:', e);
       }
     }
 
     // Дефолтные настройки если ничего не сохранено
-    return {
-      threshold: 5.5,
-      minLociMatch: 8,
-      criticalAlleleCount: 3,
-      weightCriticalLocus: 2,
-      stutterThreshold: 0.15,
-      useV4Algorithm: true,
-      useV5Algorithm: true,
-      searchInMasterArray: false,
-      autoCommentDuplicates: true,
-      locusWeights: {},
-      matchCoefficients: {
-        fullMatch: 1.0,
-        partialMatch: 0.4,
-        penalty: -1.0,
-        inclusiveDropout: 0.85,
-        overInclusiveMix: 0.7
-      },
-      colors: {
-        fullMatch: '#90EE90',
-        partialMatch: '#9d8311',
-        partialMatchAllele: '#1400e8',
-        noMatch: '#FFB6C1'
-      }
-    };
+    return legacyContaminationSettings();
   });
 
   // Сохраняем настройки в localStorage при изменении

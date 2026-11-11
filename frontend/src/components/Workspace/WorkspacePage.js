@@ -1,5 +1,7 @@
 import { canTransferStaffName, transferStaffName } from '../../../../src/utils/staffImportMapping';
 import MasterApprovalDialog from './MasterApprovalDialog';
+import WorkspaceStaffSettings from './WorkspaceStaffSettings';
+import { staffSearchOptions } from '../../../../src/utils/staffSearchOptions';
 import WorkspaceDuplicateResults, { WorkspaceStaffResults, storedComparisonColors } from './WorkspaceDuplicateResults';
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { useAuth } from '../../contexts/AuthContext';
@@ -25,6 +27,10 @@ function saveFile(blob, filename) {
   anchor.download = filename;
   anchor.click();
   setTimeout(() => URL.revokeObjectURL(url), 1000);
+}
+function savedStaffOptions() {
+  try { return staffSearchOptions(JSON.parse(localStorage.getItem('genotypeAnalysisSettings') || '{}')); }
+  catch { return staffSearchOptions(); }
 }
 function WorkspaceIcon({
   name
@@ -86,6 +92,8 @@ export default function WorkspacePage({
   const [approvalWindow, setApprovalWindow] = useState(null);
   const [autoSaving, setAutoSaving] = useState(false);
   const [exportingStaff, setExportingStaff] = useState(false);
+  const [staffOptions, setStaffOptions] = useState(savedStaffOptions);
+  const [staffSettingsOpen, setStaffSettingsOpen] = useState(false);
   const resultColors = useMemo(storedComparisonColors, [result?.id]);
   const [viewFilter, setViewFilter] = useState('all');
   const [editingId, setEditingId] = useState(null);
@@ -149,6 +157,7 @@ export default function WorkspacePage({
     setWorkspace(data);
     setMinMatches(data.workspace.analysis_parameters?.minMatches ?? 15);
     setAlgorithm(data.workspace.analysis_parameters?.comparisonAlgorithm || 'standard');
+    setStaffOptions(data.workspace.analysis_parameters?.staffOptions ? staffSearchOptions(data.workspace.analysis_parameters.staffOptions) : savedStaffOptions());
     setRows(data.profiles);
     initial.current = data.profiles;
     setSelected(old => new Set([...old].filter(id => data.profiles.some(p => p.id === id))));
@@ -355,12 +364,25 @@ export default function WorkspacePage({
       await api('/search-settings', {
         parameters: {
           minMatches: Number(next.minMatches ?? minMatches),
-          comparisonAlgorithm: next.algorithm ?? algorithm
+          comparisonAlgorithm: next.algorithm ?? algorithm,
+          staffOptions
         }
       }, 'PATCH');
     } catch (e) {
       setError(e.message);
     }
+  }
+  async function saveStaffSettings(options) {
+    const next = staffSearchOptions(options);
+    await api('/search-settings', { parameters: { staffOptions: next } }, 'PATCH');
+    setStaffOptions(next);
+    setResult(null);
+    setRows(current => current.map(row => ({ ...row, searchState: row.searchState === 'CHECKED' ? 'STALE' : row.searchState, state: row.state === 'CHECKED' ? 'STALE' : row.state })));
+    try {
+      const saved = JSON.parse(localStorage.getItem('genotypeAnalysisSettings') || '{}');
+      localStorage.setItem('genotypeAnalysisSettings', JSON.stringify({ ...saved, ...next }));
+    } catch { /* Server settings are saved even if browser storage is unavailable. */ }
+    setNotice('Настройки контаминации сохранены. Выполните поиск с новыми параметрами.');
   }
   const exportName = () => {
     const filenames = [...new Set(rows.map(row => row.sourceFilename))];
@@ -430,7 +452,8 @@ export default function WorkspacePage({
             ids,
             parameters: {
               minMatches: Number(minMatches),
-              comparisonAlgorithm: algorithm
+              comparisonAlgorithm: algorithm,
+              staffOptions
             }
           });
           setResult(found);
@@ -581,7 +604,7 @@ export default function WorkspacePage({
                   updateSearchSettings({
                     algorithm: e.target.value
                   });
-                }}><option value="standard">Стандартный</option><option value="duplicate_v5">Дубликаты v5</option><option value="contamination">Контаминация</option></select></label><p>Изменение параметров требует нового полного поиска.</p></div></details>}</div>
+                }}><option value="standard">Стандартный</option><option value="duplicate_v5">Дубликаты v5</option><option value="contamination">Контаминация</option></select></label><button className="btn btn-secondary" disabled={busy || !canEdit} onClick={() => setStaffSettingsOpen(true)}>Контаминация сотрудников: настройки</button><p>Сотрудники: {staffOptions.useV5Algorithm ? 'v5.0' : staffOptions.useV4Algorithm ? 'v4.0' : 'v1.5'} · порог {staffOptions.threshold}. Изменение параметров требует нового полного поиска.</p></div></details>}</div>
 
         <div className="workspace-table-scroll" tabIndex="0" role="region" aria-label="Таблица объектов">
           <table className={`workspace-table ${isImport ? 'workspace-import-table' : ''}`}><thead><tr><th className="workspace-check-column"><input type="checkbox" aria-label="Выбрать все строки текущего фильтра" checked={allSelected} ref={el => {
@@ -646,10 +669,11 @@ export default function WorkspacePage({
           } catch (e) { setError(e.message); }
           finally { setExportingStaff(false); }
         }}><WorkspaceIcon name="download" />{exportingStaff ? 'Подготовка Excel…' : 'Экспорт контаминаций сотрудников в Excel'}</button></div>}
-        <WorkspaceStaffResults key={result.id + ':staff'} groups={result.staff} staffProfiles={result.staffProfiles} ignoredLoci={result.parameters?.ignoredLoci || []} colors={resultColors} />
+        <WorkspaceStaffResults key={result.id + ':staff'} groups={result.staff} staffProfiles={result.staffProfiles} ignoredLoci={result.parameters?.staffOptions?.ignoredLoci ?? result.parameters?.ignoredLoci ?? []} colors={resultColors} />
       </details>
     </section>}
 
+    {staffSettingsOpen && <WorkspaceStaffSettings options={staffOptions} onClose={() => setStaffSettingsOpen(false)} onSave={saveStaffSettings} />}
     {approvalWindow && <MasterApprovalDialog {...approvalWindow} api={api} userId={user.id} onClose={() => setApprovalWindow(null)} onChanged={load} />}
     {details && <dialog className="workspace-editor-dialog" ref={editorDialog} aria-label="Генотип и источник объекта" onCancel={() => setDetails(null)} onClick={e => {
       if (e.target === e.currentTarget) setDetails(null);

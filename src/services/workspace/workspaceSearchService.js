@@ -18,6 +18,7 @@ const {
   runProfileSearch
 } = require('../profiles/searchWorkerExecutor');
 const { runStaffSearch } = require('../contamination/staffSearchWorkerExecutor');
+const { staffSearchOptions } = require('../../utils/staffSearchOptions');
 const {
   decodeMasterRow
 } = require('../converters/masterArrayExcelExportService');
@@ -38,6 +39,7 @@ class WorkspaceSearchService extends WorkspaceService {
         ...workspace.analysis_parameters,
         ...parameters
       };
+      effective.staffOptions = staffSearchOptions(parameters.staffOptions ?? workspace.analysis_parameters.staffOptions);
       await client.query('UPDATE personal_workspaces SET analysis_parameters=$1,analysis_revision=analysis_revision+1 WHERE id=$2 AND analysis_parameters IS DISTINCT FROM $1::jsonb', [JSON.stringify(effective), workspace.id]);
       return effective;
     });
@@ -58,7 +60,7 @@ class WorkspaceSearchService extends WorkspaceService {
       master = (await reader.query(`SELECT p.* FROM master_array_profiles p JOIN master_arrays ma ON ma.id=p.master_array_id WHERE p.organization_id=$1 AND p.is_active=true AND ma.is_active=true`, [user.organization_id])).rows.map(row => decodeMasterRow(row));
       const legacyMasters = (await reader.query("SELECT * FROM dna_profiles WHERE organization_id=$1 AND is_active=true AND profile_type='master'", [user.organization_id])).rows.map(row => decodeMasterRow(row));
       master.push(...legacyMasters);
-      staff = (await reader.query('SELECT * FROM staff_profiles WHERE organization_id=$1 AND is_active=true', [user.organization_id])).rows;
+      staff = (await reader.query('SELECT * FROM staff_profiles WHERE organization_id=$1 AND is_active=true ORDER BY full_name,id', [user.organization_id])).rows;
       // Only the exact current published revision can exclude a self-reference.
       // Read all links once, in the same scoped snapshot as the reference arrays.
       staffLinks = (await reader.query(`SELECT pub.workspace_profile_id,pub.published_id
@@ -123,15 +125,20 @@ class WorkspaceSearchService extends WorkspaceService {
         exclusions.get(link.workspace_profile_id).push(link.published_id);
       }
       const staffResult = await runStaffSearch({ referenceProfiles: eligible, staffProfiles: staff,
-        excludedStaffIds: [...exclusions], options: { ...parameters.staffOptions, ignoredLoci: input.ignoredLoci } }, { signal });
+        excludedStaffIds: [...exclusions], options: parameters.staffOptions }, { signal });
+      // Match the main analyze-task route's final threshold filter, including
+      // its fallback when a legacy saved threshold is zero.
+      const staffThreshold = parameters.staffOptions.threshold || 5.5;
+      for (const group of staffResult.results) group.matches = group.matches.filter(match => match.finalScore >= staffThreshold);
       const needed = input.comparisonAlgorithm === 'duplicate_v5' ? input.duplicateSettings.minLoci ?? 15 : input.minMatches;
       const proofs = profiles.map(p => {
         const count = Object.entries(p.str_data).filter(([locus, value]) => !input.ignoredLoci.includes(locus) && informativeAlleles(value).length).length;
+        const staffCount = Object.entries(p.str_data).filter(([locus, value]) => !parameters.staffOptions.ignoredLoci.includes(locus) && informativeAlleles(value).length).length;
         return {
           profileId: p.id,
           analysisRevision: p.analysis_revision,
           hash: hashes.get(p.id),
-          state: !hasGenotype(p.str_data) ? 'NO_GENOTYPE' : count < Math.max(needed, parameters.staffOptions?.minLociMatch ?? 8) ? 'INSUFFICIENT_DATA' : 'CHECKED',
+          state: !hasGenotype(p.str_data) ? 'NO_GENOTYPE' : count < needed || staffCount < parameters.staffOptions.minLociMatch ? 'INSUFFICIENT_DATA' : 'CHECKED',
           comparedLoci: count
         };
       });

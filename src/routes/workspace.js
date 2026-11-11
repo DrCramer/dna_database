@@ -37,7 +37,13 @@ const searchSchema = Joi.object({
       stutterThreshold: Joi.number().min(0).max(1),
       threshold: Joi.number().min(0).max(100),
       useV4Algorithm: Joi.boolean(),
-      useV5Algorithm: Joi.boolean()
+      useV5Algorithm: Joi.boolean(),
+      ignoredLoci: Joi.array().max(510).unique().items(Joi.string().min(1).max(100)),
+      locusWeights: Joi.object().max(510).pattern(/^(?!__proto__$|constructor$|prototype$).{1,100}$/, Joi.number().min(0).max(100)),
+      matchCoefficients: Joi.object({
+        fullMatch: Joi.number().min(0).max(100), partialMatch: Joi.number().min(0).max(100),
+        penalty: Joi.number().min(-100).max(100), inclusiveDropout: Joi.number().min(0).max(100), overInclusiveMix: Joi.number().min(0).max(100)
+      })
     })
   }).default({})
 }).options({

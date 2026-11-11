@@ -1595,3 +1595,11 @@
 .workspace-staff-registration { margin-top: 4px; font-size: 11px; font-weight: 400; color: var(--text-secondary); }
 .workspace-staff-score { font-weight: 600; font-variant-numeric: tabular-nums; }
 .workspace-result-actions { display: flex; justify-content: flex-end; flex-wrap: wrap; gap: 10px; padding: 16px 16px 0; }
+.workspace-staff-settings-dialog { max-width: 720px; }
+.workspace-staff-settings-dialog > form { display: flex; flex-direction: column; min-height: 0; max-height: inherit; }
+.workspace-staff-settings-fields { border: 0; margin: 0; min-width: 0; min-height: 0; }
+.workspace-staff-settings-fields label { display: grid; gap: 6px; font-size: 13px; color: var(--text-secondary); }
+.workspace-staff-settings-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(220px, 100%), 1fr)); gap: 16px; margin-block: 16px; }
+.workspace-staff-settings-fields details > label { margin-block: 16px; }
+.workspace-staff-settings-fields summary { cursor: pointer; font-weight: 600; }
+.workspace-staff-settings-fields p { color: var(--text-secondary); font-size: 13px; line-height: 1.6; }

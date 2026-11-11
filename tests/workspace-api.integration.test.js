@@ -278,6 +278,38 @@ test('Workspace API: реальные сессии, роли, чужие UUID, l
     await pool.query("UPDATE workspace_search_runs SET state='complete' WHERE id=$1", [empty.id]);
     await service.configureSearch(actor, { staffOptions: {} });
   });
+  await t.test('Прежние настройки staff сохраняются, доходят до поиска и совпадают с прямым main-анализом', async () => {
+    const { WorkspaceApprovalService } = require('../src/services/workspace/workspaceApprovalService');
+    const { staffSearchOptions } = require('../src/utils/staffSearchOptions');
+    const service = new WorkspaceApprovalService(pool), actor = await User.findById(users.user_analyst.id);
+    for (const staffOptions of [{ locusWeights: { SE33: '2' } }, { matchCoefficients: { penalty: -101 } }, { matchCoefficients: { invalid: 1 } }, { useV5Algorithm: 'false' }]) {
+      assert.equal((await call('/api/workspace/search-settings', 'user_analyst', { parameters: { staffOptions } }, 'PATCH')).status, 400);
+    }
+    const staffOptions = staffSearchOptions({ useV4Algorithm: true, useV5Algorithm: false, threshold: 0.5, locusWeights: {}, matchCoefficients: { fullMatch: 1.3, partialMatch: 0.3, penalty: -1.5 }, ignoredLoci: ['TH01'] });
+    const saved = await call('/api/workspace/search-settings', 'user_analyst', { parameters: { minMatches: 14, ignoredLoci: ['FGA'], staffOptions } }, 'PATCH');
+    assert.equal(saved.status, 200); assert.deepEqual((await saved.json()).parameters.staffOptions, staffOptions);
+    const response = await call('/api/workspace/full-search', 'user_analyst', { ids: [profile], parameters: {} });
+    assert.equal(response.status, 200); const run = await response.json();
+    assert.deepEqual(run.parameters.staffOptions, staffOptions);
+    const current = await service.list(actor); assert.deepEqual(current.workspace.analysis_parameters.staffOptions, staffOptions);
+    assert.equal(current.profiles.find(p => p.id === profile).searchState, 'CHECKED');
+    const source = (await pool.query('SELECT * FROM dna_profiles WHERE id=$1', [profile])).rows[0];
+    const staff = (await pool.query('SELECT * FROM staff_profiles WHERE organization_id=$1 AND is_active=true ORDER BY full_name,id', [org])).rows;
+    const analyzer = new (require('../src/services/contamination/staffContaminationAnalyzer'))(null, { quiet: true });
+    const expected = await analyzer.detectStaffContamination(source, staff, staffOptions);
+    const actual = run.staff[0].matches.map(({ registrationNumber, staffYear, ...match }) => match);
+    assert.deepEqual(actual, expected); assert(actual.length > 0);
+    assert(actual[0].detailedMatches.every(detail => detail.matchCoeff === 1.3));
+    assert(actual[0].detailedMatches.some(detail => detail.locus === 'FGA'));
+    assert(!actual[0].detailedMatches.some(detail => detail.locus === 'TH01'));
+    await service.configureSearch(actor, { staffOptions: { ...staffOptions, threshold: 100 } });
+    assert.equal((await service.list(actor)).profiles.find(p => p.id === profile).searchState, 'STALE');
+    const stored = await service.search(actor, run.id); assert.deepEqual(stored.parameters.staffOptions, staffOptions);
+    // The legacy task route falls back to threshold 5.5 when zero was saved.
+    const zero = await service.fullSearch(actor, [profile], { staffOptions: { threshold: 0, useV5Algorithm: false, useV4Algorithm: true } });
+    assert(zero.staff.every(group => group.matches.every(match => match.finalScore >= 5.5)));
+    await service.configureSearch(actor, { minMatches: 15, ignoredLoci: [], staffOptions: {} });
+  });
   await t.test('Персональное право через admin API, заявка аналитика, чужое решение и немедленный отзыв', async()=>{
     const created=await call('/api/auth/register-with-department','admin',{
       username:'SYN_Reviewer_'+randomUUID().slice(0,8),display_name:'Тестовый У. У.',password:'Synthetic_2026!',

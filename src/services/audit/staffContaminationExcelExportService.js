@@ -41,7 +41,7 @@ class StaffContaminationExcelExportService {
     if (1 + groups.reduce((count, group) => count + 1 + group.matches.length, 0) > 1048576) {
       throw Object.assign(new Error('Результат превышает число строк листа Excel. Выполните поиск для меньшего количества объектов.'), { status: 413 });
     }
-    const palette = normalizeMatchColors(colors), ignoredLoci = new Set(result.parameters?.ignoredLoci || []);
+    const palette = normalizeMatchColors(colors), ignoredLoci = new Set(result.parameters?.staffOptions?.ignoredLoci ?? result.parameters?.ignoredLoci ?? []);
     const loci = orderNormalizedLoci(getAnalysisLoci(groups.flatMap(group => [group.reference, ...group.matches])));
     const headers = ['Роль', 'Объект / сотрудник', '№ регистрации', 'Год', 'Оценка', 'Совпавшие локусы', ...loci];
     const workbook = new ExcelJS.Workbook();
