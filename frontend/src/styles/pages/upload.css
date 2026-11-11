@@ -1603,3 +1603,36 @@
 .workspace-staff-settings-fields details > label { margin-block: 16px; }
 .workspace-staff-settings-fields summary { cursor: pointer; font-weight: 600; }
 .workspace-staff-settings-fields p { color: var(--text-secondary); font-size: 13px; line-height: 1.6; }
+
+/* Keep the personal array inside the app viewport; scroll data, not the page. */
+.app-main:has(.workspace-profiles-page) { overflow: hidden; }
+.page-shell:has(.workspace-profiles-page) { display: flex; flex-direction: column; flex: 1; min-height: 0; max-width: none; padding: 0; overflow: hidden; }
+.page-shell:has(.workspace-profiles-page) > .page-wrapper { flex: 1; min-height: 0; height: 100%; overflow: hidden; }
+.page-shell:has(.workspace-profiles-page) .workspace-profiles-page { display: flex; flex-direction: column; flex: 1; min-height: 0; height: 100%; padding: 12px 16px; gap: 10px; overflow: hidden; }
+.workspace-profiles-page > [hidden] { display: none !important; }
+.workspace-compact-toolbar { display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 8px 16px; flex-shrink: 0; }
+.workspace-view-switch { display: flex; align-items: center; flex-wrap: wrap; gap: 8px; }
+.workspace-compact-toolbar .btn { min-height: 34px; padding: 6px 10px; font-size: 12px; }
+.workspace-compact-toolbar .master-approval-header-actions { gap: 8px; }
+.workspace-view-switch [aria-pressed="true"] { color: var(--brand-primary); border-color: var(--brand-primary); background: var(--status-info-bg); }
+.workspace-ready-count { font-size: 12px; color: var(--text-secondary); }
+.workspace-profiles-page > .workspace-message { flex-shrink: 0; margin: 0; padding: 6px 10px; max-height: 72px; overflow: auto; font-size: 12px; }
+.workspace-profiles-page > .workspace-profile-panel { display: flex; flex-direction: column; flex: 1; min-height: 0; overflow: hidden; }
+.workspace-profiles-page .workspace-data-card { display: flex; flex-direction: column; flex: 1; min-height: 0; overflow: hidden; }
+.workspace-profiles-page .workspace-profile-controls { flex-shrink: 0; max-height: 45%; overflow: auto; }
+.workspace-profiles-page .workspace-data-heading { padding: 8px 12px; }
+.workspace-profiles-page .workspace-filter-bar { padding: 0 12px 8px; gap: 8px; }
+.workspace-profiles-page .workspace-tools-row summary { padding: 8px 12px; }
+.workspace-profiles-page .workspace-table-scroll { flex: 1; min-height: 0; max-height: none; }
+.workspace-profiles-page .workspace-pagination { flex-shrink: 0; padding: 6px 12px; }
+.workspace-profiles-page .workspace-command-bar { position: relative; flex-shrink: 0; margin-top: 8px; padding: 8px 12px; gap: 8px; }
+.workspace-profiles-page .workspace-more-actions > div { max-height: min(320px, 35dvh); overflow: auto; }
+.workspace-profiles-page > .workspace-search-results { position: relative; flex: 1; min-height: 0; margin: 0; overflow: auto; }
+.workspace-profiles-page .workspace-empty { flex: 1; min-height: 0; overflow: auto; }
+@media (max-width: 600px) {
+  .page-shell:has(.workspace-profiles-page) .workspace-profiles-page { padding: 8px; gap: 8px; }
+  .workspace-compact-toolbar { gap: 6px; }
+  .workspace-compact-toolbar .master-approval-header-actions { width: auto; }
+  .workspace-ready-count { display: none; }
+  .workspace-profiles-page .workspace-profile-controls { max-height: 45%; }
+}

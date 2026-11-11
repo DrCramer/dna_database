@@ -92,6 +92,12 @@ export default function WorkspacePage({
   const [approvalWindow, setApprovalWindow] = useState(null);
   const [autoSaving, setAutoSaving] = useState(false);
   const [exportingStaff, setExportingStaff] = useState(false);
+  const [activeView, setActiveView] = useState('profiles');
+  const resultViewButton = useRef(null);
+  const showingResults = !isImport && !!result && activeView === 'results';
+  useEffect(() => {
+    if (result) resultViewButton.current?.focus({ preventScroll: true });
+  }, [result?.id]);
   const [staffOptions, setStaffOptions] = useState(savedStaffOptions);
   const [staffSettingsOpen, setStaffSettingsOpen] = useState(false);
   const resultColors = useMemo(storedComparisonColors, [result?.id]);
@@ -457,6 +463,7 @@ export default function WorkspacePage({
             }
           });
           setResult(found);
+          setActiveView('results');
           await load();
           setNotice('Поиск завершён. Найденные совпадения показаны отдельно от состояния проверки.');
         }
@@ -528,12 +535,18 @@ export default function WorkspacePage({
   }])) : [];
   const stateBadge = row => <div><span className="workspace-badge" data-state={row.state || 'NOT_CHECKED'}>{row.expertiseType === 'staff' && row.state === 'PUBLISHED' ? 'В эталонах сотрудников' : states[row.state] || 'Не проверен'}</span>{row.approvalId && <button className="workspace-object-link master-approval-history-link" onClick={() => setApprovalWindow({mode:'history',requestId:row.approvalId})}>Решение и история</button>}{row.decisionComment && <small className="master-approval-decision-note">{row.decisionComment}</small>}</div>;
   const objectNumber = row => row.expertiseType === 'staff' ? 'Регистрационный номер' : `№ экспертизы ${row.objectNumber.split('-')[0] || '—'}`;
-  return <div className={`workspace-page ${isImport ? 'workspace-import-page' : 'workspace-profiles-page'}`} aria-busy={busy}>
-    <header className="workspace-heading">
-      <div>{isImport && <span className="workspace-eyebrow">Личная рабочая область</span>}<h1>{isImport ? 'Загрузка в личный массив' : 'Мои генотипы'}</h1>{(!isImport || !rows.length) && <p>{isImport ? 'Добавьте файлы, выберите объекты и подтвердите загрузку.' : 'Ваши профили, результаты поиска и публикации в общем массиве.'}</p>}</div>
-      {!isImport && <div className="master-approval-header-actions"><button className="btn btn-secondary" onClick={() => setApprovalWindow({mode:'own-history'})}>Мои заявки</button>{workspace?.canApproveMaster && <button className="btn btn-secondary" onClick={() => setApprovalWindow({mode:'queue'})}>На подтверждении</button>}<a className="btn btn-primary" href="/upload"><WorkspaceIcon name="upload" />Загрузить файлы</a></div>}
-      {isImport && <a className="btn btn-secondary" href="/analysis"><WorkspaceIcon name="grid" />Мои генотипы</a>}
-    </header>
+  return <div className={`workspace-page ${isImport ? 'workspace-import-page' : 'workspace-profiles-page'}`} aria-label={isImport ? undefined : 'Мои генотипы'} aria-busy={busy}>
+    {isImport ? <header className="workspace-heading">
+      <div><span className="workspace-eyebrow">Личная рабочая область</span><h1>Загрузка в личный массив</h1>{!rows.length && <p>Добавьте файлы, выберите объекты и подтвердите загрузку.</p>}</div>
+      <a className="btn btn-secondary" href="/analysis"><WorkspaceIcon name="grid" />Мои генотипы</a>
+    </header> : <div className="workspace-compact-toolbar">
+      <div className="workspace-view-switch" role="group" aria-label="Представление личного массива">
+        <button className="btn btn-secondary" aria-pressed={!showingResults} onClick={() => setActiveView('profiles')}><WorkspaceIcon name="grid" />Профили<span className="workspace-count-pill">{rows.length}</span></button>
+        <button className="btn btn-secondary" ref={resultViewButton} disabled={!result} aria-pressed={showingResults} onClick={() => setActiveView('results')}><WorkspaceIcon name="search" />Результаты поиска</button>
+        <span className="workspace-ready-count">Готовы к публикации: {readyCount}</span>
+      </div>
+      <div className="master-approval-header-actions"><button className="btn btn-secondary" onClick={() => setApprovalWindow({mode:'own-history'})}>Мои заявки</button>{workspace?.canApproveMaster && <button className="btn btn-secondary" onClick={() => setApprovalWindow({mode:'queue'})}>На подтверждении</button>}<a className="btn btn-primary" href="/upload"><WorkspaceIcon name="upload" />Загрузить файлы</a></div>
+    </div>}
 
     {isImport && !rows.length && <ol className="workspace-steps" aria-label="Этапы загрузки">{['Выбор файлов', 'Подготовка объектов', 'Загрузка в массив'].map((label, index) => <li key={label} aria-current={(rows.length ? index === 1 : index === 0) ? 'step' : undefined} data-complete={!!rows.length && index === 0}><span>{rows.length && index === 0 ? <WorkspaceIcon name="check" /> : index + 1}</span>{label}</li>)}</ol>}
     {error && <div className="workspace-message workspace-message-error" role="alert"><WorkspaceIcon name="alert" /><div>{error}</div>{!!retryFiles.current.length && <button className="btn btn-secondary btn-sm" disabled={busy} onClick={() => upload(retryFiles.current)}>Повторить загрузку</button>}</div>}
@@ -565,10 +578,12 @@ export default function WorkspacePage({
       <div className="workspace-drop-actions"><button className="btn btn-primary" disabled={busy || !canUpload} onClick={() => input.current.click()}>{busy ? 'Обработка файлов…' : rows.length ? 'Заменить файлы' : 'Выбрать файлы'}</button><a href="/excel-converter">Открыть конвертер <span aria-hidden="true">↗</span></a></div>
     </section>}
 
+    <div className="workspace-profile-panel" hidden={showingResults}>
     {!!rows.length && <>
-      {isImport ? <div className="workspace-draft-status"><span><strong>{rows.length.toLocaleString('ru-RU')}</strong> объектов из файлов{errorCount > 0 && <span className="workspace-draft-warning"> · требуют внимания: {errorCount}</span>}</span><span><span className={`workspace-save-dot ${autoSaving || draftPending ? 'is-saving' : ''}`} /><span role="status">{autoSaving ? 'Сохраняем правки…' : draftPending ? 'Правки ожидают сохранения' : 'Черновик сохранён'}</span><small>· 24 часа</small></span></div> : <div className="workspace-overview" aria-label="Сводка объектов"><div><span>Всего объектов</span><strong>{rows.length.toLocaleString('ru-RU')}</strong></div><div><span>Выбрано</span><strong>{included.length.toLocaleString('ru-RU')}</strong></div><div><span>Готовы к публикации</span><strong>{readyCount}</strong></div><div className="workspace-overview-note"><WorkspaceIcon name="shield" /><span>Личный массив<small>Виден только вам</small></span></div></div>}
+      {isImport && <div className="workspace-draft-status"><span><strong>{rows.length.toLocaleString('ru-RU')}</strong> объектов из файлов{errorCount > 0 && <span className="workspace-draft-warning"> · требуют внимания: {errorCount}</span>}</span><span><span className={`workspace-save-dot ${autoSaving || draftPending ? 'is-saving' : ''}`} /><span role="status">{autoSaving ? 'Сохраняем правки…' : draftPending ? 'Правки ожидают сохранения' : 'Черновик сохранён'}</span><small>· 24 часа</small></span></div>}
 
       <section className="workspace-data-card">
+        <div className="workspace-profile-controls">
         <div className="workspace-data-heading"><div><h2>{isImport ? 'Объекты из файлов' : 'Рабочие профили'}</h2>{isImport && <p>Укажите год и тип. ФИО заполняется только для сотрудников.</p>}</div>{!isImport && !!dirtyCount && <span className="workspace-badge" data-state="STALE">Есть изменения: {dirtyCount}</span>}</div>
         <div className="workspace-filter-bar">
           <label className="workspace-search"><WorkspaceIcon name="search" /><input className="form-input" aria-label="Поиск объектов" value={query} onChange={e => {
@@ -606,6 +621,7 @@ export default function WorkspacePage({
                   });
                 }}><option value="standard">Стандартный</option><option value="duplicate_v5">Дубликаты v5</option><option value="contamination">Контаминация</option></select></label><button className="btn btn-secondary" disabled={busy || !canEdit} onClick={() => setStaffSettingsOpen(true)}>Контаминация сотрудников: настройки</button><p>Сотрудники: {staffOptions.useV5Algorithm ? 'v5.0' : staffOptions.useV4Algorithm ? 'v4.0' : 'v1.5'} · порог {staffOptions.threshold}. Изменение параметров требует нового полного поиска.</p></div></details>}</div>
 
+        </div>
         <div className="workspace-table-scroll" tabIndex="0" role="region" aria-label="Таблица объектов">
           <table className={`workspace-table ${isImport ? 'workspace-import-table' : ''}`}><thead><tr><th className="workspace-check-column"><input type="checkbox" aria-label="Выбрать все строки текущего фильтра" checked={allSelected} ref={el => {
                     if (el) el.indeterminate = !allSelected && selectable.some(isSelected);
@@ -651,8 +667,9 @@ export default function WorkspacePage({
     </>}
 
     {!isImport && !rows.length && <section className="workspace-empty"><span className="workspace-empty-icon"><WorkspaceIcon name="grid" /></span><h2>Здесь будут ваши генотипы</h2><p>Загрузите файлы, выберите нужные объекты и начните работу с личным массивом.</p><a className="btn btn-primary" href="/upload"><WorkspaceIcon name="upload" />Загрузить первые файлы</a><div><span><WorkspaceIcon name="check" />Без назначения задачи</span><span><WorkspaceIcon name="shield" />С доступом только для вас</span></div></section>}
+    </div>
 
-    {result && <section className="workspace-search-results"><div className="workspace-data-heading"><div><span className="workspace-eyebrow">Поиск завершён</span><h2>Результаты полного поиска</h2><p>Проверено: {result.profiles.filter(profile => profile.state === 'CHECKED').length}; без генотипа: {result.profiles.filter(profile => profile.state === 'NO_GENOTYPE').length}; недостаточно локусов: {result.profiles.filter(profile => profile.state === 'INSUFFICIENT_DATA').length}.</p></div><button className="btn btn-secondary" onClick={async () => {
+    {result && <section className="workspace-search-results" hidden={!showingResults} tabIndex="0" aria-label="Результаты поиска"><div className="workspace-data-heading"><div><span className="workspace-eyebrow">Поиск завершён</span><h2>Результаты полного поиска</h2><p>Проверено: {result.profiles.filter(profile => profile.state === 'CHECKED').length}; без генотипа: {result.profiles.filter(profile => profile.state === 'NO_GENOTYPE').length}; недостаточно локусов: {result.profiles.filter(profile => profile.state === 'INSUFFICIENT_DATA').length}.</p></div><button className="btn btn-secondary" onClick={async () => {
           try {
             saveFile(await api('/searches/' + result.id + '/duplicates-xlsx', {}, 'POST', true), 'Дубликаты.xlsx');
           } catch (e) {
