@@ -138,13 +138,28 @@ class WorkspaceSearchService extends WorkspaceService {
       for (const stage of [internal, shared]) for (const group of stage.results) {
         group.reference.str_data = profiles.find(p => p.id === group.reference.id)?.str_data || {};
       }
+      // Preserve raw genotypes from the same scoped search snapshot, once per
+      // matched staff member. Worker scores/details remain unchanged.
+      const matchedStaff = new Set();
+      for (const group of staffResult.results) for (const match of group.matches) matchedStaff.add(match.staffId);
+      const sourceById = new Map(profiles.map(profile => [profile.id, profile]));
+      const staffGroups = staffResult.results.map(group => {
+        if (!group.matches.length) return group;
+        const p = sourceById.get(group.profileId);
+        return { ...group, reference: { id: p.id, internal_number: p.internal_number, year: p.year, str_data: p.str_data } };
+      });
+      const staffProfiles = staff.filter(profile => matchedStaff.has(profile.id)).map(p => ({
+        id: p.id, internal_number: p.registration_number || p.staff_id,
+        full_name: p.full_name, year: p.year, str_data: p.str_data
+      }));
       const result = {
         id,
         algorithmVersion: ALGORITHM_VERSION,
         parameters,
         internal,
         master: shared,
-        staff: staffResult.results,
+        staff: staffGroups,
+        staffProfiles,
         staffExecution: { mode: staffResult.mode, workerCount: staffResult.workerCount, comparisons: staffResult.comparisons },
         profiles: proofs,
         referenceCounts: {

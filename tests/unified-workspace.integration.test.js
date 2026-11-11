@@ -322,6 +322,23 @@ test('Единый workspace: импорт, ревизии, поиск, gate, п
     const proofs = (await pool.query('SELECT state,stages FROM workspace_search_profiles WHERE search_run_id=$1', [result.id])).rows;
     assert.equal(proofs.length, 120);
     assert(proofs.every(proof => proof.state === 'CHECKED' && proof.stages.internal && proof.stages.master && proof.stages.staff));
+    const hitIds=new Set(result.staff.flatMap(group=>group.matches.map(match=>match.staffId)));
+    assert.deepEqual(new Set(result.staffProfiles.map(p=>p.id)),hitIds,'Only already-authorized matched staff are included');
+    assert.deepEqual(result.staff.find(group=>group.profileId===ordinary.ids[0]).reference.str_data,data);
+    const snapshotId=published.published[0].publishedId;
+    assert.deepEqual(result.staffProfiles.find(p=>p.id===snapshotId).str_data,data);
+    // Later changes to the editable source and staff publication must not alter
+    // the genotypes shown for this completed search.
+    await service.patch(actor,ordinary.ids[0],{strData:{...data,TH01:['7','9']}});
+    await service.patch(actor,staffSource.ids[0],{strData:{...data,TH01:['7','9']}});
+    const updatedRun=await service.fullSearch(actor,[staffSource.ids[0]]);
+    await service.publish(actor,[staffSource.ids[0]],updatedRun.id);
+    const stored=await service.search(actor,result.id);
+    assert.deepEqual(stored.staff.find(group=>group.profileId===ordinary.ids[0]).reference.str_data,data);
+    const updatedId=published.published.find(p=>p.profileId===staffSource.ids[0]).publishedId;
+    assert.deepEqual(stored.staffProfiles.find(p=>p.id===updatedId).str_data.TH01,['12','13']);
+    assert.deepEqual((await pool.query('SELECT str_data FROM staff_profiles WHERE id=$1',[updatedId])).rows[0].str_data.TH01,['7','9']);
+
   });
   await t.test('Два подтверждения: выбранные 2/3, неизменная дата поиска, область заявки и история', async()=>{
     const owner=await user('user_analyst');

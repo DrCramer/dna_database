@@ -1,6 +1,6 @@
 import { canTransferStaffName, transferStaffName } from '../../../../src/utils/staffImportMapping';
 import MasterApprovalDialog from './MasterApprovalDialog';
-import WorkspaceDuplicateResults from './WorkspaceDuplicateResults';
+import WorkspaceDuplicateResults, { WorkspaceStaffResults } from './WorkspaceDuplicateResults';
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { useAuth } from '../../contexts/AuthContext';
 import { getAnalysisLoci } from '../../../../src/utils/analysisLoci';
@@ -636,7 +636,7 @@ export default function WorkspacePage({
         }}><WorkspaceIcon name="download" />Экспорт дубликатов в Excel</button></div>
       <div className="workspace-result-overview"><div><WorkspaceIcon name="grid" /><span>Внутри личного массива<strong>{result.internal.results.length} групп с совпадениями</strong></span></div><div><WorkspaceIcon name="search" /><span>Мастер-массив<strong>{result.master.results.length} групп · {result.referenceCounts.master} эталонов</strong></span></div><div><WorkspaceIcon name="shield" /><span>Контаминация сотрудников<strong>{result.staff.filter(item => item.matches.length).length} объектов · {result.referenceCounts.staff} эталонов</strong></span></div></div>
       {[['Внутри личного массива', result.internal.results], ['Мастер-массив', result.master.results]].map(([title, groups]) => <details className="workspace-result-group" key={title} open={groups.length > 0}><summary>{title}<span className="workspace-count-pill">{groups.length}</span><WorkspaceIcon name="chevron" /></summary><WorkspaceDuplicateResults key={result.id + title} groups={groups} ignoredLoci={result.parameters?.ignoredLoci || []} /></details>)}
-      <details className="workspace-result-group"><summary>Контаминация сотрудников<span className="workspace-count-pill">{result.staff.filter(item => item.matches.length).length}</span><WorkspaceIcon name="chevron" /></summary>{result.staff.filter(item => item.matches.length).map(item => <div className="workspace-match-group" key={item.profileId}><strong>{rows.find(row => row.id === item.profileId)?.objectNumber}</strong><span>{item.matches.length ? item.matches.map(match => `${match.staffName || match.staffId || ''}${match.registrationNumber ? ' · № рег. ' + match.registrationNumber : ''}: ${match.finalScore ?? match.score ?? match.contaminationScore ?? ''}`).join('; ') : 'Совпадений не найдено'}</span></div>)}{!result.staff.some(item => item.matches.length) && <p className="workspace-no-matches">Контаминаций сотрудниками не найдено.</p>}</details>
+      <details className="workspace-result-group"><summary>Контаминация сотрудников<span className="workspace-count-pill">{result.staff.filter(item => item.matches.length).length}</span><WorkspaceIcon name="chevron" /></summary><WorkspaceStaffResults key={result.id + ':staff'} groups={result.staff} staffProfiles={result.staffProfiles} ignoredLoci={result.parameters?.ignoredLoci || []} /></details>
     </section>}
 
     {approvalWindow && <MasterApprovalDialog {...approvalWindow} api={api} userId={user.id} onClose={() => setApprovalWindow(null)} onChanged={load} />}
