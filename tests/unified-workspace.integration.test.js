@@ -385,6 +385,16 @@ test('Единый workspace: импорт, ревизии, поиск, gate, п
     await service.decideApproval(reviewer,request.id,'approve',current.reviewToken);
     assert.equal((await service.approvalDetail(owner,request.id)).profiles[0].comment,'SYN актуальный текст');
     assert.equal((await pool.query('SELECT comment FROM master_array_profiles WHERE source_workspace_profile_id=$1',[source.ids[0]])).rows[0].comment,'SYN актуальный текст');
+    const currentRun=await service.fullSearch(owner,source.ids);
+    for(const text of ['SYN отдельное согласование текста 1','SYN отдельное согласование текста 2']) {
+      await service.patch(owner,source.ids[0],{comment:text});
+      const r=await service.submitApproval(owner,source.ids,currentRun.id,{},randomUUID());
+      const view=await service.approvalDetail(reviewer,r.id);
+      assert.equal(view.requiresSearch,false);
+      await service.decideApproval(reviewer,r.id,'approve',view.reviewToken);
+      assert.equal((await pool.query('SELECT comment FROM master_array_profiles WHERE source_workspace_profile_id=$1',[source.ids[0]])).rows[0].comment,text);
+    }
+
   });
   await t.test('Генотип, удаление, отменённый поиск и смена параметров не проходят согласование',async()=>{
     for(const mutation of ['genotype','remove','cancelled','parameters']) {

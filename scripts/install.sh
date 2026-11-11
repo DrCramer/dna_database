@@ -164,7 +164,7 @@ if [[ "$(db_sql -c "SELECT to_regclass('personal_workspaces') IS NOT NULL AND to
 fi
 
 # 038 never enables workspace mode and never assigns approval rights automatically.
-workspace_approval_ready="$(docker compose exec -T db psql -U dna_user -d dna_analysis -Atq -v ON_ERROR_STOP=1 -c "SELECT to_regclass('workspace_master_approvals') IS NOT NULL")"
+workspace_approval_ready="$(docker compose exec -T db psql -U dna_user -d dna_analysis -Atq -v ON_ERROR_STOP=1 -c "SELECT to_regclass('workspace_master_approvals') IS NOT NULL AND to_regclass('workspace_master_publication_once') IS NOT NULL AND to_regclass('workspace_publication_run_version') IS NULL")"
 if [[ "$workspace_approval_ready" != t ]]; then
     if [[ "$(docker compose exec -T db psql -U dna_user -d dna_analysis -Atq -v ON_ERROR_STOP=1 -c "SELECT to_regclass('personal_workspaces') IS NOT NULL")" == t ]]; then
         docker compose exec -T db psql -U dna_user -d dna_analysis -v ON_ERROR_STOP=1 -q < database/migrations/038_master_array_approval.sql

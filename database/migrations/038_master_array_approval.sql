@@ -33,6 +33,17 @@ CREATE TABLE IF NOT EXISTS workspace_master_approval_pending (
  FOREIGN KEY(approval_id,profile_id) REFERENCES workspace_master_approval_items(approval_id,profile_id)
 );
 ALTER TABLE workspace_publications ADD COLUMN IF NOT EXISTS master_approval_id uuid REFERENCES workspace_master_approvals(id);
+-- A new explicit metadata decision can reuse unchanged genetic evidence. Uniqueness
+-- is per approved request; replay never creates another publication. Keep staff semantics.
+DO $$ DECLARE constraint_name text; BEGIN
+ FOR constraint_name IN SELECT conname FROM pg_constraint WHERE conrelid='workspace_publications'::regclass AND contype='u'
+ AND pg_get_constraintdef(oid) IN ('UNIQUE (workspace_profile_id, analysis_revision, search_run_id)', 'UNIQUE (destination, published_id, workspace_profile_id, analysis_revision, search_run_id)')
+ LOOP EXECUTE format('ALTER TABLE workspace_publications DROP CONSTRAINT %I',constraint_name); END LOOP;
+END $$;
+DROP INDEX IF EXISTS public.workspace_publication_run_version;
+CREATE UNIQUE INDEX IF NOT EXISTS workspace_staff_publication_once ON workspace_publications(workspace_profile_id,analysis_revision,search_run_id) WHERE destination='staff';
+CREATE UNIQUE INDEX IF NOT EXISTS workspace_master_publication_once ON workspace_publications(master_approval_id,workspace_profile_id) WHERE destination='master' AND master_approval_id IS NOT NULL;
+
 CREATE OR REPLACE FUNCTION workspace_publication_gate() RETURNS trigger LANGUAGE plpgsql AS $$
 DECLARE publication workspace_publications; source dna_profiles; run workspace_search_runs; proof workspace_search_profiles; refs workspace_reference_versions; w personal_workspaces; target text;
 BEGIN
