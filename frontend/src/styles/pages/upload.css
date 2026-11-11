@@ -1624,6 +1624,13 @@
 .workspace-profiles-page .workspace-filter-bar { padding: 0 12px 8px; gap: 8px; }
 .workspace-profiles-page .workspace-tools-row summary { padding: 8px 12px; }
 .workspace-profiles-page .workspace-table-scroll { flex: 1; min-height: 0; max-height: none; }
+.workspace-profiles-page .workspace-table tbody td { padding-block: 3px; }
+.workspace-profiles-page .workspace-table thead th { height: 34px; padding-block: 6px; }
+.workspace-profiles-page .workspace-table .workspace-alleles { font-size: 14px; line-height: 1.4; }
+.workspace-profiles-page .workspace-object-column .workspace-object-link { display: block; max-width: 100%; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.workspace-profiles-page .workspace-object-column small { margin-top: 0; line-height: 1.1; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.workspace-profiles-page .workspace-comment-preview { display: block; white-space: nowrap; text-overflow: ellipsis; }
+.workspace-profiles-page .workspace-name-column > span { display: block; max-width: 200px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .workspace-profiles-page .workspace-pagination { flex-shrink: 0; padding: 6px 12px; }
 .workspace-profiles-page .workspace-command-bar { position: relative; flex-shrink: 0; margin-top: 8px; padding: 8px 12px; gap: 8px; }
 .workspace-profiles-page .workspace-more-actions > div { max-height: min(320px, 35dvh); overflow: auto; }
