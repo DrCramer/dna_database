@@ -156,6 +156,23 @@ if [[ "$profile_identity_ready" != t ]]; then
     docker compose exec -T db psql -U dna_user -d dna_analysis -v ON_ERROR_STOP=1 -q < database/migrations/036_profile_identity_scope.sql
 fi
 
+# Backup before enabling the new schema on an existing workspace installation.
+if [[ "$(db_sql -c "SELECT to_regclass('personal_workspaces') IS NOT NULL AND to_regclass('workspace_master_approvals') IS NULL")" == t ]]; then
+    backup_file="runtime/backups/before_install_038_$(date -u +%Y%m%d_%H%M%S).sql"
+    docker compose exec -T db pg_dump -U dna_user -d dna_analysis > "$backup_file"
+    test -s "$backup_file"
+fi
+
+# 038 never enables workspace mode and never assigns approval rights automatically.
+workspace_approval_ready="$(docker compose exec -T db psql -U dna_user -d dna_analysis -Atq -v ON_ERROR_STOP=1 -c "SELECT to_regclass('workspace_master_approvals') IS NOT NULL")"
+if [[ "$workspace_approval_ready" != t ]]; then
+    if [[ "$(docker compose exec -T db psql -U dna_user -d dna_analysis -Atq -v ON_ERROR_STOP=1 -c "SELECT to_regclass('personal_workspaces') IS NOT NULL")" == t ]]; then
+        docker compose exec -T db psql -U dna_user -d dna_analysis -v ON_ERROR_STOP=1 -q < database/migrations/038_master_array_approval.sql
+    else
+        docker compose exec -T db psql -U dna_user -d dna_analysis -v ON_ERROR_STOP=1 -q -c 'ALTER TABLE users ADD COLUMN IF NOT EXISTS can_approve_master boolean NOT NULL DEFAULT false'
+    fi
+fi
+
 user_count="$(db_sql -c 'SELECT COUNT(*) FROM users')"
 if [[ "$user_count" == 0 ]]; then
     docker compose run --rm --no-deps web node scripts/bootstrap-admin.js

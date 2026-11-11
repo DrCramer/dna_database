@@ -19,6 +19,7 @@ export default function UserForm({ user, onSubmit, onCancel, roles, organization
     username: user?.username || '', display_name: user?.display_name || '', email: user?.email || '', password: '',
     role: user?.role || 'user_analyst', organization_id: user?.organization_id || '',
     ...getProfileUploadPermissions(user),
+    can_approve_master: user?.can_approve_master === true,
     department_ids: departmentIds(user)
   }));
   const availableDepartments = departments.filter(item => item.organization_id === form.organization_id);
@@ -62,7 +63,7 @@ export default function UserForm({ user, onSubmit, onCancel, roles, organization
       }
     }
     if (!canManageUploadPermissions) {
-      delete data.role; delete data.can_upload_with_task; delete data.can_upload_without_task;
+      delete data.role; delete data.can_upload_with_task; delete data.can_upload_without_task; delete data.can_approve_master;
     }
     // Пароль редактируется отдельным действием «Сбросить пароль».
     if (user) delete data.password;
@@ -141,6 +142,8 @@ export default function UserForm({ user, onSubmit, onCancel, roles, organization
               <label className="user-editor-permission"><input type="checkbox" checked={form.can_upload_without_task} onChange={event => update('can_upload_without_task', event.target.checked)} />
                 <span><strong>Без задачи</strong><small>Профили сохраняются отдельно. По умолчанию это право выключено.</small></span></label>
               </>}
+              <label className="user-editor-permission"><input type="checkbox" checked={form.can_approve_master} onChange={event => update('can_approve_master', event.target.checked)} />
+                <span><strong>Окончательное подтверждение загрузки в мастер-массив</strong><small>Рассмотрение чужих заявок своей организации. Не даёт прав на эталоны сотрудников.</small></span></label>
             </fieldset>
           </div>
           <footer className="user-editor-footer"><span>Поля со звёздочкой обязательны</span><div>

@@ -242,6 +242,7 @@ CREATE TABLE public.users (
     is_active boolean DEFAULT true,
     can_upload_with_task boolean DEFAULT true NOT NULL,
     can_upload_without_task boolean DEFAULT false NOT NULL,
+    can_approve_master boolean DEFAULT false NOT NULL,
     organization_id uuid,
     department_id uuid,
     email_encrypted text,

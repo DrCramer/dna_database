@@ -27,6 +27,8 @@ test('Workspace API: реальные сессии, роли, чужие UUID, l
   app.locals.pool = pool;
   app.use(express.json());
   app.use(require('../src/middleware/requestContext').requestContext);
+  app.use('/api/users', require('../src/routes/users'));
+  app.use('/api/auth', require('../src/routes/auth'));
   app.use('/api/workspace', require('../src/routes/workspace')());
   app.use('/api/profiles', require('../src/routes/workspaceLegacyBridge'));
   app.use('/api/probability', require('../src/routes/probability')());
@@ -242,4 +244,49 @@ test('Workspace API: реальные сессии, роли, чужие UUID, l
     });
     assert.equal(commit.status, 200);
   });
+  await t.test('Персональное право через admin API, заявка аналитика, чужое решение и немедленный отзыв', async()=>{
+    const created=await call('/api/auth/register-with-department','admin',{
+      username:'SYN_Reviewer_'+randomUUID().slice(0,8),display_name:'Тестовый У. У.',password:'Synthetic_2026!',
+      role:'user_analyst',organization_id:org,department_ids:[],can_approve_master:false
+    });
+    assert.equal(created.status,201);
+    const newUser=(await created.json()).data.user;
+    assert.equal(newUser.can_approve_master,false);
+    assert.equal((await call('/api/workspace/approvals','admin')).status,403);
+    assert.equal((await call('/api/users/'+newUser.id,'department_head',{can_approve_master:true},'PUT')).status,403);
+    assert.equal((await call('/api/users/'+newUser.id,'foreign',{can_approve_master:true},'PUT')).status,403);
+    assert.equal((await call('/api/users/'+newUser.id,'admin',{can_approve_master:'true'},'PUT')).status,400);
+    const granted=await call('/api/users/'+newUser.id,'admin',{can_approve_master:true},'PUT');
+    assert.equal(granted.status,200);
+    assert.equal((await granted.json()).data.user.can_approve_master,true);
+    const real=await User.findById(newUser.id),token=auth.generateToken(real);
+    await auth.createSession(newUser.id,token,'127.0.0.1','SYN approval API');users.reviewer={...real,token};
+    const f=new FormData();f.append('files',new Blob([createImportWorkbook({profiles:[1,2,3].map(n=>({objectNumber:'SYN-APP-API-'+n,year:2026,expertiseType:'ug',comment:'SYN',strData:data})),loci:Object.keys(data),sourceFormat:'DNA_IMPORT_V2'})]),'SYN.xlsx');
+    const draft=await (await call('/api/workspace/import-drafts','user_analyst',f)).json();
+    const imported=await call('/api/workspace/import-drafts/'+draft.id+'/commit','user_analyst',{revision:draft.revision,idempotencyKey:randomUUID()});
+    assert.equal(imported.status,200);const loaded=await imported.json();
+    const search=await call('/api/workspace/full-search','user_analyst',{ids:loaded.ids,parameters:{}});
+    assert.equal(search.status,200);const run=await search.json();
+    assert.equal((await call('/api/workspace/publish','admin',{ids:loaded.ids,searchRunId:run.id})).status,403);
+    const ids=loaded.ids.slice(0,2), preview=await call('/api/workspace/approval-preview','user_analyst',{ids});
+    assert.equal(preview.status,200);assert.equal((await preview.json()).count,2);
+    const submitted=await call('/api/workspace/approvals','user_analyst',{ids,searchRunId:run.id,idempotencyKey:randomUUID()});
+    assert.equal(submitted.status,200);const request=await submitted.json();
+    assert.equal((await call('/api/workspace/approvals/'+request.id,'foreign')).status,404);
+    assert.equal((await call('/api/workspace/approvals/'+request.id,'department_head')).status,403);
+    const list=await call('/api/workspace/approvals','reviewer');assert.equal(list.status,200);
+    assert((await list.json()).requests.some(r=>r.id===request.id&&r.profile_count===2));
+    const details=await (await call('/api/workspace/approvals/'+request.id,'reviewer')).json();
+    assert.equal(details.profiles.length,2);assert(details.analysisCompletedAt);assert.equal(details.requiresSearch,false);
+    assert.equal((await call('/api/users/'+newUser.id,'admin',{can_approve_master:false},'PUT')).status,200);
+    assert.equal((await call('/api/workspace/approvals/'+request.id+'/decision','reviewer',{decision:'approve',reviewToken:details.reviewToken})).status,403);
+    await call('/api/users/'+newUser.id,'admin',{can_approve_master:true},'PUT');
+    assert.equal((await call('/api/workspace/approvals/'+request.id+'/decision','reviewer',{decision:'approve',reviewToken:details.reviewToken})).status,200);
+    const stored=(await pool.query('SELECT count(*)::int n FROM master_array_profiles WHERE source_workspace_profile_id=ANY($1::uuid[])',[loaded.ids])).rows[0].n;
+    assert.equal(stored,2);
+    const own=await (await call('/api/workspace','user_analyst')).json();assert.equal(own.profiles.filter(p=>ids.includes(p.id)&&p.state==='PUBLISHED').length,2);
+    const me=await call('/api/users/me/profile','user_analyst',{can_approve_master:true},'PUT');
+    assert([200,400].includes(me.status));assert.equal((await User.findById(users.user_analyst.id)).can_approve_master,false);
+  });
+
 });

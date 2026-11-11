@@ -5,8 +5,8 @@ const {
   authenticate
 } = require('../middleware/auth');
 const {
-  WorkspaceSearchService
-} = require('../services/workspace/workspaceSearchService');
+  WorkspaceApprovalService
+} = require('../services/workspace/workspaceApprovalService');
 const {
   workspaceModeEnabled
 } = require('../services/workspace/workspaceMode');
@@ -55,7 +55,7 @@ const patch = Joi.object({
   comment: Joi.string().max(20000).allow(''),
   strData: Joi.object().max(510).pattern(/^.{1,100}$/, Joi.array().max(100).items(Joi.string().max(500)))
 });
-module.exports = function workspaceRouter(service = new WorkspaceSearchService()) {
+module.exports = function workspaceRouter(service = new WorkspaceApprovalService()) {
   const router = express.Router(),
     upload = multer({
       storage: require('../services/infrastructure/boundedUploadStorage').boundedUploadStorage(),
@@ -206,6 +206,22 @@ module.exports = function workspaceRouter(service = new WorkspaceSearchService()
     }));
   }));
   router.get('/searches/:id', handle(async (req, res) => res.json(await service.search(req.user, uuid(req.params.id)))));
+  const targets = Joi.object().pattern(/^[0-9a-f-]{36}$/i, Joi.string().guid()).default({});
+  router.post('/approval-preview', handle(async (req,res) => {
+    const v=check(Joi.object({ids,existingTargets:targets}),req.body);
+    res.json(await service.approvalPreview(req.user,v.ids,v.existingTargets));
+  }));
+  router.post('/approvals', handle(async (req,res) => {
+    const v=check(Joi.object({ids,searchRunId:Joi.string().guid().required(),existingTargets:targets,idempotencyKey:Joi.string().guid().required()}),req.body);
+    res.json(await service.submitApproval(req.user,v.ids,v.searchRunId,v.existingTargets,v.idempotencyKey));
+  }));
+  router.get('/approval-history', handle(async (req,res) => res.json(await service.ownApprovalHistory(req.user))));
+  router.get('/approvals', handle(async (req,res) => res.json(await service.approvalList(req.user))));
+  router.get('/approvals/:id', handle(async (req,res) => res.json(await service.approvalDetail(req.user,uuid(req.params.id)))));
+  router.post('/approvals/:id/decision', handle(async (req,res) => {
+    const v=check(Joi.object({decision:Joi.string().valid('approve','return').required(),reviewToken:Joi.string().hex().length(64).required(),comment:Joi.string().max(20000).allow('').default('')}),req.body);
+    res.json(await service.decideApproval(req.user,uuid(req.params.id),v.decision,v.reviewToken,v.comment));
+  }));
   router.post('/publication-preview', handle(async (req, res) => {
     const value = check(Joi.object({
       ids

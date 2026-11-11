@@ -11,6 +11,7 @@ class User {
         this.email = userData.email;
         this.display_name = userData.display_name || null;
         this.role = userData.role;
+        this.can_approve_master = userData.can_approve_master === true;
         Object.assign(this, getProfileUploadPermissions(userData));
         this.created_at = userData.created_at;
         this.last_login = userData.last_login;
@@ -22,7 +23,7 @@ class User {
     }
 
     // Create a new user
-    static async create({ username, email = null, display_name = null, password, role = 'user_analyst', organization_id = null, department_id = null, can_upload_with_task = true, can_upload_without_task = false }) {
+    static async create({ username, email = null, display_name = null, password, role = 'user_analyst', organization_id = null, department_id = null, can_upload_with_task = true, can_upload_without_task = false, can_approve_master = false }) {
         try {
             ({ email, display_name } = normalizeUserIdentity({ email, display_name }));
             // Hash password
@@ -30,10 +31,10 @@ class User {
             const password_hash = await bcrypt.hash(password, saltRounds);
 
             const result = await query(
-                `INSERT INTO users (username, email, password_hash, role, organization_id, department_id, can_upload_with_task, can_upload_without_task, display_name)
-                 VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
-                 RETURNING id, username, email, display_name, role, created_at, is_active, organization_id, department_id, can_upload_with_task, can_upload_without_task`,
-                [username, email, password_hash, role, organization_id, department_id, can_upload_with_task, can_upload_without_task, display_name]
+                `INSERT INTO users (username, email, password_hash, role, organization_id, department_id, can_upload_with_task, can_upload_without_task, display_name, can_approve_master)
+                 VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)
+                 RETURNING id, username, email, display_name, role, created_at, is_active, organization_id, department_id, can_upload_with_task, can_upload_without_task, can_approve_master`,
+                [username, email, password_hash, role, organization_id, department_id, can_upload_with_task, can_upload_without_task, display_name, can_approve_master]
             );
 
             logger.info(`User created: ${username} with role: ${role}, department: ${department_id}`);
@@ -140,7 +141,7 @@ class User {
         try {
             const result = await query(
                 `SELECT id, username, email, display_name, role, created_at, last_login, is_active,
-                        organization_id, department_id, can_upload_with_task, can_upload_without_task
+                        organization_id, department_id, can_upload_with_task, can_upload_without_task, can_approve_master
                  FROM users ORDER BY created_at DESC`
             );
 
@@ -227,6 +228,7 @@ class User {
             email: this.email,
             display_name: this.display_name,
             role: this.role,
+            can_approve_master: this.can_approve_master,
             created_at: this.created_at,
             last_login: this.last_login,
             is_active: this.is_active,

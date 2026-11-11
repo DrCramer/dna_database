@@ -239,6 +239,7 @@ const UserManagement = ({ onBack }) => {
             <p><strong>Статус:</strong> {user.is_active ? 'Активен' : 'Неактивен'}</p>
             <p><strong>Загрузка в задачу:</strong> {getProfileUploadPermissions(user).can_upload_with_task ? 'Разрешена' : 'Запрещена'}</p>
             <p><strong>Загрузка без задачи:</strong> {getProfileUploadPermissions(user).can_upload_without_task ? 'Разрешена' : 'Запрещена'}</p>
+            <p><strong>Подтверждение мастер-массива:</strong> {user.can_approve_master ? 'Разрешено' : 'Запрещено'}</p>
             <p><strong>Дата создания:</strong> {new Date(user.created_at).toLocaleString('ru-RU')}</p>
             <p><strong>Последний вход:</strong> {user.last_login ? new Date(user.last_login).toLocaleString('ru-RU') : 'Никогда'}</p>
           </div>

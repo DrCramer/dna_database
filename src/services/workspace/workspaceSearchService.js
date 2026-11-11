@@ -221,6 +221,7 @@ class WorkspaceSearchService extends WorkspaceService {
     return this.transaction(async c => {
       const w = await this.workspace(user, c, true),
         profiles = await this.ownProfiles(c, user, w, ids, true);
+      if (profiles.some(p => p.expertise_type !== 'staff')) throw err('Для мастер-массива требуется отправка заявки и подтверждение другого пользователя.', 409, 'MASTER_APPROVAL_REQUIRED');
       const refs = (await c.query('SELECT * FROM workspace_reference_versions WHERE organization_id=$1 FOR UPDATE', [user.organization_id])).rows[0];
       const history = (await c.query("SELECT pub.* FROM workspace_publications pub WHERE pub.workspace_profile_id=ANY($1::uuid[]) AND ((pub.destination='master' AND EXISTS(SELECT 1 FROM master_array_profiles target WHERE target.id=pub.published_id AND target.source_workspace_profile_id=pub.workspace_profile_id AND target.is_active=true)) OR (pub.destination='staff' AND EXISTS(SELECT 1 FROM staff_profiles target WHERE target.id=pub.published_id AND target.source_workspace_profile_id=pub.workspace_profile_id AND target.is_active=true))) ORDER BY pub.created_at DESC", [ids])).rows;
       const existing = [...new Map(history.map(pub => [pub.workspace_profile_id + ':' + pub.analysis_revision, pub]).reverse()).values()];

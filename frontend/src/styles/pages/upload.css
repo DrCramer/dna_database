@@ -1534,3 +1534,27 @@
 @media (max-width: 760px) { .workspace-staff-mapping { margin-inline: 14px; } }
 
 .page-shell:not(.page-shell-fluid) .workspace-page { padding: 0; }
+
+/* Two-person master-array approval; shares workspace dialog and theme tokens. */
+.master-approval-dialog { width: min(1060px,calc(100vw - 32px)); max-width: 1060px; }
+.master-approval-header-actions { display:flex; gap:12px; flex-wrap:wrap; }
+.master-approval-scroll { max-width:100%; overflow:auto; margin-block:16px; }
+.master-approval-table { width:100%; border-collapse:collapse; font-size:14px; }
+.master-approval-table th, .master-approval-table td { padding:10px 12px; border-bottom:1px solid var(--border-default); text-align:left; vertical-align:top; }
+.master-approval-table th { color:var(--text-secondary); font-weight:600; }
+.master-approval-table small { display:block; margin-top:4px; color:var(--text-secondary); }
+.master-approval-comment { min-width:160px; max-width:360px; overflow-wrap:anywhere; white-space:pre-wrap; }
+.master-approval-summary { display:grid; grid-template-columns:repeat(auto-fit,minmax(210px,1fr)); gap:16px; }
+.master-approval-summary dt { color:var(--text-secondary); font-size:12px; }
+.master-approval-summary dd { margin:4px 0 0; font-weight:600; }
+.master-approval-target { display:flex; align-items:center; gap:10px; margin-block:12px; }
+.master-approval-comment-label { display:grid; gap:8px; margin-top:16px; }
+.master-approval-comment-label textarea { min-height:80px; }
+.master-approval-evidence section { padding:12px 0; border-bottom:1px solid var(--border-default); }
+.master-approval-evidence h3 { margin:0 0 8px; font-size:15px; }
+.master-approval-evidence small, .master-approval-decision-note { display:block; color:var(--text-secondary); overflow-wrap:anywhere; }
+.master-approval-history-link { display:block; margin-top:6px; font-size:12px; }
+.master-approval-error { white-space:pre-wrap; }
+.workspace-badge[data-state="PENDING_APPROVAL"] { color:var(--brand-primary); background:var(--status-info-bg); }
+.workspace-badge[data-state="RETURNED"] { color:var(--status-warning); background:var(--status-warning-bg); }
+@media(max-width:600px) { .master-approval-dialog .workspace-editor-footer { flex-wrap:wrap; } .master-approval-header-actions { width:100%; } }

@@ -1,4 +1,5 @@
 import { canTransferStaffName, transferStaffName } from '../../../../src/utils/staffImportMapping';
+import MasterApprovalDialog from './MasterApprovalDialog';
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { useAuth } from '../../contexts/AuthContext';
 import { getAnalysisLoci } from '../../../../src/utils/analysisLoci';
@@ -10,7 +11,9 @@ const states = {
   NO_GENOTYPE: 'Нет генотипа',
   CHECKED: 'Проверен',
   STALE: 'Проверка устарела',
-  PUBLISHED: 'Опубликован',
+  PUBLISHED: 'В мастер-массиве',
+  PENDING_APPROVAL: 'На подтверждении',
+  RETURNED: 'На доработке',
   INSUFFICIENT_DATA: 'Недостаточно данных'
 };
 const fields = ['included', 'objectNumber', 'year', 'expertiseType', 'fullName', 'registrationNumber', 'comment', 'strData'];
@@ -79,6 +82,7 @@ export default function WorkspacePage({
     field: '',
     direction: 1
   });
+  const [approvalWindow, setApprovalWindow] = useState(null);
   const [autoSaving, setAutoSaving] = useState(false);
   const [viewFilter, setViewFilter] = useState('all');
   const [editingId, setEditingId] = useState(null);
@@ -187,7 +191,7 @@ export default function WorkspacePage({
   }, [preparedFile, isImport]);
   const id = row => row.draftRowId || row.id,
     visible = useMemo(() => {
-      const filtered = rows.filter(row => viewFilter === 'all' || viewFilter === 'selected' && (isImport ? row.included : selected.has(row.id)) || viewFilter === 'empty' && !Object.values(row.strData || {}).some(value => value.length) || viewFilter === 'issues' && ((row.sourceIssues || []).length || objectMetadataIssues(row).length || validation?.errors.some(item => item.draftRowId === row.draftRowId && item.issues.length)) || viewFilter === 'ready' && row.state === 'CHECKED' || viewFilter === 'stale' && ['STALE', 'NOT_CHECKED', 'INSUFFICIENT_DATA'].includes(row.state)).filter(row => `${row.objectNumber} ${row.year ?? ''} ${types[row.expertiseType] || ''} ${row.fullName || ''} ${row.comment || ''}`.toLowerCase().includes(query.toLowerCase()));
+      const filtered = rows.filter(row => viewFilter === 'all' || viewFilter === 'selected' && (isImport ? row.included : selected.has(row.id)) || viewFilter === 'empty' && !Object.values(row.strData || {}).some(value => value.length) || viewFilter === 'issues' && ((row.sourceIssues || []).length || objectMetadataIssues(row).length || validation?.errors.some(item => item.draftRowId === row.draftRowId && item.issues.length)) || viewFilter === 'ready' && (row.searchState || row.state) === 'CHECKED' || viewFilter === 'stale' && ['STALE', 'NOT_CHECKED', 'INSUFFICIENT_DATA'].includes(row.state)).filter(row => `${row.objectNumber} ${row.year ?? ''} ${types[row.expertiseType] || ''} ${row.fullName || ''} ${row.comment || ''}`.toLowerCase().includes(query.toLowerCase()));
       const value = row => sort.field.startsWith('locus:') ? (row.strData[sort.field.slice(6)] || []).join(',') : row[sort.field] ?? '';
       return sort.field ? filtered.sort((a, b) => String(value(a)).localeCompare(String(value(b)), 'ru', {
         numeric: true,
@@ -404,7 +408,7 @@ export default function WorkspacePage({
           setNotice('Изменения сохранены.');
           return;
         }
-        if (['search', 'publish', 'export'].includes(name)) await saveWorking();
+        if (['search', 'publish', 'send', 'export'].includes(name)) await saveWorking();
         const ids = [...selected];
         if (!ids.length) throw Error('Выберите объекты.');
         if (name === 'delete') {
@@ -430,7 +434,12 @@ export default function WorkspacePage({
           await load();
           setNotice('Поиск завершён. Найденные совпадения показаны отдельно от состояния проверки.');
         }
+        if (name === 'send') {
+          if (included.some(row => row.expertiseType === 'staff')) throw Error('В выборе есть эталоны сотрудников. Для них предназначена отдельная административная команда «Публиковать эталоны сотрудников». Для заявки выберите только ЧС, УГ и ГР.');
+          setApprovalWindow({mode:'submit', selectedRows:included});
+        }
         if (name === 'publish') {
+          if (included.some(row => row.expertiseType !== 'staff')) throw Error('Для ЧС, УГ и ГР используйте «Отправить на подтверждение».');
           if (rows.some(row => ids.includes(row.id) && !['CHECKED', 'PUBLISHED'].includes(row.state))) throw Error('В выборе есть непроверенные или устаревшие записи. Выполните полный поиск либо выберите только готовые.');
           const searchRunId = result?.id || rows.find(row => ids.includes(row.id) && row.searchRunId)?.searchRunId;
           const preview = await api('/publication-preview', {
@@ -467,7 +476,7 @@ export default function WorkspacePage({
   }
   const showStaff = rows.some(row => row.expertiseType === 'staff' || row.fullName);
   const staffNameCandidates = isImport ? affected.filter(canTransferStaffName) : [];
-  const readyCount = rows.filter(row => row.state === 'CHECKED').length;
+  const readyCount = rows.filter(row => (row.searchState || row.state) === 'CHECKED' && row.approvalState !== 'pending').length;
   const originals = new Map((initial.current || []).map(row => [row.id, row]));
   const dirtyCount = !isImport && initial.current ? rows.filter(row => {
     const original = originals.get(row.id);
@@ -491,12 +500,12 @@ export default function WorkspacePage({
   const previewLoci = genotypePreview && !Array.isArray(genotypePreview) && typeof genotypePreview === 'object' ? orderNormalizedLoci(getAnalysisLoci([{
     strData: genotypePreview
   }])) : [];
-  const stateBadge = row => <span className="workspace-badge" data-state={row.state || 'NOT_CHECKED'}>{states[row.state] || 'Не проверен'}</span>;
+  const stateBadge = row => <div><span className="workspace-badge" data-state={row.state || 'NOT_CHECKED'}>{row.expertiseType === 'staff' && row.state === 'PUBLISHED' ? 'В эталонах сотрудников' : states[row.state] || 'Не проверен'}</span>{row.approvalId && <button className="workspace-object-link master-approval-history-link" onClick={() => setApprovalWindow({mode:'history',requestId:row.approvalId})}>Решение и история</button>}{row.decisionComment && <small className="master-approval-decision-note">{row.decisionComment}</small>}</div>;
   const objectNumber = row => row.expertiseType === 'staff' ? 'Регистрационный номер' : `№ экспертизы ${row.objectNumber.split('-')[0] || '—'}`;
   return <div className={`workspace-page ${isImport ? 'workspace-import-page' : 'workspace-profiles-page'}`} aria-busy={busy}>
     <header className="workspace-heading">
       <div>{isImport && <span className="workspace-eyebrow">Личная рабочая область</span>}<h1>{isImport ? 'Загрузка в личный массив' : 'Мои генотипы'}</h1>{(!isImport || !rows.length) && <p>{isImport ? 'Добавьте файлы, выберите объекты и подтвердите загрузку.' : 'Ваши профили, результаты поиска и публикации в общем массиве.'}</p>}</div>
-      {!isImport && <a className="btn btn-primary" href="/upload"><WorkspaceIcon name="upload" />Загрузить файлы</a>}
+      {!isImport && <div className="master-approval-header-actions"><button className="btn btn-secondary" onClick={() => setApprovalWindow({mode:'own-history'})}>Мои заявки</button>{workspace?.canApproveMaster && <button className="btn btn-secondary" onClick={() => setApprovalWindow({mode:'queue'})}>На подтверждении</button>}<a className="btn btn-primary" href="/upload"><WorkspaceIcon name="upload" />Загрузить файлы</a></div>}
       {isImport && <a className="btn btn-secondary" href="/analysis"><WorkspaceIcon name="grid" />Мои генотипы</a>}
     </header>
 
@@ -609,7 +618,7 @@ export default function WorkspacePage({
         <div className="workspace-selection"><span className="workspace-selection-number">{included.length}</span><div><strong>объектов выбрано</strong><small>{isImport ? `Пустых: ${countEmpty(included)} · требуют внимания: ${errorCount}` : dirtyCount ? `Несохранённых изменений: ${dirtyCount}` : 'Действия применяются к выбору'}</small></div></div>
         <div className="workspace-command-actions">{isImport ? <><button className="btn btn-secondary" disabled={busy || !canEdit || !included.length} onClick={() => action('validate')}><WorkspaceIcon name="download" />Подготовить XLSX</button><button className="btn btn-primary" disabled={busy || !canEdit || !included.length} onClick={() => action('commit')}><WorkspaceIcon name="upload" />{busy ? 'Подождите…' : 'Загрузить выбранные'}</button></> : <>
           {!!dirtyCount && <button className="btn btn-secondary" disabled={busy || !canEdit} onClick={() => action('save')}><WorkspaceIcon name="check" />Сохранить изменения</button>}
-          <details className="workspace-more-actions" ref={actionsMenu}><summary className="btn btn-secondary">Действия<WorkspaceIcon name="chevron" /></summary><div role="group" aria-label="Действия с выбранными профилями"><button disabled={busy || !canEdit || !included.length} onClick={() => action('export')}><WorkspaceIcon name="download" />Экспортировать выбранные</button>{workspace?.canPublish && <button disabled={busy || !included.length} onClick={() => action('publish')}><WorkspaceIcon name="shield" />Добавить выбранные в общий массив</button>}<button disabled={busy || !readyCount} onClick={() => setSelected(new Set(rows.filter(row => row.state === 'CHECKED').map(row => row.id)))}><WorkspaceIcon name="check" />Выбрать только готовые</button><button className="workspace-delete-action" disabled={busy || !canEdit || !included.length} onClick={() => action('delete')}><WorkspaceIcon name="delete" />Удалить выбранные</button></div></details>
+          <details className="workspace-more-actions" ref={actionsMenu}><summary className="btn btn-secondary">Действия<WorkspaceIcon name="chevron" /></summary><div role="group" aria-label="Действия с выбранными профилями"><button disabled={busy || !canEdit || !included.length} onClick={() => action('export')}><WorkspaceIcon name="download" />Экспортировать выбранные</button>{workspace?.canSubmitMaster && <button disabled={busy || !included.length} onClick={() => action('send')}><WorkspaceIcon name="shield" />Отправить на подтверждение</button>}{workspace?.canManageStaff && <button disabled={busy || !included.length} onClick={() => action('publish')}><WorkspaceIcon name="shield" />Публиковать эталоны сотрудников</button>}<button disabled={busy || !readyCount} onClick={() => setSelected(new Set(rows.filter(row => (row.searchState || row.state) === 'CHECKED' && row.approvalState !== 'pending').map(row => row.id)))}><WorkspaceIcon name="check" />Выбрать только готовые</button><button className="workspace-delete-action" disabled={busy || !canEdit || !included.length} onClick={() => action('delete')}><WorkspaceIcon name="delete" />Удалить выбранные</button></div></details>
           <button className="btn btn-primary" disabled={busy || !canEdit || !included.length} onClick={() => action('search')}><WorkspaceIcon name="search" />{busy ? 'Выполняется операция…' : 'Полный поиск выбранных'}</button>
         </>}</div>
       </div>
@@ -629,6 +638,7 @@ export default function WorkspacePage({
       <details className="workspace-result-group"><summary>Контаминация сотрудников<span className="workspace-count-pill">{result.staff.filter(item => item.matches.length).length}</span><WorkspaceIcon name="chevron" /></summary>{result.staff.map(item => <div className="workspace-match-group" key={item.profileId}><strong>{rows.find(row => row.id === item.profileId)?.objectNumber}</strong><span>{item.matches.length ? item.matches.map(match => `${match.staffName || match.staffId || ''}${match.registrationNumber ? ' · № рег. ' + match.registrationNumber : ''}: ${match.finalScore ?? match.score ?? match.contaminationScore ?? ''}`).join('; ') : 'Совпадений не найдено'}</span></div>)}</details>
     </section>}
 
+    {approvalWindow && <MasterApprovalDialog {...approvalWindow} api={api} userId={user.id} onClose={() => setApprovalWindow(null)} onChanged={load} />}
     {details && <dialog className="workspace-editor-dialog" ref={editorDialog} aria-label="Генотип и источник объекта" onCancel={() => setDetails(null)} onClick={e => {
       if (e.target === e.currentTarget) setDetails(null);
     }}>
