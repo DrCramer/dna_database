@@ -1594,3 +1594,4 @@
 .workspace-staff-name, .workspace-staff-registration { display: block; overflow: hidden; text-overflow: ellipsis; }
 .workspace-staff-registration { margin-top: 4px; font-size: 11px; font-weight: 400; color: var(--text-secondary); }
 .workspace-staff-score { font-weight: 600; font-variant-numeric: tabular-nums; }
+.workspace-result-actions { display: flex; justify-content: flex-end; flex-wrap: wrap; gap: 10px; padding: 16px 16px 0; }

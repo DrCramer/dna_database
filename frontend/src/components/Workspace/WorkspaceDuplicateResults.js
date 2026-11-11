@@ -13,7 +13,7 @@ const labels = {
   no_data: 'Нет данных для сравнения',
   not_compared: 'Не участвовал в сравнении'
 };
-function storedColors() {
+export function storedComparisonColors() {
   try {
     return normalizeMatchColors(JSON.parse(localStorage.getItem('genotypeAnalysisSettings') || '{}').colors);
   } catch {
@@ -97,10 +97,11 @@ function ComparisonGroup({ group, ignoredLoci, colors, kind }) {
   </section>;
 }
 
-export default function WorkspaceDuplicateResults({ groups, ignoredLoci = [], kind = 'duplicates' }) {
+export default function WorkspaceDuplicateResults({ groups, ignoredLoci = [], kind = 'duplicates', matchColors }) {
   const isStaff = kind === 'staff';
   const [page, setPage] = useState(0);
-  const [colors] = useState(storedColors);
+  const [savedColors] = useState(storedComparisonColors);
+  const colors = matchColors || savedColors;
   const found = useMemo(() => groups.filter(group => matchesOf(group).length > 0), [groups]);
   const pageCount = Math.ceil(found.length / GROUP_PAGE_SIZE);
   const currentPage = Math.min(page, Math.max(0, pageCount - 1));
@@ -116,7 +117,7 @@ export default function WorkspaceDuplicateResults({ groups, ignoredLoci = [], ki
   </div>;
 }
 
-export function WorkspaceStaffResults({ groups, staffProfiles, ignoredLoci }) {
+export function WorkspaceStaffResults({ groups, staffProfiles, ignoredLoci, colors }) {
   const prepared = useMemo(() => staffComparisonGroups(groups, staffProfiles), [groups, staffProfiles]);
-  return <WorkspaceDuplicateResults groups={prepared} ignoredLoci={ignoredLoci} kind="staff" />;
+  return <WorkspaceDuplicateResults groups={prepared} ignoredLoci={ignoredLoci} kind="staff" matchColors={colors} />;
 }

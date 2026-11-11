@@ -244,6 +244,40 @@ test('Workspace API: реальные сессии, роли, чужие UUID, l
     });
     assert.equal(commit.status, 200);
   });
+  await t.test('Экспорт staff XLSX: авторизация, сохранённый снимок, палитра, пустые и незавершённые поиски', async () => {
+    const { WorkspaceApprovalService } = require('../src/services/workspace/workspaceApprovalService');
+    const service = new WorkspaceApprovalService(pool), actor = await User.findById(users.user_analyst.id), admin = await User.findById(users.admin.id);
+    const staffFile = { originalname: 'SYN-staff.xlsx', buffer: createImportWorkbook({
+      profiles: [{ objectNumber: '00991-G', fullName: 'Тестовый С. С.', year: 2025, expertiseType: 'staff', strData: data }],
+      loci: Object.keys(data), sourceFormat: 'DNA_IMPORT_V2'
+    }) };
+    const d = await service.createDraft(admin, [staffFile]), loaded = await service.commitDraft(admin, d.id, d.revision, randomUUID());
+    const staffRun = await service.fullSearch(admin, loaded.ids); await service.publish(admin, loaded.ids, staffRun.id);
+    const run = await service.fullSearch(actor, [profile]);
+    const endpoint = '/api/workspace/searches/' + run.id + '/staff-contaminations-xlsx';
+    assert.equal((await fetch(base + endpoint, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: '{}' })).status, 401);
+    for (const who of ['admin', 'department_head', 'foreign', 'viewer']) assert.equal((await call(endpoint, who, {})).status, 404);
+    assert.equal((await call('/api/workspace/searches/not-a-uuid/staff-contaminations-xlsx', 'user_analyst', {})).status, 400);
+    for (const body of [{ staffProfiles: [] }, { colors: { fullMatch: 'red' } }, { colors: { unknown: '#112233' } }]) assert.equal((await call(endpoint, 'user_analyst', body)).status, 400);
+    await service.patch(actor, profile, { strData: { ...data, TH01: ['7', '9'] } });
+    const exported = await call(endpoint, 'user_analyst', { colors: { fullMatch: '#112233', partialMatchAllele: '#ABCDEF' } });
+    assert.equal(exported.status, 200, await exported.clone().text());
+    assert.match(exported.headers.get('content-type'), /spreadsheetml/);
+    assert.match(exported.headers.get('content-disposition'), /filename\*=UTF-8''/);
+    assert.equal(exported.headers.get('cache-control'), 'private, no-store');
+    const ExcelJS = require('exceljs'), book = new ExcelJS.Workbook(); await book.xlsx.load(Buffer.from(await exported.arrayBuffer()));
+    const sheet = book.getWorksheet('Контаминации'), column = sheet.getRow(1).values.indexOf('TH01');
+    assert.equal(sheet.rowCount, 3); assert.equal(sheet.getCell(2, column).text, '12,13');
+    assert.equal(sheet.getCell(3, column).fill.fgColor.argb, 'FF112233');
+    assert.equal(sheet.getCell(3, column).value.richText[0].font.color.argb, 'FFABCDEF');
+    await service.patch(actor, profile, { strData: data });
+    const empty = await service.fullSearch(actor, [profile], { staffOptions: { threshold: 100 } });
+    assert.equal((await call('/api/workspace/searches/' + empty.id + '/staff-contaminations-xlsx', 'user_analyst', {})).status, 400);
+    await pool.query("UPDATE workspace_search_runs SET state='running' WHERE id=$1", [empty.id]);
+    assert.equal((await call('/api/workspace/searches/' + empty.id + '/staff-contaminations-xlsx', 'user_analyst', {})).status, 409);
+    await pool.query("UPDATE workspace_search_runs SET state='complete' WHERE id=$1", [empty.id]);
+    await service.configureSearch(actor, { staffOptions: {} });
+  });
   await t.test('Персональное право через admin API, заявка аналитика, чужое решение и немедленный отзыв', async()=>{
     const created=await call('/api/auth/register-with-department','admin',{
       username:'SYN_Reviewer_'+randomUUID().slice(0,8),display_name:'Тестовый У. У.',password:'Synthetic_2026!',

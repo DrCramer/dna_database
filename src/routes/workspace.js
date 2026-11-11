@@ -205,6 +205,14 @@ module.exports = function workspaceRouter(service = new WorkspaceApprovalService
       }
     }));
   }));
+  router.post('/searches/:id/staff-contaminations-xlsx', handle(async (req, res) => {
+    const hex = Joi.string().pattern(/^#[0-9a-fA-F]{6}$/);
+    const options = check(Joi.object({ colors: Joi.object({ fullMatch: hex, partialMatch: hex, partialMatchAllele: hex, noMatch: hex }) }).default({}), req.body);
+    const result = await service.search(req.user, uuid(req.params.id));
+    if (result.state !== 'complete') throw Object.assign(new Error('Поиск ещё не завершён.'), { status: 409 });
+    const { StaffContaminationExcelExportService } = require('../services/audit/staffContaminationExcelExportService');
+    workbookDownload(res, 'Контаминации_сотрудников.xlsx').send(await new StaffContaminationExcelExportService().createWorkbookBuffer({ result, colors: options.colors }));
+  }));
   router.get('/searches/:id', handle(async (req, res) => res.json(await service.search(req.user, uuid(req.params.id)))));
   const targets = Joi.object().pattern(/^[0-9a-f-]{36}$/i, Joi.string().guid()).default({});
   router.post('/approval-preview', handle(async (req,res) => {

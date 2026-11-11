@@ -1,6 +1,6 @@
 import { canTransferStaffName, transferStaffName } from '../../../../src/utils/staffImportMapping';
 import MasterApprovalDialog from './MasterApprovalDialog';
-import WorkspaceDuplicateResults, { WorkspaceStaffResults } from './WorkspaceDuplicateResults';
+import WorkspaceDuplicateResults, { WorkspaceStaffResults, storedComparisonColors } from './WorkspaceDuplicateResults';
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { useAuth } from '../../contexts/AuthContext';
 import { getAnalysisLoci } from '../../../../src/utils/analysisLoci';
@@ -85,6 +85,8 @@ export default function WorkspacePage({
   });
   const [approvalWindow, setApprovalWindow] = useState(null);
   const [autoSaving, setAutoSaving] = useState(false);
+  const [exportingStaff, setExportingStaff] = useState(false);
+  const resultColors = useMemo(storedComparisonColors, [result?.id]);
   const [viewFilter, setViewFilter] = useState('all');
   const [editingId, setEditingId] = useState(null);
   const [dragging, setDragging] = useState(false);
@@ -636,7 +638,16 @@ export default function WorkspacePage({
         }}><WorkspaceIcon name="download" />Экспорт дубликатов в Excel</button></div>
       <div className="workspace-result-overview"><div><WorkspaceIcon name="grid" /><span>Внутри личного массива<strong>{result.internal.results.length} групп с совпадениями</strong></span></div><div><WorkspaceIcon name="search" /><span>Мастер-массив<strong>{result.master.results.length} групп · {result.referenceCounts.master} эталонов</strong></span></div><div><WorkspaceIcon name="shield" /><span>Контаминация сотрудников<strong>{result.staff.filter(item => item.matches.length).length} объектов · {result.referenceCounts.staff} эталонов</strong></span></div></div>
       {[['Внутри личного массива', result.internal.results], ['Мастер-массив', result.master.results]].map(([title, groups]) => <details className="workspace-result-group" key={title} open={groups.length > 0}><summary>{title}<span className="workspace-count-pill">{groups.length}</span><WorkspaceIcon name="chevron" /></summary><WorkspaceDuplicateResults key={result.id + title} groups={groups} ignoredLoci={result.parameters?.ignoredLoci || []} /></details>)}
-      <details className="workspace-result-group"><summary>Контаминация сотрудников<span className="workspace-count-pill">{result.staff.filter(item => item.matches.length).length}</span><WorkspaceIcon name="chevron" /></summary><WorkspaceStaffResults key={result.id + ':staff'} groups={result.staff} staffProfiles={result.staffProfiles} ignoredLoci={result.parameters?.ignoredLoci || []} /></details>
+      <details className="workspace-result-group"><summary>Контаминация сотрудников<span className="workspace-count-pill">{result.staff.filter(item => item.matches.length).length}</span><WorkspaceIcon name="chevron" /></summary>
+        {result.staff.some(item => item.matches.length) && <div className="workspace-result-actions"><button className="btn btn-secondary" disabled={exportingStaff} onClick={async () => {
+          setExportingStaff(true);
+          try {
+            saveFile(await api('/searches/' + result.id + '/staff-contaminations-xlsx', { colors: resultColors }, 'POST', true), 'Контаминации_сотрудников.xlsx');
+          } catch (e) { setError(e.message); }
+          finally { setExportingStaff(false); }
+        }}><WorkspaceIcon name="download" />{exportingStaff ? 'Подготовка Excel…' : 'Экспорт контаминаций сотрудников в Excel'}</button></div>}
+        <WorkspaceStaffResults key={result.id + ':staff'} groups={result.staff} staffProfiles={result.staffProfiles} ignoredLoci={result.parameters?.ignoredLoci || []} colors={resultColors} />
+      </details>
     </section>}
 
     {approvalWindow && <MasterApprovalDialog {...approvalWindow} api={api} userId={user.id} onClose={() => setApprovalWindow(null)} onChanged={load} />}
