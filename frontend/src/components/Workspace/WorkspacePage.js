@@ -2,6 +2,7 @@ import { canTransferStaffName, transferStaffName } from '../../../../src/utils/s
 import MasterApprovalDialog from './MasterApprovalDialog';
 import WorkspaceStaffSettings from './WorkspaceStaffSettings';
 import { staffSearchOptions } from '../../../../src/utils/staffSearchOptions';
+import { WORKSPACE_PROFILE_FIELDS, changedWorkingProfiles } from '../../../../src/utils/workspaceProfileChanges';
 import WorkspaceDuplicateResults, { WorkspaceStaffResults, storedComparisonColors } from './WorkspaceDuplicateResults';
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { useAuth } from '../../contexts/AuthContext';
@@ -19,7 +20,7 @@ const states = {
   RETURNED: 'На доработке',
   INSUFFICIENT_DATA: 'Недостаточно данных'
 };
-const fields = ['included', 'objectNumber', 'year', 'expertiseType', 'fullName', 'registrationNumber', 'comment', 'strData'];
+const fields = ['included', ...WORKSPACE_PROFILE_FIELDS];
 function saveFile(blob, filename) {
   const url = URL.createObjectURL(blob),
     anchor = document.createElement('a');
@@ -395,9 +396,15 @@ export default function WorkspacePage({
     return filenames.length === 1 && /\.txt$/i.test(filenames[0]) ? filenames[0].replace(/\.txt$/i, '.xlsx') : 'Генотипы.xlsx';
   };
   async function saveWorking() {
-    for (const row of rows) {
-      const old = initial.current.find(x => x.id === row.id);
-      if (JSON.stringify(old) !== JSON.stringify(row)) await api('/profiles/' + row.id, Object.fromEntries(fields.filter(k => k !== 'included' && row[k] !== undefined).map(k => [k, row[k]])), 'PATCH');
+    const originals = new Map((initial.current || []).map(row => [row.id, row]));
+    try {
+      for (const { id, patch } of changedWorkingProfiles(rows, originals)) {
+        await api('/profiles/' + id, patch, 'PATCH');
+        originals.set(id, { ...originals.get(id), ...patch });
+      }
+    } finally {
+      // Preserve acknowledged edits even if a later profile fails to save.
+      initial.current = [...originals.values()];
     }
   }
   async function action(name) {
@@ -510,11 +517,7 @@ export default function WorkspacePage({
   const showStaff = rows.some(row => row.expertiseType === 'staff' || row.fullName);
   const staffNameCandidates = isImport ? affected.filter(canTransferStaffName) : [];
   const readyCount = rows.filter(row => (row.searchState || row.state) === 'CHECKED' && row.approvalState !== 'pending').length;
-  const originals = new Map((initial.current || []).map(row => [row.id, row]));
-  const dirtyCount = !isImport && initial.current ? rows.filter(row => {
-    const original = originals.get(row.id);
-    return fields.some(field => JSON.stringify(row[field]) !== JSON.stringify(original?.[field]));
-  }).length : 0;
+  const dirtyCount = !isImport && initial.current ? changedWorkingProfiles(rows, initial.current).length : 0;
   const issuesFor = row => [...(row.sourceIssues || []), ...objectMetadataIssues(row), ...(validation?.errors.find(item => item.draftRowId === row.draftRowId)?.issues || [])].filter((issue, index, list) => list.findIndex(item => item.message === issue.message) === index);
   const errorCount = isImport ? included.filter(row => issuesFor(row).length).length : 0;
   const draftPending = isImport && initial.current && rows !== initial.current && JSON.stringify(rows) !== JSON.stringify(initial.current);
