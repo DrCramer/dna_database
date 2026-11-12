@@ -1568,7 +1568,9 @@
 .workspace-duplicate-group-heading { display: flex; justify-content: space-between; gap: 12px; flex-wrap: wrap; margin-bottom: 10px; }
 .workspace-duplicate-group-heading h3 { min-width: 0; overflow-wrap: anywhere; margin: 0; font-size: 15px; font-weight: 600; }
 .workspace-duplicate-group-heading > span { color: var(--text-secondary); font-size: 13px; }
-.workspace-duplicate-scroll { width: 100%; max-height: 540px; overflow: auto; border: 1px solid var(--border-default); border-radius: var(--radius-md); }
+/* Results own vertical scrolling; tables only scroll horizontally. Nested
+   vertical scroll areas trap the wheel before the next reference is reached. */
+.workspace-duplicate-scroll { position: relative; width: 100%; overflow-x: auto; overflow-y: hidden; border: 1px solid var(--border-default); border-radius: var(--radius-md); }
 .workspace-duplicate-table { border-collapse: separate; border-spacing: 0; width: max-content; min-width: 100%; font-size: 14px; font-variant-numeric: tabular-nums; }
 .workspace-duplicate-table th, .workspace-duplicate-table td { box-sizing: border-box; padding: 8px 12px; white-space: nowrap; border-right: 1px solid var(--border-subtle); border-bottom: 1px solid var(--border-subtle); background: var(--surface-card); }
 .workspace-duplicate-table th { font-weight: 600; }
@@ -1587,7 +1589,7 @@
 .workspace-duplicate-matching-allele { font-weight: 800; color: var(--duplicate-allele-color, #1400e8); text-decoration: underline; text-underline-offset: 3px; }
 .workspace-duplicate-pagination { display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 10px; padding-block: 12px; font-size: 12px; color: var(--text-secondary); }
 .workspace-duplicate-pagination > div { display: flex; flex-wrap: wrap; gap: 8px; }
-@media (max-width: 600px) { .workspace-duplicate-results { padding: 12px; } .workspace-duplicate-scroll { max-height: 460px; } .workspace-duplicate-pagination .btn { font-size: 11px; padding-inline: 8px; } }
+@media (max-width: 600px) { .workspace-duplicate-results { padding: 12px; } .workspace-duplicate-pagination .btn { font-size: 11px; padding-inline: 8px; } }
 
 .workspace-duplicate-caption { position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px; overflow: hidden; clip-path: inset(50%); white-space: nowrap; border: 0; }
 
