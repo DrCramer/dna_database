@@ -122,6 +122,25 @@ test('Workspace API: реальные сессии, роли, чужие UUID, l
       searchRunId: randomUUID()
     })).status, 403);
   });
+  await t.test('Live search: authenticated stage stream, committed result, own scope and unchanged JSON API', async () => {
+    const path='/api/workspace/full-search/stream', body={ids:[profile]};
+    assert.equal((await fetch(base+path,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(body)})).status,401);
+    assert.equal((await call(path,'viewer',body)).status,403);
+    assert.equal((await call(path,'user_analyst',{ids:['invalid']})).status,400);
+    const response=await call(path,'user_analyst',body);
+    assert.match(response.headers.get('content-type'),/application\/x-ndjson/);
+    assert.match(response.headers.get('cache-control'),/no-transform/);
+    const frames=(await response.text()).trim().split('\n').map(s=>JSON.parse(s));
+    assert.deepEqual([...new Set(frames.filter(f=>f.type==='progress').map(f=>f.progress.stage))],['preparing','internal','master','staff','saving','complete']);
+    const result=frames.at(-1);assert.equal(result.type,'result');
+    assert.equal((await call('/api/workspace/searches/'+result.result.id,'user_analyst')).status,200);
+    assert.equal((await call('/api/workspace/searches/'+result.result.id,'foreign')).status,404);
+    const denied=(await (await call(path,'foreign',body)).text()).trim().split('\n').map(s=>JSON.parse(s));
+    assert.equal(denied.at(-1).type,'error');assert(denied.at(-1).status>=400);
+    assert(!denied.some(f=>f.type==='result'));
+    const legacy=await call('/api/workspace/full-search','user_analyst',body);
+    assert.equal(legacy.status,200);assert((await legacy.json()).internal);
+  });
   await t.test('Legacy upload и staff API не обходят pipeline; чужие личные профили не раскрываются', async () => {
     assert.equal((await call('/api/profiles/upload', 'admin', {})).status, 409);
     assert.equal((await call('/api/staff-profiles/upload', 'admin', {})).status, 409);

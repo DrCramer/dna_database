@@ -6,7 +6,7 @@ const { createExactCandidateIndex, createSelfExclusionCounter } = require('./exa
 
 const contaminationPasses = (result, minMatches) => result.matchingLoci >= minMatches;
 
-function compareTaskProfiles({ referenceProfiles, compareProfiles, minMatches = 15, ignoredLoci = [], comparisonAlgorithm = 'standard', useV5Algorithm = true, searchMode = 'task', duplicateSettings = {}, useCandidateIndex = true }) {
+function compareTaskProfiles({ referenceProfiles, compareProfiles, minMatches = 15, ignoredLoci = [], comparisonAlgorithm = 'standard', useV5Algorithm = true, searchMode = 'task', duplicateSettings = {}, useCandidateIndex = true }, { onProgress } = {}) {
     const thresholds = {
       minScore: duplicateSettings.minScore ?? 15,
       minPercentage: duplicateSettings.minPercentage ?? 80,
@@ -83,6 +83,7 @@ function compareTaskProfiles({ referenceProfiles, compareProfiles, minMatches = 
     const countSelf = candidatesFor ? createSelfExclusionCounter(processedCompare, searchMode) : null;
 
     for (let i = 0; i < processedReference.length; i++) {
+      onProgress?.({ status: 'running', completed: i, total: processedReference.length, unit: 'objects' });
       const refProfile = processedReference[i];
       const refLoci = refProfile.processedLoci;
       const refLociKeys = Object.keys(refLoci);
@@ -247,10 +248,11 @@ function compareTaskProfiles({ referenceProfiles, compareProfiles, minMatches = 
     }
 
 
+    onProgress?.({ status: 'running', completed: processedReference.length, total: processedReference.length, unit: 'objects' });
     return { results, comparisons: comparisonCount, candidateComparisons };
 }
 
-function compareDepartmentProfiles({ referenceProfiles, compareProfiles, minMatches = 15, ignoredLoci = [], comparisonAlgorithm = 'standard', useV5Algorithm = true, searchMode = 'task', duplicateSettings = {}, useCandidateIndex = true }) {
+function compareDepartmentProfiles({ referenceProfiles, compareProfiles, minMatches = 15, ignoredLoci = [], comparisonAlgorithm = 'standard', useV5Algorithm = true, searchMode = 'task', duplicateSettings = {}, useCandidateIndex = true }, { onProgress } = {}) {
     const thresholds = {
       minScore: duplicateSettings.minScore ?? 15,
       minPercentage: duplicateSettings.minPercentage ?? 80,
@@ -334,7 +336,9 @@ function compareDepartmentProfiles({ referenceProfiles, compareProfiles, minMatc
     let comparisonCount = 0, candidateComparisons = 0;
 
     const candidatesFor = comparisonAlgorithm === 'standard' && useCandidateIndex ? createExactCandidateIndex(processedCompareProfiles, minMatches) : null;
+    let completedReferences = 0;
     for (const refProfile of processedReferenceProfiles) {
+      onProgress?.({ status: 'running', completed: completedReferences++, total: processedReferenceProfiles.length, unit: 'objects' });
       const matches = [];
 
       const candidates = candidatesFor?.(refProfile);
@@ -466,6 +470,7 @@ function compareDepartmentProfiles({ referenceProfiles, compareProfiles, minMatc
     }
 
 
+    onProgress?.({ status: 'running', completed: processedReferenceProfiles.length, total: processedReferenceProfiles.length, unit: 'objects' });
     return { results, comparisons: comparisonCount, candidateComparisons };
 }
 

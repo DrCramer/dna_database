@@ -1,6 +1,8 @@
 import { canTransferStaffName, transferStaffName } from '../../../../src/utils/staffImportMapping';
 import MasterApprovalDialog from './MasterApprovalDialog';
 import WorkspaceStaffSettings from './WorkspaceStaffSettings';
+import WorkspaceSearchProgress from './WorkspaceSearchProgress';
+import { readSearchStream } from '../../../../src/utils/searchProgressProtocol';
 import { staffSearchOptions } from '../../../../src/utils/staffSearchOptions';
 import { WORKSPACE_PROFILE_FIELDS, changedWorkingProfiles } from '../../../../src/utils/workspaceProfileChanges';
 import WorkspaceDuplicateResults, { WorkspaceStaffResults, storedComparisonColors } from './WorkspaceDuplicateResults';
@@ -101,6 +103,12 @@ export default function WorkspacePage({
   }, [result?.id]);
   const [staffOptions, setStaffOptions] = useState(savedStaffOptions);
   const [staffSettingsOpen, setStaffSettingsOpen] = useState(false);
+  const [searchProgress, setSearchProgress] = useState(null);
+  const searchController = useRef(null);
+  useEffect(() => {
+    setSearchProgress(null); setBusy(false);
+    return () => { searchController.current?.abort(); searchController.current = null; };
+  }, [mode, user.id, user.organization_id]);
   const resultColors = useMemo(storedComparisonColors, [result?.id]);
   const [viewFilter, setViewFilter] = useState('all');
   const [editingId, setEditingId] = useState(null);
@@ -139,9 +147,10 @@ export default function WorkspacePage({
       document.removeEventListener('keydown', close);
     };
   }, []);
-  async function api(path, body, method = body ? 'POST' : 'GET', blob = false) {
+  async function api(path, body, method = body ? 'POST' : 'GET', blob = false, signal) {
     const response = await fetch('/api/workspace' + path, {
       method,
+      signal,
       headers: {
         Authorization: `Bearer ${localStorage.getItem('token')}`,
         ...(body instanceof FormData ? {} : {
@@ -159,8 +168,9 @@ export default function WorkspacePage({
     }
     return blob ? response.blob() : response.json();
   }
-  async function load() {
+  async function load(active = () => true) {
     const data = await api('/');
+    if (!active()) return;
     setWorkspace(data);
     setMinMatches(data.workspace.analysis_parameters?.minMatches ?? 15);
     setAlgorithm(data.workspace.analysis_parameters?.comparisonAlgorithm || 'standard');
@@ -395,20 +405,31 @@ export default function WorkspacePage({
     const filenames = [...new Set(rows.map(row => row.sourceFilename))];
     return filenames.length === 1 && /\.txt$/i.test(filenames[0]) ? filenames[0].replace(/\.txt$/i, '.xlsx') : 'Генотипы.xlsx';
   };
-  async function saveWorking() {
+  async function saveWorking({ signal, onProgress } = {}) {
     const originals = new Map((initial.current || []).map(row => [row.id, row]));
+    const changes = changedWorkingProfiles(rows, originals);
+    let completed = 0;
+    if (changes.length) onProgress?.({ stage: 'edits', status: 'running', completed, total: changes.length, unit: 'changes' });
     try {
-      for (const { id, patch } of changedWorkingProfiles(rows, originals)) {
-        await api('/profiles/' + id, patch, 'PATCH');
+      for (const { id, patch } of changes) {
+        await api('/profiles/' + id, patch, 'PATCH', false, signal);
         originals.set(id, { ...originals.get(id), ...patch });
+        onProgress?.({ stage: 'edits', status: 'running', completed: ++completed, total: changes.length, unit: 'changes' });
       }
     } finally {
       // Preserve acknowledged edits even if a later profile fails to save.
-      initial.current = [...originals.values()];
+      if (!signal || searchController.current?.signal === signal) initial.current = [...originals.values()];
     }
   }
   async function action(name) {
+    if (searchController.current) return;
     if (actionsMenu.current) actionsMenu.current.open = false;
+    const controller = name === 'search' && !isImport ? new AbortController() : null;
+    if (controller) {
+      searchController.current = controller;
+      setSearchProgress({ stage: 'preparing', status: 'running' });
+    }
+    const reportProgress = progress => { if (searchController.current === controller) setSearchProgress(progress); };
     setBusy(true);
     setError('');
     setNotice('');
@@ -446,7 +467,7 @@ export default function WorkspacePage({
           setNotice('Изменения сохранены.');
           return;
         }
-        if (['search', 'publish', 'send', 'export'].includes(name)) await saveWorking();
+        if (['search', 'publish', 'send', 'export'].includes(name)) await saveWorking(controller ? { signal: controller.signal, onProgress: reportProgress } : undefined);
         const ids = [...selected];
         if (!ids.length) throw Error('Выберите объекты.');
         if (name === 'delete') {
@@ -461,17 +482,20 @@ export default function WorkspacePage({
           ids
         }, 'POST', true), 'Генотипы_' + new Date().toISOString().slice(0, 10) + '.xlsx');
         if (name === 'search') {
-          const found = await api('/full-search', {
-            ids,
-            parameters: {
-              minMatches: Number(minMatches),
-              comparisonAlgorithm: algorithm,
-              staffOptions
-            }
+          const response = await fetch('/api/workspace/full-search/stream', {
+            method: 'POST', signal: controller.signal,
+            headers: { Authorization: `Bearer ${localStorage.getItem('token')}`, 'Content-Type': 'application/json', Accept: 'application/x-ndjson' },
+            body: JSON.stringify({
+              ids,
+              parameters: { minMatches: Number(minMatches), comparisonAlgorithm: algorithm, staffOptions }
+            })
           });
+          const found = await readSearchStream(response, reportProgress);
+          if (controller.signal.aborted || searchController.current !== controller) return;
           setResult(found);
           setActiveView('results');
-          await load();
+          await load(() => searchController.current === controller && !controller.signal.aborted);
+          if (controller.signal.aborted || searchController.current !== controller) return;
           setNotice('Поиск завершён. Найденные совпадения показаны отдельно от состояния проверки.');
         }
         if (name === 'send') {
@@ -503,9 +527,14 @@ export default function WorkspacePage({
         }
       }
     } catch (e) {
-      setError(e.message);
+      if (controller && searchController.current !== controller) return;
+      if (controller?.signal.aborted) setNotice('Поиск отменён. Неполный результат не используется.');
+      else setError(e.message);
     } finally {
-      setBusy(false);
+      if (!controller || searchController.current === controller) {
+        if (controller) { searchController.current = null; setSearchProgress(null); }
+        setBusy(false);
+      }
     }
   }
   function editGenotype(row) {
@@ -693,6 +722,10 @@ export default function WorkspacePage({
       </details>
     </section>}
 
+    {searchProgress && <WorkspaceSearchProgress progress={searchProgress} selectedCount={selected.size} onCancel={() => {
+      setSearchProgress(current => ({ ...current, status: 'cancelling' }));
+      searchController.current?.abort();
+    }} />}
     {staffSettingsOpen && <WorkspaceStaffSettings options={staffOptions} onClose={() => setStaffSettingsOpen(false)} onSave={saveStaffSettings} />}
     {approvalWindow && <MasterApprovalDialog {...approvalWindow} api={api} userId={user.id} onClose={() => setApprovalWindow(null)} onChanged={load} />}
     {details && <dialog className="workspace-editor-dialog" ref={editorDialog} aria-label="Генотип и источник объекта" onCancel={() => setDetails(null)} onClick={e => {

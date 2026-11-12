@@ -44,7 +44,11 @@ class WorkspaceSearchService extends WorkspaceService {
       return effective;
     });
   }
-  async fullSearch(user, ids, parameters = {}, signal) {
+  async fullSearch(user, ids, parameters = {}, signal, onProgress) {
+    const progressSink = onProgress;
+    onProgress = progress => { try { progressSink?.(progress); } catch { /* Telemetry cannot invalidate a committed search. */ } };
+    requireUser(user, true);
+    onProgress?.({ stage: 'preparing', status: 'running' });
     parameters = await this.configureSearch(user, parameters);
     requireUser(user, true);
     const w = await this.workspace(user),
@@ -105,27 +109,31 @@ class WorkspaceSearchService extends WorkspaceService {
         useV5Algorithm: true,
         duplicateSettings: parameters.duplicateSettings || {}
       };
+      const stageProgress = stage => progressSink ? progress => onProgress({ stage, ...progress }) : undefined;
+      onProgress?.({ stage: 'internal', status: 'running', completed: 0, total: eligible.length, unit: 'objects' });
       const internal = await runProfileSearch({
         ...input,
         compareProfiles: working,
         searchMode: 'task'
       }, {
-        signal
+        signal, onProgress: stageProgress('internal')
       });
+      onProgress?.({ stage: 'master', status: 'running', completed: 0, total: eligible.length, unit: 'objects' });
       const shared = await runProfileSearch({
         ...input,
         compareProfiles: master,
         searchMode: 'workspace_master'
       }, {
-        signal
+        signal, onProgress: stageProgress('master')
       });
       const exclusions = new Map();
       for (const link of staffLinks) {
         if (!exclusions.has(link.workspace_profile_id)) exclusions.set(link.workspace_profile_id, []);
         exclusions.get(link.workspace_profile_id).push(link.published_id);
       }
+      onProgress?.({ stage: 'staff', status: 'running', completed: 0, total: eligible.length, unit: 'objects' });
       const staffResult = await runStaffSearch({ referenceProfiles: eligible, staffProfiles: staff,
-        excludedStaffIds: [...exclusions], options: parameters.staffOptions }, { signal });
+        excludedStaffIds: [...exclusions], options: parameters.staffOptions }, { signal, onProgress: stageProgress('staff') });
       // Match the main analyze-task route's final threshold filter, including
       // its fallback when a legacy saved threshold is zero.
       const staffThreshold = parameters.staffOptions.threshold || 5.5;
@@ -182,6 +190,7 @@ class WorkspaceSearchService extends WorkspaceService {
           workspace: working.length
         }
       };
+      onProgress?.({ stage: 'saving', status: 'running' });
       await this.transaction(async c => {
         const current = await this.workspace(user, c, true);
         const refs = (await c.query('SELECT * FROM workspace_reference_versions WHERE organization_id=$1 FOR UPDATE', [user.organization_id])).rows[0];
@@ -202,6 +211,7 @@ class WorkspaceSearchService extends WorkspaceService {
           ON CONFLICT(search_run_id,profile_id) DO UPDATE SET state=EXCLUDED.state,stages=EXCLUDED.stages`, [id, JSON.stringify(finalProofs)]);
         await c.query("UPDATE workspace_search_runs SET state='complete',completed_at=now(),encrypted_result=$1 WHERE id=$2", [seal(result), id]);
       });
+      onProgress?.({ stage: 'complete', status: 'running' });
       return result;
     } catch (e) {
       await this.pool.query("UPDATE workspace_search_runs SET state=$1,error_code=$2,completed_at=now() WHERE id=$3", [signal?.aborted ? 'cancelled' : 'failed', e.code || 'SEARCH_FAILED', id]);

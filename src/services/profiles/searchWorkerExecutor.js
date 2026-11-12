@@ -50,21 +50,29 @@ function release() {
 
 // Shared budget for duplicate search and staff analysis: never multiply the CPU
 // limit by the number of concurrent users or analysis stages.
-async function executeWorkerRanges({ workerPath, count, createInput, signal }) {
+async function executeWorkerRanges({ workerPath, count, createInput, signal, onProgress }) {
+  onProgress?.({ status: 'queued' });
   const unlock = await acquire(signal);
   const workers = [];
   const abort = () => workers.forEach(worker => worker.terminate());
   signal?.addEventListener('abort', abort, { once: true });
   try {
     if (signal?.aborted) throw signal.reason;
+    onProgress?.({ status: 'running' });
     const ranges = await Promise.all(Array.from({ length: count }, (_, index) => new Promise((resolve, reject) => {
       const worker = new Worker(workerPath, {
-        workerData: createInput(index, count),
+        workerData: { ...createInput(index, count), reportProgress: !!onProgress },
         env: { NODE_ENV: process.env.NODE_ENV || 'production', LOG_LEVEL: process.env.LOG_LEVEL || 'info' },
         resourceLimits: { maxOldGenerationSizeMb: 256 }
       });
       workers.push(worker);
-      worker.once('message', resolve);
+      worker.on('message', message => {
+        if (message?.type === 'progress') onProgress?.({ ...message.progress, index, status: 'running' });
+        else {
+          onProgress?.({ index, completed: 1, total: 1, status: 'running' });
+          resolve(message);
+        }
+      });
       worker.once('error', reject);
       worker.once('exit', code => reject(signal?.aborted ? signal.reason : new Error(`Search worker exited before a result (${code})`)));
     })));
@@ -86,6 +94,20 @@ function partitionPlan(referenceCount, comparisonCount) {
 function rangeBounds(index, count, length) {
   return [Math.floor(index * length / count), Math.floor((index + 1) * length / count)];
 }
+function createRangeProgress(plan, onProgress) {
+  if (!onProgress) return undefined;
+  const completed = Array(plan.count).fill(0);
+  return progress => {
+    if (Number.isInteger(progress.index) && progress.index >= 0 && progress.index < plan.count &&
+        Number.isFinite(progress.completed) && Number.isFinite(progress.total) && progress.total > 0) {
+      const [start, end] = rangeBounds(progress.index, plan.count, plan.length);
+      const value = Math.floor(Math.max(0, Math.min(1, progress.completed / progress.total)) * (end - start));
+      completed[progress.index] = Math.max(completed[progress.index], value);
+    }
+    onProgress({ status: progress.status, completed: completed.reduce((a,b) => a+b, 0), total: plan.length,
+      unit: plan.axis === 'references' ? 'objects' : 'candidates' });
+  };
+}
 function searchProfile(profile) {
   // No imported Excel provenance, ciphertext, user records or DB connections in workers.
   const keys = ['id', 'sample_name', 'internal_number', 'import_number', 'year', 'str_data',
@@ -106,18 +128,18 @@ function mergeComparisonRanges(ranges, operation, algorithm) {
       matchCount: matches.length, displayedCount: Math.min(matches.length, 100) }];
 }
 
-async function runProfileSearch(input, { signal, useWorkers = true, minParallelComparisons = 2000 } = {}) {
+async function runProfileSearch(input, { signal, useWorkers = true, minParallelComparisons = 2000, onProgress } = {}) {
   const { compareTaskProfiles, compareDepartmentProfiles } = require('./taskComparisonService');
   const operation = input.searchMode === 'department_tasks' ? 'department' : 'task';
   const referenceCount = input.referenceProfiles.length, comparisonCount = input.compareProfiles.length;
   if (!useWorkers || !referenceCount || !comparisonCount || referenceCount * comparisonCount < minParallelComparisons) {
     if (signal?.aborted) throw signal.reason;
-    return { ...(operation === 'department' ? compareDepartmentProfiles : compareTaskProfiles)(input), mode: 'single-threaded-optimized', workerCount: 0 };
+    return { ...(operation === 'department' ? compareDepartmentProfiles : compareTaskProfiles)(input, { onProgress }), mode: 'single-threaded-optimized', workerCount: 0 };
   }
   const plan = partitionPlan(referenceCount, comparisonCount);
   const compact = { ...input, referenceProfiles: input.referenceProfiles.map(searchProfile), compareProfiles: input.compareProfiles.map(searchProfile) };
   const ranges = await executeWorkerRanges({
-    workerPath: path.join(__dirname, '../../workers/profileSearchWorker.js'), count: plan.count, signal,
+    workerPath: path.join(__dirname, '../../workers/profileSearchWorker.js'), count: plan.count, signal, onProgress: createRangeProgress(plan, onProgress),
     createInput: (index, count) => {
       const [start, end] = rangeBounds(index, count, plan.length);
       const key = plan.axis === 'references' ? 'referenceProfiles' : 'compareProfiles';
@@ -145,4 +167,4 @@ function runProfileSearchForRequest(req, res, input) {
   return runSearchForRequest(req, res, signal => runProfileSearch(input, { signal, useWorkers: req.body.useWorkers !== false }));
 }
 
-module.exports = { runSearchForRequest, runProfileSearch, runProfileSearchForRequest, workerLimit, executeWorkerRanges, partitionPlan, rangeBounds, searchProfile };
+module.exports = { runSearchForRequest, runProfileSearch, runProfileSearchForRequest, workerLimit, executeWorkerRanges, partitionPlan, rangeBounds, searchProfile, createRangeProgress };

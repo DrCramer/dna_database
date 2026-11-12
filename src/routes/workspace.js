@@ -91,7 +91,7 @@ module.exports = function workspaceRouter(service = new WorkspaceApprovalService
           route: req.route?.path || 'unknown',
           selectedCount: Array.isArray(req.body?.ids) ? req.body.ids.length : null
         },
-        success: res.statusCode < 400,
+        success: res.statusCode < 400 && !res.locals.workspaceOperationFailed,
         affectedResources: {},
         ipAddress: req.ip,
         userAgent: req.get('User-Agent')
@@ -164,6 +164,10 @@ module.exports = function workspaceRouter(service = new WorkspaceApprovalService
     res.json({
       parameters: await service.configureSearch(req.user, value.parameters)
     });
+  }));
+  router.post('/full-search/stream', handle(async (req, res) => {
+    const value = check(searchSchema, req.body);
+    await require('../services/workspace/workspaceSearchStream').streamWorkspaceSearch(req, res, service, value);
   }));
   router.post('/full-search', handle(async (req, res) => {
     const value = check(searchSchema, req.body),

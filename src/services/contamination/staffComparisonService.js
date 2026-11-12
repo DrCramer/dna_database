@@ -2,7 +2,7 @@ const StaffContaminationAnalyzer = require('./staffContaminationAnalyzer');
 const { getAnalysisLoci, profileLoci } = require('../../utils/analysisLoci');
 
 // Pure, scoped snapshot calculation. Workers never select profiles from the DB.
-async function compareStaffProfiles({ referenceProfiles, staffProfiles, options = {}, excludedStaffIds = [], staffRange }, { signal } = {}) {
+async function compareStaffProfiles({ referenceProfiles, staffProfiles, options = {}, excludedStaffIds = [], staffRange }, { signal, onProgress } = {}) {
   const analyzer = new StaffContaminationAnalyzer(null, { cacheAlleles: true, quiet: true, optimizeComparisons: true });
   const exclusions = new Map(excludedStaffIds);
   const staffById = new Map(staffProfiles.map(profile => [profile.id, profile]));
@@ -10,7 +10,9 @@ async function compareStaffProfiles({ referenceProfiles, staffProfiles, options 
   const schemas = new Map();
   const results = [];
   let comparisons = 0;
+  let completed = 0;
   for (const profile of referenceProfiles) {
+    onProgress?.({ status: 'running', completed: completed++, total: referenceProfiles.length, unit: 'objects' });
     if (signal?.aborted) throw signal.reason;
     const excluded = new Set(exclusions.get(profile.id) || []);
     const selected = candidates.filter(staff => !excluded.has(staff.id));
@@ -34,6 +36,7 @@ async function compareStaffProfiles({ referenceProfiles, staffProfiles, options 
     })) });
     if (signal) await new Promise(resolve => setImmediate(resolve));
   }
+  onProgress?.({ status: 'running', completed, total: referenceProfiles.length, unit: 'objects' });
   return { results, comparisons };
 }
 
