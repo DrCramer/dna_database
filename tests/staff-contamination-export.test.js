@@ -90,3 +90,16 @@ test('XLSX сотрудников использует собственные и
   assert.equal(at(sheet, 3, 'FGA').fill.fgColor.argb, 'FF90EE90');
   assert.equal(at(sheet, 3, 'Совпавшие локусы').value, 2);
 });
+
+test('Сотрудник без номера выгружается с ФИО и пустым № регистрации, без технического staff_id', async () => {
+  const result = fixture();
+  result.staffProfiles[0].internal_number = '';
+  result.staff[0].matches[0].staffIdentifier = 'workspace-technical-id';
+  result.staff[0].reference.internal_number = null;
+  result.staff[0].reference.full_name = 'Тестовый И. И.';
+  const book = await exportBook(result), sheet = book.getWorksheet('Контаминации');
+  assert.equal(at(sheet, 2, 'Объект / сотрудник').text, 'Тестовый И. И.');
+  assert.equal(at(sheet, 3, '№ регистрации').text, '');
+  assert.equal(at(sheet, 3, 'Объект / сотрудник').text, '=SYN employee');
+  assert.equal(at(sheet, 3, 'Совпавшие локусы').value, 1);
+});

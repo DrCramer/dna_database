@@ -23,6 +23,7 @@ test('Workspace API: реальные сессии, роли, чужие UUID, l
     {
       createImportWorkbook
     } = require('../src/utils/importWorkbook');
+  await pool.query(require('fs').readFileSync(require('path').join(__dirname, '../database/migrations/039_optional_staff_registration.sql'), 'utf8'));
   const app = express();
   app.locals.pool = pool;
   app.use(express.json());
@@ -222,13 +223,7 @@ test('Workspace API: реальные сессии, роли, чужие UUID, l
     const validation = await (await call('/api/workspace/import-drafts/' + d.id + '/validate', 'admin', {
       revision: current.revision
     })).json();
-    assert.equal(validation.valid, false);
-    assert(validation.errors[0].issues.some(issue => issue.code === 'REGISTRATION'));
-    const invalid = await call('/api/workspace/import-drafts/' + d.id + '/commit', 'admin', {
-      revision: current.revision,
-      idempotencyKey: d.id
-    });
-    assert.equal(invalid.status, 400);
+    assert.equal(validation.valid, true, 'Registration is optional after the name transfer');
     const repaired = await call('/api/workspace/import-drafts/' + d.id + '/rows', 'admin', {
       revision: current.revision,
       rows: [{

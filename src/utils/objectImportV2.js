@@ -40,6 +40,7 @@ function normalizeType(value) {
   return Object.keys(TYPES).find(key => key === input || TYPES[key].toLowerCase() === input) || null;
 }
 function businessKey(row) {
+  if (row.expertiseType === 'staff' && !row.objectNumber) return null;
   return stableJSON([row.expertiseType, row.year, String(row.objectNumber || '').trim().toLocaleLowerCase('ru')]);
 }
 function analysisHash(row) {

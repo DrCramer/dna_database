@@ -228,14 +228,16 @@ function parseFiles(files) {
       if (!values.some(v => text(v))) continue;
       const get = name => fieldColumns(name).map(column => text(values[column])).find(Boolean) || '';
       const objectValue = objectIndex >= 0 ? text(values[objectIndex]) : get('registrationNumber');
+      const expertiseType = normalizeType(get('expertiseType'));
+      const number = expertiseType === 'staff' && !objectValue ? get('registrationNumber') : objectValue;
       const row = newRow(file, checksum, {
         sheet: sheetName,
         row: index + 1
       }, {
-        objectNumber: objectValue,
-        sourceSampleName: objectValue || get('fullName'),
+        objectNumber: number,
+        sourceSampleName: number || get('fullName'),
         year: get('year') ? Number(get('year')) : null,
-        expertiseType: normalizeType(get('expertiseType')),
+        expertiseType,
         fullName: get('fullName'),
         registrationNumber: get('registrationNumber') || null,
         comment: get('comment')

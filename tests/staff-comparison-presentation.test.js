@@ -51,3 +51,9 @@ test('Снимки сохраняют специальные значения и
   assert.deepEqual(legacy.reference.loci.TH01,['12']);
   assert.deepEqual(legacy.matches[0].loci.TH01,['12','13']);
 });
+
+test('Отсутствующий регистрационный номер не заменяется техническим staff_id', () => {
+  const group = { profileId: 'p', matches: [{ staffId: 's', staffIdentifier: 'workspace-private-id', staffName: 'Тестовый А. А.', detailedMatches: [] }] };
+  assert.equal(staffComparisonGroups([group], [{ id: 's', internal_number: '', full_name: 'Тестовый А. А.', str_data: {} }])[0].matches[0].internal_number, '');
+  assert.equal(staffComparisonGroups([group])[0].matches[0].internal_number, '');
+});

@@ -71,7 +71,7 @@ class WorkspaceSearchService extends WorkspaceService {
           AND source.organization_id=$4 AND pub.organization_id=$4 AND target.organization_id=$4
           AND pub.analysis_revision=source.analysis_revision AND pub.destination='staff'
           AND target.source_workspace_profile_id=source.id AND target.str_data=source.str_data
-          AND target.year=source.year AND target.registration_number=source.internal_number`,
+          AND target.year=source.year AND target.registration_number IS NOT DISTINCT FROM source.internal_number`,
       [profiles.map(profile => profile.id), w.id, user.id, user.organization_id])).rows;
       run = {
         id,
@@ -142,21 +142,28 @@ class WorkspaceSearchService extends WorkspaceService {
           comparedLoci: count
         };
       });
+      const sourceById = new Map(profiles.map(profile => [profile.id, profile]));
+      const workingById = new Map(working.map(profile => [profile.id, profile]));
       for (const stage of [internal, shared]) for (const group of stage.results) {
         group.reference.str_data = profiles.find(p => p.id === group.reference.id)?.str_data || {};
+        const source = sourceById.get(group.reference.id);
+        if (source?.expertise_type === 'staff' && !source.internal_number) group.reference.full_name = source.full_name;
+        for (const match of [...(group.matches || []), ...(group.exportMatches || [])]) {
+          const compared = workingById.get(match.id);
+          if (compared?.expertise_type === 'staff' && !compared.internal_number) match.full_name = compared.full_name;
+        }
       }
       // Preserve raw genotypes from the same scoped search snapshot, once per
       // matched staff member. Worker scores/details remain unchanged.
       const matchedStaff = new Set();
       for (const group of staffResult.results) for (const match of group.matches) matchedStaff.add(match.staffId);
-      const sourceById = new Map(profiles.map(profile => [profile.id, profile]));
       const staffGroups = staffResult.results.map(group => {
         if (!group.matches.length) return group;
         const p = sourceById.get(group.profileId);
-        return { ...group, reference: { id: p.id, internal_number: p.internal_number, year: p.year, str_data: p.str_data } };
+        return { ...group, reference: { id: p.id, internal_number: p.internal_number, year: p.year, str_data: p.str_data, ...(!p.internal_number && p.expertise_type === 'staff' ? { full_name: p.full_name } : {}) } };
       });
       const staffProfiles = staff.filter(profile => matchedStaff.has(profile.id)).map(p => ({
-        id: p.id, internal_number: p.registration_number || p.staff_id,
+        id: p.id, internal_number: p.registration_number || (p.source_workspace_profile_id ? '' : p.staff_id),
         full_name: p.full_name, year: p.year, str_data: p.str_data
       }));
       const result = {

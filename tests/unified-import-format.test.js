@@ -34,6 +34,23 @@ const profile = {
     sourceObjectNumber: '258-11x'
   }
 };
+test('Сотрудники импортируются без столбца номера, сохраняют ФИО и аллели; пустой номер не является общим бизнес-ключом', () => {
+  const book = XLSX.utils.book_new();
+  XLSX.utils.book_append_sheet(book, XLSX.utils.aoa_to_sheet([
+    ['ФИО', 'Год', 'Тип экспертизы', 'TH01'],
+    ['Тестовый А. А.', 2026, 'staff', '7,9.3'],
+    ['Тестовый Б. Б.', 2026, 'staff', '8,8']
+  ]), 'Сотрудники');
+  const { rows } = parseFiles([{ originalname: 'SYN.xlsx', buffer: XLSX.write(book, { type: 'buffer', bookType: 'xlsx' }) }]);
+  assert.equal(rows.length, 2);
+  for (const row of rows) { assert.equal(row.objectNumber, ''); assert.equal(row.registrationNumber, null); assert.deepEqual(validateObject(row), []); assert.equal(businessKey(row), null); }
+  assert.deepEqual(rows[0].strData.TH01, ['7','9.3']);
+  const roundTrip = parseFiles([{ originalname: 'SYN.xlsx', buffer: createImportWorkbook({ profiles: rows, loci: ['TH01'], sourceFormat: FORMAT }) }]).rows;
+  assert.deepEqual(roundTrip.map(row => [row.objectNumber, row.fullName, row.strData]), rows.map(row => [row.objectNumber, row.fullName, row.strData]));
+  assert(validateObject({ ...rows[0], objectNumber: 'bad' }).some(issue => issue.code === 'REGISTRATION'));
+  assert(validateObject({ ...rows[0], fullName: '' }).some(issue => issue.code === 'FULL_NAME'));
+  assert(validateObject({ ...rows[0], expertiseType: 'ug', fullName: '' }).some(issue => issue.code === 'OBJECT_NUMBER'));
+});
 test('V2 XLSX сохраняет одиночные, пары, смеси, спецтокены, staff и пустые генотипы без нормализации', () => {
   const staff = {
       ...profile,

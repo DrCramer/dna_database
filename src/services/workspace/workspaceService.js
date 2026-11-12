@@ -43,7 +43,7 @@ function requireUpload(user) {
 }
 const objectFromDB = p => ({
   id: p.id,
-  objectNumber: p.internal_number,
+  objectNumber: p.internal_number ?? '',
   year: p.year,
   expertiseType: p.expertise_type,
   fullName: p.full_name || '',
@@ -128,9 +128,13 @@ class WorkspaceService {
           ...objectFromDB(p),
           ...patch
         };
+      if (row.expertiseType === 'staff') {
+        if (Object.hasOwn(patch, 'objectNumber') && !Object.hasOwn(patch, 'registrationNumber')) row.registrationNumber = row.objectNumber || null;
+        if (Object.hasOwn(patch, 'registrationNumber') && !Object.hasOwn(patch, 'objectNumber')) row.objectNumber = row.registrationNumber || '';
+      }
       const issues = validateObject(row);
       if (issues.length) throw err('Исправьте поля объекта.', 400, 'VALIDATION_FAILED', issues);
-      await c.query(`UPDATE dna_profiles SET internal_number=$1,sample_name=$2,year=$3,expertise_type=$4,full_name=$5,registration_number=$6,comment=$7,str_data=$8,str_data_encrypted=NULL,sample_name_encrypted=NULL WHERE id=$9`, [row.objectNumber, row.expertiseType === 'staff' ? row.objectNumber : row.objectNumber.split('-')[0], row.year, row.expertiseType, row.fullName || null, row.expertiseType === 'staff' ? row.objectNumber : null, row.comment, JSON.stringify(row.strData), id]);
+      await c.query(`UPDATE dna_profiles SET internal_number=$1,sample_name=$2,year=$3,expertise_type=$4,full_name=$5,registration_number=$6,comment=$7,str_data=$8,str_data_encrypted=NULL,sample_name_encrypted=NULL WHERE id=$9`, [row.expertiseType === 'staff' && !row.objectNumber ? null : row.objectNumber, row.expertiseType === 'staff' ? row.objectNumber : row.objectNumber.split('-')[0], row.year, row.expertiseType, row.fullName || null, row.expertiseType === 'staff' ? row.objectNumber || null : null, row.comment, JSON.stringify(row.strData), id]);
       return {
         id
       };
@@ -219,6 +223,10 @@ class WorkspaceService {
           };
         }
         Object.assign(row, Object.fromEntries(Object.entries(patch).filter(([key]) => key !== 'draftRowId')));
+        if (row.expertiseType === 'staff') {
+          if (Object.hasOwn(patch, 'objectNumber') && !Object.hasOwn(patch, 'registrationNumber')) row.registrationNumber = row.objectNumber || null;
+          if (Object.hasOwn(patch, 'registrationNumber') && !Object.hasOwn(patch, 'objectNumber')) row.objectNumber = row.registrationNumber || '';
+        }
       }
       await c.query('UPDATE workspace_import_drafts SET encrypted_payload=$1,revision=revision+1 WHERE id=$2', [seal({
         rows: d.rows
@@ -237,7 +245,7 @@ class WorkspaceService {
     for (const row of chosen) {
       const issues = [...row.sourceIssues, ...validateObject(row)];
       const key = businessKey(row);
-      if (seen.has(key)) {
+      if (key !== null && seen.has(key)) {
         issues.push({
           code: 'DUPLICATE_OBJECT',
           message: 'Повтор типа, года и полного номера среди выбранных строк.'
@@ -250,7 +258,7 @@ class WorkspaceService {
           }]
         });
       }
-      seen.set(key, row.draftRowId);
+      if (key !== null) seen.set(key, row.draftRowId);
       if (issues.length) errors.push({
         draftRowId: row.draftRowId,
         issues
@@ -309,7 +317,7 @@ class WorkspaceService {
       for (const row of d.rows.filter(r => r.included)) {
         const id = randomUUID();
         await c.query(`INSERT INTO dna_profiles(id,user_id,organization_id,workspace_id,year,internal_number,sample_name,str_data,import_format,expertise_type,full_name,registration_number,comment,provenance,file_source)
- VALUES($1,$2,$3,$4,$5,$6,$7,$8,'genetic',$9,$10,$11,$12,$13,$14)`, [id, user.id, user.organization_id, w.id, row.year, row.objectNumber, row.expertiseType === 'staff' ? row.objectNumber : row.objectNumber.split('-')[0], JSON.stringify(row.strData), row.expertiseType, row.fullName || null, row.expertiseType === 'staff' ? row.objectNumber : null, row.comment, JSON.stringify({
+ VALUES($1,$2,$3,$4,$5,$6,$7,$8,'genetic',$9,$10,$11,$12,$13,$14)`, [id, user.id, user.organization_id, w.id, row.year, row.expertiseType === 'staff' && !row.objectNumber ? null : row.objectNumber, row.expertiseType === 'staff' ? row.objectNumber : row.objectNumber.split('-')[0], JSON.stringify(row.strData), row.expertiseType, row.fullName || null, row.expertiseType === 'staff' ? row.objectNumber || null : null, row.comment, JSON.stringify({
           ...row.provenance,
           sourceSampleName: row.sourceSampleName,
           importDraftId: d.id,

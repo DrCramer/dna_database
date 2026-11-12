@@ -20,6 +20,7 @@ test('Единый workspace: импорт, ревизии, поиск, gate, п
   const {
     WorkspaceApprovalService
   } = require('../src/services/workspace/workspaceApprovalService');
+  await pool.query(require('fs').readFileSync(require('path').join(__dirname, '../database/migrations/039_optional_staff_registration.sql'), 'utf8'));
   const service = new WorkspaceApprovalService(pool);
   t.after(() => pool.end());
   const org = (await pool.query("INSERT INTO organizations(name) VALUES($1) RETURNING id", ['SYN-workspace-' + randomUUID()])).rows[0].id;
@@ -181,6 +182,38 @@ test('Единый workspace: импорт, ревизии, поиск, gate, п
     const next = await service.fullSearch(analyst, [ids[0]], {});
     assert.equal(next.referenceCounts.staff, 1);
     await assert.rejects(service.publish(analyst, [ids[0]], next.id), /права публикации/);
+  });
+  await t.test('Сотрудники без номера: несколько записей, публикация, самоисключение, экспорт и изменение номера', async () => {
+    const x = await load(admin, [profile('', 'staff'), profile('', 'staff')]);
+    assert.equal(x.ids.length, 2);
+    const stored = (await pool.query('SELECT internal_number,registration_number FROM dna_profiles WHERE id=ANY($1::uuid[])', [x.ids])).rows;
+    assert(stored.every(row => row.internal_number === null && row.registration_number === null));
+    const checked = await service.fullSearch(admin, x.ids);
+    const result = await service.publish(admin, x.ids, checked.id);
+    assert.equal(result.published.length, 2);
+    assert.notEqual(result.published[0].publishedId, result.published[1].publishedId);
+    const staffIds = result.published.map(item => item.publishedId);
+    assert((await pool.query('SELECT registration_number FROM staff_profiles WHERE id=ANY($1::uuid[])', [staffIds])).rows.every(row => row.registration_number === null));
+    const self = await service.fullSearch(admin, x.ids);
+    for (const item of result.published) {
+      assert(!self.staff.find(group => group.profileId === item.profileId).matches.some(match => match.staffId === item.publishedId));
+      assert.equal(self.staffProfiles.find(p => p.id === staffIds.find(id => id !== item.publishedId)).internal_number, '');
+    }
+    const exported = await service.exportProfiles(admin, x.ids);
+    const parsed = require('../src/services/workspace/importSourceService').parseFiles([{ originalname: 'SYN.xlsx', buffer: exported }]).rows;
+    assert.equal(parsed.length, 2); assert(parsed.every(row => row.objectNumber === '' && row.fullName && !require('../src/utils/objectImportV2').validateObject(row).length));
+    await service.patch(admin, x.ids[0], { objectNumber: '00998-G' });
+    const numberedRun = await service.fullSearch(admin, [x.ids[0]]);
+    await service.publish(admin, [x.ids[0]], numberedRun.id);
+    await service.patch(admin, x.ids[0], { objectNumber: '' });
+    const clearedRun = await service.fullSearch(admin, [x.ids[0]]);
+    const original = result.published.find(item => item.profileId === x.ids[0]).publishedId;
+    const unrelated = staffIds.find(id => id !== original);
+    await assert.rejects(service.publish(admin, [x.ids[0]], clearedRun.id, { [x.ids[0]]: unrelated }), /не соответствует/);
+    const cleared = await service.publish(admin, [x.ids[0]], clearedRun.id);
+    assert.equal(cleared.published[0].publishedId, original);
+    assert.equal((await pool.query('SELECT registration_number FROM staff_profiles WHERE id=$1', [original])).rows[0].registration_number, null);
+    await assert.rejects(pool.query('UPDATE dna_profiles SET internal_number=NULL WHERE id=$1', [ids[0]]), e => e.code === '23514');
   });
   await t.test('После включения режима SQL gate закрывает legacy-публикацию', async () => {
     await pool.query('UPDATE workspace_configuration SET enabled=true WHERE id=true');

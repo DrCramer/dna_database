@@ -157,7 +157,7 @@ if [[ "$profile_identity_ready" != t ]]; then
 fi
 
 # Backup before enabling the new schema on an existing workspace installation.
-if [[ "$(db_sql -c "SELECT to_regclass('personal_workspaces') IS NOT NULL AND to_regclass('workspace_master_approvals') IS NULL")" == t ]]; then
+if [[ "$(db_sql -c "SELECT to_regclass('personal_workspaces') IS NOT NULL AND (to_regclass('workspace_master_approvals') IS NULL OR NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conrelid='dna_profiles'::regclass AND conname='workspace_metadata' AND pg_get_constraintdef(oid) LIKE '%staff%'))")" == t ]]; then
     backup_file="runtime/backups/before_install_038_$(date -u +%Y%m%d_%H%M%S).sql"
     docker compose exec -T db pg_dump -U dna_user -d dna_analysis > "$backup_file"
     test -s "$backup_file"
@@ -171,6 +171,12 @@ if [[ "$workspace_approval_ready" != t ]]; then
     else
         docker compose exec -T db psql -U dna_user -d dna_analysis -v ON_ERROR_STOP=1 -q -c 'ALTER TABLE users ADD COLUMN IF NOT EXISTS can_approve_master boolean NOT NULL DEFAULT false'
     fi
+fi
+
+# 039 allows absent registration numbers only for workspace employees.
+workspace_staff_number_ready="$(docker compose exec -T db psql -U dna_user -d dna_analysis -Atq -v ON_ERROR_STOP=1 -c "SELECT COALESCE(bool_or(pg_get_constraintdef(oid) LIKE '%staff%'),false) FROM pg_constraint WHERE conrelid='dna_profiles'::regclass AND conname='workspace_metadata'")"
+if [[ "$workspace_staff_number_ready" != t && "$(docker compose exec -T db psql -U dna_user -d dna_analysis -Atq -v ON_ERROR_STOP=1 -c "SELECT to_regclass('personal_workspaces') IS NOT NULL")" == t ]]; then
+    docker compose exec -T db psql -U dna_user -d dna_analysis -v ON_ERROR_STOP=1 -q < database/migrations/039_optional_staff_registration.sql
 fi
 
 user_count="$(db_sql -c 'SELECT COUNT(*) FROM users')"

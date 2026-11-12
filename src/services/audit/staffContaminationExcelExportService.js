@@ -83,7 +83,7 @@ class StaffContaminationExcelExportService {
         return { match, data, cells };
       });
       const sampleCells = Object.fromEntries(loci.map(locus => [locus, getStaffSamplePresentation({ sampleData: reference[locus], comparisons: comparisons.map(item => item.cells[locus]), colors: palette })]));
-      addRow(['Объект', group.reference.internal_number ?? 'Без номера', '', group.reference.year ?? '—', '—', '—'], reference, sampleCells, true);
+      addRow(['Объект', group.reference.internal_number || group.reference.full_name || 'Без номера', '', group.reference.year ?? '—', '—', '—'], reference, sampleCells, true);
       for (const { match, data, cells } of comparisons) {
         const score = match.staffEvidence.finalScore ?? match.staffEvidence.score ?? match.staffEvidence.contaminationScore ?? '—';
         addRow(['Сотрудник', match.full_name, match.internal_number, match.year ?? '—', score, Object.values(cells).filter(cell => cell.status === 'full').length], data, cells);

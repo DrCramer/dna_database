@@ -26,7 +26,7 @@ function backgroundStyle(color) {
   return { '--duplicate-cell-bg': color, '--duplicate-cell-fg': luminance > 0.179 ? '#142019' : '#ffffff' };
 }
 function matchesOf(group) { return group.exportMatches || group.matches || []; }
-function objectNumber(profile) { return profile.internal_number ?? profile.objectNumber ?? profile.sample_name ?? 'Без номера'; }
+function objectNumber(profile) { return profile.internal_number || profile.objectNumber || profile.full_name || profile.sample_name || 'Без номера'; }
 
 function Alleles({ raw, presentation, highlightAll = false }) {
   if (!presentation?.alleles?.length || !highlightAll && presentation.status !== 'partial') return formatLocusValue(raw) || '—';
@@ -79,7 +79,7 @@ function ComparisonGroup({ group, ignoredLoci, colors, kind }) {
             })}
           </tr>
           {comparisons.map(({ match, data, cells, fullMatches }, index) => <tr key={`${match.id || index}:${match.source || ''}`} data-profile-id={match.id}>
-            <td data-fixed="role">{isStaff ? 'Сотрудник' : 'Дубликат'}</td><th scope="row" data-fixed="object" title={isStaff ? `${match.full_name} · № рег. ${objectNumber(match)}` : objectNumber(match)}>{isStaff ? <><span className="workspace-staff-name">{match.full_name}</span><small className="workspace-staff-registration">№ рег. {objectNumber(match)}</small></> : objectNumber(match)}</th><td>{match.year ?? '—'}</td>
+            <td data-fixed="role">{isStaff ? 'Сотрудник' : 'Дубликат'}</td><th scope="row" data-fixed="object" title={isStaff ? `${match.full_name}${match.internal_number ? ' · № рег. ' + match.internal_number : ' · без регистрационного номера'}` : objectNumber(match)}>{isStaff ? <><span className="workspace-staff-name">{match.full_name}</span><small className="workspace-staff-registration">{match.internal_number ? '№ рег. ' + match.internal_number : 'Без регистрационного номера'}</small></> : objectNumber(match)}</th><td>{match.year ?? '—'}</td>
             {isStaff && <td className="workspace-staff-score">{match.staffEvidence.finalScore ?? match.staffEvidence.score ?? match.staffEvidence.contaminationScore ?? '—'}</td>}<td className="workspace-duplicate-count" title="Полностью совпавшие локусы">{fullMatches}</td>
             {loci.map(locus => <td key={locus} data-locus={locus} data-status={cells[locus].status}
               title={`${locus}: ${labels[cells[locus].status]}${isStaff && cells[locus].explainedAlleles.length ? '. Учтённые аллели: ' + cells[locus].explainedAlleles.join(',') : ''}`}

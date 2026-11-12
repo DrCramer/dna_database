@@ -313,12 +313,12 @@ export default function WorkspacePage({
   }
   function moveStaffNames() {
     const candidates = affected.filter(canTransferStaffName);
-    if (!candidates.length || !window.confirm(`Перенести ФИО из поля «Объект» у сотрудников: ${candidates.length}? Заполненные ФИО и регистрационные номера не заменяются. Если номера регистрации нет, поле «Объект» останется пустым — его нужно заполнить отдельно. Исходные значения сохранятся.`)) return;
+    if (!candidates.length || !window.confirm(`Перенести ФИО из поля «Объект» у сотрудников: ${candidates.length}? Заполненные ФИО и регистрационные номера не заменяются. Если номера регистрации нет, поле «Объект» останется пустым — это допустимо. Исходные значения сохранятся.`)) return;
     setUndo(rows);
     const ids = new Set(candidates.map(id));
     setRows(current => current.map(row => ids.has(id(row)) ? transferStaffName(row) : row));
     setValidation(null);
-    setNotice(`ФИО перенесены: ${candidates.length}. Укажите год и регистрационные номера сотрудников.`);
+    setNotice(`ФИО перенесены: ${candidates.length}. Укажите год. Регистрационные номера сотрудников необязательны.`);
   }
   async function saveDraft() {
     if (saveInFlight.current) await saveInFlight.current;
@@ -534,7 +534,7 @@ export default function WorkspacePage({
     strData: genotypePreview
   }])) : [];
   const stateBadge = row => <div><span className="workspace-badge" data-state={row.state || 'NOT_CHECKED'}>{row.expertiseType === 'staff' && row.state === 'PUBLISHED' ? 'В эталонах сотрудников' : states[row.state] || 'Не проверен'}</span>{row.approvalId && <button className="workspace-object-link master-approval-history-link" onClick={() => setApprovalWindow({mode:'history',requestId:row.approvalId})}>Решение и история</button>}{row.decisionComment && <small className="master-approval-decision-note">{row.decisionComment}</small>}</div>;
-  const objectNumber = row => row.expertiseType === 'staff' ? 'Регистрационный номер' : `№ экспертизы ${row.objectNumber.split('-')[0] || '—'}`;
+  const objectNumber = row => row.expertiseType === 'staff' ? 'Регистрационный номер (необязательно)' : `№ экспертизы ${row.objectNumber.split('-')[0] || '—'}`;
   return <div className={`workspace-page ${isImport ? 'workspace-import-page' : 'workspace-profiles-page'}`} aria-label={isImport ? undefined : 'Мои генотипы'} aria-busy={busy}>
     {isImport ? <header className="workspace-heading">
       <div><span className="workspace-eyebrow">Личная рабочая область</span><h1>Загрузка в личный массив</h1>{!rows.length && <p>Добавьте файлы, выберите объекты и подтвердите загрузку.</p>}</div>
@@ -607,7 +607,7 @@ export default function WorkspacePage({
                 setUndo(null);
                 setValidation(null);
               }}>Отменить массовую правку</button>}</section>
-        {staffNameCandidates.length > 0 && <div className="workspace-staff-mapping"><WorkspaceIcon name="edit" /><div><strong>ФИО записаны в поле «Объект»</strong><p>Можно перенести имена сотрудников в нужную колонку. Регистрационные номера заполняются отдельно.</p></div><button className="btn btn-secondary btn-sm" disabled={busy || !canEdit} onClick={moveStaffNames}>Перенести ФИО ({staffNameCandidates.length})</button></div>}
+        {staffNameCandidates.length > 0 && <div className="workspace-staff-mapping"><WorkspaceIcon name="edit" /><div><strong>ФИО записаны в поле «Объект»</strong><p>Можно перенести имена сотрудников в нужную колонку. Регистрационные номера необязательны.</p></div><button className="btn btn-secondary btn-sm" disabled={busy || !canEdit} onClick={moveStaffNames}>Перенести ФИО ({staffNameCandidates.length})</button></div>}
         </details>
         {!isImport && <details className="workspace-search-settings"><summary><WorkspaceIcon name="settings" />Настройки поиска<WorkspaceIcon name="chevron" /></summary><div><label>Минимум локусов<input className="form-input" type="number" min="1" max="500" disabled={busy || !canEdit} value={minMatches} onChange={e => {
                   setMinMatches(e.target.value);
@@ -631,19 +631,19 @@ export default function WorkspacePage({
                 const issues = isImport ? issuesFor(row) : [];
                 const checked = isSelected(row);
                 return <tr key={id(row)} data-object-number={row.objectNumber} data-selected={!!checked} data-excluded={isImport && !row.included}>
-                <td className="workspace-check-column"><input type="checkbox" aria-label={`Выбрать ${row.objectNumber}`} checked={!!checked} disabled={busy || !!(isImport && row.provenance?.classification && !row.provenance.classification.included)} onChange={e => isImport ? change(row, 'included', e.target.checked) : setSelected(old => {
+                <td className="workspace-check-column"><input type="checkbox" aria-label={`Выбрать ${row.objectNumber || row.fullName}`} checked={!!checked} disabled={busy || !!(isImport && row.provenance?.classification && !row.provenance.classification.included)} onChange={e => isImport ? change(row, 'included', e.target.checked) : setSelected(old => {
                       const next = new Set(old);
                       e.target.checked ? next.add(row.id) : next.delete(row.id);
                       return next;
                     })} /></td>
-                <td className="workspace-object-column">{editable ? <input aria-label="Номер объекта" aria-invalid={issues.some(issue => ['OBJECT_NUMBER', 'REGISTRATION', 'REGISTRATION_CONFLICT'].includes(issue.code))} className="form-input" value={row.objectNumber} placeholder={row.expertiseType === 'staff' ? 'Например, 870-G' : ''} disabled={busy || !canEdit} onChange={e => change(row, 'objectNumber', e.target.value)} /> : <button className="workspace-object-link" title={row.objectNumber} onClick={() => editGenotype(row)}>{row.objectNumber}</button>}<small title={objectNumber(row)}>{objectNumber(row)}</small></td>
+                <td className="workspace-object-column">{editable ? <input aria-label="Номер объекта" aria-invalid={issues.some(issue => ['OBJECT_NUMBER', 'REGISTRATION', 'REGISTRATION_CONFLICT'].includes(issue.code))} className="form-input" value={row.objectNumber} placeholder={row.expertiseType === 'staff' ? 'Необязательно' : ''} disabled={busy || !canEdit} onChange={e => change(row, 'objectNumber', e.target.value)} /> : <button className="workspace-object-link" title={row.objectNumber || row.fullName} onClick={() => editGenotype(row)}>{row.objectNumber || 'Без номера'}</button>}<small title={objectNumber(row)}>{objectNumber(row)}</small></td>
                 <td className="workspace-year-column">{editable ? <input aria-label="Год объекта" aria-invalid={issues.some(issue => issue.code === 'YEAR')} className="form-input" type="number" min="1900" max="2100" value={row.year ?? ''} disabled={busy || !canEdit} onChange={e => change(row, 'year', e.target.value === '' ? null : Number(e.target.value))} /> : row.year || '—'}</td>
                 <td className="workspace-type-column">{editable ? <select aria-label="Тип объекта" aria-invalid={issues.some(issue => issue.code === 'TYPE')} className="form-select" value={row.expertiseType || ''} disabled={busy || !canEdit} onChange={e => change(row, 'expertiseType', e.target.value || null)}><option value="">Выберите тип</option>{Object.entries(types).map(([code, label]) => <option key={code} value={code}>{label}</option>)}</select> : <span className="workspace-type" data-type={row.expertiseType}>{types[row.expertiseType] || 'Не указан'}</span>}</td>
                 {showStaff && <td className="workspace-name-column">{editable && row.expertiseType === 'staff' ? <input aria-label="ФИО сотрудника" aria-invalid={issues.some(issue => issue.code === 'FULL_NAME')} className="form-input" value={row.fullName || ''} disabled={busy || !canEdit} onChange={e => change(row, 'fullName', e.target.value)} placeholder="Фамилия Имя Отчество" /> : <span className={row.fullName ? '' : 'workspace-muted'} title={row.fullName || ''}>{row.fullName || '—'}</span>}</td>}
                 <td className="workspace-comment-column">{editable ? <textarea aria-label="Комментарий объекта" className="form-input workspace-comment" rows="1" value={row.comment || ''} disabled={busy || !canEdit} onChange={e => change(row, 'comment', e.target.value)} placeholder="Необязательно" /> : <span className={`workspace-comment-preview ${row.comment ? '' : 'workspace-muted'}`} title={row.comment || ''}>{row.comment || '—'}</span>}</td>
                 <td className="workspace-state-column">{isImport ? <><span className="workspace-badge" data-state={issues.length ? 'STALE' : countEmpty([row]) ? 'NO_GENOTYPE' : 'CHECKED'}>{issues.length ? `Замечаний: ${issues.length}` : countEmpty([row]) ? 'Нет генотипа' : 'Готов к загрузке'}</span>{issues.length > 0 && <details className="workspace-issues"><summary>Что исправить</summary>{issues.map((issue, index) => <div className="workspace-row-error" key={index}>{issue.message}</div>)}</details>}</> : stateBadge(row)}</td>
                 {!isImport && loci.map(locus => <td className="workspace-alleles" key={locus}>{(row.strData[locus] || []).join(',') || <span className="workspace-muted">—</span>}</td>)}
-                <td className="workspace-row-actions"><div>{!isImport && canEdit && <button className="workspace-icon-button" aria-label={`Редактировать ${row.objectNumber}`} title="Редактировать метаданные" disabled={busy} onClick={() => setEditingId(editingId === row.id ? null : row.id)}><WorkspaceIcon name={editingId === row.id ? 'check' : 'edit'} /></button>}<button className="workspace-icon-button" aria-label={`Открыть генотип ${row.objectNumber}`} title="Генотип и источник" onClick={() => editGenotype(row)}><WorkspaceIcon name="open" /></button></div></td>
+                <td className="workspace-row-actions"><div>{!isImport && canEdit && <button className="workspace-icon-button" aria-label={`Редактировать ${row.objectNumber || row.fullName}`} title="Редактировать метаданные" disabled={busy} onClick={() => setEditingId(editingId === row.id ? null : row.id)}><WorkspaceIcon name={editingId === row.id ? 'check' : 'edit'} /></button>}<button className="workspace-icon-button" aria-label={`Открыть генотип ${row.objectNumber || row.fullName}`} title="Генотип и источник" onClick={() => editGenotype(row)}><WorkspaceIcon name="open" /></button></div></td>
               </tr>;
               })}</tbody>
           </table>

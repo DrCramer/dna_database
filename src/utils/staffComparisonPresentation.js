@@ -58,7 +58,8 @@ function staffComparisonGroups(groups, snapshots = []) {
     reference: group.reference || { id: group.profileId, internal_number: 'Номер объекта не сохранён', loci: evidenceData(group.matches, 'sampleAlleles'), normalizedEvidenceOnly: true },
     matches: group.matches.map(match => {
       const snapshot = staffById.get(match.staffId);
-      return { id: match.staffId, internal_number: snapshot?.internal_number || match.registrationNumber || match.staffIdentifier || 'Номер не указан',
+      const legacyNumber = match.registrationNumber || (/^workspace-/.test(match.staffIdentifier || '') ? '' : match.staffIdentifier) || '';
+      return { id: match.staffId, internal_number: snapshot ? snapshot.internal_number || '' : legacyNumber,
         full_name: snapshot?.full_name || match.staffName || 'Сотрудник', year: snapshot?.year ?? match.staffYear,
         loci: snapshot ? profileLoci(snapshot) : evidenceData([match], 'staffAlleles'),
         staffEvidence: match, normalizedEvidenceOnly: !snapshot };
