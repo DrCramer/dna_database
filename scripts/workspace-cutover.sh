@@ -43,6 +43,7 @@ fi
 docker compose exec -T db psql -X -U dna_user -d "$workspace_database" -v ON_ERROR_STOP=1 < database/migrations/037_personal_workspace.sql
 docker compose exec -T db psql -X -U dna_user -d "$workspace_database" -v ON_ERROR_STOP=1 < database/migrations/038_master_array_approval.sql
 docker compose exec -T db psql -X -U dna_user -d "$workspace_database" -v ON_ERROR_STOP=1 < database/migrations/039_optional_staff_registration.sql
+docker compose exec -T db psql -X -U dna_user -d "$workspace_database" -v ON_ERROR_STOP=1 < database/migrations/040_night_search.sql
 docker compose exec -T db psql -X -U dna_user -d "$workspace_database" -v ON_ERROR_STOP=1 -c 'UPDATE workspace_configuration SET enabled=true WHERE id=true;'
 if [[ "${1:-}" == --staging ]]; then
     echo "Staging schema enabled in $workspace_database. Start the isolated web service with UNIFIED_WORKSPACE_ENABLED=true. Production web was not restarted."

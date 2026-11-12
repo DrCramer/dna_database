@@ -26,13 +26,15 @@ function workerLimit() {
 // Один тяжёлый поиск на процесс: параллельные HTTP-запросы не размножают
 // наборы профилей и потоки сверх лимита. Ожидание не блокирует event loop.
 let busy = false;
+let activePriority, preempt, coordinator;
+function setSearchCoordinator(value) { coordinator = value; }
 const queue = [];
-function acquire(signal) {
+function acquire(signal, priority, onPreempt) {
   if (signal?.aborted) return Promise.reject(signal.reason || new Error('Поиск отменён.'));
-  if (!busy) { busy = true; return Promise.resolve(release); }
+  if (!busy) { busy = true; activePriority=priority; preempt=onPreempt; return Promise.resolve(release); }
   if (queue.length >= 8) return Promise.reject(Object.assign(new Error('Очередь поиска заполнена. Повторите позже.'), { status: 503 }));
   return new Promise((resolve, reject) => {
-    const entry = { resolve, reject, signal };
+    const entry = { resolve, reject, signal, priority, onPreempt };
     entry.abort = () => {
       const index = queue.indexOf(entry);
       if (index !== -1) queue.splice(index, 1);
@@ -40,23 +42,31 @@ function acquire(signal) {
     };
     signal?.addEventListener('abort', entry.abort, { once: true });
     queue.push(entry);
+    if(priority==='manual'&&activePriority==='background')preempt?.();
   });
 }
 function release() {
-  const next = queue.shift();
-  if (next) { next.signal?.removeEventListener('abort', next.abort); next.resolve(release); }
-  else busy = false;
+  const index=queue.findIndex(x=>x.priority==='manual');
+  const next = queue.splice(index<0?0:index,1)[0];
+  if (next) { next.signal?.removeEventListener('abort', next.abort);activePriority=next.priority;preempt=next.onPreempt;next.resolve(release); }
+  else {busy=false;activePriority=null;preempt=null;}
 }
 
 // Shared budget for duplicate search and staff analysis: never multiply the CPU
 // limit by the number of concurrent users or analysis stages.
-async function executeWorkerRanges({ workerPath, count, createInput, signal, onProgress }) {
+async function executeWorkerRanges({ workerPath, count, createInput, signal: parentSignal, onProgress, priority='manual' }) {
+  const controller=new AbortController(),signal=controller.signal;
+  const abortParent=()=>controller.abort(parentSignal.reason);
+  parentSignal?.addEventListener('abort',abortParent,{once:true});
+  if(parentSignal?.aborted)abortParent();
   onProgress?.({ status: 'queued' });
-  const unlock = await acquire(signal);
+  let unlock,globalUnlock;
   const workers = [];
   const abort = () => workers.forEach(worker => worker.terminate());
   signal?.addEventListener('abort', abort, { once: true });
   try {
+    unlock=await acquire(signal,priority,()=>controller.abort(require('./searchCpuCoordinator').yieldError()));
+    globalUnlock=await coordinator?.acquire({signal,priority,onLost:e=>controller.abort(e)});
     if (signal?.aborted) throw signal.reason;
     onProgress?.({ status: 'running' });
     const ranges = await Promise.all(Array.from({ length: count }, (_, index) => new Promise((resolve, reject) => {
@@ -78,10 +88,13 @@ async function executeWorkerRanges({ workerPath, count, createInput, signal, onP
     })));
     if (signal?.aborted) throw signal.reason;
     return ranges;
+  } catch(error) {
+    throw signal.aborted ? signal.reason : error;
   } finally {
     signal?.removeEventListener('abort', abort);
     await Promise.allSettled(workers.map(worker => worker.terminate()));
-    unlock();
+    parentSignal?.removeEventListener('abort',abortParent);
+    try {await globalUnlock?.();} finally {unlock?.();}
   }
 }
 
@@ -128,7 +141,7 @@ function mergeComparisonRanges(ranges, operation, algorithm) {
       matchCount: matches.length, displayedCount: Math.min(matches.length, 100) }];
 }
 
-async function runProfileSearch(input, { signal, useWorkers = true, minParallelComparisons = 2000, onProgress } = {}) {
+async function runProfileSearch(input, { signal, useWorkers = true, minParallelComparisons = 2000, onProgress, priority='manual', maxWorkers } = {}) {
   const { compareTaskProfiles, compareDepartmentProfiles } = require('./taskComparisonService');
   const operation = input.searchMode === 'department_tasks' ? 'department' : 'task';
   const referenceCount = input.referenceProfiles.length, comparisonCount = input.compareProfiles.length;
@@ -137,9 +150,10 @@ async function runProfileSearch(input, { signal, useWorkers = true, minParallelC
     return { ...(operation === 'department' ? compareDepartmentProfiles : compareTaskProfiles)(input, { onProgress }), mode: 'single-threaded-optimized', workerCount: 0 };
   }
   const plan = partitionPlan(referenceCount, comparisonCount);
+  if(maxWorkers)plan.count=Math.max(1,Math.min(plan.count,maxWorkers));
   const compact = { ...input, referenceProfiles: input.referenceProfiles.map(searchProfile), compareProfiles: input.compareProfiles.map(searchProfile) };
   const ranges = await executeWorkerRanges({
-    workerPath: path.join(__dirname, '../../workers/profileSearchWorker.js'), count: plan.count, signal, onProgress: createRangeProgress(plan, onProgress),
+    workerPath: path.join(__dirname, '../../workers/profileSearchWorker.js'), count: plan.count, signal, priority, onProgress: createRangeProgress(plan, onProgress),
     createInput: (index, count) => {
       const [start, end] = rangeBounds(index, count, plan.length);
       const key = plan.axis === 'references' ? 'referenceProfiles' : 'compareProfiles';
@@ -167,4 +181,4 @@ function runProfileSearchForRequest(req, res, input) {
   return runSearchForRequest(req, res, signal => runProfileSearch(input, { signal, useWorkers: req.body.useWorkers !== false }));
 }
 
-module.exports = { runSearchForRequest, runProfileSearch, runProfileSearchForRequest, workerLimit, executeWorkerRanges, partitionPlan, rangeBounds, searchProfile, createRangeProgress };
+module.exports = { runSearchForRequest, runProfileSearch, runProfileSearchForRequest, workerLimit, executeWorkerRanges, partitionPlan, rangeBounds, searchProfile, createRangeProgress, setSearchCoordinator };

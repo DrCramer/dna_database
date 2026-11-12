@@ -5,6 +5,7 @@ import ThemeSwitcher from './components/Common/ThemeSwitcher';
 import GenotypePanelsPage from './components/Settings/GenotypePanelsPage';
 import AlleleReferencesPage from './components/Settings/AlleleReferencesPage';
 import WorkspaceEntry from './components/Workspace/WorkspaceEntry';
+import NightSearchPage from './components/Workspace/NightSearchPage';
 import GenotypeAnalysisPage from './components/Analysis/GenotypeAnalysisPage';
 import LoginPage from './components/Auth/LoginPage';
 import AdminDashboard from './components/Dashboard/AdminDashboard';
@@ -1332,7 +1333,7 @@ function App() {
 
   const navigate = (path) => {
     window.history.pushState(null, '', path);
-    setCurrentPath(path);
+    setCurrentPath(window.location.pathname);
   };
 
   // Root route component that handles authentication-aware routing
@@ -1541,6 +1542,7 @@ function App() {
               path="/settings/allele-references"
               element={<ProtectedRoute onNavigate={navigate}><PageTransition><AlleleReferencesPage /></PageTransition></ProtectedRoute>}
             />
+            <Route path="/settings/night-search" element={<ProtectedRoute onNavigate={navigate}><PageTransition><NightSearchPage onNavigate={navigate}/></PageTransition></ProtectedRoute>}/>
             <Route path="/admin/migration-export" element={<ProtectedRoute onNavigate={navigate} fluid><MigrationExportPage /></ProtectedRoute>} />
             <Route path="/admin/master-array-export" element={<ProtectedRoute onNavigate={navigate}><PageTransition><MasterArrayExportPage /></PageTransition></ProtectedRoute>} />
             <Route

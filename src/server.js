@@ -323,6 +323,7 @@ process.on('SIGTERM', async () => {
         }
         
         // Close database connections
+        await app.locals.nightSearch?.stop();
         const { closePool } = require('./config/database');
         await closePool();
         
@@ -344,6 +345,7 @@ process.on('SIGINT', async () => {
         }
         
         // Close database connections
+        await app.locals.nightSearch?.stop();
         const { closePool } = require('./config/database');
         await closePool();
         
@@ -383,6 +385,13 @@ async function startServer() {
         if (workspaceEnabled) {
             const workspaces = new (require('./services/workspace/workspaceService').WorkspaceService)(pool);
             setInterval(() => workspaces.pruneDrafts().catch(() => logger.error('WORKSPACE_DRAFT_RETENTION_FAILED')), 3600000).unref();
+        }
+        if((await pool.query("SELECT to_regclass('workspace_search_cpu_lease') IS NOT NULL ready")).rows[0].ready) {
+            require('./services/profiles/searchWorkerExecutor').setSearchCoordinator(new (require('./services/profiles/searchCpuCoordinator').SearchCpuCoordinator)(pool));
+        }
+        if(workspaceEnabled) {
+            app.locals.nightSearch=new (require('./services/workspace/nightSearchService').NightSearchService)(pool);
+            if(!await app.locals.nightSearch.start())logger.warn('NIGHT_SEARCH_MIGRATION_040_REQUIRED');
         }
         logger.info('Database connected successfully');
         

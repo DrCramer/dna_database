@@ -179,6 +179,15 @@ if [[ "$workspace_staff_number_ready" != t && "$(docker compose exec -T db psql 
     docker compose exec -T db psql -U dna_user -d dna_analysis -v ON_ERROR_STOP=1 -q < database/migrations/039_optional_staff_registration.sql
 fi
 
+# 040 adds durable jobs and shared CPU leases; schedules stay disabled by default.
+night_ready="$(docker compose exec -T db psql -U dna_user -d dna_analysis -Atq -v ON_ERROR_STOP=1 -c "SELECT to_regclass('workspace_search_cpu_lease') IS NOT NULL AND (to_regclass('personal_workspaces') IS NULL OR to_regclass('workspace_search_jobs') IS NOT NULL)")"
+if [[ "$night_ready" != t ]]; then
+    backup_file="runtime/backups/before_install_040_$(date -u +%Y%m%d_%H%M%S).sql"
+    docker compose exec -T db pg_dump -U dna_user -d dna_analysis > "$backup_file"
+    test -s "$backup_file"
+    docker compose exec -T db psql -U dna_user -d dna_analysis -v ON_ERROR_STOP=1 -q < database/migrations/040_night_search.sql
+fi
+
 user_count="$(db_sql -c 'SELECT COUNT(*) FROM users')"
 if [[ "$user_count" == 0 ]]; then
     docker compose run --rm --no-deps web node scripts/bootstrap-admin.js

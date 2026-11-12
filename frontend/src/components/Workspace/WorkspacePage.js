@@ -205,7 +205,13 @@ export default function WorkspacePage({
         setDraft(null);
         setRows([]);
       }
-    } else load().catch(e => {
+    } else load().then(async()=>{
+      const searchRun=new URLSearchParams(window.location.search).get('searchRun');
+      if(searchRun&&/^[\da-f-]{36}$/i.test(searchRun)) {
+        const saved=await api('/searches/'+encodeURIComponent(searchRun));
+        if(alive&&saved.state==='complete'){setResult(saved);setActiveView('results');setNotice('Открыт сохранённый результат. Актуальность профилей показана в личном массиве.');}
+      }
+    }).catch(e => {
       if (alive) setError(e.message);
     });
     return () => {

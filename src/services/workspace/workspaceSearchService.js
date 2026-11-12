@@ -9,13 +9,14 @@ const {
 } = require('./workspaceService');
 const {
   analysisHash,
+  hash,
   hasGenotype
 } = require('../../utils/objectImportV2');
 const {
   informativeAlleles
 } = require('../../utils/alleleTokens');
 const {
-  runProfileSearch
+  runProfileSearch, searchProfile
 } = require('../profiles/searchWorkerExecutor');
 const { runStaffSearch } = require('../contamination/staffSearchWorkerExecutor');
 const { staffSearchOptions } = require('../../utils/staffSearchOptions');
@@ -44,12 +45,12 @@ class WorkspaceSearchService extends WorkspaceService {
       return effective;
     });
   }
-  async fullSearch(user, ids, parameters = {}, signal, onProgress) {
+  async fullSearch(user, ids, parameters = {}, signal, onProgress, execution = {}) {
     const progressSink = onProgress;
     onProgress = progress => { try { progressSink?.(progress); } catch { /* Telemetry cannot invalidate a committed search. */ } };
     requireUser(user, true);
     onProgress?.({ stage: 'preparing', status: 'running' });
-    parameters = await this.configureSearch(user, parameters);
+    if (!execution.readSavedParameters) parameters = await this.configureSearch(user, parameters);
     requireUser(user, true);
     const w = await this.workspace(user),
       id = randomUUID(),
@@ -58,8 +59,17 @@ class WorkspaceSearchService extends WorkspaceService {
     try {
       await reader.query('BEGIN ISOLATION LEVEL REPEATABLE READ READ ONLY');
       const workspace = (await reader.query('SELECT * FROM personal_workspaces WHERE id=$1', [w.id])).rows[0];
-      profiles = await this.ownProfiles(reader, user, w, ids);
+      if(execution.readSavedParameters) {
+        if(!workspace.analysis_parameters?.staffOptions)throw err('Сначала сохраните настройки поиска.',409,'SETTINGS_REQUIRED');
+        parameters={minMatches:15,ignoredLoci:[],comparisonAlgorithm:'standard',...workspace.analysis_parameters};
+        parameters.staffOptions=staffSearchOptions(parameters.staffOptions);
+      }
+      if(!execution.allProfiles)profiles = await this.ownProfiles(reader, user, w, ids);
       working = (await reader.query('SELECT * FROM dna_profiles WHERE workspace_id=$1 AND user_id=$2 AND organization_id=$3 AND is_active=true', [w.id, user.id, user.organization_id])).rows;
+      if(execution.allProfiles) {
+        profiles=[...working].sort((a,b)=>a.id<b.id?-1:a.id>b.id?1:0);
+        if(!profiles.length)throw err('Нет активных объектов.',409,'NO_PROFILES');
+      }
       const refs = (await reader.query('SELECT * FROM workspace_reference_versions WHERE organization_id=$1', [user.organization_id])).rows[0];
       master = (await reader.query(`SELECT p.* FROM master_array_profiles p JOIN master_arrays ma ON ma.id=p.master_array_id WHERE p.organization_id=$1 AND p.is_active=true AND ma.is_active=true`, [user.organization_id])).rows.map(row => decodeMasterRow(row));
       const legacyMasters = (await reader.query("SELECT * FROM dna_profiles WHERE organization_id=$1 AND is_active=true AND profile_type='master'", [user.organization_id])).rows.map(row => decodeMasterRow(row));
@@ -94,7 +104,10 @@ class WorkspaceSearchService extends WorkspaceService {
     await this.pool.query(`INSERT INTO workspace_search_runs(id,workspace_id,owner_id,organization_id,algorithm_version,state,parameters,workspace_revision,master_revision,staff_revision)
    VALUES($1,$2,$3,$4,$5,'running',$6,$7,$8,$9)`, [id, w.id, user.id, user.organization_id, ALGORITHM_VERSION, JSON.stringify(parameters), run.workspace_revision, run.master_revision, run.staff_revision]);
     try {
+      if(execution.readSavedParameters)await this.pool.query("UPDATE workspace_search_runs SET origin='night' WHERE id=$1",[id]);
       const hashes = new Map(profiles.map(profile => [profile.id, analysisHash(objectFromDB(profile))]));
+      await execution.prepare?.({run,parameters,algorithmVersion:ALGORITHM_VERSION,profiles:profiles.map(p=>[p.id,p.analysis_revision,hashes.get(p.id)]),snapshot:hash({working:working.map(searchProfile),master:master.map(searchProfile),staff:staff.map(p=>({...searchProfile(p),full_name:p.full_name,staff_id:p.staff_id,registration_number:p.registration_number})),staffLinks})});
+      await execution.created?.(id);
       await this.pool.query(`INSERT INTO workspace_search_profiles(search_run_id,profile_id,analysis_revision,analysis_hash,state,stages)
         SELECT $1,p.id,p.revision,p.hash,'PENDING','{}'::jsonb
         FROM jsonb_to_recordset($2::jsonb) AS p(id uuid,revision bigint,hash text)`,
@@ -111,7 +124,8 @@ class WorkspaceSearchService extends WorkspaceService {
       };
       const stageProgress = stage => progressSink ? progress => onProgress({ stage, ...progress }) : undefined;
       onProgress?.({ stage: 'internal', status: 'running', completed: 0, total: eligible.length, unit: 'objects' });
-      const internal = await runProfileSearch({
+      const executeProfiles = (stage,input,options) => execution.profiles ? execution.profiles(stage,input,options) : runProfileSearch(input,options);
+      const internal = await executeProfiles('internal',{
         ...input,
         compareProfiles: working,
         searchMode: 'task'
@@ -119,7 +133,7 @@ class WorkspaceSearchService extends WorkspaceService {
         signal, onProgress: stageProgress('internal')
       });
       onProgress?.({ stage: 'master', status: 'running', completed: 0, total: eligible.length, unit: 'objects' });
-      const shared = await runProfileSearch({
+      const shared = await executeProfiles('master',{
         ...input,
         compareProfiles: master,
         searchMode: 'workspace_master'
@@ -132,7 +146,7 @@ class WorkspaceSearchService extends WorkspaceService {
         exclusions.get(link.workspace_profile_id).push(link.published_id);
       }
       onProgress?.({ stage: 'staff', status: 'running', completed: 0, total: eligible.length, unit: 'objects' });
-      const staffResult = await runStaffSearch({ referenceProfiles: eligible, staffProfiles: staff,
+      const staffResult = await (execution.staff || runStaffSearch)({ referenceProfiles: eligible, staffProfiles: staff,
         excludedStaffIds: [...exclusions], options: parameters.staffOptions }, { signal, onProgress: stageProgress('staff') });
       // Match the main analyze-task route's final threshold filter, including
       // its fallback when a legacy saved threshold is zero.
@@ -196,6 +210,7 @@ class WorkspaceSearchService extends WorkspaceService {
         const refs = (await c.query('SELECT * FROM workspace_reference_versions WHERE organization_id=$1 FOR UPDATE', [user.organization_id])).rows[0];
         if (current.analysis_revision !== run.workspace_revision || refs.master_revision !== run.master_revision || refs.staff_revision !== run.staff_revision) throw err('Данные изменились во время поиска. Повторите полный поиск.', 409, 'SEARCH_STALE');
         if (signal?.aborted) throw err('Поиск отменён.', 409, 'CANCELLED');
+        await execution.beforeCommit?.(c);
         const finalProofs = proofs.map(proof => ({ profile_id: proof.profileId, revision: proof.analysisRevision, hash: proof.hash, state: proof.state, stages: proof.state === 'CHECKED' ? {
           internal: true,
           master: true,
@@ -210,6 +225,7 @@ class WorkspaceSearchService extends WorkspaceService {
           FROM jsonb_to_recordset($2::jsonb) AS p(profile_id uuid,revision bigint,hash text,state text,stages jsonb)
           ON CONFLICT(search_run_id,profile_id) DO UPDATE SET state=EXCLUDED.state,stages=EXCLUDED.stages`, [id, JSON.stringify(finalProofs)]);
         await c.query("UPDATE workspace_search_runs SET state='complete',completed_at=now(),encrypted_result=$1 WHERE id=$2", [seal(result), id]);
+        await execution.complete?.(c,id);
       });
       onProgress?.({ stage: 'complete', status: 'running' });
       return result;

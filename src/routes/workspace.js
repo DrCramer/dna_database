@@ -141,6 +141,24 @@ module.exports = function workspaceRouter(service = new WorkspaceApprovalService
     return result.value;
   };
   const uuid = value => check(Joi.string().guid().required(), value);
+  const {NightSearchService}=require('../services/workspace/nightSearchService');
+  const localNight=new NightSearchService(service.pool);
+  const night=req=>req.app.locals.nightSearch||localNight;
+  router.get('/night-policy',handle(async(req,res)=>res.json(await night(req).getPolicy(req.user))));
+  router.put('/night-policy',handle(async(req,res)=>res.json(await night(req).savePolicy(req.user,req.body))));
+  router.post('/night-runs/preview',handle(async(req,res)=>{check(Joi.object({}),req.body);res.json(await night(req).preview(req.user));}));
+  router.post('/night-runs',handle(async(req,res)=>{const p=check(Joi.object({idempotencyKey:Joi.string().guid().required()}),req.body);res.json(await night(req).trial(req.user,p.idempotencyKey));}));
+  router.get('/search-jobs',handle(async(req,res)=>{
+    const q=check(Joi.object({scope:Joi.string().valid('own','organization').default('own')}),req.query);
+    res.json(await night(req).jobs(req.user,q.scope==='organization'));
+  }));
+  router.get('/search-jobs/:id/progress',handle(async(req,res)=>{
+    const n=night(req),id=uuid(req.params.id),{canManage}=require('../services/workspace/nightSearchService');
+    const job=(await n.jobs(req.user,canManage(req.user),id)).jobs[0];
+    if(!job)throw Object.assign(Error('Задание недоступно.'),{status:404});
+    res.json(job);
+  }));
+  router.post('/search-jobs/:id/:action',handle(async(req,res)=>{check(Joi.object({}),req.body);res.json(await night(req).control(req.user,uuid(req.params.id),req.params.action));}));
   router.get('/', handle(async (req, res) => res.json(await service.list(req.user))));
   router.get('/profiles', handle(async (req, res) => res.json(await service.list(req.user))));
   router.patch('/profiles/:id', handle(async (req, res) => {
