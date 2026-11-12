@@ -2,9 +2,11 @@ const { parseAlleles, compareLocus, compareWithContaminationAlgorithm, extractIm
 const { createDuplicateSimilarityComparator, isDuplicateOptimized } = require('./duplicateDetectionService');
 const { prepareLocusData, isExactLocusMatch } = require('../../utils/exactLocusComparison');
 
+const { createExactCandidateIndex, createSelfExclusionCounter } = require('./exactCandidateIndex');
+
 const contaminationPasses = (result, minMatches) => result.matchingLoci >= minMatches;
 
-function compareTaskProfiles({ referenceProfiles, compareProfiles, minMatches = 15, ignoredLoci = [], comparisonAlgorithm = 'standard', useV5Algorithm = true, searchMode = 'task', duplicateSettings = {} }) {
+function compareTaskProfiles({ referenceProfiles, compareProfiles, minMatches = 15, ignoredLoci = [], comparisonAlgorithm = 'standard', useV5Algorithm = true, searchMode = 'task', duplicateSettings = {}, useCandidateIndex = true }) {
     const thresholds = {
       minScore: duplicateSettings.minScore ?? 15,
       minPercentage: duplicateSettings.minPercentage ?? 80,
@@ -75,7 +77,10 @@ function compareTaskProfiles({ referenceProfiles, compareProfiles, minMatches = 
 
     // Выполняем сравнение
     const results = [];
-    let comparisonCount = 0;
+    let comparisonCount = 0, candidateComparisons = 0;
+
+    const candidatesFor = comparisonAlgorithm === 'standard' && useCandidateIndex ? createExactCandidateIndex(processedCompare, minMatches) : null;
+    const countSelf = candidatesFor ? createSelfExclusionCounter(processedCompare, searchMode) : null;
 
     for (let i = 0; i < processedReference.length; i++) {
       const refProfile = processedReference[i];
@@ -89,8 +94,10 @@ function compareTaskProfiles({ referenceProfiles, compareProfiles, minMatches = 
 
       const matches = [];
 
-      for (let j = 0; j < processedCompare.length; j++) {
-        const compProfile = processedCompare[j];
+      const candidates = candidatesFor?.(refProfile);
+      const comparisons = candidates ?? processedCompare;
+      if (candidates) comparisonCount += processedCompare.length - countSelf(refProfile);
+      for (const compProfile of comparisons) {
 
         // Пропускаем сравнение профиля с самим собой
         // В режиме "task" - по ID
@@ -111,7 +118,8 @@ function compareTaskProfiles({ referenceProfiles, compareProfiles, minMatches = 
         let matchScore = 0; // Для алгоритма контаминации
         const matchedLoci = [];
 
-        comparisonCount++;
+        if (!candidates) comparisonCount++;
+        candidateComparisons++;
 
         // Выбор алгоритма сравнения
         if (comparisonAlgorithm === 'duplicate_v5') {
@@ -239,10 +247,10 @@ function compareTaskProfiles({ referenceProfiles, compareProfiles, minMatches = 
     }
 
 
-    return { results, comparisons: comparisonCount };
+    return { results, comparisons: comparisonCount, candidateComparisons };
 }
 
-function compareDepartmentProfiles({ referenceProfiles, compareProfiles, minMatches = 15, ignoredLoci = [], comparisonAlgorithm = 'standard', useV5Algorithm = true, searchMode = 'task', duplicateSettings = {} }) {
+function compareDepartmentProfiles({ referenceProfiles, compareProfiles, minMatches = 15, ignoredLoci = [], comparisonAlgorithm = 'standard', useV5Algorithm = true, searchMode = 'task', duplicateSettings = {}, useCandidateIndex = true }) {
     const thresholds = {
       minScore: duplicateSettings.minScore ?? 15,
       minPercentage: duplicateSettings.minPercentage ?? 80,
@@ -323,13 +331,17 @@ function compareDepartmentProfiles({ referenceProfiles, compareProfiles, minMatc
 
     // Выполняем сравнение
     const results = [];
-    let comparisonCount = 0;
+    let comparisonCount = 0, candidateComparisons = 0;
 
+    const candidatesFor = comparisonAlgorithm === 'standard' && useCandidateIndex ? createExactCandidateIndex(processedCompareProfiles, minMatches) : null;
     for (const refProfile of processedReferenceProfiles) {
       const matches = [];
 
-      for (const compareProfile of processedCompareProfiles) {
-        comparisonCount++;
+      const candidates = candidatesFor?.(refProfile);
+      if (candidates) comparisonCount += processedCompareProfiles.length;
+      for (const compareProfile of candidates ?? processedCompareProfiles) {
+        if (!candidates) comparisonCount++;
+        candidateComparisons++;
 
         let matchResult;
         if (comparisonAlgorithm === 'duplicate_v5') {
@@ -454,7 +466,7 @@ function compareDepartmentProfiles({ referenceProfiles, compareProfiles, minMatc
     }
 
 
-    return { results, comparisons: comparisonCount };
+    return { results, comparisons: comparisonCount, candidateComparisons };
 }
 
 module.exports = { compareTaskProfiles, compareDepartmentProfiles };

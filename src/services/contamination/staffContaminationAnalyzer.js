@@ -10,9 +10,12 @@ const { logger } = require("../../utils/logger");
 const { getAnalysisLoci } = require("../../utils/analysisLoci");
 
 class StaffContaminationAnalyzer {
-    constructor(pool, { cacheAlleles = false, quiet = false } = {}) {
+    constructor(pool, { cacheAlleles = false, quiet = false, optimizeComparisons = false } = {}) {
         this.pool = pool;
         this.quiet = quiet;
+        this.optimizeComparisons = optimizeComparisons;
+        this.detailAttempts = 0;
+        this.detailPasses = 0;
         this.arrayAlleles = cacheAlleles ? new WeakMap() : null;
         this.scalarAlleles = cacheAlleles ? new Map() : null;
         
@@ -198,21 +201,30 @@ class StaffContaminationAnalyzer {
                 
                 // === ШАГ 2: Выбор алгоритма ===
                 let evidence;
+                // Avoid a second pass when nearly every employee qualifies.
+                const deferDetails = this.optimizeComparisons && opts.threshold > 0 &&
+                    (this.detailAttempts < 32 || this.detailPasses <= this.detailAttempts / 2);
                 
                 if (opts.useV5Algorithm) {
                     // Алгоритм v5.0 с поддержкой LCN и деградации
                     evidence = this.analyzeV50(sampleData, staffData, staffProfile, allLoci, {
                         locusWeights: opts.locusWeights,
-                        matchCoefficients: opts.matchCoefficients
+                        matchCoefficients: opts.matchCoefficients,
+                        minimumScore: deferDetails ? opts.threshold : undefined
                     });
                 } else if (opts.useV4Algorithm) {
                     // Передаем кастомные параметры в v4.0
                     evidence = this.analyzeV40(sampleData, staffData, staffProfile, allLoci, {
                         locusWeights: opts.locusWeights,
-                        matchCoefficients: opts.matchCoefficients
+                        matchCoefficients: opts.matchCoefficients,
+                        minimumScore: deferDetails ? opts.threshold : undefined
                     });
                 } else {
                     evidence = this.analyzeV15(sampleData, staffData, staffProfile, allLoci, opts);
+                }
+                if (deferDetails && (opts.useV5Algorithm || opts.useV4Algorithm)) {
+                    this.detailAttempts++;
+                    if (evidence.finalScore >= opts.threshold) this.detailPasses++;
                 }
                 
                 // Добавляем результат если превышен порог
@@ -254,6 +266,7 @@ class StaffContaminationAnalyzer {
         // Используем кастомные параметры или дефолтные
         const locusWeights = customParams.locusWeights || this.defaultLocusWeights;
         const matchCoeffs = customParams.matchCoefficients || this.defaultMatchCoefficients;
+        const scoreOnly = customParams.minimumScore !== undefined;
         
         let rawScore = 0;
         let markersEvaluated = 0;
@@ -295,7 +308,7 @@ class StaffContaminationAnalyzer {
             markersEvaluated++;
             
             // Сохраняем детали
-            detailedMatches.push({
+            if (!scoreOnly) detailedMatches.push({
                 locus,
                 sampleAlleles: [...sampleAlleles],
                 staffAlleles: [...staffAlleles],
@@ -314,6 +327,13 @@ class StaffContaminationAnalyzer {
         
         // НОРМАЛИЗАЦИЯ
         const finalScore = markersEvaluated > 0 ? (rawScore / markersEvaluated) * 10 : 0;
+        if (scoreOnly) {
+            const roundedScore = parseFloat(finalScore.toFixed(2));
+            // Apply the SAME rounded threshold as the full result, including
+            // unusual coefficients. Never use exact-duplicate pruning here.
+            if (!(roundedScore >= customParams.minimumScore)) return { finalScore: roundedScore };
+            return this.analyzeV40(sampleData, staffData, staffProfile, allLoci, { ...customParams, minimumScore: undefined });
+        }
         
         // Уровень риска
         let riskLevel, confidence, recommendation;
@@ -401,17 +421,22 @@ class StaffContaminationAnalyzer {
         }
         
         // Вызываем алгоритм v5.0
+        if (customParams.minimumScore !== undefined) {
+            const score = calculateContaminationScoreV5(sampleProfile, staffProfileData, new Set(), { prepared: true, includeDetails: false });
+            if (!(score.score >= customParams.minimumScore)) return { finalScore: score.score };
+        }
         const result = calculateContaminationScoreV5(
             sampleProfile,
             staffProfileData,
-            new Set() // Нет игнорируемых локусов
+            new Set(), // Нет игнорируемых локусов
+            { prepared: true }
         );
         
         // Преобразуем результат в формат, совместимый с UI
         const detailedMatches = result.locusDetails.map(detail => ({
             locus: detail.locus,
-            sampleAlleles: detail.sampleAlleles || [],
-            staffAlleles: detail.staffAlleles || [],
+            sampleAlleles: [...(detail.sampleAlleles || [])],
+            staffAlleles: [...(detail.staffAlleles || [])],
             explainedAlleles: detail.explainedAlleles || [],  // Используем правильные совпавшие аллели
             remainingAlleles: [],
             locusWeight: detail.locusWeight,

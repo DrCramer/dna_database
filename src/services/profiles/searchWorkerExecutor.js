@@ -125,7 +125,8 @@ async function runProfileSearch(input, { signal, useWorkers = true, minParallelC
     }
   });
   return { results: plan.axis === 'references' ? ranges.flatMap(range => range.results) : mergeComparisonRanges(ranges, operation, input.comparisonAlgorithm),
-    comparisons: ranges.reduce((sum, range) => sum + range.comparisons, 0), mode: 'multi-threaded', workerCount: plan.count };
+    comparisons: ranges.reduce((sum, range) => sum + range.comparisons, 0),
+    candidateComparisons: ranges.reduce((sum, range) => sum + range.candidateComparisons, 0), mode: 'multi-threaded', workerCount: plan.count };
 }
 
 async function runSearchForRequest(req, res, run) {

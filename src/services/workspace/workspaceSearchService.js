@@ -145,7 +145,7 @@ class WorkspaceSearchService extends WorkspaceService {
       const sourceById = new Map(profiles.map(profile => [profile.id, profile]));
       const workingById = new Map(working.map(profile => [profile.id, profile]));
       for (const stage of [internal, shared]) for (const group of stage.results) {
-        group.reference.str_data = profiles.find(p => p.id === group.reference.id)?.str_data || {};
+        group.reference.str_data = sourceById.get(group.reference.id)?.str_data || {};
         const source = sourceById.get(group.reference.id);
         if (source?.expertise_type === 'staff' && !source.internal_number) group.reference.full_name = source.full_name;
         for (const match of [...(group.matches || []), ...(group.exportMatches || [])]) {
