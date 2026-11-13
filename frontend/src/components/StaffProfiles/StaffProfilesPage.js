@@ -1,5 +1,7 @@
-import React, { useState, useEffect } from 'react';
+import UiIcon from '../Common/UiIcon';
+import React, { useState, useEffect, useRef } from 'react';
 import { useTheme } from '../../contexts/ThemeContext';
+import { useAuth } from '../../contexts/AuthContext';
 
 // Фиксированный порядок отображения локусов
 const LOCI_DISPLAY_ORDER = [
@@ -135,7 +137,7 @@ function UploadSection({ onUploadSuccess }) {
           disabled={!file || uploading}
           className="upload-btn btn btn-primary"
         >
-          <span>📤</span>
+          <UiIcon name="upload" />
           <span>{uploading ? 'Загрузка...' : 'Загрузить профили'}</span>
         </button>
       </div>
@@ -215,7 +217,7 @@ function UploadSection({ onUploadSuccess }) {
 }
 
 // Компонент списка профилей
-function ProfileList({ profiles, onView, onDelete, loading }) {
+function ProfileList({ profiles, onView, onDelete, loading, readOnly }) {
   if (loading) {
     return <div className="loading">⏳ Загрузка профилей...</div>;
   }
@@ -223,8 +225,8 @@ function ProfileList({ profiles, onView, onDelete, loading }) {
   if (profiles.length === 0) {
     return (
       <div className="empty-state">
-        <p>📋 Профили сотрудников не найдены</p>
-        <p className="empty-hint">Загрузите Excel файл для добавления профилей</p>
+        <p>Профили сотрудников не найдены</p>
+        <p className="empty-hint">{readOnly ? 'Подготовьте сотрудников в личном массиве и опубликуйте после полного поиска.' : 'Загрузите Excel файл для добавления профилей'}</p>
       </div>
     );
   }
@@ -235,6 +237,8 @@ function ProfileList({ profiles, onView, onDelete, loading }) {
         <thead>
           <tr>
             <th>ФИО сотрудника</th>
+            <th>Регистрационный номер</th>
+            <th>Год</th>
             <th>Действия</th>
           </tr>
         </thead>
@@ -242,6 +246,8 @@ function ProfileList({ profiles, onView, onDelete, loading }) {
           {profiles.map(profile => (
             <tr key={profile.id}>
               <td>{profile.full_name}</td>
+              <td>{profile.registration_number || '—'}</td>
+              <td>{profile.year || '—'}</td>
               <td>
                 <div className="staff-actions">
                   <button
@@ -249,17 +255,17 @@ function ProfileList({ profiles, onView, onDelete, loading }) {
                     className="staff-action-btn staff-action-view btn btn-secondary btn-sm btn-outline-primary"
                     title="Просмотр"
                   >
-                    <span>👁️</span>
+                    <UiIcon name="eye" />
                     <span>Просмотр</span>
                   </button>
-                  <button
+                  {!readOnly && <button
                     onClick={() => onDelete(profile.id)}
                     className="staff-action-btn staff-action-delete btn btn-secondary btn-sm btn-outline-danger"
                     title="Удалить"
                   >
-                    <span>🗑️</span>
+                    <UiIcon name="delete" />
                     <span>Удалить</span>
-                  </button>
+                  </button>}
                 </div>
               </td>
             </tr>
@@ -272,48 +278,39 @@ function ProfileList({ profiles, onView, onDelete, loading }) {
 
 // Компонент модального окна просмотра профиля
 function ProfileViewModal({ profile, onClose }) {
+  const dialog = useRef(null);
+  useEffect(() => {
+    const element = dialog.current;
+    element?.showModal();
+    return () => { if (element?.open) element.close(); };
+  }, []);
   if (!profile) return null;
 
   // Сортируем локусы по заданному порядку
-  const sortedLoci = sortLociByOrder(profile.loci);
+  const sortedLoci = sortLociByOrder(profile.loci || profile.str_data || {});
   const lociCount = Object.keys(sortedLoci).length;
 
   return (
-    <div className="modal-overlay" onClick={onClose}>
-      <div className="modal-content modal-full" onClick={e => e.stopPropagation()}>
+      <dialog ref={dialog} className="modal-content modal-lg staff-profile-dialog" aria-labelledby="staff-profile-title" onCancel={event => { event.preventDefault(); onClose(); }}>
         <div className="modal-header">
           <div className="modal-title-block">
             <p className="modal-kicker">ДНК-профиль сотрудника</p>
-            <h2>{profile.full_name}</h2>
-            <p className="modal-subtitle">Карточка профиля и все загруженные генетические локусы в удобном формате.</p>
+            <h2 id="staff-profile-title">{profile.full_name}</h2>
+            <p className="modal-subtitle">№ рег.: {profile.registration_number || '—'} · Год: {profile.year || '—'}</p>
           </div>
           <button onClick={onClose} className="close-button" aria-label="Закрыть">✕</button>
         </div>
 
         <div className="modal-body">
-          <div className="profile-overview">
-            <div className="profile-overview-copy">
-              <h3>Состав профиля</h3>
-              <p>Данные ниже отображаются в фиксированном порядке локусов, чтобы профиль было удобно читать и сверять с другими образцами.</p>
-            </div>
-            <div className="profile-badges">
-              <span className="profile-badge">🧬 {lociCount} {lociCount === 1 ? 'локус' : lociCount < 5 ? 'локуса' : 'локусов'}</span>
-              <span className="profile-badge">📋 Формат просмотра увеличен</span>
-            </div>
-          </div>
-
           <div className="loci-section">
-            <div className="loci-section-header">
-              <h3>Генетические локусы</h3>
-              <p>Каждая карточка показывает название локуса и значения аллелей без мелкого текста и лишнего сжатия.</p>
-            </div>
+            <div className="staff-dialog-loci-heading"><h3>Генетические локусы</h3><span>{lociCount} локусов</span></div>
 
             <div className="loci-grid">
               {Object.entries(sortedLoci).map(([locusName, alleles]) => {
                 const cardClass = getLocusCardClass(locusName);
-                const value = alleles.allele2
-                  ? `${alleles.allele1}, ${alleles.allele2}`
-                  : alleles.allele1;
+                const value = Array.isArray(alleles) ? alleles.join(', ')
+                  : alleles && typeof alleles === 'object' ? [alleles.allele1, alleles.allele2].filter(value => value != null && value !== '').join(', ')
+                  : String(alleles ?? '');
 
                 return (
                   <div key={locusName} className={`loci-card ${cardClass}`}>
@@ -331,14 +328,15 @@ function ProfileViewModal({ profile, onClose }) {
             Закрыть
           </button>
         </div>
-      </div>
-    </div>
+      </dialog>
   );
 }
 
 // Главный компонент страницы
 function StaffProfilesPage({ onNavigate }) {
   const { effectiveTheme: theme } = useTheme();
+  const { workspaceMode } = useAuth();
+  const [error, setError] = useState('');
   const [profiles, setProfiles] = useState([]);
   const [loading, setLoading] = useState(true);
   const [selectedProfile, setSelectedProfile] = useState(null);
@@ -357,12 +355,15 @@ function StaffProfilesPage({ onNavigate }) {
 
       if (response.ok) {
         const data = await response.json();
-        setProfiles(data);
+        const list = Array.isArray(data) ? data : data.profiles || data.data;
+        if (!Array.isArray(list)) throw new Error('Не удалось прочитать список сотрудников.');
+        setProfiles(list);
+        setError('');
       } else {
-        console.error('Ошибка загрузки профилей');
+        throw new Error('Не удалось загрузить профили сотрудников.');
       }
     } catch (error) {
-      console.error('Ошибка соединения:', error);
+      setError(error.message);
     } finally {
       setLoading(false);
     }
@@ -386,9 +387,9 @@ function StaffProfilesPage({ onNavigate }) {
 
       if (response.ok) {
         const data = await response.json();
-        setSelectedProfile(data);
+        setSelectedProfile(data.profile || data.data || data);
       } else {
-        console.error('Ошибка загрузки профиля');
+        setError('Не удалось открыть профиль сотрудника.');
       }
     } catch (error) {
       console.error('Ошибка соединения:', error);
@@ -433,7 +434,7 @@ function StaffProfilesPage({ onNavigate }) {
       <div className="page-header">
         <div className="page-title-section">
           <h1 className="page-title">
-            <span>👨‍🔬</span>
+            <UiIcon name="users" />
             <span>ДНК профили сотрудников</span>
           </h1>
           <p className="page-subtitle">Управление ДНК-профилями сотрудников в системе</p>
@@ -443,18 +444,20 @@ function StaffProfilesPage({ onNavigate }) {
             onClick={() => onNavigate('/dashboard')}
             className="nav-button btn btn-secondary"
           >
-            Назад к дашборду
+            На главную
           </button>
         </div>
       </div>
 
-      <UploadSection onUploadSuccess={loadProfiles} />
+      {error && <div className="alert alert-error" role="alert">{error}</div>}
+      {workspaceMode ? <div className="staff-workspace-notice"><p>Сотрудники публикуются из личного массива после полного поиска.</p><button className="btn btn-primary" onClick={() => onNavigate('/upload')}><UiIcon name="upload" />Загрузить сотрудников</button></div> : <UploadSection onUploadSuccess={loadProfiles} />}
 
       <ProfileList
         profiles={profiles}
         onView={handleView}
         onDelete={handleDelete}
         loading={loading}
+        readOnly={workspaceMode}
       />
 
       {selectedProfile && (

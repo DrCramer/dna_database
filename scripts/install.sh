@@ -156,6 +156,38 @@ if [[ "$profile_identity_ready" != t ]]; then
     docker compose exec -T db psql -U dna_user -d dna_analysis -v ON_ERROR_STOP=1 -q < database/migrations/036_profile_identity_scope.sql
 fi
 
+# Backup before enabling the new schema on an existing workspace installation.
+if [[ "$(db_sql -c "SELECT to_regclass('personal_workspaces') IS NOT NULL AND (to_regclass('workspace_master_approvals') IS NULL OR NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conrelid='dna_profiles'::regclass AND conname='workspace_metadata' AND pg_get_constraintdef(oid) LIKE '%staff%'))")" == t ]]; then
+    backup_file="runtime/backups/before_install_038_$(date -u +%Y%m%d_%H%M%S).sql"
+    docker compose exec -T db pg_dump -U dna_user -d dna_analysis > "$backup_file"
+    test -s "$backup_file"
+fi
+
+# 038 never enables workspace mode and never assigns approval rights automatically.
+workspace_approval_ready="$(docker compose exec -T db psql -U dna_user -d dna_analysis -Atq -v ON_ERROR_STOP=1 -c "SELECT to_regclass('workspace_master_approvals') IS NOT NULL AND to_regclass('workspace_master_publication_once') IS NOT NULL AND to_regclass('workspace_publication_run_version') IS NULL")"
+if [[ "$workspace_approval_ready" != t ]]; then
+    if [[ "$(docker compose exec -T db psql -U dna_user -d dna_analysis -Atq -v ON_ERROR_STOP=1 -c "SELECT to_regclass('personal_workspaces') IS NOT NULL")" == t ]]; then
+        docker compose exec -T db psql -U dna_user -d dna_analysis -v ON_ERROR_STOP=1 -q < database/migrations/038_master_array_approval.sql
+    else
+        docker compose exec -T db psql -U dna_user -d dna_analysis -v ON_ERROR_STOP=1 -q -c 'ALTER TABLE users ADD COLUMN IF NOT EXISTS can_approve_master boolean NOT NULL DEFAULT false'
+    fi
+fi
+
+# 039 allows absent registration numbers only for workspace employees.
+workspace_staff_number_ready="$(docker compose exec -T db psql -U dna_user -d dna_analysis -Atq -v ON_ERROR_STOP=1 -c "SELECT COALESCE(bool_or(pg_get_constraintdef(oid) LIKE '%staff%'),false) FROM pg_constraint WHERE conrelid='dna_profiles'::regclass AND conname='workspace_metadata'")"
+if [[ "$workspace_staff_number_ready" != t && "$(docker compose exec -T db psql -U dna_user -d dna_analysis -Atq -v ON_ERROR_STOP=1 -c "SELECT to_regclass('personal_workspaces') IS NOT NULL")" == t ]]; then
+    docker compose exec -T db psql -U dna_user -d dna_analysis -v ON_ERROR_STOP=1 -q < database/migrations/039_optional_staff_registration.sql
+fi
+
+# 040 adds durable jobs and shared CPU leases; schedules stay disabled by default.
+night_ready="$(docker compose exec -T db psql -U dna_user -d dna_analysis -Atq -v ON_ERROR_STOP=1 -c "SELECT to_regclass('workspace_search_cpu_lease') IS NOT NULL AND (to_regclass('personal_workspaces') IS NULL OR to_regclass('workspace_search_jobs') IS NOT NULL)")"
+if [[ "$night_ready" != t ]]; then
+    backup_file="runtime/backups/before_install_040_$(date -u +%Y%m%d_%H%M%S).sql"
+    docker compose exec -T db pg_dump -U dna_user -d dna_analysis > "$backup_file"
+    test -s "$backup_file"
+    docker compose exec -T db psql -U dna_user -d dna_analysis -v ON_ERROR_STOP=1 -q < database/migrations/040_night_search.sql
+fi
+
 user_count="$(db_sql -c 'SELECT COUNT(*) FROM users')"
 if [[ "$user_count" == 0 ]]; then
     docker compose run --rm --no-deps web node scripts/bootstrap-admin.js

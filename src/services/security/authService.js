@@ -291,7 +291,8 @@ class AuthService extends EventEmitter {
                 organization_id = null,
                 department_id = null,
                 can_upload_with_task = true,
-                can_upload_without_task = false
+                can_upload_without_task = false,
+                can_approve_master = false
             } = userData;
 
             // Check if user already exists
@@ -310,7 +311,8 @@ class AuthService extends EventEmitter {
                 organization_id,
                 department_id,
                 can_upload_with_task,
-                can_upload_without_task
+                can_upload_without_task,
+                can_approve_master
             });
 
             await user.getAccessibleDepartments();

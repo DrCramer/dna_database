@@ -21,6 +21,9 @@ node_modules
 !/scripts/check-imports.js
 !/scripts/attach-profiles-to-task.js
 !/scripts/benchmark-task-search.js
+!/scripts/benchmark-staff-search.js
+!/scripts/workspace-preflight.js
+!/scripts/workspace-cutover.sh
 *.backup*.js
 npm-debug.log
 .git

@@ -61,7 +61,7 @@
 .form-input:disabled,
 .form-select:disabled,
 .form-textarea:disabled {
-  background: var(--surface-muted);
+  background-color: var(--surface-muted);
   color: var(--text-muted);
   cursor: not-allowed;
   opacity: 1;
@@ -120,7 +120,7 @@
 
 .form-hint {
   margin-top: var(--space-2);
-  color: var(--text-muted);
+  color: var(--text-secondary);
   font-size: var(--font-size-xs);
 }
 

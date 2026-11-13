@@ -123,4 +123,4 @@ function parseGeneMapperTxt(buffer, options = {}) {
       emptyProfiles: result.filter(sample => sample.empty && sample.classification.included).length } };
 }
 
-module.exports = { GENEMAPPER_FORMAT, decodeText, readTsv, detectGeneMapperTxt, parseGeneMapperTxt, suggestGeneMapperYear };
+module.exports = { classifySample, GENEMAPPER_FORMAT, decodeText, readTsv, detectGeneMapperTxt, parseGeneMapperTxt, suggestGeneMapperYear };

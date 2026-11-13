@@ -12,6 +12,15 @@ export const useAuth = () => {
 
 export const AuthProvider = ({ children }) => {
   const [user, setUser] = useState(null);
+  const [workspaceMode, setWorkspaceMode] = useState(false);
+  useEffect(() => {
+    if (!user?.id) { setWorkspaceMode(false); return undefined; }
+    const controller = new AbortController();
+    fetch('/api/workspace/config', {signal: controller.signal, headers: {Authorization: `Bearer ${localStorage.getItem('token')}`}})
+      .then(response => response.json()).then(data => { if (!controller.signal.aborted) setWorkspaceMode(data.enabled === true); })
+      .catch(() => {});
+    return () => controller.abort();
+  }, [user?.id]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
 
@@ -271,6 +280,7 @@ export const AuthProvider = ({ children }) => {
 
   const value = {
     user,
+    workspaceMode,
     login,
     logout,
     loading,

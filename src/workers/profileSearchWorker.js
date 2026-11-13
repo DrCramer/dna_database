@@ -4,4 +4,4 @@ const { compareTaskProfiles, compareDepartmentProfiles } = require('../services/
 // В worker передаются только профили, уже отобранные маршрутом по правам доступа.
 // Соединения с БД, секреты и HTTP-объекты сюда не передаются.
 const compare = workerData.operation === 'department' ? compareDepartmentProfiles : compareTaskProfiles;
-parentPort.postMessage(compare(workerData.input));
+parentPort.postMessage(compare(workerData.input, { onProgress: workerData.reportProgress ? require('./reportSearchProgress').createWorkerProgress(parentPort) : undefined }));

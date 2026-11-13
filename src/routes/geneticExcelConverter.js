@@ -33,6 +33,7 @@ router.use(authenticate);
 router.use(async (req, res, next) => {
   try {
     if (!['admin', 'system_administrator', 'department_head', 'user_analyst', 'analyst'].includes(req.user.role)) throw new PanelError('Нет прав на конвертацию профилей.', 403);
+    if (require('../services/workspace/workspaceMode').workspaceModeEnabled()) { req.converterFormat = 'genetic'; req.converterScope = {departmentId:null,organizationId:req.user.organization_id}; return next(); }
     const { rows } = await require('../config/database').query('SELECT id,name,organization_id FROM departments WHERE id=$1 AND is_active=true', [req.activeDepartmentId]);
     const department = rows[0];
     req.converterFormat = resolveProfileImportFormat(department);
@@ -58,8 +59,7 @@ for (const operation of ['preview', 'export']) router.post(`/${operation}`, (req
       try { options = JSON.parse(req.body.options || '{}'); } catch { throw new ConversionError('Некорректные настройки конвертации.'); }
       if (!options || typeof options !== 'object' || Array.isArray(options)) throw new ConversionError('Некорректные настройки конвертации.');
       for (const file of req.files || []) {
-        const decoded = Buffer.from(file.originalname, 'latin1').toString('utf8');
-        if (/[ÐÑÃÂ]/.test(file.originalname) && !decoded.includes('\uFFFD')) file.originalname = decoded;
+        file.originalname = require('../utils/uploadFilename').decodeUploadFilename(file.originalname);
       }
       if (req.converterFormat === 'emergency' && req.files.some(file => !/\.txt$/i.test(file.originalname))) throw new ConversionError('В отделении ЧС конвертер принимает GeneMapper TXT. Готовый Excel загружайте обычным способом.', 'FORMAT_NOT_AVAILABLE', 403);
       const panels = req.converterFormat === 'genetic' ? await GenotypePanel.list(req.converterScope) : [];

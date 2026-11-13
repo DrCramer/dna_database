@@ -682,6 +682,7 @@ router.post('/task-search', authenticate, validateSearchParameters, async (req, 
         comparisons: comparisonCount,
         mode: comparison.mode,
         workerCount: comparison.workerCount,
+        candidateComparisons: comparison.candidateComparisons,
         referenceProfilesCount: referenceProfiles.length,
         compareProfilesCount: compareProfiles.length
       }
@@ -873,6 +874,7 @@ router.post('/department-tasks-search', authenticate, validateSearchParameters, 
         comparisons: comparisonCount,
         mode: comparison.mode,
         workerCount: comparison.workerCount,
+        candidateComparisons: comparison.candidateComparisons,
         referenceProfilesCount: referenceProfiles.length,
         compareProfilesCount: compareProfiles.length,
         departmentTasksCount: departmentTasks.length

@@ -40,11 +40,11 @@ if [[ -n "$schema_changes" ]]; then
     known_release=true
     while IFS= read -r changed_file; do
         case "$changed_file" in
-            database/schema.sql|database/migrations/031_allele_references.sql|database/migrations/032_genetic_profile_year_identity.sql|database/migrations/033_user_display_names.sql|database/migrations/034_probability_calculations.sql|database/migrations/035_session_refresh_tokens.sql|database/migrations/036_profile_identity_scope.sql) ;;
+            database/schema.sql|database/migrations/031_allele_references.sql|database/migrations/032_genetic_profile_year_identity.sql|database/migrations/033_user_display_names.sql|database/migrations/034_probability_calculations.sql|database/migrations/035_session_refresh_tokens.sql|database/migrations/036_profile_identity_scope.sql|database/migrations/038_master_array_approval.sql|database/migrations/039_optional_staff_registration.sql|database/migrations/040_night_search.sql) ;;
             *) known_release=false ;;
         esac
     done <<< "$schema_changes"
-    if [[ "$schema_changes" != *database/migrations/031_allele_references.sql* && "$schema_changes" != *database/migrations/032_genetic_profile_year_identity.sql* && "$schema_changes" != *database/migrations/033_user_display_names.sql* && "$schema_changes" != *database/migrations/034_probability_calculations.sql* && "$schema_changes" != *database/migrations/035_session_refresh_tokens.sql* && "$schema_changes" != *database/migrations/036_profile_identity_scope.sql* ]]; then
+    if [[ "$schema_changes" != *database/migrations/031_allele_references.sql* && "$schema_changes" != *database/migrations/032_genetic_profile_year_identity.sql* && "$schema_changes" != *database/migrations/033_user_display_names.sql* && "$schema_changes" != *database/migrations/034_probability_calculations.sql* && "$schema_changes" != *database/migrations/035_session_refresh_tokens.sql* && "$schema_changes" != *database/migrations/036_profile_identity_scope.sql* && "$schema_changes" != *database/migrations/038_master_array_approval.sql* && "$schema_changes" != *database/migrations/039_optional_staff_registration.sql* && "$schema_changes" != *database/migrations/040_night_search.sql* ]]; then
         known_release=false
     fi
     if [[ "$known_release" == true ]]; then
@@ -107,6 +107,29 @@ fi
 profile_identity_ready="$(docker compose exec -T db psql -U dna_user -d dna_analysis -Atq -v ON_ERROR_STOP=1 -c "SELECT indexdef LIKE '%department_id%' FROM pg_indexes WHERE schemaname='public' AND indexname='idx_dna_profiles_year_internal_user'")"
 if [[ "$profile_identity_ready" != t ]]; then
     docker compose exec -T db psql -U dna_user -d dna_analysis -v ON_ERROR_STOP=1 -q < database/migrations/036_profile_identity_scope.sql
+fi
+
+
+# 038 never enables workspace mode and never assigns approval rights automatically.
+workspace_approval_ready="$(docker compose exec -T db psql -U dna_user -d dna_analysis -Atq -v ON_ERROR_STOP=1 -c "SELECT to_regclass('workspace_master_approvals') IS NOT NULL AND to_regclass('workspace_master_publication_once') IS NOT NULL AND to_regclass('workspace_publication_run_version') IS NULL")"
+if [[ "$workspace_approval_ready" != t ]]; then
+    if [[ "$(docker compose exec -T db psql -U dna_user -d dna_analysis -Atq -v ON_ERROR_STOP=1 -c "SELECT to_regclass('personal_workspaces') IS NOT NULL")" == t ]]; then
+        docker compose exec -T db psql -U dna_user -d dna_analysis -v ON_ERROR_STOP=1 -q < database/migrations/038_master_array_approval.sql
+    else
+        docker compose exec -T db psql -U dna_user -d dna_analysis -v ON_ERROR_STOP=1 -q -c 'ALTER TABLE users ADD COLUMN IF NOT EXISTS can_approve_master boolean NOT NULL DEFAULT false'
+    fi
+fi
+
+# 039 allows absent registration numbers only for workspace employees.
+workspace_staff_number_ready="$(docker compose exec -T db psql -U dna_user -d dna_analysis -Atq -v ON_ERROR_STOP=1 -c "SELECT COALESCE(bool_or(pg_get_constraintdef(oid) LIKE '%staff%'),false) FROM pg_constraint WHERE conrelid='dna_profiles'::regclass AND conname='workspace_metadata'")"
+if [[ "$workspace_staff_number_ready" != t && "$(docker compose exec -T db psql -U dna_user -d dna_analysis -Atq -v ON_ERROR_STOP=1 -c "SELECT to_regclass('personal_workspaces') IS NOT NULL")" == t ]]; then
+    docker compose exec -T db psql -U dna_user -d dna_analysis -v ON_ERROR_STOP=1 -q < database/migrations/039_optional_staff_registration.sql
+fi
+
+# 040 adds durable jobs and shared CPU leases; schedules stay disabled by default.
+night_ready="$(docker compose exec -T db psql -U dna_user -d dna_analysis -Atq -v ON_ERROR_STOP=1 -c "SELECT to_regclass('workspace_search_cpu_lease') IS NOT NULL AND (to_regclass('personal_workspaces') IS NULL OR to_regclass('workspace_search_jobs') IS NOT NULL)")"
+if [[ "$night_ready" != t ]]; then
+    docker compose exec -T db psql -U dna_user -d dna_analysis -v ON_ERROR_STOP=1 -q < database/migrations/040_night_search.sql
 fi
 
 docker compose config --quiet

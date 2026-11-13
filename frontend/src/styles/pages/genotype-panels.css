@@ -11,3 +11,5 @@
 :where(.panels-page) .panels-locus-name { font-variant-numeric: tabular-nums; }
 :where(.panels-page) .panels-add { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 10px; margin: 20px 0; }
 :where(.panels-page) .panels-add label { grid-column: 1 / -1; }
+
+:where(.panels-page) > .page-header { margin-bottom: 0; }

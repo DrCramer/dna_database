@@ -1,3 +1,5 @@
+const { runStaffSearch } = require('../services/contamination/staffSearchWorkerExecutor');
+const { runSearchForRequest } = require('../services/profiles/searchWorkerExecutor');
 /**
  * API маршруты для анализа контаминации сотрудников
  */
@@ -274,7 +276,7 @@ router.post('/analyze-task', authenticate, analystOrAbove, async (req, res) => {
             FROM staff_profiles sp
             WHERE sp.is_active = true AND sp.created_by IN (SELECT id FROM users WHERE organization_id=$1)
             ORDER BY sp.full_name
-        `, [scope.params[1]]);
+        `, [scope.organizationId]);
 
         const staffProfiles = staffResult.rows;
 
@@ -290,32 +292,18 @@ router.post('/analyze-task', authenticate, analystOrAbove, async (req, res) => {
             staffCount: staffProfiles.length
         });
 
-        // Анализируем каждый профиль задачи
+        const samples = taskProfiles.map(taskProfile => ({
+            id: taskProfile.id, sample_name: taskProfile.sampleName,
+            internal_number: taskProfile.internalNumber, import_number: taskProfile.importNumber,
+            year: taskProfile.year, str_data: taskProfile.strData
+        }));
+        const staffSearch = await runSearchForRequest(req, res, signal => runStaffSearch({
+            referenceProfiles: samples, staffProfiles, options
+        }, { signal, useWorkers: req.body.useWorkers !== false }));
         const results = [];
         let profilesWithContamination = 0;
-        
-        for (const taskProfile of taskProfiles) {
-            const sampleProfile = {
-                id: taskProfile.id,
-                sample_name: taskProfile.sampleName,
-                internal_number: taskProfile.internalNumber,
-                import_number: taskProfile.importNumber,
-                year: taskProfile.year,
-                str_data: taskProfile.strData
-            };
-
-            logger.debug('Анализ профиля на контаминацию', {
-                profileId: sampleProfile.id,
-                sampleName: sampleProfile.sample_name,
-                staffCount: staffProfiles.length
-            });
-
-            // Выполняем анализ контаминации
-            const contamination = await analyzer.detectStaffContamination(
-                sampleProfile,
-                staffProfiles,
-                options
-            );
+        for (const [index, sampleProfile] of samples.entries()) {
+            const contamination = staffSearch.results[index].matches;
 
             logger.debug('Результат анализа профиля', {
                 profileId: sampleProfile.id,
@@ -383,6 +371,7 @@ router.post('/analyze-task', authenticate, analystOrAbove, async (req, res) => {
             statistics: {
                 profilesAnalyzed: taskProfiles.length,
                 staffProfilesCompared: staffProfiles.length,
+                mode: staffSearch.mode, workerCount: staffSearch.workerCount, comparisons: staffSearch.comparisons,
                 contaminationCasesFound: results.length
             }
         });

@@ -13,7 +13,7 @@ test('API задач, мастер-массива и отдела сохраня
       req.activeDepartmentId = 'fixture-dept'; next();
     } },
     '../src/utils/logger': { logger: { info() {}, error() {}, warn() {} } },
-    '../src/services/security/profileAccessService': { ProfileAccessService: { getScope: async () => ({ params: ['fixture-dept', 'fixture-org'] }) } },
+    '../src/services/security/profileAccessService': { ProfileAccessService: { getScope: async () => ({ params: ['fixture-dept', 'fixture-org'], departmentId: 'fixture-dept', organizationId: 'fixture-org' }) } },
     '../src/services/security/AccessPolicyService': { canManageTask: async () => true },
     '../src/models/DNAProfile': { findByTaskId: async taskId => {
       assert.equal(taskId, '11111111-1111-4111-8111-111111111111');

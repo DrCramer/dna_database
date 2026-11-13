@@ -4,24 +4,28 @@ const { isMissingAllele } = require('./alleleTokens');
 const { formatExportLocusValue } = require('./exportAlleles');
 
 const ASSIGNED_HEADER = '№ присвоенный в в/ч № 522 ЦПООП Северо-Кавказского военного округа, г. Ростов-на-Дону';
+const { FORMAT, FIELDS, serializeV2 } = require('./objectImportV2');
+
 const MASTER_EXPORT_FORMAT = 'MASTER_ARRAY_EXPORT';
 
 function createImportWorkbook({ profiles, loci, importFormat = 'genetic', sourceFormat, hideEmptyLoci = false }) {
   const book = XLSX.utils.book_new();
   if (sourceFormat) book.Custprops = { DNAProfileSourceFormat: sourceFormat };
   const exportLoci = orderNormalizedLoci(loci);
+  const unified = sourceFormat === FORMAT;
   const emergency = importFormat === 'emergency';
-  const metadataColumns = emergency ? 4 : 2;
-  const headers = [...(emergency ? [ASSIGNED_HEADER, 'Привоз', 'Год', 'Sample Name'] : ['Объект', 'Год']), ...exportLoci];
+  const metadataColumns = unified ? Object.keys(FIELDS).length : emergency ? 4 : 2;
+  const headers = [...(unified ? Object.values(FIELDS) : emergency ? [ASSIGNED_HEADER, 'Привоз', 'Год', 'Sample Name'] : ['Объект', 'Год']), ...exportLoci];
   const rows = [headers, ...profiles.map(profile => [
-    ...(emergency ? [profile.emergency.assignedNumber, profile.emergency.shippingNumber, profile.year ?? '', profile.objectNumber] : [profile.objectNumber, profile.year ?? '']),
-    ...exportLoci.map(locus => formatExportLocusValue(profile.strData[locus], locus))
+    ...(unified ? Object.values(serializeV2(profile)) : emergency ? [profile.emergency.assignedNumber, profile.emergency.shippingNumber, profile.year ?? '', profile.objectNumber] : [profile.objectNumber, profile.year ?? '']),
+    ...exportLoci.map(locus => unified ? (Array.isArray(profile.strData?.[locus]) ? profile.strData[locus].join(',') : '') : formatExportLocusValue(profile.strData[locus], locus))
   ])];
   const sheet = XLSX.utils.aoa_to_sheet(rows);
   const columns = headers.map((header, index) => ({ wch: Math.min(40, Math.max(12, header.length + 2)), hidden: hideEmptyLoci && index >= metadataColumns }));
   rows.slice(1).forEach((row, rowIndex) => row.forEach((value, column) => {
     // Явные строковые ячейки: =, +, @ и управляющие символы не становятся формулами.
     const address = XLSX.utils.encode_cell({ r: rowIndex + 1, c: column });
+    if (String(value ?? '').length > 32767) throw new Error('Значение превышает лимит ячейки Excel; выгрузка остановлена без усечения данных.');
     sheet[address] = { t: 's', v: String(value ?? ''), z: '@' };
     if (!isMissingAllele(value)) {
       columns[column].hidden = false;

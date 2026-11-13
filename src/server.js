@@ -240,6 +240,8 @@ app.post('/health/persistence/verify', authenticate, adminOnly, persistenceLimit
 // API routes
 app.use('/api/auth', authRoutes);
 app.use('/api/users', userRoutes);
+app.use('/api/workspace', require('./routes/workspace')());
+app.use('/api/profiles', require('./routes/workspaceLegacyBridge'));
 app.use('/api/profiles', profileRoutes);
 app.use('/api/analysis', analysisRoutes);
 app.use('/api/export', exportRoutes);
@@ -251,6 +253,7 @@ app.use('/api/audit', auditRoutes);
 app.use('/api/compliance', complianceRoutes);
 app.use('/api/organizations', organizationRoutes);
 app.use('/api/tasks', taskRoutes);
+app.use('/api/migration-export', require('./routes/legacyMigrationExport')());
 app.use('/api/master-arrays', masterArrayRoutes);
 app.use('/api/database-encryption', databaseEncryptionRoutes);
 app.use('/api/staff-profiles', staffProfileRoutes);
@@ -320,6 +323,7 @@ process.on('SIGTERM', async () => {
         }
         
         // Close database connections
+        await app.locals.nightSearch?.stop();
         const { closePool } = require('./config/database');
         await closePool();
         
@@ -341,6 +345,7 @@ process.on('SIGINT', async () => {
         }
         
         // Close database connections
+        await app.locals.nightSearch?.stop();
         const { closePool } = require('./config/database');
         await closePool();
         
@@ -369,6 +374,25 @@ async function startServer() {
         // Verify database connection
         const { pool } = await connectDatabase();
         app.locals.pool = pool;
+        const workspaceEnabled = require('./services/workspace/workspaceMode').workspaceModeEnabled();
+        let databaseWorkspaceEnabled = false;
+        try {
+            databaseWorkspaceEnabled = !!(await pool.query('SELECT enabled FROM workspace_configuration WHERE id=true')).rows[0]?.enabled;
+        } catch (error) {
+            if (error.code !== '42P01' || workspaceEnabled) throw error;
+        }
+        if (workspaceEnabled !== databaseWorkspaceEnabled) throw new Error('UNIFIED_WORKSPACE_ENABLED и workspace_configuration.enabled должны совпадать. Выполните согласованное переключение.');
+        if (workspaceEnabled) {
+            const workspaces = new (require('./services/workspace/workspaceService').WorkspaceService)(pool);
+            setInterval(() => workspaces.pruneDrafts().catch(() => logger.error('WORKSPACE_DRAFT_RETENTION_FAILED')), 3600000).unref();
+        }
+        if((await pool.query("SELECT to_regclass('workspace_search_cpu_lease') IS NOT NULL ready")).rows[0].ready) {
+            require('./services/profiles/searchWorkerExecutor').setSearchCoordinator(new (require('./services/profiles/searchCpuCoordinator').SearchCpuCoordinator)(pool));
+        }
+        if(workspaceEnabled) {
+            app.locals.nightSearch=new (require('./services/workspace/nightSearchService').NightSearchService)(pool);
+            if(!await app.locals.nightSearch.start())logger.warn('NIGHT_SEARCH_MIGRATION_040_REQUIRED');
+        }
         logger.info('Database connected successfully');
         
         // Initialize scheduled jobs for compliance and data retention

@@ -176,7 +176,7 @@ function Workspace({ departmentId }) {
   </section>;
 }
 export default function ProbabilityPage() {
-  const { user, activeDepartment }=useAuth();
-  if(resolveProfileImportFormat(activeDepartment)!=='genetic'||!canUse(user?.role))return <div className="alert alert-warning">Раздел доступен экспертам отделения «Генетические экспертизы».</div>;
-  return <Workspace key={activeDepartment.id} departmentId={activeDepartment.id}/>;
+  const { user, activeDepartment, workspaceMode }=useAuth();
+  if((!workspaceMode&&resolveProfileImportFormat(activeDepartment)!=='genetic')||!canUse(user?.role))return <div className="alert alert-warning">Раздел доступен экспертам отделения «Генетические экспертизы».</div>;
+  return <Workspace key={workspaceMode?user.organization_id:activeDepartment.id} departmentId={workspaceMode?'':activeDepartment.id}/>;
 }

@@ -67,7 +67,7 @@ router.post('/login', authLimiter, validateLogin, logAuthOperation(OperationHist
 // POST /api/auth/register - User registration with organizational context
 router.post('/register', authenticate, adminOnly, validateRegister, async (req, res) => {
     try {
-        const { username, email, display_name, password, role, organization_id, department_id } = req.body;
+        const { username, email, display_name, password, role, organization_id, department_id, can_approve_master } = req.body;
         const clientInfo = getClientInfo(req);
 
         // Only admins can create admin users or system administrators
@@ -112,7 +112,8 @@ router.post('/register', authenticate, adminOnly, validateRegister, async (req, 
                     password, 
                     role, 
                     organization_id: actualOrgId, 
-                    department_id 
+                    department_id,
+                    can_approve_master
                 },
                 clientInfo.ipAddress,
                 clientInfo.userAgent
@@ -126,7 +127,7 @@ router.post('/register', authenticate, adminOnly, validateRegister, async (req, 
         } else {
             // For viewer role, no organizational context required
             const result = await authService.register(
-                { username, email, display_name, password, role },
+                { username, email, display_name, password, role, organization_id, can_approve_master },
                 clientInfo.ipAddress,
                 clientInfo.userAgent
             );
@@ -398,7 +399,9 @@ router.post('/register-with-department', authenticate, adminOnly, validateUserId
         if (!validateUploadPermissionFields(req.body)) {
             return res.status(400).json({ code: 'INVALID_UPLOAD_PERMISSIONS', message: 'Права загрузки должны быть логическими значениями true/false.' });
         }
-        const uploadPermissions = getProfileUploadPermissions(req.body);
+        if (req.body.can_approve_master !== undefined && typeof req.body.can_approve_master !== 'boolean') return res.status(400).json({message:'Право подтверждения должно быть true/false.'});
+        const uploadPermissions = { ...getProfileUploadPermissions(req.body), can_approve_master: req.body.can_approve_master === true };
+        if (require('../services/workspace/workspaceMode').workspaceModeEnabled() && (organization_id && organization_id !== req.user.organization_id || role === 'system_administrator' && req.user.role !== 'system_administrator')) return res.status(403).json({message:'Недопустимая организация или роль.'});
         const clientInfo = getClientInfo(req);
         const requestedDepartmentIds = Array.isArray(department_ids)
             ? [...new Set(department_ids.filter(Boolean))]
@@ -422,7 +425,7 @@ router.post('/register-with-department', authenticate, adminOnly, validateUserId
         }
 
         // For roles requiring department, validate department assignment
-        if ((role === 'user_analyst' || role === 'department_head') && requestedDepartmentIds.length === 0) {
+        if (!require('../services/workspace/workspaceMode').workspaceModeEnabled() && (role === 'user_analyst' || role === 'department_head') && requestedDepartmentIds.length === 0) {
             return res.status(400).json({
                 error: 'Bad Request',
                 message: 'Department assignment is required for this role'
@@ -486,7 +489,7 @@ router.post('/register-with-department', authenticate, adminOnly, validateUserId
         } else {
             // Register without organizational context
             const result = await authService.register(
-                { username, email, display_name, password, role, ...uploadPermissions },
+                { username, email, display_name, password, role, ...(require('../services/workspace/workspaceMode').workspaceModeEnabled()?{organization_id:req.user.organization_id}:{}), ...uploadPermissions },
                 clientInfo.ipAddress,
                 clientInfo.userAgent
             );

@@ -11,7 +11,7 @@ const {
 const XLSX_MIME = 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet';
 
 function objectIdentifier(profile, genetic) {
-  if (genetic) return String(profile.internal_number ?? profile.internalNumber ?? '').trim();
+  if (genetic) return String(profile.internal_number || profile.internalNumber || profile.full_name || '').trim();
   return String(profile.internal_number ?? profile.internalNumber ?? profile.sample_name ?? profile.sampleName ?? '').trim();
 }
 

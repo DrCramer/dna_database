@@ -137,7 +137,11 @@ function calculateDegradationPenalty(locus, isMismatch) {
 function isSubset(first, second) { return first.length > 0 && isAlleleSubset(first, second); }
 
 function compareLocusV5(sampleAlleles, staffAlleles, locus) {
-  sampleAlleles = informativeAlleles(sampleAlleles); staffAlleles = informativeAlleles(staffAlleles);
+  return comparePreparedLocusV5(informativeAlleles(sampleAlleles), informativeAlleles(staffAlleles), locus);
+}
+
+// Internal path: both arrays have already passed informativeAlleles.
+function comparePreparedLocusV5(sampleAlleles, staffAlleles, locus, includeDetails = true) {
   // Пропускаем пустые локусы
   if (sampleAlleles.length === 0 || staffAlleles.length === 0) {
     return {
@@ -191,13 +195,13 @@ function compareLocusV5(sampleAlleles, staffAlleles, locus) {
 
   // Вычисляем совпавшие аллели (explainedAlleles) с учетом количества повторений
   let explainedAlleles = [];
-  if (matchType === 'fullMatch') {
+  if (includeDetails && matchType === 'fullMatch') {
     // Полное совпадение - все аллели образца совпали
     explainedAlleles = [...sampleAlleles];
-  } else if (matchType === 'inclusiveDropout') {
+  } else if (includeDetails && matchType === 'inclusiveDropout') {
     // Sample ⊂ Staff - все аллели образца совпали
     explainedAlleles = [...sampleAlleles];
-  } else if (matchType === 'overInclusiveMix' || matchType === 'partialMix') {
+  } else if (includeDetails && (matchType === 'overInclusiveMix' || matchType === 'partialMix')) {
     // Staff ⊂ Sample или частичное пересечение
     // Вычисляем РЕАЛЬНОЕ пересечение с учетом количества повторений
     // Пример: образец [8,9,11,14], сотрудник [11,11] → совпадение [11] (только одна!)
@@ -230,7 +234,7 @@ function compareLocusV5(sampleAlleles, staffAlleles, locus) {
  * @param {Set} ignoredLoci - Игнорируемые локусы
  * @returns {Object} - Результат анализа
  */
-function calculateContaminationScoreV5(sampleProfile, staffProfile, ignoredLoci = new Set()) {
+function calculateContaminationScoreV5(sampleProfile, staffProfile, ignoredLoci = new Set(), { prepared = false, includeDetails = true } = {}) {
   let totalScore = 0;
   let matchedLociCount = 0;
   let rareCriticalMatches = 0;
@@ -247,14 +251,14 @@ function calculateContaminationScoreV5(sampleProfile, staffProfile, ignoredLoci 
     // Пропускаем игнорируемые локусы
     if (ignoredLoci.has(locus)) continue;
 
-    const sampleAlleles = informativeAlleles(sampleProfile[locus]);
-    const staffAlleles = informativeAlleles(staffProfile[locus]);
+    const sampleAlleles = prepared ? sampleProfile[locus] || [] : informativeAlleles(sampleProfile[locus]);
+    const staffAlleles = prepared ? staffProfile[locus] || [] : informativeAlleles(staffProfile[locus]);
 
     // Пропускаем, если нет данных
     if (sampleAlleles.length === 0 || staffAlleles.length === 0) continue;
 
     // Сравниваем локус
-    const comparison = compareLocusV5(sampleAlleles, staffAlleles, locus);
+    const comparison = comparePreparedLocusV5(sampleAlleles, staffAlleles, locus, includeDetails);
 
     // Добавляем к общему скору
     totalScore += comparison.score;
@@ -271,7 +275,7 @@ function calculateContaminationScoreV5(sampleProfile, staffProfile, ignoredLoci 
     }
 
     // Сохраняем детали для отладки
-    locusDetails.push({
+    if (includeDetails) locusDetails.push({
       locus,
       ...comparison
     });

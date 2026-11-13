@@ -689,9 +689,9 @@
 
 .staff-profiles-page.dark .loci-card-str,
 [data-theme="dark"] .staff-profiles-page .loci-card-str {
-  background: linear-gradient(135deg, #252525 0%, #303030 100%);
-  border-color: #4a4a4a;
-  color: #c0c0c0;
+  background: var(--surface-elevated);
+  border-color: var(--border-default);
+  color: var(--text-primary);
 }
 
 /* Критичные данные (**, *) - красный на темном фоне */
@@ -707,3 +707,13 @@
   content: "⚠️";
   margin-right: var(--space-1);
 }
+
+.staff-workspace-notice { display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: var(--space-4); margin-bottom: var(--space-5); padding: var(--space-5); border: 1px solid var(--border-default); border-radius: var(--radius-lg); background: var(--surface-card); }
+.staff-workspace-notice p { margin: 0; color: var(--text-secondary); flex: 1 1 240px; }
+.staff-profile-dialog { width: min(var(--modal-width-lg), calc(100vw - 32px)); margin: auto; padding: 0; }
+.staff-profile-dialog:not([open]) { display: none; }
+.staff-profile-dialog::backdrop { background: var(--surface-overlay); backdrop-filter: blur(6px); }
+
+.staff-dialog-loci-heading { display: flex; align-items: center; justify-content: space-between; gap: var(--space-3); }
+.staff-dialog-loci-heading h3 { margin: 0; font-size: var(--font-size-lg); }
+.staff-dialog-loci-heading > span { color: var(--text-secondary); font-size: var(--font-size-sm); white-space: nowrap; }

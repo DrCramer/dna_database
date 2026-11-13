@@ -13,7 +13,7 @@ async function requireProfiles(req, ids) {
 }
 function logScope(scope, alias = 'l') {
   if (!scope?.params?.length || typeof scope.clause !== 'string') throw denied();
-  return `${alias}.department_id=$1 AND EXISTS(SELECT 1 FROM dna_profiles dp WHERE dp.id=${alias}.reference_profile_id AND ${scope.clause})
+  return `${scope.accessLevel === 'organization_workspace' ? '' : `${alias}.department_id=$1 AND `}EXISTS(SELECT 1 FROM dna_profiles dp WHERE dp.id=${alias}.reference_profile_id AND ${scope.clause})
     AND EXISTS(SELECT 1 FROM dna_profiles dp WHERE dp.id=${alias}.matched_profile_id AND ${scope.clause})`;
 }
 module.exports = { scopeFor, requireProfiles, logScope };

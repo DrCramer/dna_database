@@ -26,7 +26,7 @@
   /* Текст */
   --text-primary: #18202a;
   --text-secondary: #586574;
-  --text-muted: #8b96a5;
+  --text-muted: #68768a;
   --text-inverse: #f8fbff;
   --text-link: #215ed6;
 
@@ -166,7 +166,7 @@
   --alert-warning-text: #8c6100;
   --alert-warning-border: rgba(217, 145, 0, 0.26);
   --alert-info-bg: var(--status-info-bg);
-  --alert-info-text: var(--status-info);
+  --alert-info-text: var(--text-link);
   --alert-info-border: rgba(45, 127, 249, 0.24);
   --spacing-xs: var(--space-1);
   --spacing-sm: var(--space-2);
@@ -204,7 +204,7 @@
 
   --text-primary: #edf3fb;
   --text-secondary: #b5c0cf;
-  --text-muted: #7f8b9b;
+  --text-muted: #9aa8ba;
   --text-inverse: #121a24;
   --text-link: #8bb9ff;
 

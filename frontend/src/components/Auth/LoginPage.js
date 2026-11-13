@@ -1,3 +1,4 @@
+import UiIcon from '../Common/UiIcon';
 import React, { useEffect, useState } from 'react';
 
 const LoginPage = ({
@@ -106,21 +107,21 @@ const LoginPage = ({
 
           <div className="helix-feature-list">
             <div className="helix-feature-item">
-              <span className="helix-feature-icon">🧬</span>
+              <span className="helix-feature-icon"><UiIcon name="grid" /></span>
               <div>
                 <strong>Анализ генотипов</strong>
                 <p>Поиск совпадений, сравнение локусов и экспертная интерпретация.</p>
               </div>
             </div>
             <div className="helix-feature-item">
-              <span className="helix-feature-icon">📋</span>
+              <span className="helix-feature-icon"><UiIcon name="file" /></span>
               <div>
                 <strong>Работа по задачам</strong>
                 <p>Распределение, контроль и фиксация результатов по отделам.</p>
               </div>
             </div>
             <div className="helix-feature-item">
-              <span className="helix-feature-icon">🌗</span>
+              <span className="helix-feature-icon"><UiIcon name="settings" /></span>
               <div>
                 <strong>Две темы оформления</strong>
                 <p>Комфортная работа в светлом и темном режимах.</p>
@@ -146,7 +147,7 @@ const LoginPage = ({
               </div>
             </div>
 
-            <h2 className="helix-title">HelixMatch</h2>
+            <h2 className="helix-title">ХеликсМатч</h2>
             <p className="helix-subtitle">Вход в аналитическую систему</p>
           </div>
 

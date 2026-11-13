@@ -84,3 +84,19 @@ test('Параллельный расчёт оставляет основной 
     assert.equal(result.comparisons, 300 * 299);
   } finally { clearInterval(timer); }
 });
+
+test('Один эталон: распределение массива сравнения сохраняет глобальный top-100, экспорт и порядок равных баллов', async () => {
+  const profiles = syntheticProfiles(205);
+  profiles.forEach(profile => { profile.str_data = structuredClone(profiles[0].str_data); });
+  profiles[10].str_data.TH01 = ['99'];
+  for (const searchMode of ['workspace_master', 'department_tasks', 'master_array']) {
+    for (const comparisonAlgorithm of ['standard', 'duplicate_v5', 'contamination']) {
+      const input = { referenceProfiles: [profiles[0]], compareProfiles: profiles, searchMode, comparisonAlgorithm };
+      const single = await runProfileSearch(input, { useWorkers: false });
+      const parallel = await runProfileSearch(input, { minParallelComparisons: 0 });
+      assert.deepEqual(parallel.results, single.results, searchMode + ':' + comparisonAlgorithm);
+      assert.equal(parallel.comparisons, single.comparisons);
+      assert.equal(parallel.workerCount, Math.min(workerLimit(), profiles.length));
+    }
+  }
+});

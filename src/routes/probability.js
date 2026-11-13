@@ -8,6 +8,7 @@ const { probabilityExportFilename } = require('../utils/probabilityExportFilenam
 const { reportData, exportXlsx } = require('../services/probability/probabilityReport');
 const reference = require('../services/probability/data/workbook-reference.json');
 const { resolveProfileImportFormat } = require('../utils/profileImportFormat');
+const { workspaceModeEnabled } = require('../services/workspace/workspaceMode');
 const uuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 function createProbabilityRouter(deps = {}) {
   const router = express.Router();
@@ -22,11 +23,12 @@ function createProbabilityRouter(deps = {}) {
     try {
       res.set('Cache-Control', 'no-store');
       if (!['admin','system_administrator','department_head','user_analyst','analyst'].includes(req.user.role)) throw new ProbabilityError('Нет прав на расчёт.', 'PROBABILITY_FORBIDDEN', 403);
-      if (!uuid.test(req.activeDepartmentId || '') || req.get('X-Active-Department-Id') !== req.activeDepartmentId) throw new ProbabilityError('Выберите активное отделение.', 'DEPARTMENT_REQUIRED', 403);
+      if (!workspaceModeEnabled() && (!uuid.test(req.activeDepartmentId || '') || req.get('X-Active-Department-Id') !== req.activeDepartmentId)) throw new ProbabilityError('Выберите активное отделение.', 'DEPARTMENT_REQUIRED', 403);
       req.probabilityScope = await getScope({ userId: req.user.id, activeDepartmentId: req.activeDepartmentId, action: 'read' });
+      if (workspaceModeEnabled()) { req.probabilityContext = { userId: req.user.id, departmentId: null, organizationId: req.user.organization_id }; return next(); }
       const { rows } = await query('SELECT id,name,organization_id FROM departments WHERE id=$1 AND is_active=true', [req.activeDepartmentId]);
       const department = rows[0];
-      if (resolveProfileImportFormat(department) !== 'genetic' || department.organization_id !== req.probabilityScope.params[1]) throw new ProbabilityError('Раздел доступен только в «Генетических экспертизах».', 'PROBABILITY_DEPARTMENT_DENIED', 403);
+      if (resolveProfileImportFormat(department) !== 'genetic' || department.organization_id !== (req.probabilityScope.organizationId || req.probabilityScope.params[1])) throw new ProbabilityError('Раздел доступен только в «Генетических экспертизах».', 'PROBABILITY_DEPARTMENT_DENIED', 403);
       req.probabilityContext = { userId: req.user.id, departmentId: department.id, organizationId: department.organization_id };
       next();
     } catch (error) { next(error); }
@@ -36,7 +38,7 @@ function createProbabilityRouter(deps = {}) {
   async function profile(req, id) {
     if (typeof id !== 'string' || !uuid.test(id)) throw new ProbabilityError('Некорректный идентификатор профиля.');
     const { clause, params } = req.probabilityScope;
-    const { rows } = await query(`SELECT dp.id,dp.internal_number,dp.sample_name,dp.year,dp.str_data FROM dna_profiles dp WHERE ${clause} AND dp.id=$${params.length + 1}`, [...params, id]);
+    const { rows } = await query(`SELECT dp.id,dp.internal_number,dp.sample_name,dp.year,dp.str_data,to_jsonb(dp)->>'expertise_type' AS expertise_type FROM dna_profiles dp WHERE ${clause} AND dp.id=$${params.length + 1}`, [...params, id]);
     if (!rows[0]) throw new ProbabilityError('Профиль не найден или недоступен.', 'PROFILE_NOT_FOUND', 404);
     return databaseSource(rows[0]);
   }
@@ -86,7 +88,7 @@ function createProbabilityRouter(deps = {}) {
     if (typeof req.query.q !== 'string' || req.query.q.trim().length < 1 || req.query.q.length > 100) throw new ProbabilityError('Введите от 1 до 100 символов.');
     const { clause, params } = req.probabilityScope, values = [...params, '%' + req.query.q.trim().replace(/[\\%_]/g, '\\$&') + '%'];
     const idx = values.length;
-    const { rows } = await query(`SELECT dp.id,dp.internal_number,dp.sample_name,dp.year FROM dna_profiles dp WHERE ${clause}
+    const { rows } = await query(`SELECT dp.id,dp.internal_number,dp.sample_name,dp.year,to_jsonb(dp)->>'expertise_type' AS expertise_type FROM dna_profiles dp WHERE ${clause}
       AND (dp.internal_number ILIKE $${idx} ESCAPE '\\' OR dp.sample_name ILIKE $${idx} ESCAPE '\\' OR dp.notes ILIKE $${idx} ESCAPE '\\')
       ORDER BY dp.year DESC,dp.internal_number,dp.id LIMIT 30`, values);
     res.json({ profiles: rows.map(r => ({ id: r.id, displayName: r.internal_number || r.sample_name, year: r.year, expertiseNumber: r.sample_name })) });
