@@ -12,15 +12,22 @@ export const useAuth = () => {
 
 export const AuthProvider = ({ children }) => {
   const [user, setUser] = useState(null);
-  const [workspaceMode, setWorkspaceMode] = useState(false);
+  const [workspaceConfig, setWorkspaceConfig] = useState({ key: null, status: 'loading', enabled: false });
+  const [configAttempt, setConfigAttempt] = useState(0);
+  const configKey = user ? `${user.organization_id}:${user.id}` : null;
+  const workspaceModeReady = !!configKey && workspaceConfig.key === configKey && workspaceConfig.status === 'ready';
+  const workspaceMode = workspaceModeReady && workspaceConfig.enabled;
+  const workspaceModeError = workspaceConfig.key === configKey && workspaceConfig.status === 'error';
   useEffect(() => {
-    if (!user?.id) { setWorkspaceMode(false); return undefined; }
+    if (!user?.id) return undefined;
     const controller = new AbortController();
+    setWorkspaceConfig({ key: configKey, status: 'loading', enabled: false });
     fetch('/api/workspace/config', {signal: controller.signal, headers: {Authorization: `Bearer ${localStorage.getItem('token')}`}})
-      .then(response => response.json()).then(data => { if (!controller.signal.aborted) setWorkspaceMode(data.enabled === true); })
-      .catch(() => {});
+      .then(response => { if (!response.ok) throw Error('Не удалось загрузить рабочую область.'); return response.json(); })
+      .then(data => { if (!controller.signal.aborted) setWorkspaceConfig({ key: configKey, status: 'ready', enabled: data.enabled === true }); })
+      .catch(() => { if (!controller.signal.aborted) setWorkspaceConfig({ key: configKey, status: 'error', enabled: false }); });
     return () => controller.abort();
-  }, [user?.id]);
+  }, [user?.id, user?.organization_id, configAttempt]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
 
@@ -281,6 +288,9 @@ export const AuthProvider = ({ children }) => {
   const value = {
     user,
     workspaceMode,
+    workspaceModeReady,
+    workspaceModeError,
+    retryWorkspaceMode: () => setConfigAttempt(n => n + 1),
     login,
     logout,
     loading,

@@ -69,6 +69,11 @@ export default function WorkspacePage({
     storageKey = `workspace-draft:${user.organization_id}:${user.id}`;
   const canUpload = WORKSPACE_WRITE_ROLES.includes(user.role) && (user.can_upload_with_task !== false || user.can_upload_without_task === true);
   const canEdit = WORKSPACE_WRITE_ROLES.includes(user.role) && (!isImport || canUpload);
+  const loadKey = `${mode}:${user.organization_id}:${user.id}`;
+  const [loadState, setLoadState] = useState({ key: loadKey, status: 'loading' });
+  const [loadAttempt, setLoadAttempt] = useState(0);
+  const loadingProfiles = !isImport && (loadState.key !== loadKey || loadState.status === 'loading');
+  const profilesReady = !isImport && loadState.key === loadKey && loadState.status === 'ready';
   const [workspace, setWorkspace] = useState(null),
     [draft, setDraft] = useState(null),
     [rows, setRows] = useState([]),
@@ -168,8 +173,8 @@ export default function WorkspacePage({
     }
     return blob ? response.blob() : response.json();
   }
-  async function load(active = () => true) {
-    const data = await api('/');
+  async function load(active = () => true, signal) {
+    const data = await api('/', undefined, 'GET', false, signal);
     if (!active()) return;
     setWorkspace(data);
     setMinMatches(data.workspace.analysis_parameters?.minMatches ?? 15);
@@ -177,10 +182,14 @@ export default function WorkspacePage({
     setStaffOptions(data.workspace.analysis_parameters?.staffOptions ? staffSearchOptions(data.workspace.analysis_parameters.staffOptions) : savedStaffOptions());
     setRows(data.profiles);
     initial.current = data.profiles;
-    setSelected(old => new Set([...old].filter(id => data.profiles.some(p => p.id === id))));
+    const ids = new Set(data.profiles.map(profile => profile.id));
+    setSelected(old => new Set([...old].filter(id => ids.has(id))));
   }
   useEffect(() => {
     let alive = true;
+    const controller = new AbortController();
+    setLoadState({ key: loadKey, status: 'loading' });
+    setRows([]); setWorkspace(null); setSelected(new Set());
     setError('');
     setDetails(null);
     setViewFilter('all');
@@ -205,19 +214,22 @@ export default function WorkspacePage({
         setDraft(null);
         setRows([]);
       }
-    } else load().then(async()=>{
+    } else load(() => alive, controller.signal).then(async()=>{
+      if (!alive) return;
+      setLoadState({ key: loadKey, status: 'ready' });
       const searchRun=new URLSearchParams(window.location.search).get('searchRun');
       if(searchRun&&/^[\da-f-]{36}$/i.test(searchRun)) {
-        const saved=await api('/searches/'+encodeURIComponent(searchRun));
+        const saved=await api('/searches/'+encodeURIComponent(searchRun),undefined,'GET',false,controller.signal);
         if(alive&&saved.state==='complete'){setResult(saved);setActiveView('results');setNotice('Открыт сохранённый результат. Актуальность профилей показана в личном массиве.');}
       }
     }).catch(e => {
-      if (alive) setError(e.message);
+      if (alive && !controller.signal.aborted) {
+        setError(e.message);
+        setLoadState(current => current.status === 'ready' ? current : { key: loadKey, status: 'error' });
+      }
     });
-    return () => {
-      alive = false;
-    };
-  }, [mode, user.id, user.organization_id]);
+    return () => { alive = false; controller.abort(); };
+  }, [mode, user.id, user.organization_id, loadAttempt]);
   useEffect(() => {
     if (isImport && preparedFile?.file && lastPrepared.current !== preparedFile.file) {
       lastPrepared.current = preparedFile.file;
@@ -573,21 +585,21 @@ export default function WorkspacePage({
   }])) : [];
   const stateBadge = row => <div><span className="workspace-badge" data-state={row.state || 'NOT_CHECKED'}>{row.expertiseType === 'staff' && row.state === 'PUBLISHED' ? 'В эталонах сотрудников' : states[row.state] || 'Не проверен'}</span>{row.approvalId && <button className="workspace-object-link master-approval-history-link" onClick={() => setApprovalWindow({mode:'history',requestId:row.approvalId})}>Решение и история</button>}{row.decisionComment && <small className="master-approval-decision-note">{row.decisionComment}</small>}</div>;
   const objectNumber = row => row.expertiseType === 'staff' ? 'Регистрационный номер (необязательно)' : `№ экспертизы ${row.objectNumber.split('-')[0] || '—'}`;
-  return <div className={`workspace-page ${isImport ? 'workspace-import-page' : 'workspace-profiles-page'}`} aria-label={isImport ? undefined : 'Мои генотипы'} aria-busy={busy}>
+  return <div className={`workspace-page ${isImport ? 'workspace-import-page' : 'workspace-profiles-page'}`} aria-label={isImport ? undefined : 'Мои генотипы'} aria-busy={busy || loadingProfiles}>
     {isImport ? <header className="workspace-heading">
       <div><span className="workspace-eyebrow">Личная рабочая область</span><h1>Загрузка в личный массив</h1>{!rows.length && <p>Добавьте файлы, выберите объекты и подтвердите загрузку.</p>}</div>
       <a className="btn btn-secondary" href="/analysis"><WorkspaceIcon name="grid" />Мои генотипы</a>
     </header> : <div className="workspace-compact-toolbar">
       <div className="workspace-view-switch" role="group" aria-label="Представление личного массива">
-        <button className="btn btn-secondary" aria-pressed={!showingResults} onClick={() => setActiveView('profiles')}><WorkspaceIcon name="grid" />Профили<span className="workspace-count-pill">{rows.length}</span></button>
+        <button className="btn btn-secondary" aria-pressed={!showingResults} onClick={() => setActiveView('profiles')}><WorkspaceIcon name="grid" />Профили<span className="workspace-count-pill">{loadingProfiles ? '…' : rows.length}</span></button>
         <button className="btn btn-secondary" ref={resultViewButton} disabled={!result} aria-pressed={showingResults} onClick={() => setActiveView('results')}><WorkspaceIcon name="search" />Результаты поиска</button>
-        <span className="workspace-ready-count">Готовы к публикации: {readyCount}</span>
+        <span className="workspace-ready-count">{loadingProfiles ? 'Загружаем профили…' : `Готовы к публикации: ${readyCount}`}</span>
       </div>
       <div className="master-approval-header-actions"><button className="btn btn-secondary" onClick={() => setApprovalWindow({mode:'own-history'})}>Мои заявки</button>{workspace?.canApproveMaster && <button className="btn btn-secondary" onClick={() => setApprovalWindow({mode:'queue'})}>На подтверждении</button>}<a className="btn btn-primary" href="/upload"><WorkspaceIcon name="upload" />Загрузить файлы</a></div>
     </div>}
 
     {isImport && !rows.length && <ol className="workspace-steps" aria-label="Этапы загрузки">{['Выбор файлов', 'Подготовка объектов', 'Загрузка в массив'].map((label, index) => <li key={label} aria-current={(rows.length ? index === 1 : index === 0) ? 'step' : undefined} data-complete={!!rows.length && index === 0}><span>{rows.length && index === 0 ? <WorkspaceIcon name="check" /> : index + 1}</span>{label}</li>)}</ol>}
-    {error && <div className="workspace-message workspace-message-error" role="alert"><WorkspaceIcon name="alert" /><div>{error}</div>{!!retryFiles.current.length && <button className="btn btn-secondary btn-sm" disabled={busy} onClick={() => upload(retryFiles.current)}>Повторить загрузку</button>}</div>}
+    {error && <div className="workspace-message workspace-message-error" role="alert"><WorkspaceIcon name="alert" /><div>{error}</div>{!isImport && !profilesReady && <button className="btn btn-secondary btn-sm" onClick={() => setLoadAttempt(n => n + 1)}>Повторить загрузку данных</button>}{!!retryFiles.current.length && <button className="btn btn-secondary btn-sm" disabled={busy} onClick={() => upload(retryFiles.current)}>Повторить загрузку</button>}</div>}
     {notice && <div className="workspace-message workspace-message-success" role="status"><WorkspaceIcon name="check" /><span>{notice}</span>{isImport && !rows.length && <a href="/analysis">Открыть личный массив →</a>}</div>}
 
     {isImport && <section className={`workspace-drop ${rows.length ? 'workspace-drop-compact' : ''} ${dragging ? 'is-dragging' : ''}`} aria-label="Загрузка файлов" onDragEnter={e => {
@@ -617,7 +629,8 @@ export default function WorkspacePage({
     </section>}
 
     <div className="workspace-profile-panel" hidden={showingResults}>
-    {!!rows.length && <>
+    {loadingProfiles && <section className="workspace-loading" role="status" aria-label="Загрузка генотипов"><div className="workspace-loading-heading"><span className="workspace-loading-spinner" aria-hidden="true" /><div><strong>Загружаем ваши генотипы</strong><p>Получаем профили и состояние последних проверок.</p></div></div><div className="workspace-skeleton-table" aria-hidden="true">{Array.from({ length: 9 }, (_, index) => <div key={index}><span /><span /><span /><span /><span /><span /></div>)}</div></section>}
+    {!!rows.length && (isImport || profilesReady) && <>
       {isImport && <div className="workspace-draft-status"><span><strong>{rows.length.toLocaleString('ru-RU')}</strong> объектов из файлов{errorCount > 0 && <span className="workspace-draft-warning"> · требуют внимания: {errorCount}</span>}</span><span><span className={`workspace-save-dot ${autoSaving || draftPending ? 'is-saving' : ''}`} /><span role="status">{autoSaving ? 'Сохраняем правки…' : draftPending ? 'Правки ожидают сохранения' : 'Черновик сохранён'}</span><small>· 24 часа</small></span></div>}
 
       <section className="workspace-data-card">
@@ -704,7 +717,7 @@ export default function WorkspacePage({
       </div>
     </>}
 
-    {!isImport && !rows.length && <section className="workspace-empty"><span className="workspace-empty-icon"><WorkspaceIcon name="grid" /></span><h2>Здесь будут ваши генотипы</h2><p>Загрузите файлы, выберите нужные объекты и начните работу с личным массивом.</p><a className="btn btn-primary" href="/upload"><WorkspaceIcon name="upload" />Загрузить первые файлы</a><div><span><WorkspaceIcon name="check" />Без назначения задачи</span><span><WorkspaceIcon name="shield" />С доступом только для вас</span></div></section>}
+    {profilesReady && !rows.length && <section className="workspace-empty"><span className="workspace-empty-icon"><WorkspaceIcon name="grid" /></span><h2>Здесь будут ваши генотипы</h2><p>Загрузите файлы, выберите нужные объекты и начните работу с личным массивом.</p><a className="btn btn-primary" href="/upload"><WorkspaceIcon name="upload" />Загрузить первые файлы</a><div><span><WorkspaceIcon name="check" />Без назначения задачи</span><span><WorkspaceIcon name="shield" />С доступом только для вас</span></div></section>}
     </div>
 
     {result && <section className="workspace-search-results" hidden={!showingResults} tabIndex="0" aria-label="Результаты поиска"><div className="workspace-data-heading"><div><span className="workspace-eyebrow">Поиск завершён</span><h2>Результаты полного поиска</h2><p>Проверено: {result.profiles.filter(profile => profile.state === 'CHECKED').length}; без генотипа: {result.profiles.filter(profile => profile.state === 'NO_GENOTYPE').length}; недостаточно локусов: {result.profiles.filter(profile => profile.state === 'INSUFFICIENT_DATA').length}.</p></div><button className="btn btn-secondary" onClick={async () => {

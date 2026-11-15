@@ -12,7 +12,7 @@ export default function GeneMapperSourcePreview({ file, result, options, update,
   const set = patch => update({ ...options, files: { ...options.files, [file.id]: { ...settings, ...patch } } });
   const sampleSet = (sample, patch) => set({ samples: { ...settings.samples, [sample.sampleName]: { ...settings.samples?.[sample.sampleName], ...patch } } });
   const needsReview = gene.samples.filter(sample => sample.included && !sample.exportable);
-  const [filter, setFilter] = useState(needsReview.length ? 'review' : 'excluded');
+  const [filter, setFilter] = useState(needsReview.length ? 'review' : 'all');
   const filtered = gene.samples.filter(sample => filter === 'all' || (filter === 'review' ? sample.included && !sample.exportable : !sample.included));
   const current = Math.min(page, Math.max(0, Math.ceil(filtered.length / 30) - 1));
   return <div className="converter-gene-preview">

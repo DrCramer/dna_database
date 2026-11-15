@@ -5,7 +5,7 @@ import ReferenceEvidence from './ReferenceEvidence';
 
 export default function ConverterGrid({ result, options, update, disabled }) {
   const [editor, setEditor] = useState(null);
-  const [mode, setMode] = useState('source');
+  const [mode, setMode] = useState('populated');
   const [page, setPage] = useState(0);
   const problem = useMemo(() => new Set(result.issues.filter(issue => issue.hard || issue.status === 'WARNING').map(issue => issue.locus)), [result]);
   const populated = useMemo(() => new Set(result.profiles.flatMap(profile => profile.populatedLoci)), [result]);
@@ -18,7 +18,7 @@ export default function ConverterGrid({ result, options, update, disabled }) {
     <h2>Подготовленные профили</h2>
     <div className="converter-actions">
       <label>Колонки<select className="form-input" value={mode} onChange={event => setMode(event.target.value)}><option value="source">Локусы источников</option><option value="all">Весь каталог</option><option value="populated">Заполненные</option><option value="problems">С предупреждениями и ошибками</option></select></label>
-      <span>Каталог: {result.catalogLoci.length} · источники: {result.sourceLoci.length} · заполненные: {populated.size}</span>
+      <span>Локусов с данными: {populated.size}</span>
     </div>
     <div className="converter-scroll converter-grid-scroll" tabIndex={0} aria-label="Таблица генотипов, горизонтальная прокрутка">
       <table className="converter-genotypes"><thead><tr><th>Год</th><th>Объект</th>{loci.map(locus => <th key={locus}>{locus}</th>)}</tr></thead>

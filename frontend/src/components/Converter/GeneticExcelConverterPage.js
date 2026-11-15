@@ -10,32 +10,36 @@ import ConverterGrid from './ConverterGrid';
 import ConverterReferenceSettings from './ConverterReferenceSettings';
 const counters = { files: 'Файлов', sheets: 'Листов', originalRows: 'Исходных строк', uniqueObjects: 'Объектов', sourceLoci: 'Локусов источника', unchanged: 'Без изменений', autoFixed: 'Исправлено автоматически', warnings: 'Предупреждений', unresolved: 'Нерешённых', conflicts: 'Конфликтов' };
 export default function GeneticExcelConverterPage({ onPreparedFile, initialFiles, embedded = false }) {
-  const { activeDepartment, activeDepartmentId, user, workspaceMode } = useAuth();
+  const { activeDepartment, activeDepartmentId, user, workspaceMode, workspaceModeReady } = useAuth();
   const [files, setFiles] = useState([]), [options, setOptions] = useState({}), [result, setResult] = useState(null);
   const [busy, setBusy] = useState(false), [error, setError] = useState('');
   const [hideEmptyLoci, setHideEmptyLoci] = useState(true);
   const [draftYears, setDraftYears] = useState({});
-  const [openSources, setOpenSources] = useState(false), [openIssues, setOpenIssues] = useState(false);
+  const [reviewFile, setReviewFile] = useState(null);
+  const [reviewTab, setReviewTab] = useState(null), [advanced, setAdvanced] = useState(false);
+  const [output, setOutput] = useState(''), [bulkYear, setBulkYear] = useState('');
+  const [dragging, setDragging] = useState(false), [referenceError, setReferenceError] = useState('');
+  const dragDepth = useRef(0), reviewArea = useRef(null);
   const [references, setReferences] = useState([]), [populations, setPopulations] = useState([]);
   const request = useRef(null), input = useRef(null);
   const importFormat = (workspaceMode ? 'genetic' : resolveProfileImportFormat(activeDepartment));
   const allowed = ['genetic', 'emergency'].includes(importFormat);
   useEffect(() => { request.current?.abort(); setFiles([]); setOptions({}); setResult(null); setError(''); setBusy(false); if (input.current) input.current.value = ''; return () => request.current?.abort(); }, [workspaceMode ? user.organization_id : activeDepartmentId]);
   useEffect(() => {
-    const controller = new AbortController(); setReferences([]); setPopulations([]);
+    const controller = new AbortController(); setReferences([]); setPopulations([]); setReferenceError('');
     if (importFormat === 'genetic') Promise.all(['', '/populations'].map(async path => {
       const response = await fetch(`/api/allele-references${path}`, { signal: controller.signal, headers: { Authorization: `Bearer ${user?.accessToken || localStorage.getItem('token')}`, 'X-Active-Department-Id': activeDepartmentId } });
       if (!response.ok) throw new Error('Не удалось загрузить справочники.');
       return response.json();
-    })).then(([refs, populations]) => { if (!controller.signal.aborted) { setReferences(refs.references); setPopulations(populations.populations); } }).catch(error => { if (!controller.signal.aborted) setError(error.message); });
+    })).then(([refs, populations]) => { if (!controller.signal.aborted) { setReferences(refs.references); setPopulations(populations.populations); } }).catch(error => { if (!controller.signal.aborted) setReferenceError(error.message); });
     return () => controller.abort();
   }, [activeDepartmentId, allowed]);
   const select = incoming => {
     if (incoming.length > 100 || incoming.some(file => !/\.(xlsx|xls|txt)$/i.test(file.name) || file.size > 10 * 1024 * 1024) || incoming.reduce((sum, file) => sum + file.size, 0) > 50 * 1024 * 1024) { setError('Выберите до 100 файлов .xlsx/.xls/.txt: до 10 МиБ каждый и 50 МиБ всего.'); return; }
-    request.current?.abort(); setBusy(false); setFiles(incoming); setOptions(previous => ({ reference: previous.reference, txtEncoding: previous.txtEncoding })); setResult(null); setError(''); setOpenSources(false); setOpenIssues(false); setDraftYears({});
+    request.current?.abort(); setBusy(false); setFiles(incoming); setOptions(previous => ({ reference: previous.reference, txtEncoding: previous.txtEncoding })); setResult(null); setError(''); setReviewTab(null); setOutput(''); setDraftYears({});
   };
-  useEffect(() => { if (initialFiles?.length) select(initialFiles); }, [initialFiles]);
-  useEffect(() => { if (files.some(file => /\.txt$/i.test(file.name))) perform('preview', { ...options, export: { hideEmptyLoci } }); }, [files]);
+  useEffect(() => { if (workspaceModeReady && initialFiles?.length) select(initialFiles); }, [initialFiles, workspaceModeReady]);
+  useEffect(() => { if (files.length) perform('preview', { ...options, export: { hideEmptyLoci } }); }, [files]);
   useEffect(() => { if (result?.preparedFiles?.length) perform('preview', { ...options, export: { hideEmptyLoci } }); }, [hideEmptyLoci]);
   const perform = async (operation, settings = options) => {
     request.current?.abort(); const controller = new AbortController(); request.current = controller;
@@ -70,67 +74,83 @@ export default function GeneticExcelConverterPage({ onPreparedFile, initialFiles
     else { const url = URL.createObjectURL(blob), anchor = document.createElement('a'); anchor.href = url; anchor.download = filename; anchor.click(); setTimeout(() => URL.revokeObjectURL(url), 1000); }
   };
   const unresolved = result?.issues.filter(issue => issue.hard).length || 0;
-  const hasWarnings = Boolean(result?.issues.some(issue => issue.status === 'WARNING'));
   const sourceNeedsAttention = Boolean(result?.issues.some(issue => issue.hard && !issue.locus));
-  useEffect(() => { if (sourceNeedsAttention) setOpenSources(true); }, [sourceNeedsAttention]);
+
   const setFileOptions = (id, patch) => update({ ...options, files: { ...options.files, [id]: { ...options.files?.[id], ...patch } } });
-  const review = () => {
-    if (sourceNeedsAttention) setOpenSources(true); else setOpenIssues(true);
-    document.getElementById(sourceNeedsAttention ? 'converter-sources' : 'converter-issues')?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+  const review = (tab, fileId = null) => {
+    setReviewFile(fileId);
+    setReviewTab(tab || (sourceNeedsAttention ? 'sources' : 'issues'));
+    requestAnimationFrame(() => reviewArea.current?.scrollIntoView({ behavior: 'smooth', block: 'start' }));
   };
   const hasLegacy = Boolean(result?.files.some(file => !file.geneMapper));
   const pendingYear = file => draftYears[file.id] !== undefined && draftYears[file.id] !== String(file.year ?? '');
   const pendingLegacyYear = Boolean(result?.files.some(file => !file.geneMapper && pendingYear(file)));
+  const outputs = result ? [
+    ...(hasLegacy ? [{ id: 'legacy', name: result.files.filter(file => !file.geneMapper).length > 1 ? 'Общий Excel из файлов' : result.files.find(file => !file.geneMapper)?.name, ready: result.legacyCanImport ?? result.canImport, upload: result.legacyCanUpload ?? result.canUpload, pending: pendingLegacyYear }] : []),
+    ...(result.preparedFiles || []).map(file => ({ id: file.fileId, name: file.filename, ready: file.ready, upload: file.canUpload, pending: pendingYear(result.files.find(source => source.id === file.fileId)), prepared: file }))
+  ] : [];
+  const selectedOutput = outputs.find(item => item.id === output) || outputs[0];
+  const saveOutput = direct => selectedOutput?.prepared ? preparedFile(selectedOutput.prepared, direct) : exportFile(direct);
+  const changeEncoding = value => { const next = { ...options, txtEncoding: value }; if (files.length) update(next); else setOptions(next); };
+  const applyBulkYear = () => {
+    if (!/^\d{4}$/.test(bulkYear) || Number(bulkYear) < 1900 || Number(bulkYear) > 2100) return;
+    const fileOptions = { ...options.files };
+    result.files.forEach(file => { fileOptions[file.id] = { ...fileOptions[file.id], year: bulkYear }; });
+    setDraftYears({}); update({ ...options, files: fileOptions });
+  };
+  if (!workspaceModeReady) return <div className="workspace-entry-loading" role="status"><span className="workspace-loading-spinner" aria-hidden="true" />Открываем конвертер…</div>;
   if (!allowed) return <div className="alert alert-info">Выберите отделение «Генетические экспертизы» или «ЧС».</div>;
   return <div className="converter-page" aria-busy={busy}>
-    {!embedded && <PageHeader title="Подготовка профилей" description="Выберите файл, проверьте результат и перейдите к загрузке." />}
-    <section className="converter-card converter-drop" onDragOver={event => event.preventDefault()} onDrop={event => { event.preventDefault(); if (!busy) select(Array.from(event.dataTransfer.files)); }}>
-      <div className="converter-file-picker">
-        <div><strong>{files.length ? `Выбрано файлов: ${files.length}` : importFormat === 'genetic' ? 'Excel или GeneMapper TXT' : 'GeneMapper TXT'}</strong><p>{busy ? 'Подготовка файлов…' : 'До 100 файлов · 10 МиБ на файл'}</p></div>
-        <input ref={input} id="converter-files" type="file" hidden multiple accept={importFormat === 'genetic' ? '.xlsx,.xls,.txt' : '.txt'} disabled={busy} onChange={event => select(Array.from(event.target.files))} />
-        <button className="btn btn-secondary" disabled={busy} onClick={() => input.current?.click()}>{files.length ? 'Выбрать другие файлы' : 'Выбрать файлы'}</button>
-        {files.length > 0 && !result && !files.some(file => /\.txt$/i.test(file.name)) && <button className="btn btn-primary" disabled={busy} onClick={() => perform('preview')}>Подготовить</button>}
+    {!embedded && <PageHeader title="Конвертер профилей" description="Подготовьте файлы к загрузке или сохраните нормализованный Excel." />}
+    <ol className="converter-steps" aria-label="Этапы конвертации">
+      {['Выберите файлы', 'Проверьте данные', 'Сохраните результат'].map((label, index) => <li key={label} aria-current={(result ? 1 : 0) === index ? 'step' : undefined} data-complete={index === 0 && !!files.length}><span>{index + 1}</span>{label}</li>)}
+    </ol>
+    <section className={`converter-card converter-drop ${dragging ? 'is-dragging' : ''} ${files.length ? 'has-files' : ''}`} aria-label="Файлы для конвертации"
+      onDragEnter={event => { event.preventDefault(); dragDepth.current++; setDragging(true); }}
+      onDragLeave={event => { event.preventDefault(); if (--dragDepth.current <= 0) { dragDepth.current = 0; setDragging(false); } }}
+      onDragOver={event => { event.preventDefault(); event.dataTransfer.dropEffect = 'copy'; }}
+      onDrop={event => { event.preventDefault(); dragDepth.current = 0; setDragging(false); if (!busy) select(Array.from(event.dataTransfer.files)); }}>
+      <div className="converter-file-picker"><span className="converter-upload-icon" aria-hidden="true">↑</span>
+        <div><h2>{files.length ? `Файлов выбрано: ${files.length}` : 'Перетащите файлы сюда'}</h2><p>{files.length ? 'Формат определяется автоматически' : importFormat === 'genetic' ? 'Excel, GeneMapper TXT или NGS ASTR+' : 'GeneMapper TXT'} · до 100 файлов</p><small>До 10 МиБ на файл, 50 МиБ всего</small></div>
+        <input ref={input} id="converter-files" type="file" hidden multiple accept={importFormat === 'genetic' ? '.xlsx,.xls,.txt' : '.txt'} disabled={busy} onChange={event => { select(Array.from(event.target.files)); event.target.value = ''; }} />
+        <button className="btn btn-primary" disabled={busy} onClick={() => input.current?.click()}>{files.length ? 'Заменить файлы' : 'Выбрать файлы'}</button>
       </div>
     </section>
-    {error && <div className="alert alert-danger" role="alert">{error}</div>}
+    {error && <div className="alert alert-danger converter-error" role="alert"><span>{error}</span>{!!files.length && <button className="btn btn-secondary" disabled={busy} onClick={() => perform('preview', { ...options, export: { hideEmptyLoci } })}>Повторить проверку</button>}</div>}
+    {busy && <div className="converter-processing" role="status"><span className="workspace-loading-spinner" aria-hidden="true" />{result ? 'Обновляем результат проверки…' : 'Распознаём файлы и проверяем профили…'}</div>}
     {result && <>
-      <section className="converter-results" aria-label="Результат подготовки" aria-busy={busy}>
-        {result.files.map(file => {
+      <section className="converter-card converter-files-review" aria-label="Проверка файлов">
+        <div className="converter-section-heading"><div><h2>Проверка файлов</h2><p>Объектов: <strong>{result.profiles.length}</strong> · {unresolved ? `Требуют решения: ${unresolved}` : 'Данные проверены'}</p></div><button className="btn btn-secondary" disabled={busy} onClick={() => review(unresolved ? undefined : 'genotypes')}>{unresolved ? 'Исправить замечания' : 'Посмотреть генотипы'}</button></div>
+        {result.files.length > 1 && <div className="converter-bulk-year"><label>Год для всех файлов<input className="form-input" type="number" min="1900" max="2100" placeholder="2026" value={bulkYear} disabled={busy} onChange={event => setBulkYear(event.target.value)} /></label><button className="btn btn-secondary btn-sm" disabled={busy || !/^\d{4}$/.test(bulkYear) || +bulkYear < 1900 || +bulkYear > 2100} onClick={applyBulkYear}>Применить ко всем</button><span>Или укажите год отдельно для каждого файла ниже.</span></div>}
+        <div className="converter-file-list">{result.files.map(file => {
           const prepared = result.preparedFiles?.find(item => item.fileId === file.id);
-          const profiles = result.profiles.filter(profile => profile.sources.some(source => source.fileId === file.id));
-          const needsReview = file.geneMapper?.samples.filter(sample => sample.included && !sample.exportable).length || 0;
-          return <article className="converter-card converter-result" key={file.id}>
-            <div className="converter-result-heading"><div><h2>{file.name}</h2><p>{file.geneMapper ? 'GeneMapper TXT' : file.ngs ? 'NGS ASTR+' : 'Excel'}{prepared ? ` · Готово: ${prepared.profiles}` : ` · Объектов: ${profiles.length}`}</p></div>
-              <SourceYear file={file} disabled={busy} apply={year => setFileOptions(file.id, { year })} onDraftChange={year => setDraftYears(previous => ({ ...previous, [file.id]: year }))} />
-            </div>
-            {prepared && <>
-              {prepared.excluded > 0 && <p className="converter-exclusions">Не включено: {prepared.excluded}{needsReview > 0 ? ` · Нужна проверка: ${needsReview}` : ' (служебные или пустые образцы)'}. <button className="converter-text-button" onClick={() => { if (needsReview) { review(); return; } setOpenSources(true); document.getElementById('converter-sources')?.scrollIntoView({ behavior: 'smooth', block: 'start' }); }}>{needsReview ? 'Разобрать' : 'Посмотреть'}</button></p>}
-              {!prepared.ready && <p role="status">{prepared.reason}</p>}
-              <div className="converter-actions">
-                <button className="btn btn-primary" disabled={busy || !prepared.canUpload || pendingYear(file)} onClick={() => preparedFile(prepared, true)}>Перейти к загрузке</button>
-                <button className="btn btn-secondary" disabled={busy || !prepared.ready || pendingYear(file)} onClick={() => preparedFile(prepared, false)}>Скачать Excel</button>
-              </div>
-              {prepared.ready && (!prepared.canUpload || pendingYear(file)) && <p className="converter-hint">Подтвердите год, чтобы перейти к загрузке.</p>}
-            </>}
-          </article>;
-        })}
-        {result.preparedFiles?.length > 1 && <button className="btn btn-secondary converter-zip" disabled={busy || !result.preparedFiles.some(file => file.ready) || result.files.some(pendingYear)} onClick={downloadZip}>Скачать все ZIP</button>}
-        {hasLegacy && <div className="converter-card"><div className="converter-actions"><button className="btn btn-primary" disabled={busy || pendingLegacyYear || !(result.legacyCanUpload ?? result.canUpload)} onClick={() => exportFile(true)}>Перейти к загрузке</button><button className="btn btn-secondary" disabled={busy || pendingLegacyYear || !(result.legacyCanImport ?? result.canImport)} onClick={() => exportFile(false)}>Скачать Excel</button></div>{(pendingLegacyYear || !(result.legacyCanUpload ?? result.canUpload)) && <p className="converter-hint">Подтвердите год каждого файла и разрешите нерешённые вопросы.</p>}</div>}
+          const count = file.geneMapper ? file.geneMapper.samples.filter(sample => sample.included && sample.exportable).length : result.profiles.filter(profile => profile.sources.some(source => source.fileId === file.id)).length;
+          const hard = result.issues.filter(issue => issue.fileId === file.id && issue.hard).length;
+          return <article className="converter-file-row" key={file.id}><div className="converter-file-info"><span className="converter-format-label">{file.geneMapper ? 'TXT' : file.ngs ? 'ASTR+' : 'Excel'}</span><div><h3>{file.name}</h3><p>Объектов: {count}{prepared?.excluded > 0 && ` · исключено: ${prepared.excluded}`}</p><button className="converter-text-button" disabled={busy} onClick={() => review('sources', file.id)}>{hard ? `Замечания: ${hard}` : prepared?.excluded ? 'Посмотреть исключённые образцы' : 'Параметры файла'}</button></div></div><SourceYear key={`${file.id}:${file.year ?? ''}`} file={file} disabled={busy} apply={year => setFileOptions(file.id, { year })} onDraftChange={year => setDraftYears(previous => ({ ...previous, [file.id]: year }))} /></article>;
+        })}</div>
       </section>
-      {unresolved > 0 && hasLegacy && <div className="converter-review-notice" role="status"><span>Есть нерешённые вопросы: {unresolved}. {result.preparedFiles?.some(file => file.ready) ? 'Допустимые профили уже доступны выше.' : 'Проверьте данные перед загрузкой.'}</span><button className="btn btn-secondary" onClick={review}>Разобрать</button></div>}
-      <details id="converter-sources" className="converter-disclosure" open={openSources} onToggle={event => setOpenSources(event.currentTarget.open)}><summary>Образцы, исключения и панели</summary>{openSources && <ConverterSources result={result} options={options} update={update} disabled={busy} />}</details>
-      <details id="converter-issues" className="converter-disclosure" open={openIssues} onToggle={event => setOpenIssues(event.currentTarget.open)}><summary>Диагностика и исправления{unresolved > 0 ? ` · нерешённых: ${unresolved}` : hasWarnings ? ' · есть предупреждения' : ''}</summary>{openIssues && <ConverterIssues result={result} options={options} update={update} disabled={busy} />}</details>
-      <details className="converter-disclosure"><summary>Просмотреть генотипы · {result.profiles.length}</summary><ConverterGrid result={result} options={options} update={update} disabled={busy} /></details>
-    </>}
-    <details className="converter-disclosure"><summary>Дополнительные настройки</summary>
-      <div className="converter-card">
+      {unresolved > 0 && <div className="converter-review-notice" role="status"><span>Проверьте замечания перед выгрузкой. Доступность каждого файла указана ниже.</span><button className="btn btn-secondary btn-sm" disabled={busy} onClick={() => review()}>Перейти к замечаниям</button></div>}
+      <section className="converter-card converter-save" aria-label="Сохранение результата"><div className="converter-section-heading"><div><h2>Сохранить результат</h2><p>Скачайте Excel или передайте его на экран загрузки профилей.</p></div></div>
+        {outputs.length > 1 && <label className="converter-output-select">Результат для сохранения<select className="form-input" disabled={busy} value={selectedOutput?.id || ''} onChange={event => setOutput(event.target.value)}>{outputs.map(item => <option key={item.id} value={item.id}>{item.name}</option>)}</select></label>}
         <label className="converter-export-toggle"><input type="checkbox" checked={hideEmptyLoci} disabled={busy} onChange={event => setHideEmptyLoci(event.target.checked)} />Скрывать пустые локусы в Excel</label>
-        <div className="converter-source-controls"><label>Кодировка TXT<select className="form-input" value={options.txtEncoding || 'auto'} disabled={busy} onChange={event => { const next = { ...options, txtEncoding: event.target.value }; if (files.length) update(next); else setOptions(next); }}><option value="auto">Автоматически</option><option value="windows-1251">Windows-1251</option><option value="utf-16le">UTF-16 LE</option><option value="utf-16be">UTF-16 BE</option></select></label></div>
-        <p className="converter-hint">Excel, NGS ASTR+ и GeneMapper TXT. До 50 МиБ суммарно. Скачивание и подготовка не сохраняют профили в базу.</p>
-        {files.length > 0 && <button className="btn btn-secondary" disabled={busy} onClick={() => perform('preview')}>Проверить повторно</button>}
-      </div>
+        <div className="converter-save-actions"><button className="btn btn-primary" disabled={busy || !selectedOutput?.ready || selectedOutput.pending} onClick={() => saveOutput(false)}>Скачать Excel</button>{onPreparedFile && <button className="btn btn-secondary" disabled={busy || !selectedOutput?.upload || selectedOutput.pending} onClick={() => saveOutput(true)}>Перейти к загрузке</button>}{result.preparedFiles?.length > 1 && <button className="btn btn-secondary" disabled={busy || !result.preparedFiles.some(file => file.ready) || result.files.some(pendingYear)} onClick={downloadZip}>Скачать готовые Excel (ZIP)</button>}</div>
+        {selectedOutput && (!selectedOutput.upload || selectedOutput.pending) && <p className="converter-hint">{selectedOutput.pending ? 'Подтвердите изменённый год перед сохранением.' : !selectedOutput.ready ? 'Исправьте замечания, чтобы сохранить выбранный результат.' : 'Для загрузки в базу подтвердите год исследования в каждом файле.'}</p>}
+        <p className="converter-hint">Скачивание не добавляет профили в базу. На экране загрузки вы сможете выбрать объекты.</p>
+      </section>
+      <section className="converter-review" ref={reviewArea} aria-label="Просмотр и проверка данных">
+        <div className="converter-review-toolbar"><strong>Данные файлов</strong><button className="converter-text-button" onClick={() => setReviewTab(reviewTab ? null : 'genotypes')}>{reviewTab ? 'Свернуть просмотр' : 'Открыть просмотр'}</button></div>
+        {reviewTab && <><div className="converter-review-tabs" role="tablist" aria-label="Данные конвертера">{[['genotypes', 'Генотипы'], ['issues', `Замечания${unresolved ? ` (${unresolved})` : ''}`], ['sources', 'Образцы и распознавание']].map(([id, label]) => <button key={id} id={`converter-tab-${id}`} role="tab" aria-selected={reviewTab === id} aria-controls="converter-review-panel" tabIndex={reviewTab === id ? 0 : -1} onKeyDown={event => { const ids = ['genotypes', 'issues', 'sources']; const offset = event.key === 'ArrowRight' ? 1 : event.key === 'ArrowLeft' ? -1 : 0; if (offset) { event.preventDefault(); const next = ids[(ids.indexOf(id) + offset + ids.length) % ids.length]; setReviewTab(next); document.getElementById(`converter-tab-${next}`)?.focus(); } }} onClick={() => setReviewTab(id)}>{label}</button>)}</div><div id="converter-review-panel" role="tabpanel" aria-labelledby={`converter-tab-${reviewTab}`}>
+          {reviewTab === 'genotypes' && <ConverterGrid result={result} options={options} update={update} disabled={busy} />}
+          {reviewTab === 'issues' && <ConverterIssues result={result} options={options} update={update} disabled={busy} />}
+          {reviewTab === 'sources' && <ConverterSources key={reviewFile || 'default'} initialFileId={reviewFile} result={result} options={options} update={update} disabled={busy} />}
+        </div></>}
+      </section>
+    </>}
+    <details className="converter-disclosure converter-advanced" open={advanced} onToggle={event => setAdvanced(event.currentTarget.open)}><summary>Настройки конвертации<span>Кодировка TXT, распознавание аллелей и справочники</span></summary>
+      {advanced && <><div className="converter-card"><div className="converter-source-controls"><label>Кодировка TXT<select className="form-input" value={options.txtEncoding || 'auto'} disabled={busy} onChange={event => changeEncoding(event.target.value)}><option value="auto">Автоматически</option><option value="utf-8">UTF-8</option><option value="windows-1251">Windows-1251</option><option value="utf-16le">UTF-16 LE</option><option value="utf-16be">UTF-16 BE</option></select></label></div><p className="converter-hint">Обычно менять настройки не требуется. При смене параметров файлы проверяются заново.</p></div>
+      {referenceError && <p role="alert">{referenceError} Автоматическая проверка файлов остаётся доступна.</p>}
       {importFormat === 'genetic' && <ConverterReferenceSettings references={references} populations={populations} options={options} result={result} disabled={busy} update={settings => result ? update(settings) : setOptions(settings)} />}
-      {result && <details><summary>Техническая сводка</summary><dl className="converter-technical-summary">{Object.entries(counters).map(([key, label]) => <React.Fragment key={key}><dt>{label}</dt><dd>{result.summary[key]}</dd></React.Fragment>)}</dl></details>}
+      {result && <details><summary>Сводка обработки</summary><dl className="converter-technical-summary">{Object.entries(counters).map(([key, label]) => <React.Fragment key={key}><dt>{label}</dt><dd>{result.summary[key]}</dd></React.Fragment>)}</dl></details>}</>}
     </details>
   </div>;
 }
