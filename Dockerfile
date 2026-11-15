@@ -1,5 +1,7 @@
 FROM node:22-bookworm-slim AS build
 WORKDIR /app
+ARG BUILD_NODE_OPTIONS=--max-old-space-size=768
+ENV NODE_OPTIONS=$BUILD_NODE_OPTIONS
 COPY --chown=node:node package*.json ./
 COPY vendor ./vendor
 RUN npm ci --include=dev --no-audit --no-fund

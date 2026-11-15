@@ -12,6 +12,7 @@ function runUpdate({ changedFiles = '', tablesReady = false, yearIndexReady = fa
   try {
     for (const name of ['scripts', 'config', 'database/migrations', 'bin']) fs.mkdirSync(path.join(directory, name), { recursive: true });
     fs.copyFileSync(path.join(__dirname, '../scripts/update_server.sh'), path.join(directory, 'scripts/update_server.sh'));
+    fs.writeFileSync(path.join(directory, 'scripts/check-build-memory.sh'), '#!/bin/bash\nexit 0\n');
     fs.copyFileSync(path.join(__dirname, '../database/migrations/031_allele_references.sql'), path.join(directory, 'database/migrations/031_allele_references.sql'));
     fs.copyFileSync(path.join(__dirname, '../database/migrations/032_genetic_profile_year_identity.sql'), path.join(directory, 'database/migrations/032_genetic_profile_year_identity.sql'));
     fs.copyFileSync(path.join(__dirname, '../database/migrations/033_user_display_names.sql'), path.join(directory, 'database/migrations/033_user_display_names.sql'));

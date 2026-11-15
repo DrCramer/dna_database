@@ -20,7 +20,7 @@ function cpuCapacity() {
 
 function workerLimit() {
   const configured = Number(process.env.GENOTYPE_SEARCH_WORKERS || 4);
-  return Math.min(cpuCapacity(), Number.isInteger(configured) && configured > 0 ? Math.min(configured, 16) : 4);
+  return Math.min(require('../infrastructure/memoryBudget').workerCapacity(require('../infrastructure/memoryBudget').readMemory()), cpuCapacity(), Number.isInteger(configured) && configured > 0 ? Math.min(configured, 16) : 4);
 }
 
 // Один тяжёлый поиск на процесс: параллельные HTTP-запросы не размножают
@@ -68,6 +68,7 @@ async function executeWorkerRanges({ workerPath, count, createInput, signal: par
     unlock=await acquire(signal,priority,()=>controller.abort(require('./searchCpuCoordinator').yieldError()));
     globalUnlock=await coordinator?.acquire({signal,priority,onLost:e=>controller.abort(e)});
     if (signal?.aborted) throw signal.reason;
+    require('../infrastructure/memoryBudget').assertSearchMemory();
     onProgress?.({ status: 'running' });
     const ranges = await Promise.all(Array.from({ length: count }, (_, index) => new Promise((resolve, reject) => {
       const worker = new Worker(workerPath, {

@@ -132,7 +132,7 @@ class NightSearchService {
     const check=c=>this.guard(job,c||this.pool,{expected});
     const heartbeat=setInterval(async()=>{
       if(heartBusy)return;heartBusy=true;
-      try{await check();const r=await this.pool.query("UPDATE workspace_search_jobs SET lease_until=now()+interval '40 seconds',heartbeat_at=now() WHERE id=$1 AND lease_token=$2 AND state='running' AND lease_until>now() RETURNING id",[job.id,job.lease_token]);if(!r.rowCount)throw err('Аренда потеряна.',409,'JOB_STOPPED');}catch(e){controller.abort(e);}finally{heartBusy=false;}
+      try{if(!require('../infrastructure/memoryBudget').backgroundAllowed())throw err('Ожидание свободной памяти.',503,'SEARCH_MEMORY_PRESSURE');await check();const r=await this.pool.query("UPDATE workspace_search_jobs SET lease_until=now()+interval '40 seconds',heartbeat_at=now() WHERE id=$1 AND lease_token=$2 AND state='running' AND lease_until>now() RETURNING id",[job.id,job.lease_token]);if(!r.rowCount)throw err('Аренда потеряна.',409,'JOB_STOPPED');}catch(e){controller.abort(e);}finally{heartBusy=false;}
     },1000);heartbeat.unref();
     const progress=p=>{
       const now=Date.now();if(lastStage===p.stage&&now-lastProgress<1000&&p.completed!==p.total)return;
@@ -190,7 +190,7 @@ class NightSearchService {
       });
     }catch(error) {
       const e=controller.signal.aborted?controller.signal.reason:error,code=e?.code||'SEARCH_FAILED';
-      const pause=['WINDOW_CLOSED'].includes(code),yielded=['BACKGROUND_YIELD','POLICY_CHANGED','NIGHT_SHUTDOWN'].includes(code);
+      const pause=['WINDOW_CLOSED'].includes(code),yielded=['BACKGROUND_YIELD','POLICY_CHANGED','NIGHT_SHUTDOWN','SEARCH_MEMORY_PRESSURE'].includes(code);
       const state=pause?'paused_window':yielded?'queued':code==='JOB_STOPPED'?'cancelled':job.failures+1>=3||['SETTINGS_REQUIRED','NO_PROFILES'].includes(code)?'failed':'retry_wait';
       await this.searchService.transaction(async c=>{
         const r=await c.query(`UPDATE workspace_search_jobs SET state=$3,waiting_reason=$4,error_code=$4,failures=failures+$5,next_retry_at=now()+($6*interval '1 second'),lease_until=NULL,lease_token=NULL,updated_at=now() WHERE id=$1 AND lease_token=$2 AND state='running' RETURNING id`,[job.id,job.lease_token,state,code,pause||yielded?0:1,yielded?2:pause?15:Math.min(300,15*2**job.failures)]);
@@ -209,7 +209,9 @@ class NightSearchService {
         const key=row.organization_id+':'+window.key;
         if(window.open&&Date.now()-(this.planned.get(key)||0)>60000){await this.enqueue(row.organization_id,p,window.key,'scheduled');if(this.planned.size>1000)this.planned.clear();this.planned.set(key,Date.now());}
       }
-      if(!this.processing&&!this.stopped) {
+      const enoughMemory=require('../infrastructure/memoryBudget').backgroundAllowed();
+      if(!enoughMemory)await this.pool.query("UPDATE workspace_search_jobs SET waiting_reason='SEARCH_MEMORY_PRESSURE' WHERE state IN('queued','retry_wait') AND waiting_reason IS DISTINCT FROM 'SEARCH_MEMORY_PRESSURE'");
+      if(!this.processing&&!this.stopped&&enoughMemory) {
         const job=await this.claim();
         if(job)this.processing=this.process(job).catch(()=>require('../../utils/logger').logger.error('NIGHT_JOB_STORAGE_FAILED')).finally(()=>{this.processing=null;});
       }

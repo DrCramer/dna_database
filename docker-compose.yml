@@ -2,6 +2,9 @@ services:
   db:
     image: postgres:15-alpine
     container_name: dna-prod-db
+    mem_limit: ${DB_MEMORY_LIMIT:-1024m}
+    mem_reservation: 256m
+    memswap_limit: ${DB_MEMORY_SWAP_LIMIT:-1280m}
     environment:
       POSTGRES_USER: dna_user
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?Set POSTGRES_PASSWORD in .env}
@@ -19,6 +22,10 @@ services:
 
   redis:
     image: redis:7-alpine
+    mem_limit: ${REDIS_MEMORY_LIMIT:-256m}
+    mem_reservation: 64m
+    memswap_limit: ${REDIS_MEMORY_SWAP_LIMIT:-256m}
+    command: ["redis-server", "--maxmemory", "${REDIS_MAXMEMORY:-128mb}", "--maxmemory-policy", "noeviction"]
     volumes:
       - ./runtime/redis:/data
     healthcheck:
@@ -34,8 +41,12 @@ services:
       context: .
       dockerfile: Dockerfile
     container_name: dna-prod-web
+    mem_limit: ${WEB_MEMORY_LIMIT:-2048m}
+    mem_reservation: 512m
+    memswap_limit: ${WEB_MEMORY_SWAP_LIMIT:-2304m}
     environment:
       NODE_ENV: production
+      NODE_OPTIONS: ${WEB_NODE_OPTIONS:---max-old-space-size=768}
       UNIFIED_WORKSPACE_ENABLED: ${UNIFIED_WORKSPACE_ENABLED:-false}
       DB_HOST: db
       DB_PORT: 5432

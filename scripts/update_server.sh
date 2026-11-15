@@ -133,6 +133,7 @@ if [[ "$night_ready" != t ]]; then
 fi
 
 docker compose config --quiet
+bash scripts/check-build-memory.sh
 docker compose build web
 ./scripts/prepare-runtime.sh
 docker compose up -d

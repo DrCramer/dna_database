@@ -19,6 +19,9 @@ node_modules
 !/scripts/bootstrap-admin.js
 !/scripts/check-ui.js
 !/scripts/check-imports.js
+!/scripts/check-build-memory.sh
+!/scripts/memory-watch.py
+!/scripts/install-memory-watch.sh
 !/scripts/attach-profiles-to-task.js
 !/scripts/benchmark-task-search.js
 !/scripts/benchmark-staff-search.js

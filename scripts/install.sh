@@ -70,6 +70,7 @@ fi
 
 chmod 600 .env config/encryption.key
 docker compose config --quiet
+bash scripts/check-build-memory.sh
 docker compose build web
 ./scripts/prepare-runtime.sh
 docker compose up -d db redis
