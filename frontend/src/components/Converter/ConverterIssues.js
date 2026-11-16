@@ -1,5 +1,6 @@
 import React, { useId, useMemo, useState } from 'react';
 import { groupConverterIssues } from '../../../../src/utils/converterIssueGroups';
+import { converterIssueView } from '../../../../src/utils/converterPresentation';
 import ReferenceEvidence from './ReferenceEvidence';
 const names = { OK: 'Без изменений', AUTO_FIXED: 'Исправлено', WARNING: 'Предупреждение', NEEDS_REVIEW: 'Проверить', CONFLICT: 'Конфликт', ERROR: 'Ошибка' };
 const columns = ['Источник / случаи', 'Объекты / локус', 'Исходное', 'Результат', 'Статус / причина', 'Решение'];
@@ -48,10 +49,7 @@ function IssueGroup({ group, apply, disabled }) {
 }
 export default function ConverterIssues({ result, onDecision, disabled }) {
   const [status, setStatus] = useState('hard'), [search, setSearch] = useState(''), [page, setPage] = useState(0), [actionError, setActionError] = useState('');
-  const filtered = useMemo(() => {
-    const query = search.toLowerCase();
-    return result.issues.filter(issue => (status === 'all' || (status === 'hard' ? issue.hard : issue.status === status)) && `${issue.objectNumber || ''} ${issue.locus || ''} ${issue.sourceFile || ''}`.toLowerCase().includes(query));
-  }, [result, status, search]);
+  const { filtered, confirmedCount, unconfirmedCount } = useMemo(() => converterIssueView(result.issues, status, search), [result, status, search]);
   const groups = useMemo(() => groupConverterIssues(filtered), [filtered]);
   const current = Math.min(page, Math.max(0, Math.ceil(groups.length / 20) - 1));
   const apply = (members, decision) => {
@@ -59,11 +57,11 @@ export default function ConverterIssues({ result, onDecision, disabled }) {
     catch (error) { setActionError(error.message); }
   };
   return <section className="converter-card"><h2>Проверка и исправления</h2>
-    <p className="converter-hint">Одинаковые записи одного локуса объединены в группы. Решение применяется только к случаям группы в текущем фильтре.{status === 'hard' && ' Показаны только записи, требующие решения; остальные доступны в фильтре «Все замечания».'}</p>
-    <div className="converter-actions"><label>Статус<select className="form-input" value={status} onChange={e => { setStatus(e.target.value); setPage(0); }}><option value="hard">Требуют решения</option><option value="all">Все замечания</option>{Object.entries(names).filter(([key]) => key !== 'OK').map(([key, label]) => <option key={key} value={key}>{label}</option>)}</select></label><label>Объект, локус или файл<input className="form-input" value={search} onChange={e => { setSearch(e.target.value); setPage(0); }} /></label><span>Групп: {groups.length} · случаев: {groups.reduce((total, group) => total + group.members.length, 0)}</span></div>
+    <p className="converter-hint">Одинаковые записи одного локуса объединены в группы. Решение применяется только к случаям группы в текущем фильтре.{status === 'hard' && ' Показаны только записи, требующие решения.'} Подтверждённые записи скрыты из рабочих списков и доступны в фильтре «Подтверждённые».</p>
+    <div className="converter-actions"><label>Статус<select className="form-input" value={status} onChange={e => { setStatus(e.target.value); setPage(0); }}><option value="hard">Требуют решения</option><option value="all">Все неподтверждённые</option><option value="confirmed">Подтверждённые ({confirmedCount})</option>{Object.entries(names).filter(([key]) => key !== 'OK').map(([key, label]) => <option key={key} value={key}>{key === 'AUTO_FIXED' ? 'Автоисправления' : label}</option>)}</select></label><label>Объект, локус или файл<input className="form-input" value={search} onChange={e => { setSearch(e.target.value); setPage(0); }} /></label><span>Групп: {groups.length} · случаев: {groups.reduce((total, group) => total + group.members.length, 0)}</span></div>
     {actionError && <p className="alert alert-danger" role="alert">{actionError}</p>}
     {groups.length > 0 && <div className="converter-scroll"><table className="converter-issue-table"><thead><tr>{columns.map(name => <th key={name}>{name}</th>)}</tr></thead><tbody>{groups.slice(current * 20, current * 20 + 20).map(group => <IssueGroup key={group.key} group={group} apply={apply} disabled={disabled} />)}</tbody></table></div>}
-    {!filtered.length && <div role="status"><p>{status === 'hard' && !search ? 'Ошибок и неоднозначностей, требующих решения, нет.' : 'Нет записей с выбранным фильтром.'}</p>{status === 'hard' && result.issues.length > 0 && <button className="btn btn-secondary" onClick={() => { setStatus('all'); setSearch(''); setPage(0); }}>Показать все замечания</button>}</div>}
+    {!filtered.length && <div role="status"><p>{status === 'confirmed' ? 'Подтверждённых замечаний с выбранным поиском нет.' : status === 'hard' && !search ? 'Ошибок и неоднозначностей, требующих решения, нет.' : 'Неподтверждённых записей с выбранным фильтром нет.'}</p><div className="converter-actions">{status !== 'all' && unconfirmedCount > 0 && <button className="btn btn-secondary" onClick={() => { setStatus('all'); setPage(0); }}>Показать все неподтверждённые</button>}{status !== 'confirmed' && confirmedCount > 0 && <button className="btn btn-secondary" onClick={() => { setStatus('confirmed'); setPage(0); }}>Показать подтверждённые ({confirmedCount})</button>}</div></div>}
     {groups.length > 20 && <div className="converter-actions"><button className="btn btn-secondary" disabled={!current} onClick={() => setPage(current - 1)}>Назад</button><span>Группы: страница {current + 1} из {Math.max(1, Math.ceil(groups.length / 20))}</span><button className="btn btn-secondary" disabled={(current + 1) * 20 >= groups.length} onClick={() => setPage(current + 1)}>Далее</button></div>}
   </section>;
 }

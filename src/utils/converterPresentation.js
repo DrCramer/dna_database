@@ -19,4 +19,16 @@ function converterFileSummary(result) {
   }
   return summary;
 }
-module.exports = { converterFileSummary };
+// Confirmation is a presentation state; validation warnings and genotypes remain intact.
+function converterIssueView(issues, status = 'hard', search = '') {
+  const filtered = [], query = search.toLowerCase();
+  let confirmedCount = 0, unconfirmedCount = 0;
+  for (const issue of issues) {
+    if (query && !`${issue.objectNumber || ''} ${issue.locus || ''} ${issue.sourceFile || ''}`.toLowerCase().includes(query)) continue;
+    const confirmed = Boolean(issue.userDecision) && issue.hard === false;
+    if (confirmed) confirmedCount++; else unconfirmedCount++;
+    if (status === 'confirmed' ? confirmed : !confirmed && (status === 'all' || (status === 'hard' ? issue.hard : issue.status === status))) filtered.push(issue);
+  }
+  return { filtered, confirmedCount, unconfirmedCount };
+}
+module.exports = { converterFileSummary, converterIssueView };
