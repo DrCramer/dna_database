@@ -324,6 +324,7 @@ process.on('SIGTERM', async () => {
         
         // Close database connections
         await app.locals.nightSearch?.stop();
+        await require('./services/converters/converterWorkerExecutor').converterWorker.close();
         const { closePool } = require('./config/database');
         await closePool();
         
@@ -346,6 +347,7 @@ process.on('SIGINT', async () => {
         
         // Close database connections
         await app.locals.nightSearch?.stop();
+        await require('./services/converters/converterWorkerExecutor').converterWorker.close();
         const { closePool } = require('./config/database');
         await closePool();
         

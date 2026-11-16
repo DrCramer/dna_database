@@ -54,49 +54,38 @@ function release() {
 
 // Shared budget for duplicate search and staff analysis: never multiply the CPU
 // limit by the number of concurrent users or analysis stages.
-async function executeWorkerRanges({ workerPath, count, createInput, signal: parentSignal, onProgress, priority='manual' }) {
+async function withSearchBudget({ signal: parentSignal, onProgress, priority='manual' }, operation) {
   const controller=new AbortController(),signal=controller.signal;
   const abortParent=()=>controller.abort(parentSignal.reason);
   parentSignal?.addEventListener('abort',abortParent,{once:true});
   if(parentSignal?.aborted)abortParent();
-  onProgress?.({ status: 'queued' });
-  let unlock,globalUnlock;
-  const workers = [];
-  const abort = () => workers.forEach(worker => worker.terminate());
-  signal?.addEventListener('abort', abort, { once: true });
+  onProgress?.({status:'queued'});let unlock,globalUnlock;
   try {
     unlock=await acquire(signal,priority,()=>controller.abort(require('./searchCpuCoordinator').yieldError()));
     globalUnlock=await coordinator?.acquire({signal,priority,onLost:e=>controller.abort(e)});
-    if (signal?.aborted) throw signal.reason;
+    if(signal.aborted)throw signal.reason;
     require('../infrastructure/memoryBudget').assertSearchMemory();
-    onProgress?.({ status: 'running' });
-    const ranges = await Promise.all(Array.from({ length: count }, (_, index) => new Promise((resolve, reject) => {
-      const worker = new Worker(workerPath, {
-        workerData: { ...createInput(index, count), reportProgress: !!onProgress },
-        env: { NODE_ENV: process.env.NODE_ENV || 'production', LOG_LEVEL: process.env.LOG_LEVEL || 'info' },
-        resourceLimits: { maxOldGenerationSizeMb: 256 }
-      });
-      workers.push(worker);
-      worker.on('message', message => {
-        if (message?.type === 'progress') onProgress?.({ ...message.progress, index, status: 'running' });
-        else {
-          onProgress?.({ index, completed: 1, total: 1, status: 'running' });
-          resolve(message);
-        }
-      });
-      worker.once('error', reject);
-      worker.once('exit', code => reject(signal?.aborted ? signal.reason : new Error(`Search worker exited before a result (${code})`)));
-    })));
-    if (signal?.aborted) throw signal.reason;
-    return ranges;
-  } catch(error) {
-    throw signal.aborted ? signal.reason : error;
-  } finally {
-    signal?.removeEventListener('abort', abort);
-    await Promise.allSettled(workers.map(worker => worker.terminate()));
-    parentSignal?.removeEventListener('abort',abortParent);
-    try {await globalUnlock?.();} finally {unlock?.();}
-  }
+    onProgress?.({status:'running'});
+    return await operation(signal);
+  }catch(error){throw signal.aborted?signal.reason:error;}
+  finally{parentSignal?.removeEventListener('abort',abortParent);try{await globalUnlock?.();}finally{unlock?.();}}
+}
+async function executeWorkerRanges({ workerPath, count, createInput, signal, onProgress, priority='manual' }) {
+  return withSearchBudget({signal,onProgress,priority},async activeSignal=>{
+    const workers=[],abort=()=>workers.forEach(worker=>worker.terminate());
+    activeSignal.addEventListener('abort',abort,{once:true});
+    try {
+      const ranges=await Promise.all(Array.from({length:count},(_,index)=>new Promise((resolve,reject)=>{
+        const worker=new Worker(workerPath,{workerData:{...createInput(index,count),reportProgress:!!onProgress},env:{NODE_ENV:process.env.NODE_ENV||'production',LOG_LEVEL:process.env.LOG_LEVEL||'info'},resourceLimits:{maxOldGenerationSizeMb:256}});
+        workers.push(worker);
+        worker.on('message',message=>{if(message?.type==='progress')onProgress?.({...message.progress,index,status:'running'});else{onProgress?.({index,completed:1,total:1,status:'running'});resolve(message);}});
+        worker.once('error',reject);
+        worker.once('exit',code=>reject(activeSignal.aborted?activeSignal.reason:new Error(`Search worker exited before a result (${code})`)));
+      })));
+      if(activeSignal.aborted)throw activeSignal.reason;
+      return ranges;
+    }finally{activeSignal.removeEventListener('abort',abort);await Promise.allSettled(workers.map(worker=>worker.terminate()));}
+  });
 }
 
 function partitionPlan(referenceCount, comparisonCount) {
@@ -182,4 +171,4 @@ function runProfileSearchForRequest(req, res, input) {
   return runSearchForRequest(req, res, signal => runProfileSearch(input, { signal, useWorkers: req.body.useWorkers !== false }));
 }
 
-module.exports = { runSearchForRequest, runProfileSearch, runProfileSearchForRequest, workerLimit, executeWorkerRanges, partitionPlan, rangeBounds, searchProfile, createRangeProgress, setSearchCoordinator };
+module.exports = { runSearchForRequest, runProfileSearch, runProfileSearchForRequest, workerLimit, executeWorkerRanges, withSearchBudget, partitionPlan, rangeBounds, searchProfile, createRangeProgress, setSearchCoordinator };

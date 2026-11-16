@@ -18,7 +18,7 @@ const hard = status => ['ERROR', 'NEEDS_REVIEW', 'CONFLICT'].includes(status);
 const sameAlleles = (a, b) => JSON.stringify([...a].sort()) === JSON.stringify([...b].sort());
 
 class GeneticExcelConverterService {
-  constructor() { this.detector = new LociTypeDetector(); this.sourceCache = new Map(); }
+  constructor() { this.detector = new LociTypeDetector(); this.sourceCache = new Map(); this.workbookCache = new Map(); this.normalizationCache = new Map(); }
 
   readSource(buffer, settings, filename) {
     if (/\.txt$/i.test(filename || '')) {
@@ -28,7 +28,14 @@ class GeneticExcelConverterService {
     const cacheKey = createHash('sha256').update(buffer).digest('hex') + JSON.stringify([settings.format, settings.sheetName, settings.detailSheetName, settings.resultHeaderRow, settings.detailHeaderRow]);
     for (const [key, entry] of this.sourceCache) if (Date.now() - entry.createdAt > 300000) this.sourceCache.delete(key);
     if (this.sourceCache.has(cacheKey)) return this.sourceCache.get(cacheKey).source;
-    const workbook = XLSX.read(Buffer.from(buffer), { type: 'buffer', cellDates: false, sheetRows: 20001 });
+    const workbookKey=createHash('sha256').update(buffer).digest('hex');
+    for(const [key,item] of this.workbookCache)if(Date.now()-item.createdAt>300000)this.workbookCache.delete(key);
+    let workbook=this.workbookCache.get(workbookKey)?.workbook;
+    if(!workbook){
+      workbook=XLSX.read(Buffer.from(buffer),{type:'buffer',cellDates:false,sheetRows:20001});
+      const size=Buffer.byteLength(JSON.stringify(workbook)),limit=64*1024*1024;
+      if(size<=limit){while(this.workbookCache.size>=16||[...this.workbookCache.values()].reduce((n,item)=>n+item.size,0)+size>limit)this.workbookCache.delete(this.workbookCache.keys().next().value);this.workbookCache.set(workbookKey,{workbook,size,createdAt:Date.now()});}
+    }
     const detection = sourceDetector.detectSourceFormat(workbook, settings);
     const ngs = detection.format === sourceDetector.NGS_FORMAT ? parseNgsAstrWorkbook(workbook, detection) : null;
     const source = { workbook, detection, ngs };
@@ -44,6 +51,14 @@ class GeneticExcelConverterService {
     return source;
   }
 
+  normalize(raw,locus,decision) {
+    if(decision||String(raw).length>500)return normalizeAlleleValue(raw,locus,decision);
+    const key=JSON.stringify([locus,raw]);
+    if(this.normalizationCache.has(key))return this.normalizationCache.get(key);
+    const value=normalizeAlleleValue(raw,locus);
+    if(this.normalizationCache.size>=4096)this.normalizationCache.delete(this.normalizationCache.keys().next().value);
+    this.normalizationCache.set(key,value);return value;
+  }
   convert(files, options = {}, panels = [], referenceService = null) {
     if (!Array.isArray(files) || !files.length || files.length > 100) throw new ConversionError('Выберите от 1 до 100 файлов Excel или GeneMapper TXT.');
     if (files.some(file => !Buffer.isBuffer(file?.buffer))) throw new ConversionError('Некорректные файлы.');
@@ -192,11 +207,11 @@ class GeneticExcelConverterService {
           const cellId = `${fileId}:${info.sheet}:${index + 1}:${column.index}`;
           const rawValue = String(row[column.index] ?? '');
           const actualCell = sheet[XLSX.utils.encode_cell({ r: index, c: column.index })];
-          const original = normalizeAlleleValue(rawValue, locus);
+          const original = this.normalize(rawValue, locus);
           const originalCode = actualCell?.f && actualCell.v == null ? 'FORMULA_WITHOUT_RESULT' : original.events.find(event => event.hard)?.code || original.events[0]?.code || 'OK';
           const rule = options.rules?.find?.(rule => rule?.fileId === fileId && rule.code === originalCode && rule.rawValue === rawValue && rule.locusType === this.detector.detectLocusType(locus));
           const decision = options.cells?.[cellId] || (!ngs ? rule?.decision : null);
-          const normalized = decision ? normalizeAlleleValue(rawValue, locus, decision) : original;
+          const normalized = decision ? this.normalize(rawValue, locus, decision) : original;
           const cell = { ...source, id: cellId, locus, column: column.index, rawValue, normalizedValue: normalized.normalizedValue, status: normalized.status, hard: normalized.hard, code: normalized.events.find(event => event.hard)?.code || normalized.events[0]?.code || 'OK', reason: normalized.events.map(event => event.reason).join(' '), events: normalized.events, alleles: normalized.alleles, userDecision: decision || null };
           if (geneRow?.records[column.index - 1]) Object.assign(cell, applyGeneMapperCell(geneRow.records[column.index - 1], locus, decision, settings));
           if (ngs) {
