@@ -27,6 +27,8 @@ test('Real converter API: workspace scope, no occurrence checks, sheet selection
   const fixed=await request({...groupedOptions,previewFormat:'compact-v2'});assert.equal(fixed.status,200);
   const decoded=require('../src/utils/converterPreviewTransport').unpackConverterPreview(fixed.body);
   assert.deepEqual(decoded.profiles[0].strData.TH01,['11','12']);assert.deepEqual(decoded.profiles[3].strData.TH01,['11.12']);
+  assert.equal(decoded.bulkDecisions['SYN-api-undo'].matched,3);assert.equal(decoded.bulkDecisions['SYN-api-undo'].accepted,3);
+  assert.equal(require('../src/utils/converterDecisionFeedback').converterDecisionFeedback(decoded,tracked.undo).needsReview,false);
   const undone=await request({...undoConverterBulkDecision(groupedOptions,tracked.undo),previewFormat:'compact-v2'});assert.equal(undone.status,200);
   assert.deepEqual(require('../src/utils/converterPreviewTransport').unpackConverterPreview(undone.body),full.body);
   assert.equal((await pool.query('SELECT count(*)::int n FROM dna_profiles WHERE organization_id=$1',[org])).rows[0].n,0);

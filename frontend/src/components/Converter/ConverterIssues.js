@@ -5,6 +5,7 @@ const names = { OK: 'Без изменений', AUTO_FIXED: 'Исправлен
 const columns = ['Источник / случаи', 'Объекты / локус', 'Исходное', 'Результат', 'Статус / причина', 'Решение'];
 function Decision({ issue, apply, disabled, count = 1 }) {
   const [value, setValue] = useState(issue.normalizedValue || '');
+  const alreadyApplied = !issue.hard && issue.userDecision?.action === 'manual' && issue.userDecision.value === value;
   const structural = !issue.locus && issue.code !== 'INVALID_OBJECT';
   if (issue.ngs) return <span>Откройте локус в NGS-предпросмотре источника: решение принимается с учётом Result и Detail.</span>;
   if (structural) return <span>Откройте вкладку «Образцы и распознавание»</span>;
@@ -18,11 +19,11 @@ function Decision({ issue, apply, disabled, count = 1 }) {
     {issue.events?.some(event => event.code === 'AMBIGUOUS_DOT') && <><button className="btn btn-secondary" disabled={disabled} onClick={() => action({ action: 'split_dot' })}>{label('Разделить точку')}</button><button className="btn btn-secondary" disabled={disabled} onClick={() => action({ action: 'keep' })}>{label('Оставить микроаллель')}</button></>}
     {issue.events?.some(event => event.code === 'SINGLE_DIPLOID') && <button className="btn btn-secondary" disabled={disabled} onClick={() => action({ action: 'homozygous' })}>{label('Подтвердить гомозиготу')}</button>}
     {!['REPEATED_RESULT','MANUAL_RESULT'].includes(issue.code) && <><button className="btn btn-secondary" disabled={disabled} onClick={() => action({ action: 'unknown' })}>{label('Неизвестная аллель')}</button><button className="btn btn-secondary" disabled={disabled} onClick={() => action({ action: 'missing' })}>{label('Нет результата')}</button></>}
-    <div className="converter-manual"><input className="form-input" aria-label={count > 1 ? `Ручное значение для группы ${issue.locus}` : `Ручное значение ${issue.objectNumber} ${issue.locus}`} disabled={disabled} value={value} maxLength={500} onChange={e => setValue(e.target.value)} /><button className="btn btn-secondary" disabled={disabled} onClick={() => action({ action: 'manual', value })}>{count > 1 ? `Применить ко всем (${count})` : 'Применить'}</button></div>
+    <div className="converter-manual"><input className="form-input" aria-label={count > 1 ? `Ручное значение для группы ${issue.locus}` : `Ручное значение ${issue.objectNumber} ${issue.locus}`} disabled={disabled} value={value} maxLength={500} onChange={e => setValue(e.target.value)} /><button className="btn btn-secondary" disabled={disabled || alreadyApplied} onClick={() => action({ action: 'manual', value })}>{alreadyApplied ? label('Применено') : count > 1 ? `Применить ко всем (${count})` : 'Применить'}</button></div>
   </div>;
 }
 function IssueCells({ issue }) {
-  return <><td className="converter-value">{issue.rawValue || '—'}</td><td className="converter-value">{issue.normalizedValue || '—'}</td><td><span className={`converter-status converter-status-${issue.status}`}>{names[issue.status]}</span><p>{issue.reason}</p><ReferenceEvidence reference={issue.reference} /></td></>;
+  return <><td className="converter-value">{issue.rawValue || '—'}</td><td className="converter-value">{issue.normalizedValue || '—'}</td><td><span className={`converter-status converter-status-${issue.status}`}>{names[issue.status]}</span>{issue.userDecision && <p className={`converter-status converter-status-${issue.hard ? 'NEEDS_REVIEW' : 'AUTO_FIXED'}`}>{issue.hard ? 'Решение требует исправления' : 'Решение применено'}</p>}<p>{issue.reason}</p><ReferenceEvidence reference={issue.reference} /></td></>;
 }
 function IssueGroup({ group, apply, disabled }) {
   const [expanded, setExpanded] = useState(false), [page, setPage] = useState(0);

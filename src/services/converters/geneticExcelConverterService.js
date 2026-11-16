@@ -229,6 +229,15 @@ class GeneticExcelConverterService {
           }
           if (actualCell?.f && actualCell.v == null) Object.assign(cell, { status: 'ERROR', hard: true, code: 'FORMULA_WITHOUT_RESULT', reason: 'Формула не содержит сохранённого результата. Пересчитайте исходный файл или задайте значение вручную.' });
           if (decision && actualCell?.f && actualCell.v == null && !normalized.hard) Object.assign(cell, { status: normalized.status, hard: false, code: 'USER_DECISION', reason: 'Пользователь явно задал результат вместо формулы.' });
+          if (decision && !ngs && !options.cells?.[cellId] && decision === rule?.decision && typeof rule.bulkOperation === 'string') {
+            const batches = result.bulkDecisions ||= Object.create(null);
+            const stats = batches[rule.bulkOperation] ||= { matched: 0, accepted: 0, needsReview: 0, warnings: 0, specialWarnings: 0, value: cell.normalizedValue, mixedValues: false };
+            stats.matched++;
+            if (cell.hard) stats.needsReview++; else stats.accepted++;
+            if (cell.normalizedValue !== stats.value) stats.mixedValues = true;
+            if (cell.status === 'WARNING') stats.warnings++;
+            if (cell.events.some(event => event.code === 'SPECIAL_ALLELE')) stats.specialWarnings++;
+          }
           if (cell.status === 'OK') { unchanged++; if (ngs || geneRow?.records[column.index - 1] || cell.reference?.hasData) object.audit.push(cell); }
           else { issue(cell); object.audit.push(cell); if (cell.events.some(event => event.status === 'AUTO_FIXED')) fixed++; }
           if (!object.variants.has(locus)) object.variants.set(locus, []);

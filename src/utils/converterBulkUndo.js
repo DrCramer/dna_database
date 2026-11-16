@@ -10,7 +10,7 @@ function prepareConverterBulkUndo(before, after, members, operationId) {
   return {
     options: { ...after, rules },
     undo: { operationId, ruleCount, removedCells, hadRules: Object.hasOwn(before, 'rules'), hadCells: Object.hasOwn(before, 'cells'),
-      count: new Set(members.map(issue => issue.id)).size, locus: members[0].locus }
+      count: new Set(members.map(issue => issue.id)).size, locus: members[0].locus, previousValue: members[0].normalizedValue }
   };
 }
 function undoConverterBulkDecision(options, undo) {
