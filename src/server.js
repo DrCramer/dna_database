@@ -110,6 +110,10 @@ app.use(morgan('combined', { stream: { write: message => logger.info(message.tri
 // app.use(auditApiOperation);
 app.use(setUserContext);
 
+const { maintenanceGate } = require('./services/infrastructure/databaseMaintenanceGate');
+app.use('/api', (req,res,next) => maintenanceGate.middleware(req,res,next));
+app.use('/health', (req,res,next) => req.method === 'GET' ? maintenanceGate.allow(next) : maintenanceGate.middleware(req,res,next));
+
 // Health check endpoints
 app.get('/health', async (req, res) => {
     try {
@@ -247,6 +251,7 @@ app.use('/api/analysis', analysisRoutes);
 app.use('/api/export', exportRoutes);
 app.use('/api/history', historyRoutes);
 app.use('/api/settings', settingsRoutes);
+app.use('/api/admin/database-maintenance', require('./routes/databaseMaintenance')());
 app.use('/api/notifications', notificationRoutes);
 app.use('/api/dashboard', dashboardRoutes);
 app.use('/api/audit', auditRoutes);

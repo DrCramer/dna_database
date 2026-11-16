@@ -21,6 +21,7 @@ const dbConfig = {
 
 // Create connection pool
 const pool = new Pool(dbConfig);
+require('../services/infrastructure/databaseMaintenanceGate').maintenanceGate.attach(pool);
 
 // Pool event handlers for monitoring and department isolation
 pool.on('connect', (client) => {

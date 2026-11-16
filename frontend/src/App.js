@@ -11,6 +11,7 @@ import LoginPage from './components/Auth/LoginPage';
 import AdminDashboard from './components/Dashboard/AdminDashboard';
 import MigrationExportPage from './components/Admin/MigrationExportPage';
 import MasterArrayExportPage from './components/Admin/MasterArrayExportPage';
+import DatabaseMaintenancePage from './components/Admin/DatabaseMaintenancePage';
 import FileUploader from './components/Upload/FileUploader';
 import GeneticExcelConverterPage from './components/Converter/GeneticExcelConverterPage';
 import { useNotifications } from './hooks/useNotifications';
@@ -1549,6 +1550,7 @@ function App() {
             />
             <Route path="/settings/night-search" element={<ProtectedRoute onNavigate={navigate}><PageTransition><NightSearchPage onNavigate={navigate}/></PageTransition></ProtectedRoute>}/>
             <Route path="/admin/migration-export" element={<ProtectedRoute onNavigate={navigate} fluid><MigrationExportPage /></ProtectedRoute>} />
+            <Route path="/admin/database-maintenance" element={<ProtectedRoute onNavigate={navigate}><PageTransition><DatabaseMaintenancePage /></PageTransition></ProtectedRoute>} />
             <Route path="/admin/master-array-export" element={<ProtectedRoute onNavigate={navigate}><PageTransition><MasterArrayExportPage /></PageTransition></ProtectedRoute>} />
             <Route
               path="/admin-dashboard"

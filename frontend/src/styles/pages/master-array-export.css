@@ -17,3 +17,12 @@
 .master-export-card li { overflow-wrap: anywhere; margin: 6px 0; }
 .master-export-card .btn { justify-self: start; }
 @media (max-width: 760px) { .master-export-fields { grid-template-columns: 1fr; } .master-export-summary { grid-template-columns: repeat(2, minmax(0, 1fr)); } .master-export-card { padding: 16px; } }
+
+.database-maintenance-page .maintenance-counts { overflow-x: auto; }
+.database-maintenance-page .maintenance-counts table { width: 100%; }
+.database-maintenance-page .maintenance-counts th, .database-maintenance-page .maintenance-counts td { padding: 8px 12px; text-align: left; }
+.database-maintenance-page .maintenance-counts th:last-child, .database-maintenance-page .maintenance-counts td:last-child { text-align: right; font-variant-numeric: tabular-nums; }
+.database-maintenance-page .maintenance-ack { display: flex; align-items: flex-start; gap: 10px; }
+.database-maintenance-page .maintenance-phrase { display: grid; gap: 8px; max-width: 460px; }
+.database-maintenance-page .maintenance-steps { display: flex; flex-wrap: wrap; gap: 12px 32px; padding-left: 24px; color: var(--text-secondary); }
+.database-maintenance-page .maintenance-steps [aria-current="step"] { color: var(--text-primary); font-weight: 700; }
