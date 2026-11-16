@@ -6,6 +6,7 @@ import { normalizedExcelFilename } from '../../../../src/utils/normalizedExcelLa
 import ConverterSources from './ConverterSources';
 import SourceYear from './SourceYear';
 import SourceObjectNumber from './SourceObjectNumber';
+import { FORMAT as PREVIEW_FORMAT, unpackConverterPreview } from '../../../../src/utils/converterPreviewTransport';
 import { converterFileSummary } from '../../../../src/utils/converterPresentation';
 import ConverterIssues from './ConverterIssues';
 import ConverterGrid from './ConverterGrid';
@@ -52,10 +53,10 @@ export default function GeneticExcelConverterPage({ onPreparedFile, initialFiles
     setBusy(true); setError('');
     if (operation === 'preview') { previewAttempt.current = settings; setPreviewStale(true); }
     try {
-      const body = new FormData(); files.forEach(file => body.append('files', file)); body.append('options', JSON.stringify(settings));
+      const body = new FormData(); files.forEach(file => body.append('files', file)); body.append('options', JSON.stringify(operation === 'preview' ? { ...settings, previewFormat: PREVIEW_FORMAT } : settings));
       const response = await fetch(`/api/genetic-excel-converter/${operation}`, { method: 'POST', body, signal: controller.signal, headers: { Authorization: `Bearer ${user?.accessToken || localStorage.getItem('token')}`, 'X-Active-Department-Id': activeDepartmentId } });
       if (!response.ok) { const data = await response.json().catch(() => ({})); throw new Error(data.message || `Сервер не смог обработать файл (HTTP ${response.status}). Повторите проверку.`); }
-      if (operation === 'preview') { const next = await response.json(); if (!controller.signal.aborted) { setOptions(settings); setResult(next); setPreviewStale(false); } return; }
+      if (operation === 'preview') { const next = unpackConverterPreview(await response.json()); if (!controller.signal.aborted) { setOptions(settings); setResult(next); setPreviewStale(false); } return; }
       const blob = await response.blob();
       if (!controller.signal.aborted) {
         let filename = normalizedExcelFilename(result?.profiles);

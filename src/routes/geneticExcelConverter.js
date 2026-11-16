@@ -13,6 +13,7 @@ const { resolveProfileImportFormat } = require('../utils/profileImportFormat');
 const JSZip = require('jszip');
 const { query } = require('../config/database');
 const converter = new GeneticExcelConverterService();
+const {FORMAT:PREVIEW_FORMAT,packConverterPreview}=require('../utils/converterPreviewTransport');
 // Busboy сообщает partsLimit при достижении порога: 100 файлов + options должны проходить целиком.
 const storage = {
   _handleFile(req, file, callback) {
@@ -47,7 +48,9 @@ router.use(async (req, res, next) => {
 function respond(req, res, error) {
   if (error instanceof PanelError || error instanceof ConversionError || error instanceof ReferenceError) return res.status(error.status).json({ code: error.code, message: error.message });
   if (error instanceof multer.MulterError) return res.status(400).json({ code: error.code, message: 'Превышены ограничения файлов или настроек конвертации.' });
-  logger.error('Ошибка конвертера Excel', { code: 'CONVERSION_FAILED', requestId: req.requestId });
+  // Do not log exception messages, input filenames, values, or request bodies.
+  const locations=String(error.stack||'').split('\n').slice(1).flatMap(line=>line.match(/(?:src|node_modules)\/[A-Za-z0-9_./-]+:\d+:\d+/g)||[]).slice(0,5);
+  logger.error('Ошибка конвертера Excel', { code: 'CONVERSION_FAILED', requestId: req.requestId, stage:req.converterStage||'scope',errorType:error.name, errorCode:/^[A-Z0-9_]{1,64}$/.test(error.code||'')?error.code:undefined,locations });
   res.status(500).json({ code: 'CONVERSION_FAILED', message: 'Не удалось обработать Excel-файлы.' });
 }
 for (const operation of ['preview', 'export']) router.post(`/${operation}`, (req, res) => {
@@ -62,13 +65,17 @@ for (const operation of ['preview', 'export']) router.post(`/${operation}`, (req
         file.originalname = require('../utils/uploadFilename').decodeUploadFilename(file.originalname);
       }
       if (req.converterFormat === 'emergency' && req.files.some(file => !/\.txt$/i.test(file.originalname))) throw new ConversionError('В отделении ЧС конвертер принимает GeneMapper TXT. Готовый Excel загружайте обычным способом.', 'FORMAT_NOT_AVAILABLE', 403);
+      req.converterStage='panels';
       const panels = req.converterFormat === 'genetic' ? await GenotypePanel.list(req.converterScope) : [];
+      req.converterStage='references';
       const references = req.converterFormat === 'genetic' ? await AlleleReferenceService.load(req.converterScope, options.reference, panels, ALL_LOCI) : null;
+      req.converterStage='conversion';
       const result = converter.convert(req.files, { ...options, importFormat: req.converterFormat }, panels, references);
       if (result.preparedFiles.length) {
         const legacy = legacyResult(result);
         result.legacyCanImport = legacy.canImport;
         result.legacyCanUpload = legacy.canImport && legacy.profiles.every(profile => profile.year != null);
+        req.converterStage='audit';
         await logGeneMapperConversion({ userId: req.user.id,
           departmentId: req.converterScope.departmentId, organizationId: req.converterScope.organizationId, ipAddress: req.ip, userAgent: req.get('User-Agent'),
           details: { operation, files: result.files.filter(file => file.geneMapper).map(file => ({ fileId: file.id, filename: file.name, year: file.year,
@@ -81,7 +88,8 @@ for (const operation of ['preview', 'export']) router.post(`/${operation}`, (req
       if (operation === 'preview') {
         // Готовые XLSX создаются сразу; исходные файлы и результаты не пишутся на диск.
         for (const file of result.preparedFiles) if (file.ready) file.base64 = converter.export(geneMapperExportResult(result, file.fileId), options.export).toString('base64');
-        return res.json(result);
+        req.converterStage='preview-response';
+        return res.json(options.previewFormat===PREVIEW_FORMAT?packConverterPreview(result):result);
       }
       if (options.export?.fileId) {
         let selected;
