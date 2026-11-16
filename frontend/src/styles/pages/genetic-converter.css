@@ -143,3 +143,10 @@
 :where(.converter-page) .converter-source-object small { max-width: 320px; color: var(--text-secondary); }
 :where(.converter-page) .converter-file-problem { max-width: 640px; }
 @media (max-width: 760px) { :where(.converter-page) .converter-file-controls { justify-content: flex-start; } }
+
+:where(.converter-page) .converter-group-count { display: block; margin-bottom: 6px; color: var(--text-primary); font-size: 16px; }
+:where(.converter-page) .converter-group-row > td:first-child { min-width: 160px; }
+:where(.converter-page) .converter-group-row .converter-text-button { display: block; margin-top: 8px; text-align: left; }
+:where(.converter-page) .converter-group-scope { color: var(--text-secondary); font-size: 13px; }
+:where(.converter-page) .converter-group-details > td { padding: 16px; background: var(--surface-muted); }
+:where(.converter-page) .converter-group-details h3 { margin: 0 0 12px; font-size: 15px; }

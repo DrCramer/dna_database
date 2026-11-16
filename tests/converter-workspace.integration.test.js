@@ -12,7 +12,7 @@ test('Real converter API: workspace scope, no occurrence checks, sheet selection
   const user=(await pool.query("INSERT INTO users(username,password_hash,role,organization_id) VALUES($1,'SYN-no-login','user_analyst',$2) RETURNING id",['SYN-'+randomUUID(),org])).rows[0];
   const actor=await User.findById(user.id),token=auth.generateToken(actor);await auth.createSession(actor.id,token,'127.0.0.1','SYN-converter');
   await require('../src/models/AlleleReferenceSet').AlleleReferenceSet.create({name:'SYN reference',type:'OBSERVED_REFERENCE',sourceTitle:'Synthetic only',sourceUrl:'https://example.invalid/test',sourceVersion:'1',confirmed:true,format:'json',content:JSON.stringify({values:[{locus:'TH01',allele:'7'},{locus:'TH01',allele:'9.3'}]})},{organizationId:org,departmentId:null},actor.id);
-  const b=X.utils.book_new();X.utils.book_append_sheet(b,X.utils.json_to_sheet(Array.from({length:300},(_,i)=>({'Sample Name':'SYN-'+i,TH01:'7,9.3',TPOX:'8,8',D21S11:'30,31'}))),'SYN data');X.utils.book_append_sheet(b,X.utils.aoa_to_sheet([['SYN notes']]),'SYN notes');const bytes=X.write(b,{type:'buffer',bookType:'xlsx'}),base='http://127.0.0.1:'+server.address().port;
+  const b=X.utils.book_new();X.utils.book_append_sheet(b,X.utils.json_to_sheet(Array.from({length:300},(_,i)=>({'Sample Name':'SYN-'+i,TH01:i<10?'11.12':'7,9.3',TPOX:'8,8',D21S11:'30,31'}))),'SYN data');X.utils.book_append_sheet(b,X.utils.aoa_to_sheet([['SYN notes']]),'SYN notes');const bytes=X.write(b,{type:'buffer',bookType:'xlsx'}),base='http://127.0.0.1:'+server.address().port;
   async function request(options={},headers={Authorization:'Bearer '+token}){const body=new FormData();body.append('files',new Blob([bytes]),'SYN.xlsx');body.append('options',JSON.stringify(options));const r=await fetch(base+'/converter/preview',{method:'POST',headers,body});return {status:r.status,body:await r.json()};}
   assert.equal((await request({},{})).status,401);
   const first=await request();assert.equal(first.status,200);assert.equal(first.body.profiles.length,0);
@@ -20,6 +20,11 @@ test('Real converter API: workspace scope, no occurrence checks, sheet selection
   const full=await request(options),compact=await request({...options,previewFormat:'compact-v1'});
   assert.equal(full.status,200);assert.equal(compact.status,200);assert.equal(full.body.profiles.length,300);assert.equal(compact.body.previewFormat,'compact-v1');
   assert.deepEqual(require('../src/utils/converterPreviewTransport').unpackConverterPreview(compact.body),full.body);
+  const selected=full.body.issues.filter(i=>i.hard&&i.locus==='TH01').slice(0,3);
+  const groupedOptions=require('../src/utils/converterIssueGroups').applyConverterIssueDecision(options,selected,{action:'split_dot'});
+  const fixed=await request({...groupedOptions,previewFormat:'compact-v2'});assert.equal(fixed.status,200);
+  const decoded=require('../src/utils/converterPreviewTransport').unpackConverterPreview(fixed.body);
+  assert.deepEqual(decoded.profiles[0].strData.TH01,['11','12']);assert.deepEqual(decoded.profiles[3].strData.TH01,['11.12']);
   assert.equal((await pool.query('SELECT count(*)::int n FROM dna_profiles WHERE organization_id=$1',[org])).rows[0].n,0);
   const service=require('../src/services/profiles/alleleReferenceService').AlleleReferenceService,load=service.load;
   try{

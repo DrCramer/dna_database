@@ -1,6 +1,7 @@
 const { createImportWorkbook } = require('../../utils/importWorkbook');
 const XLSX = require('xlsx');
 const { createHash } = require('node:crypto');
+const { createConverterRuleMatcher } = require('../../utils/converterRuleScope');
 const { LociTypeDetector } = require("../../utils/lociTypeDetector");
 const { normalizeObjectName, geneticObjectKey, geneticProfileKey } = require("../../utils/profileImportFormat");
 const { normalizeAlleleValue } = require("../../utils/alleleNormalizer");
@@ -66,6 +67,8 @@ class GeneticExcelConverterService {
     if (!options || typeof options !== 'object' || Array.isArray(options) || JSON.stringify(options).length > 2 * 1024 * 1024) throw new ConversionError('Некорректные или слишком большие настройки конвертации.');
     for (const key of ['files', 'cells', 'conflicts', 'objects', 'rows']) if (options[key] != null && (typeof options[key] !== 'object' || Array.isArray(options[key]))) throw new ConversionError('Некорректные настройки решений.');
     if (options.rules != null && (!Array.isArray(options.rules) || options.rules.length > 1000 || options.rules.some(rule => !rule || typeof rule !== 'object' || typeof rule.code !== 'string'))) throw new ConversionError('Некорректные массовые правила.');
+    let matchRule;
+    try { matchRule = createConverterRuleMatcher(options.rules || []); } catch { throw new ConversionError('Некорректные массовые правила.'); }
     if (options.objects && Object.values(options.objects).some(value => typeof value !== 'string')) throw new ConversionError('Номер объекта должен быть строкой.');
     const result = { version: 1, importFormat: options.importFormat || 'genetic', files: [], profiles: [], catalogLoci: this.detector.getAllSupportedLoci(), sourceLoci: [], detectedPanels: [], issues: [], conflicts: [], summary: {} };
     const objects = new Map();
@@ -209,10 +212,10 @@ class GeneticExcelConverterService {
           const actualCell = sheet[XLSX.utils.encode_cell({ r: index, c: column.index })];
           const original = this.normalize(rawValue, locus);
           const originalCode = actualCell?.f && actualCell.v == null ? 'FORMULA_WITHOUT_RESULT' : original.events.find(event => event.hard)?.code || original.events[0]?.code || 'OK';
-          const rule = options.rules?.find?.(rule => rule?.fileId === fileId && rule.code === originalCode && rule.rawValue === rawValue && rule.locusType === this.detector.detectLocusType(locus));
+          const rule = options.rules?.length ? matchRule({ fileId, code: originalCode, rawValue, locusType: this.detector.detectLocusType(locus), locus, sheetName: info.sheet, column: column.index, row: index + 1 }) : undefined;
           const decision = options.cells?.[cellId] || (!ngs ? rule?.decision : null);
           const normalized = decision ? this.normalize(rawValue, locus, decision) : original;
-          const cell = { ...source, id: cellId, locus, column: column.index, rawValue, normalizedValue: normalized.normalizedValue, status: normalized.status, hard: normalized.hard, code: normalized.events.find(event => event.hard)?.code || normalized.events[0]?.code || 'OK', reason: normalized.events.map(event => event.reason).join(' '), events: normalized.events, alleles: normalized.alleles, userDecision: decision || null };
+          const cell = { ...source, id: cellId, locus, column: column.index, ruleCode: originalCode, rawValue, normalizedValue: normalized.normalizedValue, status: normalized.status, hard: normalized.hard, code: normalized.events.find(event => event.hard)?.code || normalized.events[0]?.code || 'OK', reason: normalized.events.map(event => event.reason).join(' '), events: normalized.events, alleles: normalized.alleles, userDecision: decision || null };
           if (geneRow?.records[column.index - 1]) Object.assign(cell, applyGeneMapperCell(geneRow.records[column.index - 1], locus, decision, settings));
           if (ngs) {
             const record = ngs.records[column.index - 1];
