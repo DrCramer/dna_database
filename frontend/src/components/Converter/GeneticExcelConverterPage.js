@@ -11,6 +11,8 @@ import { converterFileSummary } from '../../../../src/utils/converterPresentatio
 import ConverterIssues from './ConverterIssues';
 import ConverterGrid from './ConverterGrid';
 import { updateConverterYear } from '../../../../src/utils/converterYearMetadata';
+import { applyConverterIssueDecision } from '../../../../src/utils/converterIssueGroups';
+import { prepareConverterBulkUndo, undoConverterBulkDecision } from '../../../../src/utils/converterBulkUndo';
 const counters = { files: 'Файлов', sheets: 'Листов', originalRows: 'Исходных строк', uniqueObjects: 'Объектов', sourceLoci: 'Локусов источника', unchanged: 'Без изменений', autoFixed: 'Исправлено автоматически', warnings: 'Предупреждений', unresolved: 'Нерешённых', conflicts: 'Конфликтов' };
 export default function GeneticExcelConverterPage({ onPreparedFile, initialFiles, embedded = false }) {
   const { activeDepartment, activeDepartmentId, user, workspaceMode, workspaceModeReady } = useAuth();
@@ -19,7 +21,8 @@ export default function GeneticExcelConverterPage({ onPreparedFile, initialFiles
   const [hideEmptyLoci, setHideEmptyLoci] = useState(true);
   const [draftYears, setDraftYears] = useState({}), [draftObjects, setDraftObjects] = useState({});
   const [previewStale, setPreviewStale] = useState(false);
-  const previewAttempt = useRef(null);
+  const previewAttempt = useRef(null), pendingBulkCommit = useRef(null), bulkSequence = useRef(0);
+  const [bulkUndo, setBulkUndo] = useState(null);
   const fileSummary = useMemo(() => converterFileSummary(result), [result]);
   const [reviewFile, setReviewFile] = useState(null);
   const [reviewTab, setReviewTab] = useState(null), [advanced, setAdvanced] = useState(false);
@@ -29,23 +32,23 @@ export default function GeneticExcelConverterPage({ onPreparedFile, initialFiles
   const request = useRef(null), requestOperation = useRef(null), input = useRef(null);
   const importFormat = (workspaceMode ? 'genetic' : resolveProfileImportFormat(activeDepartment));
   const allowed = ['genetic', 'emergency'].includes(importFormat);
-  useEffect(() => { request.current?.abort(); setFiles([]); setOptions({}); setResult(null); setError(''); setBusy(false); setPreviewStale(false); previewAttempt.current = null; if (input.current) input.current.value = ''; return () => request.current?.abort(); }, [workspaceMode ? user.organization_id : activeDepartmentId]);
+  useEffect(() => { request.current?.abort(); setFiles([]); setOptions({}); setResult(null); setError(''); setBusy(false); setPreviewStale(false); setBulkUndo(null); pendingBulkCommit.current = null; previewAttempt.current = null; if (input.current) input.current.value = ''; return () => request.current?.abort(); }, [user?.id, workspaceMode ? user?.organization_id : activeDepartmentId]);
   const select = incoming => {
     if (!incoming.length) return;
     if (incoming.length > 100 || incoming.some(file => !/\.(xlsx|xls|txt)$/i.test(file.name) || file.size > 10 * 1024 * 1024) || incoming.reduce((sum, file) => sum + file.size, 0) > 50 * 1024 * 1024) { setError('Выберите до 100 файлов .xlsx/.xls/.txt: до 10 МиБ каждый и 50 МиБ всего.'); return; }
-    request.current?.abort(); setBusy(false); setFiles(incoming); setOptions(previous => ({ txtEncoding: previous.txtEncoding })); setResult(null); setError(''); setReviewTab(null); setOutput(''); setDraftYears({}); setDraftObjects({}); setPreviewStale(false); previewAttempt.current = null;
+    request.current?.abort(); setBusy(false); setFiles(incoming); setOptions(previous => ({ txtEncoding: previous.txtEncoding })); setResult(null); setError(''); setReviewTab(null); setOutput(''); setDraftYears({}); setDraftObjects({}); setPreviewStale(false); setBulkUndo(null); pendingBulkCommit.current = null; previewAttempt.current = null;
   };
   useEffect(() => { if (workspaceModeReady && initialFiles?.length) select(initialFiles); }, [initialFiles, workspaceModeReady]);
   useEffect(() => { if (files.length) perform('preview', { ...options, export: { hideEmptyLoci } }); }, [files]);
   const perform = async (operation, settings = options) => {
     request.current?.abort(); const controller = new AbortController(); request.current = controller; requestOperation.current = operation;
     setBusy(true); setError('');
-    if (operation === 'preview') { previewAttempt.current = settings; setPreviewStale(true); }
+    if (operation === 'preview') { if (pendingBulkCommit.current?.settings !== settings) pendingBulkCommit.current = null; previewAttempt.current = settings; setPreviewStale(true); }
     try {
       const body = new FormData(); files.forEach(file => body.append('files', file)); body.append('options', JSON.stringify(operation === 'preview' ? { ...settings, previewFormat: PREVIEW_FORMAT, lazyFiles: true } : settings));
       const response = await fetch(`/api/genetic-excel-converter/${operation}`, { method: 'POST', body, signal: controller.signal, headers: { Authorization: `Bearer ${user?.accessToken || localStorage.getItem('token')}`, 'X-Active-Department-Id': activeDepartmentId } });
       if (!response.ok) { const data = await response.json().catch(() => ({})); throw new Error(data.message || `Сервер не смог обработать файл (HTTP ${response.status}). Повторите проверку.`); }
-      if (operation === 'preview') { const next = unpackConverterPreview(await response.json()); if (!controller.signal.aborted) { setOptions(settings); setResult(next); setPreviewStale(false); } return; }
+      if (operation === 'preview') { const next = unpackConverterPreview(await response.json()); if (!controller.signal.aborted) { setOptions(settings); setResult(next); setPreviewStale(false); if (pendingBulkCommit.current?.settings === settings) { setBulkUndo(pendingBulkCommit.current.undo); pendingBulkCommit.current = null; } } return; }
       const blob = await response.blob();
       if (!controller.signal.aborted) {
         let filename = normalizedExcelFilename(result?.profiles);
@@ -57,6 +60,21 @@ export default function GeneticExcelConverterPage({ onPreparedFile, initialFiles
     finally { if (request.current === controller) setBusy(false); }
   };
   const update = settings => perform('preview', { ...settings, export: { hideEmptyLoci } });
+  const applyIssueDecision = (members, decision) => {
+    const next = applyConverterIssueDecision(options, members, decision);
+    if (members.length < 2) { update(next); return; }
+    const prepared = prepareConverterBulkUndo(options, next, members, `bulk-${++bulkSequence.current}`);
+    const settings = { ...prepared.options, export: { hideEmptyLoci } };
+    pendingBulkCommit.current = { settings, undo: prepared.undo };
+    perform('preview', settings);
+  };
+  const undoBulkDecision = () => {
+    try {
+      const settings = { ...undoConverterBulkDecision(options, bulkUndo), export: { hideEmptyLoci } };
+      pendingBulkCommit.current = { settings, undo: null };
+      perform('preview', settings);
+    } catch (caught) { setError(caught.message); }
+  };
   const download = (blob, filename) => { const url = URL.createObjectURL(blob), anchor = document.createElement('a'); anchor.href = url; anchor.download = filename; anchor.click(); setTimeout(() => URL.revokeObjectURL(url), 1000); };
   const preparedFile = async (prepared, direct) => {
     const exported = await perform('export', { ...options, export: { hideEmptyLoci, fileId: prepared.fileId } });
@@ -141,9 +159,10 @@ export default function GeneticExcelConverterPage({ onPreparedFile, initialFiles
       </section>
       <section className="converter-review" ref={reviewArea} aria-label="Просмотр и проверка данных">
         <div className="converter-review-toolbar"><strong>Данные файлов</strong><button className="converter-text-button" onClick={() => setReviewTab(reviewTab ? null : 'genotypes')}>{reviewTab ? 'Свернуть просмотр' : 'Открыть просмотр'}</button></div>
+        {bulkUndo && <div className="converter-bulk-undo" role="status"><span>Последнее массовое решение: <strong>{bulkUndo.locus}</strong> · случаев: {bulkUndo.count}</span><button className="btn btn-secondary btn-sm" disabled={busy} onClick={undoBulkDecision}>Отменить последнее массовое решение</button></div>}
         {reviewTab && <><div className="converter-review-tabs" role="tablist" aria-label="Данные конвертера">{[['genotypes', 'Генотипы'], ['issues', `Замечания${unresolved ? ` (${unresolved})` : ''}`], ['sources', 'Образцы и распознавание']].map(([id, label]) => <button key={id} id={`converter-tab-${id}`} role="tab" aria-selected={reviewTab === id} aria-controls="converter-review-panel" tabIndex={reviewTab === id ? 0 : -1} onKeyDown={event => { const ids = ['genotypes', 'issues', 'sources']; const offset = event.key === 'ArrowRight' ? 1 : event.key === 'ArrowLeft' ? -1 : 0; if (offset) { event.preventDefault(); const next = ids[(ids.indexOf(id) + offset + ids.length) % ids.length]; setReviewTab(next); document.getElementById(`converter-tab-${next}`)?.focus(); } }} onClick={() => setReviewTab(id)}>{label}</button>)}</div><div id="converter-review-panel" role="tabpanel" aria-labelledby={`converter-tab-${reviewTab}`}>
           {reviewTab === 'genotypes' && <ConverterGrid result={result} options={options} update={update} disabled={busy} />}
-          {reviewTab === 'issues' && <ConverterIssues result={result} options={options} update={update} disabled={busy} />}
+          {reviewTab === 'issues' && <ConverterIssues result={result} onDecision={applyIssueDecision} disabled={busy} />}
           {reviewTab === 'sources' && <ConverterSources key={reviewFile || 'default'} initialFileId={reviewFile} result={result} options={options} update={update} disabled={busy} />}
         </div></>}
       </section>

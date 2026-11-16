@@ -1,5 +1,5 @@
 import React, { useId, useMemo, useState } from 'react';
-import { groupConverterIssues, applyConverterIssueDecision } from '../../../../src/utils/converterIssueGroups';
+import { groupConverterIssues } from '../../../../src/utils/converterIssueGroups';
 import ReferenceEvidence from './ReferenceEvidence';
 const names = { OK: 'Без изменений', AUTO_FIXED: 'Исправлено', WARNING: 'Предупреждение', NEEDS_REVIEW: 'Проверить', CONFLICT: 'Конфликт', ERROR: 'Ошибка' };
 const columns = ['Источник / случаи', 'Объекты / локус', 'Исходное', 'Результат', 'Статус / причина', 'Решение'];
@@ -45,7 +45,7 @@ function IssueGroup({ group, apply, disabled }) {
     </td></tr>}
   </>;
 }
-export default function ConverterIssues({ result, options, update, disabled }) {
+export default function ConverterIssues({ result, onDecision, disabled }) {
   const [status, setStatus] = useState('hard'), [search, setSearch] = useState(''), [page, setPage] = useState(0), [actionError, setActionError] = useState('');
   const filtered = useMemo(() => {
     const query = search.toLowerCase();
@@ -54,7 +54,7 @@ export default function ConverterIssues({ result, options, update, disabled }) {
   const groups = useMemo(() => groupConverterIssues(filtered), [filtered]);
   const current = Math.min(page, Math.max(0, Math.ceil(groups.length / 20) - 1));
   const apply = (members, decision) => {
-    try { const next = applyConverterIssueDecision(options, members, decision); setActionError(''); update(next); }
+    try { setActionError(''); onDecision(members, decision); }
     catch (error) { setActionError(error.message); }
   };
   return <section className="converter-card"><h2>Проверка и исправления</h2>

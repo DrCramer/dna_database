@@ -150,3 +150,5 @@
 :where(.converter-page) .converter-group-scope { color: var(--text-secondary); font-size: 13px; }
 :where(.converter-page) .converter-group-details > td { padding: 16px; background: var(--surface-muted); }
 :where(.converter-page) .converter-group-details h3 { margin: 0 0 12px; font-size: 15px; }
+
+:where(.converter-page) .converter-bulk-undo { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 12px; padding: 12px 16px; margin: 8px 0 12px; border: 1px solid var(--border-default); border-radius: var(--radius-sm); background: var(--surface-muted); color: var(--text-secondary); font-size: 14px; }
