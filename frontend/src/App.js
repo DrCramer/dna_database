@@ -1231,6 +1231,11 @@ function App() {
   // Глобальный state для активной задачи (для передачи между компонентами)
   const [selectedActiveTask, setSelectedActiveTask] = useState(null);
   const [preparedImport, setPreparedImport] = useState(null);
+  useEffect(() => {
+    const clear = () => setPreparedImport(null);
+    window.addEventListener('auth:session-cleared', clear);
+    return () => window.removeEventListener('auth:session-cleared', clear);
+  }, []);
   const handleSelectActiveTask = React.useCallback((task) => {
     const savedUser = JSON.parse(localStorage.getItem('user') || 'null');
     const departmentId = task?.department_id || savedUser?.active_department_id || savedUser?.department_id;

@@ -1,3 +1,4 @@
+import { preparedImportMatches } from '../../../../src/utils/preparedImportScope';
 import { canTransferStaffName, transferStaffName } from '../../../../src/utils/staffImportMapping';
 import MasterApprovalDialog from './MasterApprovalDialog';
 import WorkspaceStaffSettings from './WorkspaceStaffSettings';
@@ -67,6 +68,8 @@ export default function WorkspacePage({
     } = useAuth(),
     isImport = mode === 'import',
     storageKey = `workspace-draft:${user.organization_id}:${user.id}`;
+  const importController = useRef(null), restoringDraft = useRef(null), workspaceScope = useRef(storageKey);
+  workspaceScope.current = storageKey;
   const canUpload = WORKSPACE_WRITE_ROLES.includes(user.role) && (user.can_upload_with_task !== false || user.can_upload_without_task === true);
   const canEdit = WORKSPACE_WRITE_ROLES.includes(user.role) && (!isImport || canUpload);
   const loadKey = `${mode}:${user.organization_id}:${user.id}`;
@@ -188,6 +191,8 @@ export default function WorkspacePage({
   useEffect(() => {
     let alive = true;
     const controller = new AbortController();
+    importController.current?.abort(); importController.current = null; retryFiles.current = [];
+    setDraft(null);
     setLoadState({ key: loadKey, status: 'loading' });
     setRows([]); setWorkspace(null); setSelected(new Set());
     setError('');
@@ -198,9 +203,10 @@ export default function WorkspacePage({
     setValidation(null);
     setResult(null);
     if (isImport) {
+      restoringDraft.current = controller;
       const id = localStorage.getItem(storageKey);
-      if (id) api('/import-drafts/' + id).then(d => {
-        if (alive) {
+      if (id) api('/import-drafts/' + id, undefined, 'GET', false, controller.signal).then(d => {
+        if (alive && !controller.signal.aborted) {
           setDraft(d);
           setRows(d.rows);
           initial.current = d.rows;
@@ -209,7 +215,7 @@ export default function WorkspacePage({
           localStorage.setItem(storageKey + ':commitKey', commitKey.current);
         }
       }).catch(e => {
-        if (alive) setError(e.message);
+        if (alive && !controller.signal.aborted) setError(e.message);
       });else {
         setDraft(null);
         setRows([]);
@@ -228,14 +234,14 @@ export default function WorkspacePage({
         setLoadState(current => current.status === 'ready' ? current : { key: loadKey, status: 'error' });
       }
     });
-    return () => { alive = false; controller.abort(); };
+    return () => { alive = false; controller.abort(); importController.current?.abort(); };
   }, [mode, user.id, user.organization_id, loadAttempt]);
   useEffect(() => {
-    if (isImport && preparedFile?.file && lastPrepared.current !== preparedFile.file) {
+    if (isImport && canUpload && preparedImportMatches(preparedFile, user) && lastPrepared.current !== preparedFile.file) {
       lastPrepared.current = preparedFile.file;
       upload([preparedFile.file]);
     }
-  }, [preparedFile, isImport]);
+  }, [preparedFile, isImport, canUpload, user.id, user.organization_id]);
   const id = row => row.draftRowId || row.id,
     visible = useMemo(() => {
       const filtered = rows.filter(row => viewFilter === 'all' || viewFilter === 'selected' && (isImport ? row.included : selected.has(row.id)) || viewFilter === 'empty' && !Object.values(row.strData || {}).some(value => value.length) || viewFilter === 'issues' && ((row.sourceIssues || []).length || objectMetadataIssues(row).length || validation?.errors.some(item => item.draftRowId === row.draftRowId && item.issues.length)) || viewFilter === 'ready' && (row.searchState || row.state) === 'CHECKED' || viewFilter === 'stale' && ['STALE', 'NOT_CHECKED', 'INSUFFICIENT_DATA'].includes(row.state)).filter(row => `${row.objectNumber} ${row.year ?? ''} ${types[row.expertiseType] || ''} ${row.fullName || ''} ${row.comment || ''}`.toLowerCase().includes(query.toLowerCase()));
@@ -296,12 +302,16 @@ export default function WorkspacePage({
     if (!files.length) return;
     retryFiles.current = files;
     if (draft && !window.confirm('Заменить текущий черновик новыми файлами?')) return;
+    restoringDraft.current?.abort(); importController.current?.abort();
+    const controller = new AbortController(), requestScope = storageKey;
+    importController.current = controller;
     setBusy(true);
     setError('');
     try {
       const form = new FormData();
       files.forEach(file => form.append('files', file));
-      const d = await api('/import-drafts', form);
+      const d = await api('/import-drafts', form, 'POST', false, controller.signal);
+      if (controller.signal.aborted || importController.current !== controller || workspaceScope.current !== requestScope) return;
       setDraft(d);
       setRows(d.rows);
       initial.current = d.rows;
@@ -314,9 +324,9 @@ export default function WorkspacePage({
       retryFiles.current = [];
       setNotice('');
     } catch (e) {
-      setError(e.message);
+      if (!controller.signal.aborted && importController.current === controller && workspaceScope.current === requestScope) setError(e.message);
     } finally {
-      setBusy(false);
+      if (importController.current === controller && workspaceScope.current === requestScope) { importController.current = null; setBusy(false); }
     }
   }
   const affected = rows.filter(row => bulkScope === 'all' || bulkScope === 'empty' || (isImport ? row.included : selected.has(row.id)));
