@@ -5,7 +5,7 @@ const plan = require('./genotypeCleanupPlan');
 const { createCleanupBackup, checksum } = require('./cleanupBackup');
 
 const OPERATION = 'DATABASE_GENOTYPES_CLEAR';
-const CONFIRMATION = 'ОЧИСТИТЬ ГЕНОТИПЫ';
+const CONFIRMATION = 'ОЧИСТИТЬ ДАННЫЕ';
 const LOCK = [1145980225, 20261117];
 const terminal = state => ['completed', 'failed', 'interrupted', 'unknown'].includes(state);
 const fail = (message, status = 409) => Object.assign(new Error(message), { status });
@@ -27,7 +27,8 @@ class GenotypeCleanupService {
     return fresh;
   }
 
-  async preview(user) {
+  async preview(user, input) {
+    const selected = plan.categories(input);
     await this.authorize(user);
     if (this.current && !terminal(this.current.state)) throw fail('Дождитесь завершения текущей очистки.');
     const client = await this.pool.connect();
@@ -35,24 +36,26 @@ class GenotypeCleanupService {
       await client.query('BEGIN ISOLATION LEVEL REPEATABLE READ READ ONLY');
       const list = await plan.tables(client);
       await plan.validateDependencies(client, list);
-      const result = await plan.snapshot(client, list);
+      const result = await plan.inspect(client, list, selected);
       await client.query('COMMIT');
       const token = randomUUID(), expiresAt = Date.now() + 5 * 60 * 1000;
       for (const [key, entry] of this.previews) if (entry.expiresAt < Date.now()) this.previews.delete(key);
       while (this.previews.size >= 8) this.previews.delete(this.previews.keys().next().value);
       this.previews.set(token, { userId: user.id, ...result, list, expiresAt });
-      return { token, expiresAt, rows: result.rows, confirmation: CONFIRMATION, scope: 'Вся установка: все пользователи и отделения' };
+      return { token, expiresAt, rows: result.rows, categories: selected, categoryLabels: selected.map(key => plan.CATEGORIES[key]), resetsSearch: true, confirmation: CONFIRMATION, scope: 'Вся установка: все пользователи и отделения' };
     } catch (error) { await client.query('ROLLBACK').catch(() => {}); throw error; }
     finally { client.release(); }
   }
 
-  async start(user, { token, confirmation, acknowledged }, context = {}) {
+  async start(user, { token, confirmation, acknowledged, categories }, context = {}) {
+    const selected = plan.categories(categories);
     await this.authorize(user);
     const entry = this.previews.get(token);
     if (confirmation !== CONFIRMATION || acknowledged !== true) throw fail('Подтвердите состав очистки и введите контрольную фразу.', 400);
     if (!entry || entry.userId !== user.id || entry.expiresAt < Date.now()) throw fail('Предварительный просмотр устарел. Обновите его.');
+    if (JSON.stringify(selected) !== JSON.stringify(entry.selected)) throw fail('Состав очистки изменился. Обновите предварительный просмотр.');
     if (this.current && !terminal(this.current.state)) throw fail('Очистка уже выполняется.');
-    const job = { id: randomUUID(), state: 'preparing', startedAt: new Date().toISOString(), rows: entry.rows, backup: null };
+    const job = { id: randomUUID(), state: 'preparing', startedAt: new Date().toISOString(), categories: entry.selected, categoryLabels: entry.selected.map(key => plan.CATEGORIES[key]), rows: entry.rows, backup: null };
     this.current = job; this.previews.delete(token);
     try {
       await this.pool.query(`INSERT INTO operation_history(id,user_id,operation_type,operation_details,success,ip_address,user_agent)
@@ -94,7 +97,7 @@ class GenotypeCleanupService {
       // Reads, including pg_dump, remain possible; all data writers are blocked.
       await client.query(`LOCK TABLE ${list.map(plan.quote).join(',')} IN SHARE ROW EXCLUSIVE MODE`);
       await plan.validateDependencies(client, list);
-      const current = await plan.snapshot(client, list);
+      const current = await plan.inspect(client, list, entry.selected);
       if (current.fingerprint !== entry.fingerprint) throw fail('Данные изменились после предварительного просмотра. Обновите его; очистка не выполнена.');
       job.rows = current.rows;
       const exported = (await client.query('SELECT pg_export_snapshot() snapshot')).rows[0].snapshot;
@@ -105,10 +108,7 @@ class GenotypeCleanupService {
       job.state = 'backing_up'; await this.persist(job);
       job.backup = await this.backup({ connectionString: this.connectionString, snapshot: exported, id: job.id, directory: this.directory });
       job.state = 'clearing'; await this.persist(job);
-      // Deliberately no CASCADE: a newly introduced dependency fails closed.
-      await client.query(`TRUNCATE TABLE ${list.map(plan.quote).join(',')}`);
-      await client.query('UPDATE personal_workspaces SET analysis_revision=analysis_revision+1');
-      await client.query('UPDATE workspace_reference_versions SET master_revision=master_revision+1,staff_revision=staff_revision+1');
+      await plan.execute(client, current);
       const completed = { ...job, state: 'completed', finishedAt: new Date().toISOString() };
       await this.persist(completed, client);
       commitAttempted = true;

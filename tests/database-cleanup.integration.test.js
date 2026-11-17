@@ -8,6 +8,7 @@ const { Pool } = require('pg');
 const { MaintenanceGate } = require('../src/services/infrastructure/databaseMaintenanceGate');
 const { GenotypeCleanupService, CONFIRMATION } = require('../src/services/infrastructure/genotypeCleanupService');
 
+const ALL = ['personal', 'master', 'staff', 'results'];
 const url = process.env.CLEANUP_TEST_DATABASE_URL;
 test('Genotype cleanup: isolated PostgreSQL, atomicity, authorization, backup and stale previews', { skip: !url }, async t => {
   assert.match(new URL(url).pathname, /^\/dna_cleanup_test(?:_|$)/, 'Cleanup tests MUST use an isolated database');
@@ -42,26 +43,26 @@ test('Genotype cleanup: isolated PostgreSQL, atomicity, authorization, backup an
   const profile = await add();
   const service = new GenotypeCleanupService({ pool, gate, connectionString: url, directory });
   const execute = async (target = service, preview) => {
-    preview ||= await target.preview(admin);
-    const result = await target.start(admin, { token: preview.token, confirmation: CONFIRMATION, acknowledged: true });
+    preview ||= await target.preview(admin, ALL);
+    const result = await target.start(admin, { categories: ALL, token: preview.token, confirmation: CONFIRMATION, acknowledged: true });
     await target.running; return target.status(admin, result.id);
   };
   await t.test('analysts cannot preview or execute; admins cannot cross organizations', async () => {
-    await assert.rejects(service.preview(analyst), { status: 403 });
+    await assert.rejects(service.preview(analyst, ALL), { status: 403 });
     const foreign = (await pool.query("INSERT INTO organizations(name) VALUES('SYN foreign cleanup') RETURNING id")).rows[0].id;
-    await assert.rejects(service.preview(admin), { status: 403 });
-    assert.ok((await service.preview(system)).token);
+    await assert.rejects(service.preview(admin, ALL), { status: 403 });
+    assert.ok((await service.preview(system, ALL)).token);
     await pool.query('DELETE FROM organizations WHERE id=$1', [foreign]);
   });
   await t.test('preview only, confirmation and nonce owner checks', async () => {
-    const preview = await service.preview(admin);
+    const preview = await service.preview(admin, ALL);
     assert.equal(preview.rows.find(row => row.table === 'dna_profiles').count, 1);
-    await assert.rejects(service.start(admin, { token: preview.token, confirmation: 'wrong', acknowledged: true }), { status: 400 });
-    await assert.rejects(service.start(system, { token: preview.token, confirmation: CONFIRMATION, acknowledged: true }), { status: 409 });
+    await assert.rejects(service.start(admin, { categories: ALL, token: preview.token, confirmation: 'wrong', acknowledged: true }), { status: 400 });
+    await assert.rejects(service.start(system, { categories: ALL, token: preview.token, confirmation: CONFIRMATION, acknowledged: true }), { status: 409 });
     assert.equal((await pool.query('SELECT count(*) n FROM dna_profiles')).rows[0].n, '1');
   });
   await t.test('same row count but changed genotype invalidates preview before backup', async () => {
-    const preview = await service.preview(admin);
+    const preview = await service.preview(admin, ALL);
     await pool.query('UPDATE dna_profiles SET str_data=$2 WHERE id=$1', [profile, { TH01: ['9', '10'] }]);
     const job = await execute(service, preview);
     assert.equal(job.state, 'failed'); assert.match(job.message, /Данные изменились/); assert.equal(job.backup, null); assert.equal(gate.closed, false);
@@ -79,10 +80,13 @@ test('Genotype cleanup: isolated PostgreSQL, atomicity, authorization, backup an
   });
   await t.test('unexpected FK dependency stops cleanup without cascading into protected data', async () => {
     await pool.query('CREATE TABLE synthetic_preserved_link(profile_id uuid REFERENCES dna_profiles(id))');
-    await assert.rejects(service.preview(admin), { status: 409 });
+    await assert.rejects(service.preview(admin, ALL), { status: 409 });
     await pool.query('DROP TABLE synthetic_preserved_link');
+    await pool.query('ALTER TABLE staff_profiles ADD COLUMN synthetic_master_id uuid REFERENCES master_array_profiles(id) ON DELETE CASCADE');
+    try { await assert.rejects(service.preview(admin, ['master']), { status: 409 }); }
+    finally { await pool.query('ALTER TABLE staff_profiles DROP COLUMN synthetic_master_id'); }
   });
-  await t.test('a failure after TRUNCATE rolls back profiles and leaves a downloadable backup', async () => {
+  await t.test('a failure after deletion rolls back profiles and leaves a downloadable backup', async () => {
     await pool.query("CREATE FUNCTION synthetic_cleanup_failure() RETURNS trigger LANGUAGE plpgsql AS $$ BEGIN RAISE EXCEPTION 'synthetic post-truncate failure'; END $$");
     await pool.query('CREATE TRIGGER synthetic_cleanup_failure BEFORE UPDATE ON personal_workspaces FOR EACH ROW EXECUTE FUNCTION synthetic_cleanup_failure()');
     try {
@@ -108,6 +112,7 @@ test('Genotype cleanup: isolated PostgreSQL, atomicity, authorization, backup an
     assert.equal((await pool.query('SELECT count(*) n FROM users')).rows[0].n, '3');
     assert.equal((await pool.query('SELECT count(*) n FROM tasks')).rows[0].n, '1');
     assert.equal((await pool.query('SELECT count(*) n FROM master_arrays')).rows[0].n, '1');
+    assert.equal((await pool.query('SELECT count(*) n FROM probability_calculations')).rows[0].n, '1');
     assert.deepEqual((await pool.query('SELECT settings FROM user_settings WHERE user_id=$1', [analyst.id])).rows[0].settings, { theme: 'dark' });
     assert.equal((await pool.query('SELECT start_time FROM workspace_night_policies WHERE organization_id=$1', [org])).rows[0].start_time, '23:30');
     const after = (await pool.query('SELECT analysis_revision,analysis_parameters FROM personal_workspaces WHERE id=$1', [workspace])).rows[0];
@@ -140,13 +145,15 @@ test('Genotype cleanup: isolated PostgreSQL, atomicity, authorization, backup an
     const base = `http://127.0.0.1:${server.address().port}/api/admin/database-maintenance`;
     try {
       assert.equal((await fetch(base + '/preview')).status, 401);
-      assert.equal((await fetch(base + '/preview', { headers: { Authorization: 'Bearer ' + tokens.analyst } })).status, 403);
+      assert.equal((await fetch(base + '/preview?categories=personal,master,staff,results', { headers: { Authorization: 'Bearer ' + tokens.analyst } })).status, 403);
       const headers = { Authorization: 'Bearer ' + tokens.admin, 'Content-Type': 'application/json' };
-      const preview = await fetch(base + '/preview', { headers });
+      const preview = await fetch(base + '/preview?categories=personal,master,staff,results', { headers });
       assert.equal(preview.status, 200); assert.match(preview.headers.get('Cache-Control'), /no-store/);
       const data = await preview.json(); assert.ok(data.token);
+      assert.equal((await fetch(base + '/preview', { headers })).status, 400);
+      assert.equal((await fetch(base + '/preview?categories=invalid', { headers })).status, 400);
       assert.equal((await fetch(base + '/execute', { headers, method: 'POST', body: '{}' })).status, 400);
-      assert.equal((await fetch(base + '/execute', { headers, method: 'POST', body: JSON.stringify({ token: data.token, confirmation: 'wrong', acknowledged: true }) })).status, 400);
+      assert.equal((await fetch(base + '/execute', { headers, method: 'POST', body: JSON.stringify({ categories: ALL, token: data.token, confirmation: 'wrong', acknowledged: true }) })).status, 400);
       assert.equal((await fetch(base + '/not-a-uuid/backup', { headers })).status, 400);
       assert.equal((await pool.query('SELECT count(*) n FROM dna_profiles')).rows[0].n, '1');
     } finally {

@@ -32,13 +32,14 @@ module.exports = function databaseMaintenance() {
   router.use(authenticate, authorize(['admin', 'system_administrator']));
   const previewLimit = rateLimit({ windowMs: 60000, limit: 6, standardHeaders: 'draft-7', legacyHeaders: false, message: { message: 'Слишком много запросов. Повторите через минуту.' } });
   const startLimit = rateLimit({ windowMs: 600000, limit: 3, standardHeaders: 'draft-7', legacyHeaders: false, message: { message: 'Повторите запуск очистки позже.' } });
-  const body = Joi.object({ token: Joi.string().guid().required(), confirmation: Joi.string().max(100).required(), acknowledged: Joi.boolean().valid(true).required() }).options({ convert: false, allowUnknown: false });
+  const categorySchema = Joi.array().items(Joi.string().valid('personal', 'master', 'staff', 'results')).min(1).max(4).unique().required();
+  const body = Joi.object({ categories: categorySchema, token: Joi.string().guid().required(), confirmation: Joi.string().max(100).required(), acknowledged: Joi.boolean().valid(true).required() }).options({ convert: false, allowUnknown: false });
   const uuid = Joi.string().guid();
   const handle = action => async (req, res) => {
     try { await action(req, res); }
     catch (error) { res.status(error.status || 500).json({ message: error.status ? error.message : 'Не удалось выполнить операцию обслуживания.' }); }
   };
-  router.get('/preview', previewLimit, handle(async (req, res) => res.json(await service.preview(req.user))));
+  router.get('/preview', previewLimit, handle(async (req, res) => res.json(await service.preview(req.user, typeof req.query.categories === 'string' ? req.query.categories.split(',') : null))));
   router.get('/status', handle(async (req, res) => res.json({ job: await service.status(req.user) })));
   router.post('/execute', startLimit, handle(async (req, res) => {
     const valid = body.validate(req.body);
