@@ -804,7 +804,7 @@ class ExcelService {
       }
 
       // Validate and extract profiles with enhanced 40 STR/SNP support
-      const profiles = this.extractProfiles(jsonData, filename, { ...options, converted: (isGenetic && !!workbook.Sheets[CONVERSION_META_SHEET]) || ['GENEMAPPER_TXT', 'MASTER_ARRAY_EXPORT'].includes(workbook.Custprops?.DNAProfileSourceFormat) });
+      const profiles = this.extractProfiles(jsonData, filename, { ...options, converted: (isGenetic && !!workbook.Sheets[CONVERSION_META_SHEET]) || ['GENEMAPPER_TXT', 'MASTER_ARRAY_EXPORT'].includes(workbook.Custprops?.DNAProfileSourceFormat), preserveExportAlleles: workbook.Custprops?.DNAProfileSourceFormat === 'MASTER_ARRAY_EXPORT' });
       if (isGenetic) {
         const columns = validateGeneticHeaders(jsonData[0]).columns.map(column => column.locus);
         const metadata = readConversionMetadata(workbook, profiles, columns);
@@ -1526,7 +1526,7 @@ class ExcelService {
       }
 
       // Парсим значения аллелей
-      const alleles = this.parseAlleleValue(cellValue, locusName, locusType, rowNumber, filename, { preserveAlleleCount: options.converted });
+      const alleles = this.parseAlleleValue(cellValue, locusName, locusType, rowNumber, filename, { preserveAlleleCount: options.converted, preserveExportAlleles: options.preserveExportAlleles });
       lociData[locusName] = alleles;
     }
 
@@ -1620,7 +1620,7 @@ class ExcelService {
     const priorityMarkers = {};
     for (const { index, locus } of validationResult.columns) {
       const type = this.lociTypeDetector.detectLocusType(locus);
-      strData[locus] = this.parseAlleleValue(row[index], locus, type, rowNumber, filename, { genetic: true, preserveAlleleCount: options.converted });
+      strData[locus] = this.parseAlleleValue(row[index], locus, type, rowNumber, filename, { genetic: true, preserveAlleleCount: options.converted, preserveExportAlleles: options.preserveExportAlleles });
       lociTypes[locus] = type;
       if (EXTENDED_40_STR_SNP_MARKERS.includes(locus)) priorityMarkers[locus] = true;
     }
@@ -1663,6 +1663,15 @@ class ExcelService {
     let valueStr = cellValue.toString().replace(/\s+/g, '').trim();
 
     if (isMissingAllele(valueStr)) return [];
+    if (options.preserveExportAlleles) {
+      // Импорт собственной выгрузки сохраняет запись и кратность исходных токенов,
+      // в том числе ** и составные AMEL. Правила допустимости локуса не обходятся.
+      const alleles = valueStr.split(/[,;/]/);
+      const validation = this.lociTypeDetector.validateAlleles(locusName, alleles);
+      if (!validation.isValid) throw new ExcelParsingError(`Недопустимые значения аллелей для ${locusName}.`, EXCEL_ERROR_CODES.INVALID_ALLELE_VALUE, {filename,rowNumber,locusName});
+      return alleles;
+    }
+
     if (this.lociTypeDetector.getCanonicalLocusName(locusName) === 'SRY') {
       const alleles = valueStr.split(/[,;/]/).map(token => normalizeSrySignal(locusName, token) || normalizeSpecialAllele(token) || token);
       const validation = this.lociTypeDetector.validateAlleles(locusName, alleles);

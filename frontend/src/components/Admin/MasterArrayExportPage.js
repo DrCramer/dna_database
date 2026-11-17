@@ -77,6 +77,12 @@ export default function MasterArrayExportPage() {
   const organizations = [...new Map(arrays.map(array => [array.organization_id, array.organization_name])).entries()];
   const departments = [...new Map(arrays.filter(array => array.organization_id === selected?.organization_id).map(array => [array.department_id, array.department_name])).entries()];
   const canDownload = preview?.exportable > 0 && (preview.needsReview === 0 || validOnly && confirmed);
+  const downloadHint = preview?.exportable === 0
+    ? 'Нет профилей, готовых к обратному импорту. Проверьте причины ниже; если не хватает колонок локусов, включите общий каталог и повторите проверку.'
+    : preview?.needsReview > 0 && !validOnly
+      ? 'Для выгрузки доступной части отметьте «Выгрузить только пригодные». Проблемные записи останутся в мастер-массиве.'
+      : preview?.needsReview > 0 && !confirmed
+        ? 'Подтвердите исключение проблемных записей — после этого кнопка выгрузки станет доступна.' : '';
   return <div className="master-export-page">
     <header className="page-header"><div><h1 className="page-title">Экспорт мастер-массива</h1><p>Активные профили в формате штатной загрузки. Данные мастер-массива не изменяются.</p></div></header>
     {error && <div className="alert alert-danger" role="alert">{error}</div>}
@@ -97,6 +103,7 @@ export default function MasterArrayExportPage() {
       </section>
       {preview && <section className="card master-export-card" aria-live="polite"><h2>Предпросмотр</h2>
         <dl className="master-export-summary"><div><dt>Выбрано</dt><dd>{preview.totalMatched}</dd></div><div><dt>Готовы к импорту</dt><dd>{preview.exportable}</dd></div><div><dt>Требуют проверки</dt><dd>{preview.needsReview}</dd></div><div><dt>Локусов</dt><dd>{preview.lociCount}</dd></div></dl>
+        {preview.totalMatched > 0 && downloadHint && <p className="alert alert-info" role="status">{downloadHint}</p>}
         {!preview.totalMatched ? <p>По выбранным фильтрам нет активных профилей.</p> : <>
           <details><summary>Пример объектов (до 10)</summary><ul>{preview.examples.map(example => <li key={example.id}>{example.objectNumber || 'Без номера'} · {example.year ?? 'Без года'} · {example.ready ? 'Готов' : 'Требует проверки'}</li>)}</ul></details>
           {preview.needsReview > 0 && <div className="master-export-problems"><p>Полная выгрузка заблокирована: проблемных записей — {preview.needsReview}. Их данные не исправляются автоматически.</p>

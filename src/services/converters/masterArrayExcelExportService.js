@@ -62,7 +62,7 @@ function prepareMasterExport(rows, importFormat, options = {}) {
       const tokens = alleles.map(String);
       try {
         const exported = exportAlleles(tokens, locus);
-        const parsed = excel.parseAlleleValue(exported.join(','), locus, detector.detectLocusType(locus), 0, 'master-export.xlsx', { genetic: importFormat === 'genetic', preserveAlleleCount: true });
+        const parsed = excel.parseAlleleValue(exported.join(','), locus, detector.detectLocusType(locus), 0, 'master-export.xlsx', { genetic: importFormat === 'genetic', preserveAlleleCount: true, preserveExportAlleles: true });
         if (JSON.stringify(parsed) !== JSON.stringify(exported)) add('ALLELE_ROUND_TRIP', `Штатный импорт изменит аллели ${locus}; требуется проверка.`);
       } catch { add('ALLELE_VALIDATION', `Аллели ${locus} не проходят штатную проверку импорта.`); }
       profile.strData[locus] = tokens;
