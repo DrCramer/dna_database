@@ -39,8 +39,8 @@ test('Selective cleanup: all 15 category combinations, published copies, approva
     const list = await plan.tables(pool);
     await pool.query(`TRUNCATE TABLE ${list.map(plan.quote).join(',')}`);
     await pool.query('UPDATE workspace_configuration SET enabled=false WHERE id=true');
-    const source = async (name, type = 'ug', legacy = null) => (await pool.query(`INSERT INTO dna_profiles(user_id,organization_id,workspace_id,sample_name,internal_number,year,expertise_type,profile_type,str_data)
-      VALUES($1,$2,$3,$4,$4,2026,$5,$6,$7) RETURNING *`, [analyst.id, org, legacy ? null : workspace, name, legacy ? null : type, legacy || 'user', { TH01: ['8', '9'], DYS391: ['10'] }])).rows[0];
+    const source = async (name, type = 'ug', legacy = null, year = 2026) => (await pool.query(`INSERT INTO dna_profiles(user_id,organization_id,workspace_id,sample_name,internal_number,year,expertise_type,profile_type,str_data)
+      VALUES($1,$2,$3,$4,$4,$8,$5,$6,$7) RETURNING *`, [analyst.id, org, legacy ? null : workspace, name, legacy ? null : type, legacy || 'user', { TH01: ['8', '9'], DYS391: ['10'] },year])).rows[0];
     const masterSource = await source('SYN master source'), staffSource = await source('SYN staff source', 'staff'), pendingSource = await source('SYN pending');
     await source('SYN legacy master', 'ug', 'master'); await source('SYN legacy staff', 'staff', 'staff');
     async function run(profile) {
@@ -80,6 +80,7 @@ test('Selective cleanup: all 15 category combinations, published copies, approva
     await pool.query("INSERT INTO workspace_import_drafts(workspace_id,owner_id,organization_id,source_checksums,encrypted_payload,expires_at) VALUES($1,$2,$3,'[]','SYN draft',now()+interval '1 day')", [workspace, analyst.id, org]);
     await pool.query("INSERT INTO workspace_search_jobs(organization_id,owner_id,workspace_id,window_key,origin,policy_revision,parameters) VALUES($1,$2,$3,'SYN','scheduled',1,'{}')", [org, analyst.id, workspace]);
     await pool.query('UPDATE workspace_configuration SET enabled=true WHERE id=true');
+    return {source,run,masterSource,staffSource,pendingSource,masterRun,staffRun,pendingRun};
   }
   const keys = Object.keys(plan.CATEGORIES);
   for (let mask = 1; mask < 16; mask++) await t.test(keys.filter((_, i) => mask & (1 << i)).join('+'), async () => {
@@ -187,6 +188,56 @@ test('Selective cleanup: all 15 category combinations, published copies, approva
     assert.equal((await pool.query('SELECT id FROM match_results')).rows[0].id,retainedMatch);
     assert.equal((await pool.query('SELECT enabled FROM workspace_configuration WHERE id=true')).rows[0].enabled,true);
     assert.equal(gate.closed,false);
+  });
+
+  await t.test('one employee and year: preserve other years, undated profiles and independent results; reset mixed batches', async () => {
+    const fixture=await seed(), old=await fixture.source('SYN 2025 profile','ug',null,2025), oldStaff=await fixture.source('SYN 2025 staff','staff',null,2025), future=await fixture.source('SYN 2027','ug',null,2027);
+    const c=await pool.connect();
+    try {await c.query('BEGIN');await c.query('UPDATE workspace_configuration SET enabled=false WHERE id=true');
+      await c.query("INSERT INTO dna_profiles(user_id,organization_id,sample_name,internal_number,str_data,import_format,department_id) VALUES($1,$2,'SYN undated','SYN undated','{}','genetic',$3)",[analyst.id,org,department]);
+      await c.query('UPDATE workspace_configuration SET enabled=true WHERE id=true');await c.query('COMMIT');
+    }catch(error){await c.query('ROLLBACK');throw error;}finally{c.release();}
+    const other=await createUser('user_analyst'), otherWorkspace=(await pool.query("INSERT INTO personal_workspaces(organization_id,owner_id) VALUES($1,$2) RETURNING id",[org,other.id])).rows[0].id;
+    const otherProfiles=[];for(const number of [1,2])otherProfiles.push((await pool.query("INSERT INTO dna_profiles(user_id,organization_id,workspace_id,sample_name,internal_number,year,expertise_type,str_data) VALUES($1,$2,$3,$4,$4,2026,'ug','{}') RETURNING id",[other.id,org,otherWorkspace,'SYN other-year-owner '+number])).rows[0].id);
+    const oldStaffRun=await fixture.run(oldStaff), oldPublication=randomUUID(), oldPublishedId=randomUUID();
+    await pool.query("INSERT INTO workspace_publications(id,workspace_profile_id,analysis_revision,organization_id,search_run_id,destination,published_id,created_by) VALUES($1,$2,$3,$4,$5,'staff',$6,$7)",[oldPublication,oldStaff.id,oldStaff.analysis_revision,org,oldStaffRun,oldPublishedId,analyst.id]);
+    const sc=await pool.connect();try{await sc.query('BEGIN');await sc.query("SELECT set_config('app.workspace_publication_id',$1,true)",[oldPublication]);
+      await sc.query("INSERT INTO staff_profiles(id,staff_id,full_name,organization_id,source_workspace_profile_id,year,registration_number,str_data,created_by) VALUES($1,'SYN old staff','SYN employee 2025',$2,$3,2025,$4,$5,$6)",[oldPublishedId,org,oldStaff.id,oldStaff.internal_number,oldStaff.str_data,analyst.id]);await sc.query('COMMIT');
+    }catch(error){await sc.query('ROLLBACK');throw error;}finally{sc.release();}
+    const oldRun=await fixture.run(old), mixedRun=await fixture.run(future);
+    for(const profile of [fixture.pendingSource,old])await pool.query("INSERT INTO workspace_search_profiles(search_run_id,profile_id,analysis_revision,analysis_hash,state,stages) VALUES($1,$2,$3,'SYN','CHECKED','{}')",[mixedRun,profile.id,profile.analysis_revision]);
+    async function approval(run,profile){const id=(await pool.query("INSERT INTO workspace_master_approvals(organization_id,workspace_id,author_id,search_run_id,submission_key,submission_hash) VALUES($1,$2,$3,$4,$5,'SYN year') RETURNING id",[org,workspace,analyst.id,run,randomUUID()])).rows[0].id;
+      await pool.query("INSERT INTO workspace_master_approval_items(approval_id,search_run_id,profile_id,analysis_revision,analysis_hash,target_id,replace_existing) VALUES($1,$2,$3,$4,'SYN',$5,false)",[id,run,profile.id,profile.analysis_revision,randomUUID()]);
+      await pool.query('INSERT INTO workspace_master_approval_pending(profile_id,approval_id) VALUES($1,$2)',[profile.id,id]);return id;}
+    const oldApproval=await approval(oldRun,old), mixedApproval=await approval(mixedRun,future);
+    const oldJob=(await pool.query("INSERT INTO workspace_search_jobs(organization_id,owner_id,workspace_id,window_key,origin,policy_revision,parameters,state,search_run_id,result_run_id) VALUES($1,$2,$3,'SYN-year2025','scheduled',1,'{}','complete',$4,$4) RETURNING id",[org,analyst.id,workspace,oldRun])).rows[0].id;
+    await pool.query("INSERT INTO workspace_search_jobs(organization_id,owner_id,workspace_id,window_key,origin,policy_revision,parameters,state,search_run_id) VALUES($1,$2,$3,'SYN-year2026','scheduled',1,'{}','complete',$4)",[org,analyst.id,workspace,fixture.masterRun]);
+    const match=async(a,b)=>(await pool.query("INSERT INTO match_results(profile_id_1,profile_id_2,overall_match_percentage,locus_matches,analyzed_by) VALUES($1,$2,100,'{}',$3) RETURNING id",[a,b,analyst.id])).rows[0].id;
+    const keptMatch=await match(old.id,oldStaff.id), keptForeign=await match(...otherProfiles);
+    await match(fixture.masterSource.id,fixture.staffSource.id);await match(fixture.masterSource.id,old.id);
+    const task=(await pool.query("INSERT INTO tasks(created_by,title,target_sample,data_source,department_id,assigned_to_user) VALUES($1,'SYN year','{}','new_array',$2,$3) RETURNING id",[admin.id,department,analyst.id])).rows[0].id;
+    const taskResult=(await pool.query("INSERT INTO task_results(user_id,task_id,result_data) VALUES($1,$2,'{}') RETURNING id",[analyst.id,task])).rows[0].id;
+    await pool.query("INSERT INTO duplicate_group_comments(group_identifier,comment,created_by) VALUES('SYN no year','SYN',$1)",[analyst.id]);
+    const choices=await service.years(admin,analyst.id);assert.deepEqual(choices.years.map(row=>row.year),[2027,2026,2025]);assert.equal(choices.undatedCount,1);
+    const scope={mode:'user',userId:analyst.id,year:2026}, preview=await service.preview(admin,['personal'],scope);
+    assert.equal(preview.rows.find(row=>row.table==='dna_profiles').count,3);assert.equal(preview.rows.find(row=>row.table==='match_results').count,2);assert.match(preview.scope,/2026/);
+    assert.ok(preview.rows.every(row=>!['workspace_import_drafts','task_results','duplicate_group_comments'].includes(row.table)));
+    for(const nextScope of [{mode:'user',userId:analyst.id,year:2025},{mode:'user',userId:analyst.id}])await assert.rejects(service.start(admin,{token:preview.token,categories:['personal'],personalScope:nextScope,confirmation:CONFIRMATION,acknowledged:true}),{status:409});
+    await fixture.source('SYN another 2025','ug',null,2025);
+    const retained=async()=>({profiles:(await pool.query(`SELECT to_jsonb(p) data FROM dna_profiles p WHERE NOT (user_id=$1 AND year=2026 AND COALESCE(profile_type,'user')='user') OR year IS NULL ORDER BY id`,[analyst.id])).rows,
+      runs:(await pool.query('SELECT to_jsonb(r) data FROM workspace_search_runs r WHERE id=$1',[oldRun])).rows,approvals:(await pool.query('SELECT to_jsonb(a) data FROM workspace_master_approvals a WHERE id=$1',[oldApproval])).rows,
+      jobs:(await pool.query('SELECT to_jsonb(j) data FROM workspace_search_jobs j WHERE id=$1',[oldJob])).rows,drafts:(await pool.query('SELECT * FROM workspace_import_drafts')).rows,taskResults:(await pool.query('SELECT * FROM task_results WHERE id=$1',[taskResult])).rows,comments:(await pool.query("SELECT * FROM duplicate_group_comments WHERE group_identifier='SYN no year'")).rows});
+    const before=await retained(), refs=(await pool.query('SELECT * FROM workspace_reference_versions')).rows, master=await snapshot('master_array_profiles'), staff=await snapshot('staff_profiles');
+    await service.start(admin,{token:preview.token,categories:['personal'],personalScope:scope,confirmation:CONFIRMATION,acknowledged:true});await service.running;const job=await service.status(admin);assert.equal(job.state,'completed',job.message);assert.equal(job.personalScope.year,2026);
+    assert.deepEqual(await retained(),before);assert.deepEqual((await pool.query('SELECT * FROM workspace_reference_versions')).rows,refs);assert.deepEqual(await snapshot('master_array_profiles'),master);assert.deepEqual(await snapshot('staff_profiles'),staff);
+    assert.equal((await pool.query('SELECT source_workspace_profile_id FROM staff_profiles WHERE id=$1',[oldPublishedId])).rows[0].source_workspace_profile_id,oldStaff.id);
+    assert.equal((await pool.query('SELECT count(*) n FROM workspace_master_approvals WHERE id=$1',[mixedApproval])).rows[0].n,'0');
+    assert.equal((await pool.query('SELECT count(*) n FROM workspace_search_runs WHERE id=$1',[mixedRun])).rows[0].n,'0');
+    assert.deepEqual((await pool.query('SELECT id FROM match_results ORDER BY id')).rows.map(row=>row.id),[keptMatch,keptForeign].sort());
+    assert.equal((await pool.query("SELECT count(*) n FROM dna_profiles WHERE user_id=$1 AND year=2026 AND COALESCE(profile_type,'user')='user'",[analyst.id])).rows[0].n,'0');
+    assert.deepEqual((await service.years(admin,analyst.id)).years.map(row=>row.year),[2027,2025]);
+    const emptyScope={mode:'user',userId:analyst.id,year:2024},empty=await service.preview(admin,['personal'],emptyScope);assert.ok(empty.rows.every(row=>row.count===0));
+    await assert.rejects(service.start(admin,{token:empty.token,categories:['personal'],personalScope:emptyScope,confirmation:CONFIRMATION,acknowledged:true}),{status:409});assert.equal(gate.closed,false);
   });
 
 });

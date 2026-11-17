@@ -155,13 +155,19 @@ test('Genotype cleanup: isolated PostgreSQL, atomicity, authorization, backup an
       assert.ok(people.every(person => !('password_hash' in person) && !('email' in person)));
       const scopedResponse = await fetch(base + '/preview?categories=personal&personalMode=user&personalUserId='+analyst.id, {headers});
       assert.equal(scopedResponse.status,200); const scopedPreview = await scopedResponse.json(); assert.equal(scopedPreview.targetUser.id,analyst.id);
+      const available=await fetch(base+'/users/'+analyst.id+'/years',{headers});assert.equal(available.status,200);
+      assert.deepEqual((await available.json()).years.map(row=>row.year),[2026]);
+      assert.equal((await fetch(base+'/users/not-a-uuid/years',{headers})).status,400);
+      const yearResponse=await fetch(base+'/preview?categories=personal&personalMode=user&personalUserId='+analyst.id+'&year=2026',{headers});
+      assert.equal(yearResponse.status,200);const yearPreview=await yearResponse.json();assert.equal(yearPreview.personalScope.year,2026);
+
       assert.equal((await fetch(base + '/preview?categories=personal&personalMode=user', {headers})).status,400);
 
       assert.equal((await fetch(base + '/preview', { headers })).status, 400);
-      assert.equal((await fetch(base + '/preview?categories=invalid', { headers })).status, 400);
+      assert.equal((await fetch(base + '/preview?categories=personal&personalMode=user&personalUserId='+analyst.id+'&year=2026x', { headers })).status, 400);
       assert.equal((await fetch(base + '/execute', { headers, method: 'POST', body: '{}' })).status, 400);
       assert.equal((await fetch(base + '/execute', { headers, method: 'POST', body: JSON.stringify({ categories: ALL, token: data.token, confirmation: 'wrong', acknowledged: true }) })).status, 400);
-      assert.equal((await fetch(base + '/execute', {headers,method:'POST',body:JSON.stringify({token:scopedPreview.token,categories:['personal'],personalScope:{mode:'user',userId:admin.id},confirmation:CONFIRMATION,acknowledged:true})})).status,409);
+      assert.equal((await fetch(base + '/execute', {headers,method:'POST',body:JSON.stringify({token:yearPreview.token,categories:['personal'],personalScope:{mode:'user',userId:analyst.id,year:2025},confirmation:CONFIRMATION,acknowledged:true})})).status,409);
       assert.equal((await fetch(base + '/not-a-uuid/backup', { headers })).status, 400);
       assert.equal((await pool.query('SELECT count(*) n FROM dna_profiles')).rows[0].n, '1');
     } finally {

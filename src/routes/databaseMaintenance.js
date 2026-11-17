@@ -33,15 +33,19 @@ module.exports = function databaseMaintenance() {
   const previewLimit = rateLimit({ windowMs: 60000, limit: 6, standardHeaders: 'draft-7', legacyHeaders: false, message: { message: 'Слишком много запросов. Повторите через минуту.' } });
   const startLimit = rateLimit({ windowMs: 600000, limit: 3, standardHeaders: 'draft-7', legacyHeaders: false, message: { message: 'Повторите запуск очистки позже.' } });
   const categorySchema = Joi.array().items(Joi.string().valid('personal', 'master', 'staff', 'results')).min(1).max(4).unique().required();
-  const personalScopeSchema = Joi.object({ mode: Joi.string().valid('all','user').required(), userId: Joi.when('mode', { is: 'user', then: Joi.string().guid().required(), otherwise: Joi.forbidden() }) });
+  const personalScopeSchema = Joi.object({ mode: Joi.string().valid('all','user').required(), year: Joi.when('mode', {is:'user',then:Joi.number().integer().min(1900).max(2100),otherwise:Joi.forbidden()}), userId: Joi.when('mode', { is: 'user', then: Joi.string().guid().required(), otherwise: Joi.forbidden() }) });
   const body = Joi.object({ personalScope: personalScopeSchema.allow(null), categories: categorySchema, token: Joi.string().guid().required(), confirmation: Joi.string().max(100).required(), acknowledged: Joi.boolean().valid(true).required() }).options({ convert: false, allowUnknown: false });
   const uuid = Joi.string().guid();
   const handle = action => async (req, res) => {
     try { await action(req, res); }
     catch (error) { res.status(error.status || 500).json({ message: error.status ? error.message : 'Не удалось выполнить операцию обслуживания.' }); }
   };
+  router.get('/users/:id/years', handle(async (req, res) => {
+    if (uuid.validate(req.params.id).error) return res.status(400).json({message:'Неверный идентификатор пользователя.'});
+    res.json(await service.years(req.user,req.params.id));
+  }));
   router.get('/users', handle(async (req, res) => res.json({ users: await service.users(req.user) })));
-  router.get('/preview', previewLimit, handle(async (req, res) => res.json(await service.preview(req.user, typeof req.query.categories === 'string' ? req.query.categories.split(',') : null, req.query.personalMode !== undefined || req.query.personalUserId !== undefined ? { mode: req.query.personalMode, ...(req.query.personalUserId !== undefined ? { userId: req.query.personalUserId } : {}) } : null))));
+  router.get('/preview', previewLimit, handle(async (req, res) => res.json(await service.preview(req.user, typeof req.query.categories === 'string' ? req.query.categories.split(',') : null, req.query.personalMode !== undefined || req.query.personalUserId !== undefined || req.query.year !== undefined ? { mode: req.query.personalMode, ...(req.query.personalUserId !== undefined ? { userId: req.query.personalUserId } : {}), ...(req.query.year !== undefined ? {year: typeof req.query.year === 'string' && /^\d{4}$/.test(req.query.year) ? Number(req.query.year) : NaN} : {}) } : null))));
   router.get('/status', handle(async (req, res) => res.json({ job: await service.status(req.user) })));
   router.post('/execute', startLimit, handle(async (req, res) => {
     const valid = body.validate(req.body);

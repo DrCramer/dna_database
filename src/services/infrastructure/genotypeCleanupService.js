@@ -44,6 +44,16 @@ class GenotypeCleanupService {
     return target;
   }
 
+  async years(user, userId) {
+    const actor = await this.authorize(user);
+    const scope = plan.personalScope({mode:'user',userId}, ['personal']);
+    const target = await this.target(actor, scope);
+    const rows = (await this.pool.query(`SELECT year,count(*)::int count FROM dna_profiles
+      WHERE user_id=$1 AND (organization_id=$2 OR organization_id IS NULL) AND COALESCE(profile_type,'user')='user'
+      GROUP BY year ORDER BY year DESC NULLS LAST`, [target.id,target.organization_id])).rows;
+    return {years:rows.filter(row => Number.isInteger(row.year) && row.year >= 1900 && row.year <= 2100),undatedCount:rows.find(row => row.year === null)?.count || 0};
+  }
+
   async preview(user, input, inputScope) {
     const selected = plan.categories(input), personalScope = plan.personalScope(inputScope, selected);
     const actor = await this.authorize(user);
@@ -54,13 +64,13 @@ class GenotypeCleanupService {
       const list = await plan.tables(client);
       await plan.validateDependencies(client, list);
       const targetUser = await this.target(actor, personalScope, client);
-      const result = await plan.inspect(client, list, selected, targetUser);
+      const result = await plan.inspect(client, list, selected, targetUser, personalScope?.year ?? null);
       await client.query('COMMIT');
       const token = randomUUID(), expiresAt = Date.now() + 5 * 60 * 1000;
       for (const [key, entry] of this.previews) if (entry.expiresAt < Date.now()) this.previews.delete(key);
       while (this.previews.size >= 8) this.previews.delete(this.previews.keys().next().value);
       this.previews.set(token, { userId: user.id, ...result, list, expiresAt, personalScope, targetUser });
-      return { token, expiresAt, rows: result.rows, categories: selected, categoryLabels: selected.map(key => plan.CATEGORIES[key]), resetsSearch: true, personalScope, targetUser, confirmation: CONFIRMATION, scope: targetUser ? `Пользователь: ${targetUser.display_name || targetUser.username} (${targetUser.username}), ${targetUser.organization_name}` : 'Вся установка: все пользователи и отделения' };
+      return { token, expiresAt, rows: result.rows, categories: selected, categoryLabels: selected.map(key => plan.CATEGORIES[key]), resetsSearch: true, personalScope, targetUser, confirmation: CONFIRMATION, scope: targetUser ? `Пользователь: ${targetUser.display_name || targetUser.username} (${targetUser.username}), ${targetUser.organization_name}; ${personalScope?.year != null ? 'год: '+personalScope.year : 'все годы'}` : 'Вся установка: все пользователи и отделения' };
     } catch (error) { await client.query('ROLLBACK').catch(() => {}); throw error; }
     finally { client.release(); }
   }
@@ -75,6 +85,7 @@ class GenotypeCleanupService {
     const targetUser = await this.target(actor, personalScope);
     if (targetUser?.organization_id !== entry.targetUser?.organization_id) throw fail('Организация пользователя изменилась. Обновите предварительный просмотр.');
     if (JSON.stringify(selected) !== JSON.stringify(entry.selected)) throw fail('Состав очистки изменился. Обновите предварительный просмотр.');
+    if (personalScope?.year != null && !entry.rows.some(row => row.table === 'dna_profiles' && row.action === 'delete' && row.count > 0)) throw fail('За выбранный год нет личных генотипов для очистки.');
     if (this.current && !terminal(this.current.state)) throw fail('Очистка уже выполняется.');
     const job = { id: randomUUID(), state: 'preparing', startedAt: new Date().toISOString(), personalScope, targetUser, categories: entry.selected, categoryLabels: entry.selected.map(key => plan.CATEGORIES[key]), rows: entry.rows, backup: null };
     this.current = job; this.previews.delete(token);
@@ -120,7 +131,7 @@ class GenotypeCleanupService {
       // Reads, including pg_dump, remain possible; all data writers are blocked.
       await client.query(`LOCK TABLE ${list.map(plan.quote).join(',')} IN SHARE ROW EXCLUSIVE MODE`);
       await plan.validateDependencies(client, list);
-      const current = await plan.inspect(client, list, entry.selected, targetUser);
+      const current = await plan.inspect(client, list, entry.selected, targetUser, entry.personalScope?.year ?? null);
       if (current.fingerprint !== entry.fingerprint) throw fail('Данные изменились после предварительного просмотра. Обновите его; очистка не выполнена.');
       job.rows = current.rows;
       const exported = (await client.query('SELECT pg_export_snapshot() snapshot')).rows[0].snapshot;

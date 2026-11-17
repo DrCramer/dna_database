@@ -46,3 +46,19 @@ test('User scope is explicit, validated and cannot include shared arrays', () =>
   assert.deepEqual(plan.parameters('SELECT $1', ['a','b']), ['a']);
   assert.deepEqual(plan.parameters('SELECT 1', ['a','b']), []);
 });
+
+
+test('Year scope accepts only an explicit integer for one employee and narrows dependent operations', () => {
+  const userId='a1111111-1111-4111-8111-111111111111', target={id:userId,organization_id:'a2222222-2222-4222-8222-222222222222'};
+  assert.deepEqual(plan.personalScope({mode:'user',userId,year:2026},['personal']),{mode:'user',userId,year:2026});
+  for(const year of [null,'2026','2026 OR 1=1',1899,2101,2026.5,NaN]) assert.throws(()=>plan.personalScope({mode:'user',userId,year},['personal']),{status:400});
+  assert.throws(()=>plan.personalScope({mode:'all',year:2026},['personal']),{status:400});
+  assert.throws(()=>plan.operations(['personal'],null,2026),{status:400});
+  const spec=plan.operations(['personal'],target,2026);
+  assert.deepEqual(spec.values,[userId,target.organization_id,2026]);
+  assert.ok(spec.ops.find(op=>op.table==='dna_profiles').where.includes('year=$3'));
+  assert.ok(spec.ops.find(op=>op.table==='workspace_search_profiles').where.includes('profile_id IN'));
+  assert.ok(spec.ops.every(op=>!['workspace_import_drafts','task_results','duplicate_group_comments'].includes(op.table)));
+  assert.ok(!spec.ops.find(op=>op.table==='match_results').where.includes('analyzed_by=$1'));
+  assert.deepEqual(plan.parameters('SELECT $1,$2,$3',spec.values),spec.values);
+});

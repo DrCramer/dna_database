@@ -24,13 +24,14 @@ function categories(input) {
 function personalScope(input, selection) {
   if (input == null) return selection.includes('personal') ? { mode: 'all' } : null;
   if (!selection.includes('personal') || typeof input !== 'object' || Array.isArray(input)
-    || Object.keys(input).some(key => !['mode', 'userId'].includes(key))) throw fail('Проверьте область очистки личных генотипов.');
-  if (input.mode === 'all' && input.userId === undefined) return { mode: 'all' };
+    || Object.keys(input).some(key => !['mode', 'userId', 'year'].includes(key))) throw fail('Проверьте область очистки личных генотипов.');
+  if (input.mode === 'all' && input.userId === undefined && input.year === undefined) return { mode: 'all' };
   if (input.mode !== 'user' || typeof input.userId !== 'string' || !/^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(input.userId)) {
     throw fail('Выберите пользователя для очистки личных генотипов.');
   }
   if (selection.some(key => ['master', 'staff'].includes(key))) throw fail('Очистку пользователя нельзя совмещать с очисткой общих массивов.');
-  return { mode: 'user', userId: input.userId.toLowerCase() };
+  if (input.year !== undefined && (!Number.isInteger(input.year) || input.year < 1900 || input.year > 2100)) throw fail('Укажите год от 1900 до 2100.');
+  return { mode: 'user', userId: input.userId.toLowerCase(), ...(input.year !== undefined ? {year:input.year} : {}) };
 }
 function parameters(sql, values = []) {
   const indices = [...sql.matchAll(/\$(\d+)\b/g)].map(match => Number(match[1]));
@@ -55,15 +56,20 @@ async function validateDependencies(client, list) {
   }
 }
 
-function operations(selection, target = null) {
+function operations(selection, target = null, year = null) {
   const selected = categories(selection), has = key => selected.includes(key);
   const types = [has('personal') && "'user'", has('master') && "'master'", has('staff') && "'staff'"].filter(Boolean);
   if (target && (!selected.includes('personal') || selected.some(key => ['master', 'staff'].includes(key)))) throw fail('Проверьте категории очистки пользователя.');
-  const values = target ? [target.id, target.organization_id] : [];
+  if (year !== null && (!target || !Number.isInteger(year) || year < 1900 || year > 2100)) throw fail('Проверьте год очистки.');
+  const yearScoped = year !== null;
+  const values = target ? [target.id, target.organization_id, ...(yearScoped ? [year] : [])] : [];
   const owner = 'owner_id=$1 AND organization_id=$2';
-  const dna = (types.length ? `COALESCE(profile_type,'user') IN (${types.join(',')})` : 'false') + (target ? ' AND user_id=$1 AND (organization_id=$2 OR organization_id IS NULL)' : '');
+  const dna = (types.length ? `COALESCE(profile_type,'user') IN (${types.join(',')})` : 'false') + (target ? ' AND user_id=$1 AND (organization_id=$2 OR organization_id IS NULL)' : '') + (yearScoped ? ' AND year=$3' : '');
   const ids = `SELECT id FROM public.dna_profiles WHERE ${dna}`;
-  const approvals = `SELECT a.id FROM public.workspace_master_approvals a WHERE ${target ? "(a.state='pending' AND a.author_id=$1 AND a.organization_id=$2)" : "a.state='pending'"} OR EXISTS
+  const runs = target ? `SELECT id FROM public.workspace_search_runs WHERE ${owner}${yearScoped ? ` AND EXISTS(SELECT 1 FROM public.workspace_search_profiles sp WHERE sp.search_run_id=workspace_search_runs.id AND sp.profile_id IN (${ids}))` : ''}` : null;
+  const jobs = target ? `SELECT id FROM public.workspace_search_jobs WHERE ${owner}${yearScoped ? ` AND EXISTS(SELECT 1 FROM public.dna_profiles WHERE ${dna}) AND (state IN ('queued','running','paused','paused_window','retry_wait') OR search_run_id IN (${runs}) OR result_run_id IN (${runs}))` : ''}` : null;
+
+  const approvals = `SELECT a.id FROM public.workspace_master_approvals a WHERE ${target ? `(a.state='pending' AND a.author_id=$1 AND a.organization_id=$2${yearScoped ? ` AND a.search_run_id IN (${runs})` : ''})` : "a.state='pending'"} OR EXISTS
     (SELECT 1 FROM public.workspace_master_approval_items i WHERE i.approval_id=a.id AND i.profile_id IN (${ids}))`;
   const publications = `workspace_profile_id IN (${ids})${has('master') ? " OR destination='master'" : ''}${has('staff') ? " OR destination='staff'" : ''}`;
   const ops = [];
@@ -93,16 +99,14 @@ function operations(selection, target = null) {
   if (types.length) remove('dna_profiles', dna, has('personal') && types.length === 1 ? 'Личные генотипы (включая старые задачи)' : 'Выбранные профили из личных и старых массивов');
   if (has('personal')) remove('workspace_import_drafts');
   if (target) {
-    const jobs = `SELECT id FROM public.workspace_search_jobs WHERE ${owner}`;
-    const runs = `SELECT id FROM public.workspace_search_runs WHERE ${owner}`;
     const scoped = {
-      workspace_search_jobs: owner, workspace_search_job_chunks: `job_id IN (${jobs})`, workspace_search_job_events: `job_id IN (${jobs})`,
-      workspace_search_runs: owner, workspace_search_profiles: `search_run_id IN (${runs})`, workspace_import_drafts: owner,
-      match_results: `analyzed_by=$1 OR profile_id_1 IN (${ids}) OR profile_id_2 IN (${ids})`,
-      contamination_analysis: `analyzed_by=$1 OR sample_profile_id IN (${ids})`,
-      bayesian_analysis_results: `created_by=$1 OR profile1_id IN (${ids}) OR profile2_id IN (${ids})`,
+      workspace_search_jobs: `id IN (${jobs})`, workspace_search_job_chunks: `job_id IN (${jobs})`, workspace_search_job_events: `job_id IN (${jobs})`,
+      workspace_search_runs: `id IN (${runs})`, workspace_search_profiles: `search_run_id IN (${runs})`, workspace_import_drafts: owner,
+      match_results: `${yearScoped ? '' : 'analyzed_by=$1 OR '}profile_id_1 IN (${ids}) OR profile_id_2 IN (${ids})`,
+      contamination_analysis: `${yearScoped ? '' : 'analyzed_by=$1 OR '}sample_profile_id IN (${ids})`,
+      bayesian_analysis_results: `${yearScoped ? '' : 'created_by=$1 OR '}profile1_id IN (${ids}) OR profile2_id IN (${ids})`,
       sample_quality_metrics: `profile_id IN (${ids})`,
-      profile_contamination_log: `searched_by=$1 OR reference_profile_id IN (${ids}) OR matched_profile_id IN (${ids})`,
+      profile_contamination_log: `${yearScoped ? '' : 'searched_by=$1 OR '}reference_profile_id IN (${ids}) OR matched_profile_id IN (${ids})`,
       task_results: 'user_id=$1', duplicate_group_comments: 'created_by=$1'
     };
     for (const op of ops) {
@@ -114,11 +118,13 @@ function operations(selection, target = null) {
       }
     }
   }
-  return { selected, ops, approvals, target, values };
+  // Encrypted drafts and legacy task payloads have no trustworthy per-profile year. Keep them in year mode.
+  const effectiveOps = yearScoped ? ops.filter(op => !['workspace_import_drafts','task_results','duplicate_group_comments'].includes(op.table)) : ops;
+  return { selected, ops: effectiveOps, approvals, target, values, year, runs, jobs };
 }
 
-async function inspect(client, list, selection, target = null) {
-  const spec = operations(selection, target), rows = [];
+async function inspect(client, list, selection, target = null, year = null) {
+  const spec = operations(selection, target, year), rows = [];
   for (const [index, op] of spec.ops.entries()) {
     if (!list.includes(op.table)) continue;
     const { count } = (await runQuery(client, `SELECT count(*)::text count FROM ${quote(op.table)} WHERE ${op.where}`, spec.values)).rows[0];
@@ -126,26 +132,33 @@ async function inspect(client, list, selection, target = null) {
   }
   // Confirm all source inputs, including retained arrays: their changes can affect which copies must be detached.
   const stamps = [];
-  for (const table of ['dna_profiles', 'master_array_profiles', 'staff_profiles', ...(spec.selected.includes('personal') ? ['workspace_import_drafts'] : [])]) {
+  for (const table of ['dna_profiles', 'master_array_profiles', 'staff_profiles', ...(spec.selected.includes('personal') && year === null ? ['workspace_import_drafts'] : [])]) {
     if (!list.includes(table)) continue;
-    const where = !target ? '' : table === 'dna_profiles' ? " WHERE user_id=$1 AND (organization_id=$2 OR organization_id IS NULL)"
+    const where = !target ? '' : table === 'dna_profiles' ? " WHERE user_id=$1 AND (organization_id=$2 OR organization_id IS NULL)" + (year !== null ? " AND year=$3 AND COALESCE(profile_type,'user')='user'" : '')
       : table === 'workspace_import_drafts' ? ' WHERE owner_id=$1 AND organization_id=$2'
-      : " WHERE source_workspace_profile_id IN (SELECT id FROM public.dna_profiles WHERE user_id=$1 AND (organization_id=$2 OR organization_id IS NULL) AND COALESCE(profile_type,'user')='user')";
+      : " WHERE source_workspace_profile_id IN (SELECT id FROM public.dna_profiles WHERE user_id=$1 AND (organization_id=$2 OR organization_id IS NULL) AND COALESCE(profile_type,'user')='user'" + (year !== null ? ' AND year=$3' : '') + ')';
     stamps.push({ table, ...(await runQuery(client, `SELECT count(*)::text count,coalesce(sum(hashtextextended(ctid::text||':'||xmin::text,0)::numeric),0)::text stamp FROM ${quote(table)}${where}`, spec.values)).rows[0] });
   }
-  return { ...spec, rows, fingerprint: createHash('sha256').update(JSON.stringify({ selected: spec.selected, target: target ? [target.id,target.organization_id] : null, stamps })).digest('hex') };
+  return { ...spec, rows, fingerprint: createHash('sha256').update(JSON.stringify({ selected: spec.selected, year, target: target ? [target.id,target.organization_id] : null, stamps })).digest('hex') };
 }
 
 async function execute(client, spec) {
   // Freeze approval IDs before deleting any child records. The backup already exists.
   await runQuery(client, `CREATE TEMP TABLE cleanup_approvals ON COMMIT DROP AS ${spec.approvals}`, spec.values);
+  if (spec.runs) await runQuery(client, `CREATE TEMP TABLE cleanup_runs ON COMMIT DROP AS ${spec.runs}`, spec.values);
+  if (spec.jobs) await runQuery(client, `CREATE TEMP TABLE cleanup_jobs ON COMMIT DROP AS ${spec.jobs}`, spec.values);
   const referenceVersions = spec.target ? (await client.query('SELECT * FROM workspace_reference_versions WHERE organization_id=$1 FOR UPDATE', [spec.target.organization_id])).rows[0] : null;
   // Legacy write mode is visible only inside this locked maintenance transaction.
   // It permits removing a source link without bypassing foreign keys or disabling triggers.
   const configuration = (await client.query('SELECT enabled FROM workspace_configuration WHERE id=true FOR UPDATE')).rows[0];
   const unlink = spec.rows.some(row => row.action === 'unlink' && row.count > 0);
   if (unlink && configuration?.enabled) await client.query('UPDATE workspace_configuration SET enabled=false WHERE id=true');
-  for (const op of spec.ops) await runQuery(client, op.sql.replaceAll(spec.approvals, 'SELECT id FROM pg_temp.cleanup_approvals'), spec.values);
+  for (const op of spec.ops) {
+    let sql = op.sql.replaceAll(spec.approvals, 'SELECT id FROM pg_temp.cleanup_approvals');
+    if (spec.jobs) sql = sql.replaceAll(spec.jobs, 'SELECT id FROM pg_temp.cleanup_jobs');
+    if (spec.runs) sql = sql.replaceAll(spec.runs, 'SELECT id FROM pg_temp.cleanup_runs');
+    await runQuery(client, sql, spec.values);
+  }
   if (unlink && configuration?.enabled) await client.query('UPDATE workspace_configuration SET enabled=true WHERE id=true');
   await runQuery(client, 'UPDATE personal_workspaces SET analysis_revision=analysis_revision+1' + (spec.target ? ' WHERE owner_id=$1 AND organization_id=$2' : ''), spec.values);
   if (referenceVersions) {
