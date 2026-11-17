@@ -1,4 +1,5 @@
 const { alleleTokens, isMissingAllele, isSpecialAllele } = require('./alleleTokens');
+const { prepareLocusData, isExactLocusMatch } = require('./exactLocusComparison');
 
 const DEFAULT_MATCH_COLORS = Object.freeze({
   fullMatch: '#90EE90',
@@ -25,10 +26,6 @@ function rawAlleles(value) {
   return alleleTokens(value).filter(token => !isMissingAllele(token));
 }
 
-function informative(alleles) {
-  return alleles.filter(allele => !isSpecialAllele(allele) && !String(allele).includes('?'));
-}
-
 function detailStatus(details, locus) {
   const detail = details && details[locus];
   return typeof detail === 'string' ? detail.toLowerCase() : String(detail?.status || '').toLowerCase();
@@ -47,9 +44,9 @@ function getLocusComparisonPresentation({
   const palette = normalizeMatchColors(colors);
   const ignored = ignoredLoci instanceof Set ? ignoredLoci : new Set(ignoredLoci || []);
   const comparisonAlleles = rawAlleles(comparedData);
-  const referenceAlleles = rawAlleles(referenceData);
-  const compInformative = informative(comparisonAlleles);
-  const refInformative = informative(referenceAlleles);
+  const reference = prepareLocusData(referenceData), compared = prepareLocusData(comparedData);
+  const compInformative = compared.parts;
+  const refInformative = reference.parts;
   const matchedSet = new Set(refInformative);
   const detail = detailStatus(details, locus);
   const excluded = ignored.has(locus);
@@ -64,13 +61,10 @@ function getLocusComparisonPresentation({
 
   let status;
   if (excluded) status = 'not_compared';
-  else if (!refInformative.length || !compInformative.length) status = 'no_data';
+  else if (!reference.exactComparable || !compared.exactComparable) status = 'no_data';
   else if (statusFromDetails) status = statusFromDetails;
   else {
-    const sortedReference = [...refInformative].sort();
-    const sortedCompared = [...compInformative].sort();
-    const isExact = sortedReference.length === sortedCompared.length &&
-      sortedReference.every((allele, index) => allele === sortedCompared[index]);
+    const isExact = isExactLocusMatch(reference, compared);
     const isAlgorithmMatch = !Array.isArray(matchedLoci) || matchedLoci.includes(locus);
     if (isExact) status = isAlgorithmMatch ? 'full' : 'not_compared';
     else if (compInformative.some(allele => matchedSet.has(allele))) status = 'partial';
@@ -87,7 +81,7 @@ function getLocusComparisonPresentation({
     colors: palette,
     alleles: comparisonAlleles.map(value => ({
       value,
-      matched: !isSpecialAllele(value) && matchedSet.has(value)
+      matched: status !== 'no_data' && status !== 'not_compared' && !isSpecialAllele(value) && matchedSet.has(value)
     }))
   };
 }

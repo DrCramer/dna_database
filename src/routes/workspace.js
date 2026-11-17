@@ -209,6 +209,7 @@ module.exports = function workspaceRouter(service = new WorkspaceApprovalService
       status: 400
     });
     const result = await service.search(req.user, uuid(req.params.id));
+    if (result.outdated) throw Object.assign(new Error('Критерии поиска обновлены. Выполните повторный полный поиск перед экспортом дубликатов.'), { status: 409, code: 'SEARCH_CRITERIA_CHANGED' });
     if (result.state !== 'complete') throw Object.assign(new Error('Поиск ещё не завершён.'), {
       status: 409
     });

@@ -15,6 +15,7 @@ const {
 const {
   informativeAlleles
 } = require('../../utils/alleleTokens');
+const { prepareLocusData } = require('../../utils/exactLocusComparison');
 const {
   runProfileSearch, searchProfile
 } = require('../profiles/searchWorkerExecutor');
@@ -27,7 +28,7 @@ const {
   seal,
   unseal
 } = require('./workspaceCrypto');
-const ALGORITHM_VERSION = 'existing-task-comparison+staff-v5/workspace-2-min-loci';
+const ALGORITHM_VERSION = 'existing-task-comparison+staff-v5/workspace-3-certain-duplicates';
 class WorkspaceSearchService extends WorkspaceService {
   async configureSearch(user, parameters) {
     requireUser(user, true);
@@ -154,7 +155,8 @@ class WorkspaceSearchService extends WorkspaceService {
       for (const group of staffResult.results) group.matches = group.matches.filter(match => match.finalScore >= staffThreshold);
       const needed = input.comparisonAlgorithm === 'duplicate_v5' ? input.duplicateSettings.minLoci ?? 15 : input.minMatches;
       const proofs = profiles.map(p => {
-        const count = Object.entries(p.str_data).filter(([locus, value]) => !input.ignoredLoci.includes(locus) && informativeAlleles(value).length).length;
+        const count = Object.entries(p.str_data).filter(([locus, value]) => !input.ignoredLoci.includes(locus) &&
+          (input.comparisonAlgorithm === 'contamination' ? informativeAlleles(value).length : prepareLocusData(value).exactComparable)).length;
         const staffCount = Object.entries(p.str_data).filter(([locus, value]) => !parameters.staffOptions.ignoredLoci.includes(locus) && informativeAlleles(value).length).length;
         return {
           profileId: p.id,

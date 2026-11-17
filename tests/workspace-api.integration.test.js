@@ -328,6 +328,8 @@ test('Workspace API: реальные сессии, роли, чужие UUID, l
     assert.equal(oldResponse.status, 200); assert.equal((await oldResponse.json()).outdated, true);
     const oldExport = await call('/api/workspace/searches/' + run.id + '/staff-contaminations-xlsx', 'user_analyst', {});
     assert.equal(oldExport.status, 409); assert.equal((await oldExport.json()).code, 'SEARCH_CRITERIA_CHANGED');
+    const oldDuplicates = await call('/api/workspace/searches/' + run.id + '/duplicates-xlsx', 'user_analyst', {});
+    assert.equal(oldDuplicates.status, 409); assert.equal((await oldDuplicates.json()).code, 'SEARCH_CRITERIA_CHANGED');
     assert.equal((await call('/api/workspace/searches/' + run.id + '/staff-contaminations-xlsx', 'foreign', {})).status, 404);
     await pool.query('UPDATE workspace_search_runs SET algorithm_version=$1 WHERE id=$2', [require('../src/services/workspace/workspaceSearchService').ALGORITHM_VERSION, run.id]);
     // The legacy task route falls back to threshold 5.5 when zero was saved.

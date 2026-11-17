@@ -569,4 +569,25 @@ test('Единый workspace: импорт, ревизии, поиск, gate, п
     await assert.rejects(service.search(other,result.id),error=>error.status===404);
   });
 
+
+  await t.test('Дубликаты v5: неизвестные локусы не проходят минимум, не дают готовность; полные пары находятся внутри и в мастер-массиве',async()=>{
+    const homo=Object.fromEntries(Object.keys(data).map(locus=>[locus,['12','12']]));
+    const author=await user('user_analyst'),masterSource=await load(author,[profile('SYN-CERTAIN-MASTER','ug',homo)]);
+    const masterRun=await service.fullSearch(author,masterSource.ids),published=await publishReady(author,masterSource.ids,masterRun.id);
+    const masterId=published.published[0].publishedId;
+    const actor=await user('user_analyst'),uncertain=Object.fromEntries(Object.keys(data).map(locus=>[locus,['12','*']]));
+    const source=await load(actor,[profile('SYN-CERTAIN-1','ug',homo),profile('SYN-CERTAIN-2','ug',homo),profile('SYN-UNCERTAIN','ug',uncertain),profile('SYN-NO-CALL','ug',Object.fromEntries(Object.keys(data).map(locus=>[locus,['*']])))]);
+    await service.configureSearch(actor,{comparisonAlgorithm:'duplicate_v5',minMatches:15,duplicateSettings:{minLoci:15,minScore:15,minPercentage:80},staffOptions:{}});
+    const before=(await pool.query('SELECT id,str_data FROM dna_profiles WHERE id=ANY($1::uuid[]) ORDER BY id',[source.ids])).rows;
+    const result=await service.fullSearch(actor,source.ids);
+    assert.deepEqual(new Set(result.internal.results.map(group=>group.reference.id)),new Set(source.ids.slice(0,2)));
+    for(const group of result.internal.results)assert(group.matches.every(match=>source.ids.slice(0,2).includes(match.id)));
+    assert(result.master.results.filter(group=>source.ids.slice(0,2).includes(group.reference.id)).every(group=>group.matches.some(match=>match.id===masterId)));
+    assert(!result.master.results.some(group=>source.ids.slice(2).includes(group.reference.id)));
+    assert.equal(result.profiles.find(p=>p.profileId===source.ids[2]).state,'INSUFFICIENT_DATA');
+    assert.equal(result.profiles.find(p=>p.profileId===source.ids[3]).state,'NO_GENOTYPE');
+    await assert.rejects(service.approvalPreview(actor,[source.ids[2]]),error=>error.code==='FULL_SEARCH_REQUIRED');
+    assert.deepEqual((await pool.query('SELECT id,str_data FROM dna_profiles WHERE id=ANY($1::uuid[]) ORDER BY id',[source.ids])).rows,before);
+  });
+
 });
