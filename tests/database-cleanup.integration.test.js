@@ -150,10 +150,18 @@ test('Genotype cleanup: isolated PostgreSQL, atomicity, authorization, backup an
       const preview = await fetch(base + '/preview?categories=personal,master,staff,results', { headers });
       assert.equal(preview.status, 200); assert.match(preview.headers.get('Cache-Control'), /no-store/);
       const data = await preview.json(); assert.ok(data.token);
+      const listed = await fetch(base + '/users', {headers}); assert.equal(listed.status,200);
+      const people = (await listed.json()).users; assert.equal(people.length,3);
+      assert.ok(people.every(person => !('password_hash' in person) && !('email' in person)));
+      const scopedResponse = await fetch(base + '/preview?categories=personal&personalMode=user&personalUserId='+analyst.id, {headers});
+      assert.equal(scopedResponse.status,200); const scopedPreview = await scopedResponse.json(); assert.equal(scopedPreview.targetUser.id,analyst.id);
+      assert.equal((await fetch(base + '/preview?categories=personal&personalMode=user', {headers})).status,400);
+
       assert.equal((await fetch(base + '/preview', { headers })).status, 400);
       assert.equal((await fetch(base + '/preview?categories=invalid', { headers })).status, 400);
       assert.equal((await fetch(base + '/execute', { headers, method: 'POST', body: '{}' })).status, 400);
       assert.equal((await fetch(base + '/execute', { headers, method: 'POST', body: JSON.stringify({ categories: ALL, token: data.token, confirmation: 'wrong', acknowledged: true }) })).status, 400);
+      assert.equal((await fetch(base + '/execute', {headers,method:'POST',body:JSON.stringify({token:scopedPreview.token,categories:['personal'],personalScope:{mode:'user',userId:admin.id},confirmation:CONFIRMATION,acknowledged:true})})).status,409);
       assert.equal((await fetch(base + '/not-a-uuid/backup', { headers })).status, 400);
       assert.equal((await pool.query('SELECT count(*) n FROM dna_profiles')).rows[0].n, '1');
     } finally {

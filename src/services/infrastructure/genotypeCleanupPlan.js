@@ -21,6 +21,22 @@ function categories(input) {
   }
   return Object.keys(CATEGORIES).filter(key => input.includes(key));
 }
+function personalScope(input, selection) {
+  if (input == null) return selection.includes('personal') ? { mode: 'all' } : null;
+  if (!selection.includes('personal') || typeof input !== 'object' || Array.isArray(input)
+    || Object.keys(input).some(key => !['mode', 'userId'].includes(key))) throw fail('Проверьте область очистки личных генотипов.');
+  if (input.mode === 'all' && input.userId === undefined) return { mode: 'all' };
+  if (input.mode !== 'user' || typeof input.userId !== 'string' || !/^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(input.userId)) {
+    throw fail('Выберите пользователя для очистки личных генотипов.');
+  }
+  if (selection.some(key => ['master', 'staff'].includes(key))) throw fail('Очистку пользователя нельзя совмещать с очисткой общих массивов.');
+  return { mode: 'user', userId: input.userId.toLowerCase() };
+}
+function parameters(sql, values = []) {
+  const indices = [...sql.matchAll(/\$(\d+)\b/g)].map(match => Number(match[1]));
+  return values.slice(0, indices.length ? Math.max(...indices) : 0);
+}
+function runQuery(client, sql, values) { return client.query(sql, parameters(sql, values)); }
 async function tables(client) {
   return (await client.query("SELECT tablename FROM pg_tables WHERE schemaname='public' AND tablename=ANY($1::text[]) ORDER BY tablename", [Object.keys(TABLES)])).rows.map(r => r.tablename);
 }
@@ -39,17 +55,20 @@ async function validateDependencies(client, list) {
   }
 }
 
-function operations(selection) {
+function operations(selection, target = null) {
   const selected = categories(selection), has = key => selected.includes(key);
   const types = [has('personal') && "'user'", has('master') && "'master'", has('staff') && "'staff'"].filter(Boolean);
-  const dna = types.length ? `COALESCE(profile_type,'user') IN (${types.join(',')})` : 'false';
+  if (target && (!selected.includes('personal') || selected.some(key => ['master', 'staff'].includes(key)))) throw fail('Проверьте категории очистки пользователя.');
+  const values = target ? [target.id, target.organization_id] : [];
+  const owner = 'owner_id=$1 AND organization_id=$2';
+  const dna = (types.length ? `COALESCE(profile_type,'user') IN (${types.join(',')})` : 'false') + (target ? ' AND user_id=$1 AND (organization_id=$2 OR organization_id IS NULL)' : '');
   const ids = `SELECT id FROM public.dna_profiles WHERE ${dna}`;
-  const approvals = `SELECT a.id FROM public.workspace_master_approvals a WHERE a.state='pending' OR EXISTS
+  const approvals = `SELECT a.id FROM public.workspace_master_approvals a WHERE ${target ? "(a.state='pending' AND a.author_id=$1 AND a.organization_id=$2)" : "a.state='pending'"} OR EXISTS
     (SELECT 1 FROM public.workspace_master_approval_items i WHERE i.approval_id=a.id AND i.profile_id IN (${ids}))`;
   const publications = `workspace_profile_id IN (${ids})${has('master') ? " OR destination='master'" : ''}${has('staff') ? " OR destination='staff'" : ''}`;
   const ops = [];
   const remove = (table, where = 'true', label = TABLES[table]) => ops.push({ table, where, label, action: 'delete', sql: `DELETE FROM ${quote(table)} WHERE ${where}` });
-  const reset = (table, where, set, label) => ops.push({ table, where, label, action: 'reset', sql: `UPDATE ${quote(table)} SET ${set} WHERE ${where}` });
+  const reset = (table, where, set, label) => ops.push({ table, where, set, label, action: 'reset', sql: `UPDATE ${quote(table)} SET ${set} WHERE ${where}` });
   for (const table of ['workspace_search_job_events', 'workspace_search_job_chunks', 'workspace_search_jobs']) remove(table);
   remove('workspace_master_approval_pending', `approval_id IN (${approvals})`);
   reset('workspace_master_approval_items', `approval_id NOT IN (${approvals}) AND publication_id IN (SELECT id FROM public.workspace_publications WHERE ${publications})`, 'publication_id=NULL', 'Связи заявок с удаляемыми публикациями');
@@ -73,37 +92,69 @@ function operations(selection) {
   }
   if (types.length) remove('dna_profiles', dna, has('personal') && types.length === 1 ? 'Личные генотипы (включая старые задачи)' : 'Выбранные профили из личных и старых массивов');
   if (has('personal')) remove('workspace_import_drafts');
-  return { selected, ops, approvals };
+  if (target) {
+    const jobs = `SELECT id FROM public.workspace_search_jobs WHERE ${owner}`;
+    const runs = `SELECT id FROM public.workspace_search_runs WHERE ${owner}`;
+    const scoped = {
+      workspace_search_jobs: owner, workspace_search_job_chunks: `job_id IN (${jobs})`, workspace_search_job_events: `job_id IN (${jobs})`,
+      workspace_search_runs: owner, workspace_search_profiles: `search_run_id IN (${runs})`, workspace_import_drafts: owner,
+      match_results: `analyzed_by=$1 OR profile_id_1 IN (${ids}) OR profile_id_2 IN (${ids})`,
+      contamination_analysis: `analyzed_by=$1 OR sample_profile_id IN (${ids})`,
+      bayesian_analysis_results: `created_by=$1 OR profile1_id IN (${ids}) OR profile2_id IN (${ids})`,
+      sample_quality_metrics: `profile_id IN (${ids})`,
+      profile_contamination_log: `searched_by=$1 OR reference_profile_id IN (${ids}) OR matched_profile_id IN (${ids})`,
+      task_results: 'user_id=$1', duplicate_group_comments: 'created_by=$1'
+    };
+    for (const op of ops) {
+      const condition = op.action === 'unlink' ? '(organization_id=$2 OR organization_id IS NULL)' : scoped[op.table];
+      if (condition) {
+        op.where = `(${condition}) AND (${op.where})`;
+        op.sql = op.action === 'delete' ? `DELETE FROM ${quote(op.table)} WHERE ${op.where}`
+          : `UPDATE ${quote(op.table)} SET ${op.action === 'unlink' ? 'source_workspace_profile_id=NULL' : op.set} WHERE ${op.where}`;
+      }
+    }
+  }
+  return { selected, ops, approvals, target, values };
 }
 
-async function inspect(client, list, selection) {
-  const spec = operations(selection), rows = [];
+async function inspect(client, list, selection, target = null) {
+  const spec = operations(selection, target), rows = [];
   for (const [index, op] of spec.ops.entries()) {
     if (!list.includes(op.table)) continue;
-    const { count } = (await client.query(`SELECT count(*)::text count FROM ${quote(op.table)} WHERE ${op.where}`)).rows[0];
+    const { count } = (await runQuery(client, `SELECT count(*)::text count FROM ${quote(op.table)} WHERE ${op.where}`, spec.values)).rows[0];
     rows.push({ key: String(index), table: op.table, label: op.label, action: op.action, count: Number(count) });
   }
   // Confirm all source inputs, including retained arrays: their changes can affect which copies must be detached.
   const stamps = [];
   for (const table of ['dna_profiles', 'master_array_profiles', 'staff_profiles', ...(spec.selected.includes('personal') ? ['workspace_import_drafts'] : [])]) {
     if (!list.includes(table)) continue;
-    stamps.push({ table, ...(await client.query(`SELECT count(*)::text count,coalesce(sum(hashtextextended(ctid::text||':'||xmin::text,0)::numeric),0)::text stamp FROM ${quote(table)}`)).rows[0] });
+    const where = !target ? '' : table === 'dna_profiles' ? " WHERE user_id=$1 AND (organization_id=$2 OR organization_id IS NULL)"
+      : table === 'workspace_import_drafts' ? ' WHERE owner_id=$1 AND organization_id=$2'
+      : " WHERE source_workspace_profile_id IN (SELECT id FROM public.dna_profiles WHERE user_id=$1 AND (organization_id=$2 OR organization_id IS NULL) AND COALESCE(profile_type,'user')='user')";
+    stamps.push({ table, ...(await runQuery(client, `SELECT count(*)::text count,coalesce(sum(hashtextextended(ctid::text||':'||xmin::text,0)::numeric),0)::text stamp FROM ${quote(table)}${where}`, spec.values)).rows[0] });
   }
-  return { ...spec, rows, fingerprint: createHash('sha256').update(JSON.stringify({ selected: spec.selected, stamps })).digest('hex') };
+  return { ...spec, rows, fingerprint: createHash('sha256').update(JSON.stringify({ selected: spec.selected, target: target ? [target.id,target.organization_id] : null, stamps })).digest('hex') };
 }
 
 async function execute(client, spec) {
   // Freeze approval IDs before deleting any child records. The backup already exists.
-  await client.query(`CREATE TEMP TABLE cleanup_approvals ON COMMIT DROP AS ${spec.approvals}`);
+  await runQuery(client, `CREATE TEMP TABLE cleanup_approvals ON COMMIT DROP AS ${spec.approvals}`, spec.values);
+  const referenceVersions = spec.target ? (await client.query('SELECT * FROM workspace_reference_versions WHERE organization_id=$1 FOR UPDATE', [spec.target.organization_id])).rows[0] : null;
   // Legacy write mode is visible only inside this locked maintenance transaction.
   // It permits removing a source link without bypassing foreign keys or disabling triggers.
   const configuration = (await client.query('SELECT enabled FROM workspace_configuration WHERE id=true FOR UPDATE')).rows[0];
   const unlink = spec.rows.some(row => row.action === 'unlink' && row.count > 0);
   if (unlink && configuration?.enabled) await client.query('UPDATE workspace_configuration SET enabled=false WHERE id=true');
-  for (const op of spec.ops) await client.query(op.sql.replaceAll(spec.approvals, 'SELECT id FROM pg_temp.cleanup_approvals'));
+  for (const op of spec.ops) await runQuery(client, op.sql.replaceAll(spec.approvals, 'SELECT id FROM pg_temp.cleanup_approvals'), spec.values);
   if (unlink && configuration?.enabled) await client.query('UPDATE workspace_configuration SET enabled=true WHERE id=true');
-  await client.query('UPDATE personal_workspaces SET analysis_revision=analysis_revision+1');
+  await runQuery(client, 'UPDATE personal_workspaces SET analysis_revision=analysis_revision+1' + (spec.target ? ' WHERE owner_id=$1 AND organization_id=$2' : ''), spec.values);
+  if (referenceVersions) {
+    // Flush deferred source-link triggers, then restore counters inside this same locked transaction.
+    // Shared genotypes are unchanged; other employees must keep valid search results.
+    await client.query('SET CONSTRAINTS ALL IMMEDIATE');
+    await client.query('UPDATE workspace_reference_versions SET master_revision=$1,staff_revision=$2 WHERE organization_id=$3', [referenceVersions.master_revision,referenceVersions.staff_revision,spec.target.organization_id]);
+  }
   if (spec.selected.includes('master')) await client.query('UPDATE workspace_reference_versions SET master_revision=master_revision+1');
   if (spec.selected.includes('staff')) await client.query('UPDATE workspace_reference_versions SET staff_revision=staff_revision+1');
 }
-module.exports = { CATEGORIES, TABLES, PRESERVED, categories, quote, tables, validateDependencies, operations, inspect, execute };
+module.exports = { CATEGORIES, TABLES, PRESERVED, categories, personalScope, parameters, quote, tables, validateDependencies, operations, inspect, execute };

@@ -27,35 +27,56 @@ class GenotypeCleanupService {
     return fresh;
   }
 
-  async preview(user, input) {
-    const selected = plan.categories(input);
+  async users(user) {
     await this.authorize(user);
+    return (await this.pool.query(`SELECT u.id,u.username,u.display_name,u.is_active,o.name organization_name
+      FROM users u LEFT JOIN organizations o ON o.id=u.organization_id
+      ORDER BY lower(COALESCE(NULLIF(u.display_name,''),u.username)),u.id`)).rows;
+  }
+
+  async target(user, scope, client = this.pool, lock = false) {
+    if (scope?.mode !== 'user') return null;
+    const target = (await client.query(`SELECT u.id,u.username,u.display_name,u.organization_id,u.is_active,o.name organization_name
+      FROM users u LEFT JOIN organizations o ON o.id=u.organization_id WHERE u.id=$1 ${lock ? 'FOR SHARE OF u' : ''}`, [scope.userId])).rows[0];
+    if (!target || !target.organization_id || user.role !== 'system_administrator' && target.organization_id !== user.organization_id) {
+      throw fail('Пользователь недоступен для очистки.', 403);
+    }
+    return target;
+  }
+
+  async preview(user, input, inputScope) {
+    const selected = plan.categories(input), personalScope = plan.personalScope(inputScope, selected);
+    const actor = await this.authorize(user);
     if (this.current && !terminal(this.current.state)) throw fail('Дождитесь завершения текущей очистки.');
     const client = await this.pool.connect();
     try {
       await client.query('BEGIN ISOLATION LEVEL REPEATABLE READ READ ONLY');
       const list = await plan.tables(client);
       await plan.validateDependencies(client, list);
-      const result = await plan.inspect(client, list, selected);
+      const targetUser = await this.target(actor, personalScope, client);
+      const result = await plan.inspect(client, list, selected, targetUser);
       await client.query('COMMIT');
       const token = randomUUID(), expiresAt = Date.now() + 5 * 60 * 1000;
       for (const [key, entry] of this.previews) if (entry.expiresAt < Date.now()) this.previews.delete(key);
       while (this.previews.size >= 8) this.previews.delete(this.previews.keys().next().value);
-      this.previews.set(token, { userId: user.id, ...result, list, expiresAt });
-      return { token, expiresAt, rows: result.rows, categories: selected, categoryLabels: selected.map(key => plan.CATEGORIES[key]), resetsSearch: true, confirmation: CONFIRMATION, scope: 'Вся установка: все пользователи и отделения' };
+      this.previews.set(token, { userId: user.id, ...result, list, expiresAt, personalScope, targetUser });
+      return { token, expiresAt, rows: result.rows, categories: selected, categoryLabels: selected.map(key => plan.CATEGORIES[key]), resetsSearch: true, personalScope, targetUser, confirmation: CONFIRMATION, scope: targetUser ? `Пользователь: ${targetUser.display_name || targetUser.username} (${targetUser.username}), ${targetUser.organization_name}` : 'Вся установка: все пользователи и отделения' };
     } catch (error) { await client.query('ROLLBACK').catch(() => {}); throw error; }
     finally { client.release(); }
   }
 
-  async start(user, { token, confirmation, acknowledged, categories }, context = {}) {
-    const selected = plan.categories(categories);
-    await this.authorize(user);
+  async start(user, { token, confirmation, acknowledged, categories, personalScope: inputScope }, context = {}) {
+    const selected = plan.categories(categories), personalScope = plan.personalScope(inputScope, selected);
+    const actor = await this.authorize(user);
     const entry = this.previews.get(token);
     if (confirmation !== CONFIRMATION || acknowledged !== true) throw fail('Подтвердите состав очистки и введите контрольную фразу.', 400);
     if (!entry || entry.userId !== user.id || entry.expiresAt < Date.now()) throw fail('Предварительный просмотр устарел. Обновите его.');
+    if (JSON.stringify(personalScope) !== JSON.stringify(entry.personalScope)) throw fail('Пользователь или область очистки изменились. Обновите предварительный просмотр.');
+    const targetUser = await this.target(actor, personalScope);
+    if (targetUser?.organization_id !== entry.targetUser?.organization_id) throw fail('Организация пользователя изменилась. Обновите предварительный просмотр.');
     if (JSON.stringify(selected) !== JSON.stringify(entry.selected)) throw fail('Состав очистки изменился. Обновите предварительный просмотр.');
     if (this.current && !terminal(this.current.state)) throw fail('Очистка уже выполняется.');
-    const job = { id: randomUUID(), state: 'preparing', startedAt: new Date().toISOString(), categories: entry.selected, categoryLabels: entry.selected.map(key => plan.CATEGORIES[key]), rows: entry.rows, backup: null };
+    const job = { id: randomUUID(), state: 'preparing', startedAt: new Date().toISOString(), personalScope, targetUser, categories: entry.selected, categoryLabels: entry.selected.map(key => plan.CATEGORIES[key]), rows: entry.rows, backup: null };
     this.current = job; this.previews.delete(token);
     try {
       await this.pool.query(`INSERT INTO operation_history(id,user_id,operation_type,operation_details,success,ip_address,user_agent)
@@ -91,13 +112,15 @@ class GenotypeCleanupService {
       // sees writers that committed while LOCK was waiting.
       await client.query('BEGIN ISOLATION LEVEL READ COMMITTED'); transaction = true;
       await client.query("SET LOCAL lock_timeout='5s'; SET LOCAL statement_timeout='10min'; SET LOCAL idle_in_transaction_session_timeout='15min'");
-      await this.authorize(user, client);
+      const actor = await this.authorize(user, client);
+      const targetUser = await this.target(actor, entry.personalScope, client, true);
+      if (targetUser?.organization_id !== entry.targetUser?.organization_id) throw fail('Организация пользователя изменилась. Очистка не выполнена.');
       const list = await plan.tables(client);
       if (!list.length) throw fail('Таблицы генотипов не найдены.');
       // Reads, including pg_dump, remain possible; all data writers are blocked.
       await client.query(`LOCK TABLE ${list.map(plan.quote).join(',')} IN SHARE ROW EXCLUSIVE MODE`);
       await plan.validateDependencies(client, list);
-      const current = await plan.inspect(client, list, entry.selected);
+      const current = await plan.inspect(client, list, entry.selected, targetUser);
       if (current.fingerprint !== entry.fingerprint) throw fail('Данные изменились после предварительного просмотра. Обновите его; очистка не выполнена.');
       job.rows = current.rows;
       const exported = (await client.query('SELECT pg_export_snapshot() snapshot')).rows[0].snapshot;

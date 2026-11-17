@@ -131,4 +131,62 @@ test('Selective cleanup: all 15 category combinations, published copies, approva
       await pool.query('DROP FUNCTION synthetic_unlink_failure()');
     }
   });
+  await t.test('one employee: unrelated profiles, results, pending approvals and reference revisions remain unchanged', async () => {
+    await seed();
+    const other = await createUser('user_analyst');
+    const otherWorkspace = (await pool.query("INSERT INTO personal_workspaces(organization_id,owner_id,analysis_parameters) VALUES($1,$2,'{}') RETURNING id", [org, other.id])).rows[0].id;
+    const addOther = async name => (await pool.query("INSERT INTO dna_profiles(user_id,organization_id,workspace_id,sample_name,internal_number,year,expertise_type,str_data) VALUES($1,$2,$3,$4,$4,2026,'ug',$5) RETURNING id", [other.id,org,otherWorkspace,name,{TH01:['12','13']}])).rows[0].id;
+    const first = await addOther('SYN other first'), second = await addOther('SYN other second');
+    const otherRun = (await pool.query(`INSERT INTO workspace_search_runs(workspace_id,owner_id,organization_id,algorithm_version,state,parameters,workspace_revision,master_revision,staff_revision,completed_at,encrypted_result)
+      SELECT w.id,w.owner_id,w.organization_id,'SYN','complete','{}',w.analysis_revision,v.master_revision,v.staff_revision,now(),'SYN other encrypted search'
+      FROM personal_workspaces w JOIN workspace_reference_versions v ON v.organization_id=w.organization_id WHERE w.id=$1 RETURNING id`, [otherWorkspace])).rows[0].id;
+    await pool.query("INSERT INTO workspace_search_profiles(search_run_id,profile_id,analysis_revision,analysis_hash,state,stages) VALUES($1,$2,1,'SYN-other','CHECKED','{\"internal\":true,\"master\":true,\"staff\":true}')", [otherRun, first]);
+    const otherApproval = (await pool.query("INSERT INTO workspace_master_approvals(organization_id,workspace_id,author_id,search_run_id,submission_key,submission_hash) VALUES($1,$2,$3,$4,$5,'SYN other') RETURNING id", [org,otherWorkspace,other.id,otherRun,randomUUID()])).rows[0].id;
+    await pool.query("INSERT INTO workspace_master_approval_items(approval_id,search_run_id,profile_id,analysis_revision,analysis_hash,target_id,replace_existing) VALUES($1,$2,$3,1,'SYN-other',$4,false)", [otherApproval,otherRun,first,randomUUID()]);
+    await pool.query('INSERT INTO workspace_master_approval_pending(profile_id,approval_id) VALUES($1,$2)', [first,otherApproval]);
+    await pool.query("INSERT INTO workspace_import_drafts(workspace_id,owner_id,organization_id,source_checksums,encrypted_payload,expires_at) VALUES($1,$2,$3,'[]','SYN other draft',now()+interval '1 day')", [otherWorkspace,other.id,org]);
+    const otherJob = (await pool.query("INSERT INTO workspace_search_jobs(organization_id,owner_id,workspace_id,window_key,origin,policy_revision,parameters) VALUES($1,$2,$3,'SYN-other','scheduled',1,'{}') RETURNING id", [org,other.id,otherWorkspace])).rows[0].id;
+    await pool.query("INSERT INTO workspace_search_job_events(job_id,state,reason) VALUES($1,'queued','SYN')", [otherJob]);
+    await pool.query("INSERT INTO workspace_search_job_chunks(job_id,organization_id,owner_id,manifest,stage,chunk_index,encrypted_result) VALUES($1,$2,$3,'SYN','master',0,'SYN-other')", [otherJob,org,other.id]);
+    const ownProfiles = (await pool.query('SELECT id FROM dna_profiles WHERE workspace_id=$1 ORDER BY id', [workspace])).rows.map(row => row.id);
+    const match = async (a,b,who) => (await pool.query("INSERT INTO match_results(profile_id_1,profile_id_2,overall_match_percentage,locus_matches,analyzed_by) VALUES($1,$2,100,'{}',$3) RETURNING id", [a,b,who])).rows[0].id;
+    const retainedMatch = await match(first,second,other.id);
+    await match(ownProfiles[0],ownProfiles[1],analyst.id); await match(ownProfiles[0],first,other.id);
+    const task = (await pool.query("INSERT INTO tasks(created_by,title,target_sample,data_source,department_id,assigned_to_user) VALUES($1,'SYN scoped task','{}','new_array',$2,$3) RETURNING id", [admin.id,department,analyst.id])).rows[0].id;
+    await pool.query("INSERT INTO task_results(user_id,task_id,result_data) VALUES($1,$2,'{}'),($3,$2,'{}')", [analyst.id,task,other.id]);
+    await pool.query("INSERT INTO duplicate_group_comments(group_identifier,comment,created_by) VALUES('SYN-own','SYN',$1),('SYN-other','SYN',$2)", [analyst.id,other.id]);
+    const scope = {mode:'user',userId:analyst.id};
+    assert.ok((await service.users(admin)).some(user => user.id === other.id));
+    await assert.rejects(service.preview(admin,['personal'],{mode:'user',userId:randomUUID()}), {status:403});
+    const preview = await service.preview(admin,['personal'],scope);
+    assert.equal(preview.targetUser.id,analyst.id);
+    assert.equal(preview.rows.find(row => row.table === 'dna_profiles' && row.action === 'delete').count,3);
+    assert.equal(preview.rows.find(row => row.table === 'match_results').count,2);
+    await assert.rejects(service.start(admin,{token:preview.token,categories:['personal'],personalScope:{mode:'user',userId:other.id},confirmation:CONFIRMATION,acknowledged:true}), {status:409});
+    await assert.rejects(service.start(admin,{token:preview.token,categories:['personal'],confirmation:CONFIRMATION,acknowledged:true}), {status:409});
+    // Other employees can import between preview and execution without invalidating this user's scope.
+    await addOther('SYN other new upload');
+    await pool.query('UPDATE workspace_search_runs SET workspace_revision=(SELECT analysis_revision FROM personal_workspaces WHERE id=$2) WHERE id=$1', [otherRun,otherWorkspace]);
+    const retainedTables = {
+      dna_profiles:'user_id=$1', personal_workspaces:'owner_id=$1', workspace_import_drafts:'owner_id=$1',
+      workspace_search_runs:'owner_id=$1', workspace_search_profiles:`search_run_id IN (SELECT id FROM workspace_search_runs WHERE owner_id=$1)`,
+      workspace_master_approvals:'author_id=$1', workspace_master_approval_items:'approval_id IN (SELECT id FROM workspace_master_approvals WHERE author_id=$1)',
+      workspace_master_approval_pending:'approval_id IN (SELECT id FROM workspace_master_approvals WHERE author_id=$1)',
+      workspace_search_jobs:'owner_id=$1', workspace_search_job_events:'job_id IN (SELECT id FROM workspace_search_jobs WHERE owner_id=$1)',
+      workspace_search_job_chunks:'owner_id=$1', task_results:'user_id=$1', duplicate_group_comments:'created_by=$1'
+    };
+    const retained = async () => Object.fromEntries(await Promise.all(Object.entries(retainedTables).map(async ([table,where]) => [table,(await pool.query(`SELECT to_jsonb(t) data FROM public."${table}" t WHERE ${where} ORDER BY to_jsonb(t)::text`,[other.id])).rows])));
+    const before = await retained(), refs = (await pool.query('SELECT * FROM workspace_reference_versions')).rows;
+    const master = await snapshot('master_array_profiles'), staff = await snapshot('staff_profiles');
+    await service.start(admin,{token:preview.token,categories:['personal'],personalScope:scope,confirmation:CONFIRMATION,acknowledged:true}); await service.running;
+    const job = await service.status(admin); assert.equal(job.state,'completed',job.message); assert.equal(job.targetUser.id,analyst.id);
+    assert.deepEqual(await retained(),before); assert.deepEqual((await pool.query('SELECT * FROM workspace_reference_versions')).rows,refs);
+    assert.deepEqual(await snapshot('master_array_profiles'),master); assert.deepEqual(await snapshot('staff_profiles'),staff);
+    assert.equal((await pool.query("SELECT count(*) n FROM dna_profiles WHERE user_id=$1 AND COALESCE(profile_type,'user')='user'", [analyst.id])).rows[0].n,'0');
+    assert.equal((await pool.query('SELECT count(*) n FROM match_results')).rows[0].n,'1');
+    assert.equal((await pool.query('SELECT id FROM match_results')).rows[0].id,retainedMatch);
+    assert.equal((await pool.query('SELECT enabled FROM workspace_configuration WHERE id=true')).rows[0].enabled,true);
+    assert.equal(gate.closed,false);
+  });
+
 });
