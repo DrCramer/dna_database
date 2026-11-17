@@ -24,6 +24,7 @@ test('Workspace API: реальные сессии, роли, чужие UUID, l
       createImportWorkbook
     } = require('../src/utils/importWorkbook');
   await pool.query(require('fs').readFileSync(require('path').join(__dirname, '../database/migrations/039_optional_staff_registration.sql'), 'utf8'));
+  await pool.query('INSERT INTO workspace_configuration(id,enabled) VALUES(true,true) ON CONFLICT(id) DO UPDATE SET enabled=true');
   const app = express();
   app.locals.pool = pool;
   app.use(express.json());
@@ -105,6 +106,8 @@ test('Workspace API: реальные сессии, роли, чужие UUID, l
     profile = (await commit.json()).ids[0];
   });
   await t.test('Подмена владельца, организации, workspace/draft UUID и checked не разрешает запись', async () => {
+    assert.equal((await call('/api/workspace/profiles/' + profile, 'user_analyst', { assignedNumber: 'SYN-forged' }, 'PATCH')).status, 400);
+    assert.equal((await call('/api/workspace/import-drafts/' + draft.id + '/rows', 'user_analyst', { revision: 1, rows: [{ draftRowId: draft.rows[0].draftRowId, assignedNumber: 'SYN-forged' }] }, 'PATCH')).status, 400);
     assert.equal((await call('/api/workspace/import-drafts/' + draft.id, 'foreign')).status, 404);
     assert.equal((await call('/api/workspace/profiles/' + profile, 'admin', {
       comment: 'SYN'

@@ -12,6 +12,7 @@ import { useAuth } from '../../contexts/AuthContext';
 import { getAnalysisLoci } from '../../../../src/utils/analysisLoci';
 import { orderNormalizedLoci } from '../../../../src/utils/normalizedExcelLayout';
 import { OBJECT_TYPES as types, WORKSPACE_WRITE_ROLES, objectMetadataIssues } from '../../../../src/utils/objectTypes';
+import { ASSIGNED_HEADER } from '../../../../src/utils/emergencyAssignedNumber';
 const states = {
   NOT_CHECKED: 'Не проверен',
   CHECKING: 'Проверяется',
@@ -244,7 +245,7 @@ export default function WorkspacePage({
   }, [preparedFile, isImport, canUpload, user.id, user.organization_id]);
   const id = row => row.draftRowId || row.id,
     visible = useMemo(() => {
-      const filtered = rows.filter(row => viewFilter === 'all' || viewFilter === 'selected' && (isImport ? row.included : selected.has(row.id)) || viewFilter === 'empty' && !Object.values(row.strData || {}).some(value => value.length) || viewFilter === 'issues' && ((row.sourceIssues || []).length || objectMetadataIssues(row).length || validation?.errors.some(item => item.draftRowId === row.draftRowId && item.issues.length)) || viewFilter === 'ready' && (row.searchState || row.state) === 'CHECKED' || viewFilter === 'stale' && ['STALE', 'NOT_CHECKED', 'INSUFFICIENT_DATA'].includes(row.state)).filter(row => `${row.objectNumber} ${row.year ?? ''} ${types[row.expertiseType] || ''} ${row.fullName || ''} ${row.comment || ''}`.toLowerCase().includes(query.toLowerCase()));
+      const filtered = rows.filter(row => viewFilter === 'all' || viewFilter === 'selected' && (isImport ? row.included : selected.has(row.id)) || viewFilter === 'empty' && !Object.values(row.strData || {}).some(value => value.length) || viewFilter === 'issues' && ((row.sourceIssues || []).length || objectMetadataIssues(row, { requireAssignedNumber: isImport }).length || validation?.errors.some(item => item.draftRowId === row.draftRowId && item.issues.length)) || viewFilter === 'ready' && (row.searchState || row.state) === 'CHECKED' || viewFilter === 'stale' && ['STALE', 'NOT_CHECKED', 'INSUFFICIENT_DATA'].includes(row.state)).filter(row => `${row.objectNumber} ${row.expertiseType === 'chs' ? row.assignedNumber || '' : ''} ${row.year ?? ''} ${types[row.expertiseType] || ''} ${row.fullName || ''} ${row.comment || ''}`.toLowerCase().includes(query.toLowerCase()));
       const value = row => sort.field.startsWith('locus:') ? (row.strData[sort.field.slice(6)] || []).join(',') : row[sort.field] ?? '';
       return sort.field ? filtered.sort((a, b) => String(value(a)).localeCompare(String(value(b)), 'ru', {
         numeric: true,
@@ -572,10 +573,11 @@ export default function WorkspacePage({
     setGenotypeText(JSON.stringify(row.strData, null, 2));
   }
   const showStaff = rows.some(row => row.expertiseType === 'staff' || row.fullName);
+  const showAssignedNumber = rows.some(row => row.expertiseType === 'chs' || !row.expertiseType && row.assignedNumber);
   const staffNameCandidates = isImport ? affected.filter(canTransferStaffName) : [];
   const readyCount = rows.filter(row => (row.searchState || row.state) === 'CHECKED' && row.approvalState !== 'pending').length;
   const dirtyCount = !isImport && initial.current ? changedWorkingProfiles(rows, initial.current).length : 0;
-  const issuesFor = row => [...(row.sourceIssues || []), ...objectMetadataIssues(row), ...(validation?.errors.find(item => item.draftRowId === row.draftRowId)?.issues || [])].filter((issue, index, list) => list.findIndex(item => item.message === issue.message) === index);
+  const issuesFor = row => [...(row.sourceIssues || []), ...objectMetadataIssues(row, { requireAssignedNumber: isImport }), ...(validation?.errors.find(item => item.draftRowId === row.draftRowId)?.issues || [])].filter((issue, index, list) => list.findIndex(item => item.message === issue.message) === index);
   const errorCount = isImport ? included.filter(row => issuesFor(row).length).length : 0;
   const draftPending = isImport && initial.current && rows !== initial.current && JSON.stringify(rows) !== JSON.stringify(initial.current);
   const sourceFiles = [...new Set(rows.map(row => row.sourceFilename).filter(Boolean))];
@@ -594,7 +596,7 @@ export default function WorkspacePage({
     strData: genotypePreview
   }])) : [];
   const stateBadge = row => <div><span className="workspace-badge" data-state={row.state || 'NOT_CHECKED'}>{row.expertiseType === 'staff' && row.state === 'PUBLISHED' ? 'В эталонах сотрудников' : states[row.state] || 'Не проверен'}</span>{row.approvalId && <button className="workspace-object-link master-approval-history-link" onClick={() => setApprovalWindow({mode:'history',requestId:row.approvalId})}>Решение и история</button>}{row.decisionComment && <small className="master-approval-decision-note">{row.decisionComment}</small>}</div>;
-  const objectNumber = row => row.expertiseType === 'staff' ? 'Регистрационный номер (необязательно)' : `№ экспертизы ${row.objectNumber.split('-')[0] || '—'}`;
+  const objectNumber = row => row.expertiseType === 'staff' ? 'Регистрационный номер (необязательно)' : row.expertiseType === 'chs' ? 'Номер объекта ЧС' : `№ экспертизы ${row.objectNumber.split('-')[0] || '—'}`;
   return <div className={`workspace-page ${isImport ? 'workspace-import-page' : 'workspace-profiles-page'}`} aria-label={isImport ? undefined : 'Мои генотипы'} aria-busy={busy || loadingProfiles}>
     {isImport ? <header className="workspace-heading">
       <div><span className="workspace-eyebrow">Личная рабочая область</span><h1>Загрузка в личный массив</h1>{!rows.length && <p>Добавьте файлы, выберите объекты и подтвердите загрузку.</p>}</div>
@@ -645,7 +647,7 @@ export default function WorkspacePage({
 
       <section className="workspace-data-card">
         <div className="workspace-profile-controls">
-        <div className="workspace-data-heading"><div><h2>{isImport ? 'Объекты из файлов' : 'Рабочие профили'}</h2>{isImport && <p>Укажите год и тип. ФИО заполняется только для сотрудников.</p>}</div>{!isImport && !!dirtyCount && <span className="workspace-badge" data-state="STALE">Есть изменения: {dirtyCount}</span>}</div>
+        <div className="workspace-data-heading"><div><h2>{isImport ? 'Объекты из файлов' : 'Рабочие профили'}</h2>{isImport && <p>Укажите год и тип. Для ЧС обязателен присвоенный номер из Excel; ФИО заполняется только для сотрудников.</p>}</div>{!isImport && !!dirtyCount && <span className="workspace-badge" data-state="STALE">Есть изменения: {dirtyCount}</span>}</div>
         <div className="workspace-filter-bar">
           <label className="workspace-search"><WorkspaceIcon name="search" /><input className="form-input" aria-label="Поиск объектов" value={query} onChange={e => {
               setQuery(e.target.value);
@@ -686,7 +688,7 @@ export default function WorkspacePage({
         <div className="workspace-table-scroll" tabIndex="0" role="region" aria-label="Таблица объектов">
           <table className={`workspace-table ${isImport ? 'workspace-import-table' : ''}`}><thead><tr><th className="workspace-check-column"><input type="checkbox" aria-label="Выбрать все строки текущего фильтра" checked={allSelected} ref={el => {
                     if (el) el.indeterminate = !allSelected && selectable.some(isSelected);
-                  }} disabled={busy || !selectable.length} onChange={e => chooseAll(e.target.checked)} /></th>{sortHeader('objectNumber', 'Объект', 'workspace-object-column')}{sortHeader('year', 'Год', 'workspace-year-column')}{sortHeader('expertiseType', 'Тип', 'workspace-type-column')}{showStaff && sortHeader('fullName', 'ФИО сотрудника', 'workspace-name-column')}{sortHeader('comment', 'Комментарий', 'workspace-comment-column')}<th className="workspace-state-column">{isImport ? 'Данные и проверка' : 'Состояние'}</th>{!isImport && loci.map(locus => <React.Fragment key={locus}>{sortHeader('locus:' + locus, locus, 'workspace-locus-column')}</React.Fragment>)}<th className="workspace-row-actions">Действия</th></tr></thead>
+                  }} disabled={busy || !selectable.length} onChange={e => chooseAll(e.target.checked)} /></th>{sortHeader('objectNumber', 'Объект', 'workspace-object-column')}{showAssignedNumber && sortHeader('assignedNumber', <span title={ASSIGNED_HEADER}>№ присвоенный в в/ч<small>ЧС · из Excel</small></span>, 'workspace-assigned-column')}{sortHeader('year', 'Год', 'workspace-year-column')}{sortHeader('expertiseType', 'Тип', 'workspace-type-column')}{showStaff && sortHeader('fullName', 'ФИО сотрудника', 'workspace-name-column')}{sortHeader('comment', 'Комментарий', 'workspace-comment-column')}<th className="workspace-state-column">{isImport ? 'Данные и проверка' : 'Состояние'}</th>{!isImport && loci.map(locus => <React.Fragment key={locus}>{sortHeader('locus:' + locus, locus, 'workspace-locus-column')}</React.Fragment>)}<th className="workspace-row-actions">Действия</th></tr></thead>
             <tbody>{pageRows.map(row => {
                 const editable = isImport || editingId === row.id;
                 const issues = isImport ? issuesFor(row) : [];
@@ -698,6 +700,7 @@ export default function WorkspacePage({
                       return next;
                     })} /></td>
                 <td className="workspace-object-column">{editable ? <input aria-label="Номер объекта" aria-invalid={issues.some(issue => ['OBJECT_NUMBER', 'REGISTRATION', 'REGISTRATION_CONFLICT'].includes(issue.code))} className="form-input" value={row.objectNumber} placeholder={row.expertiseType === 'staff' ? 'Необязательно' : ''} disabled={busy || !canEdit} onChange={e => change(row, 'objectNumber', e.target.value)} /> : <button className="workspace-object-link" title={row.objectNumber || row.fullName} onClick={() => editGenotype(row)}>{row.objectNumber || 'Без номера'}</button>}<small title={objectNumber(row)}>{objectNumber(row)}</small></td>
+                {showAssignedNumber && <td className="workspace-assigned-column" data-invalid={issues.some(issue => issue.code.startsWith('ASSIGNED_NUMBER'))}><span title={row.expertiseType === 'chs' || !row.expertiseType ? row.assignedNumber || 'Загрузите Excel с присвоенным номером' : ''}>{row.expertiseType === 'chs' || !row.expertiseType ? row.assignedNumber || '—' : '—'}</span></td>}
                 <td className="workspace-year-column">{editable ? <input aria-label="Год объекта" aria-invalid={issues.some(issue => issue.code === 'YEAR')} className="form-input" type="number" min="1900" max="2100" value={row.year ?? ''} disabled={busy || !canEdit} onChange={e => change(row, 'year', e.target.value === '' ? null : Number(e.target.value))} /> : row.year || '—'}</td>
                 <td className="workspace-type-column">{editable ? <select aria-label="Тип объекта" aria-invalid={issues.some(issue => issue.code === 'TYPE')} className="form-select" value={row.expertiseType || ''} disabled={busy || !canEdit} onChange={e => change(row, 'expertiseType', e.target.value || null)}><option value="">Выберите тип</option>{Object.entries(types).map(([code, label]) => <option key={code} value={code}>{label}</option>)}</select> : <span className="workspace-type" data-type={row.expertiseType}>{types[row.expertiseType] || 'Не указан'}</span>}</td>
                 {showStaff && <td className="workspace-name-column">{editable && row.expertiseType === 'staff' ? <input aria-label="ФИО сотрудника" aria-invalid={issues.some(issue => issue.code === 'FULL_NAME')} className="form-input" value={row.fullName || ''} disabled={busy || !canEdit} onChange={e => change(row, 'fullName', e.target.value)} placeholder="Фамилия Имя Отчество" /> : <span className={row.fullName ? '' : 'workspace-muted'} title={row.fullName || ''}>{row.fullName || '—'}</span>}</td>}
@@ -762,6 +765,7 @@ export default function WorkspacePage({
     }}>
       <div className="workspace-editor-header"><div><span className="workspace-eyebrow">Генотип объекта</span><h2>{details.objectNumber || 'Без номера'}<span className="workspace-type" data-type={details.expertiseType}>{types[details.expertiseType] || 'Тип не задан'}</span></h2></div><button className="workspace-icon-button" aria-label="Закрыть окно" onClick={() => setDetails(null)}><WorkspaceIcon name="close" /></button></div>
       <div className="workspace-editor-body"><div className="workspace-editor-summary"><span><strong>{details.year || '—'}</strong>Год</span><span><strong>{previewLoci.filter(locus => genotypePreview[locus]?.length).length}</strong>Локусов с данными</span><span className="workspace-editor-source" title={details.sourceFilename || details.provenance?.sourceFilename || ''}><WorkspaceIcon name="file" />{details.sourceFilename || details.provenance?.sourceFilename || 'Профиль из личного массива'}</span></div>
+        {details.expertiseType === 'chs' && <p className="workspace-assigned-detail"><strong title={ASSIGNED_HEADER}>№ присвоенный в в/ч:</strong> {details.assignedNumber || 'Не указан в исходном Excel'}</p>}
         <div className="workspace-genotype-grid">{previewLoci.map(locus => <label key={locus}>{locus}<input className="form-input" aria-label={`Аллели ${locus}`} readOnly={!canEdit} value={Object.hasOwn(locusEdits, locus) ? locusEdits[locus] : Array.isArray(genotypePreview[locus]) ? genotypePreview[locus].join(',') : String(genotypePreview[locus] ?? '')} onChange={e => {
               setLocusEdits(current => ({
                 ...current,

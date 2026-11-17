@@ -1343,6 +1343,9 @@
 .workspace-table .workspace-object-column { position: sticky; left: 40px; z-index: 2; width: 178px; min-width: 178px; max-width: 178px; box-shadow: 1px 0 0 var(--border-subtle); }
 .workspace-table thead .workspace-check-column, .workspace-table thead .workspace-object-column { z-index: 4; background: var(--surface-elevated); }
 .workspace-table .workspace-year-column { width: 88px; min-width: 88px; font-variant-numeric: tabular-nums; }
+.workspace-table .workspace-assigned-column { min-width: 166px; max-width: 210px; font-variant-numeric: tabular-nums; overflow-wrap: anywhere; }
+.workspace-table .workspace-assigned-column[data-invalid="true"] { color: var(--status-warning); }
+.workspace-assigned-detail { padding: 8px 12px; background: var(--surface-elevated); border-radius: 6px; overflow-wrap: anywhere; }
 .workspace-table .workspace-type-column { width: 118px; min-width: 118px; }
 .workspace-table .workspace-name-column { min-width: 200px; max-width: 220px; }
 .workspace-table .workspace-comment-column { min-width: 210px; max-width: 260px; }

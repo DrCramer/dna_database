@@ -20,6 +20,19 @@ function file(rows, name = 'old.xlsx', sheets) {
 const headers = ['Объект', 'TH01', 'D5S818', 'D21S11'];
 const values = ['7,9', '11,12', '29,30'];
 const standard = [headers, ['258-11x (2)_a', ...values]];
+test('Конвертер сохраняет присвоенный номер из Excel как служебную колонку; разные номера одного объекта блокируют выгрузку', () => {
+  const { ASSIGNED_HEADER } = require('../src/utils/emergencyAssignedNumber');
+  const source = file([[...headers, ASSIGNED_HEADER], ['SYN-101', ...values, '000123/А']]);
+  const result = converter.convert([source], { year: 2026 });
+  assert.equal(result.canImport, true);
+  assert.equal(result.profiles[0].assignedNumber, '000123/А');
+  const exported = converter.export(result);
+  const [parsed] = require('../src/services/workspace/importSourceService').parseFiles([{ originalname: 'SYN.xlsx', buffer: exported }]).rows;
+  assert.equal(parsed.assignedNumber, '000123/А');
+  const conflicting = converter.convert([file([[...headers,ASSIGNED_HEADER],['SYN-101',...values,'0001'],['SYN-101',...values,'0002']])], { year: 2026 });
+  assert.equal(conflicting.canImport, false);
+  assert(conflicting.issues.some(issue => issue.code === 'ASSIGNED_NUMBER_CONFLICT' && issue.hard));
+});
 function withImportYear(buffer, year = 2024) {
   const book = XLSX.read(buffer, { type: 'buffer' });
   const sheet = book.Sheets['Импорт'];

@@ -1,4 +1,5 @@
 const { createImportWorkbook } = require('../../utils/importWorkbook');
+const { isAssignedNumberHeader } = require('../../utils/emergencyAssignedNumber');
 const XLSX = require('xlsx');
 const { createHash } = require('node:crypto');
 const { createConverterRuleMatcher } = require('../../utils/converterRuleScope');
@@ -141,6 +142,7 @@ class GeneticExcelConverterService {
       const mapped = [];
       for (const column of info.columns) {
         if (column.index === info.objectColumn) continue;
+        if (isAssignedNumberHeader(column.header)) { column.ignored = true; continue; }
         const choice = settings.columns?.[column.index];
         if (choice?.ignore === true || (!choice && (sourceDetector.isServiceColumn(column.header) || info.objectCandidates.some(candidate => candidate.index === column.index && dataRows.every(row => normalizeObjectName(row[column.index]) === normalizeObjectName(row[info.objectColumn])))))) { column.ignored = true; continue; }
         if (choice?.locus) column.locus = this.detector.getCanonicalLocusName(choice.locus);
@@ -193,6 +195,13 @@ class GeneticExcelConverterService {
         const key = gene && options.mergeGeneMapperSources !== true ? `${fileId}:${year ?? 'legacy'}:${objectNumber}` : identity;
         if (!objects.has(key)) objects.set(key, { objectNumber, year, sourceLoci: new Set(), panelIds: new Set(), sources: [], variants: new Map(), audit: [] });
         const object = objects.get(key);
+        if (!gene && !ngs) {
+          object.assignedNumbers ||= new Set();
+          headers.forEach((header, column) => {
+            const value = String(row[column] ?? '').trim();
+            if (isAssignedNumberHeader(header) && value) object.assignedNumbers.add(value);
+          });
+        }
         if (geneRow) object.emergency = geneRow.sample.emergency;
         if (rawObject !== objectNumber) { const entry = { ...source, id: objectId, rawValue: rawObject, normalizedValue: objectNumber, status: 'AUTO_FIXED', code: options.objects?.[objectId] != null ? 'OBJECT_DECISION' : 'OBJECT_NORMALIZED', hard: false, reason: options.objects?.[objectId] != null ? 'Полный номер объекта исправлен пользователем.' : 'Убраны лишние пробелы в полном номере объекта.', userDecision: options.objects?.[objectId] != null ? { value: objectNumber } : null }; issue(entry); object.audit.push(entry); }
         object.sources.push({ fileId, file: info.name, sheet: info.sheet, row: index + 1, headerRow: info.headerRow, objectColumn: info.objectColumn, sourceLoci: rowSourceLoci, detectedPanelId: rowPanelId,
@@ -285,7 +294,8 @@ class GeneticExcelConverterService {
       if (object.panelIds.size > 1) { const entry = { id: `panels:${key}`, objectNumber: object.objectNumber, locus: '', sourceFile: '', sourceSheet: '', sourceRow: null, rawValue: '', normalizedValue: '', status: 'WARNING', code: 'MIXED_PANELS', hard: false, reason: 'Источники относятся к разным панелям; панель не назначена. При необходимости выберите её в обычной загрузке.' }; issue(entry); object.audit.push(entry); }
       const sourceLoci = [...object.sourceLoci];
       for (const entry of object.audit.filter(entry => entry.ngs)) entry.ngs = { ...entry.ngs, selectedGenotype: entry.normalizedValue || '', finalGenotype: (strData[entry.locus] || []).join(',') };
-      result.profiles.push({ key, emergency: object.emergency, objectNumber: object.objectNumber, year: object.year, strData, sourceLoci, populatedLoci, detectedPanelId: object.panelIds.size === 1 ? [...object.panelIds][0] : null,
+      if (object.assignedNumbers?.size > 1) issue({ id: `assigned:${key}`, profileKey: key, objectNumber: object.objectNumber, status: 'ERROR', code: 'ASSIGNED_NUMBER_CONFLICT', hard: true, reason: 'Для одного объекта найдены разные номера, присвоенные в в/ч. Исправьте исходные Excel-файлы.' });
+      result.profiles.push({ key, assignedNumber: object.assignedNumbers?.size === 1 ? [...object.assignedNumbers][0] : '', emergency: object.emergency, objectNumber: object.objectNumber, year: object.year, strData, sourceLoci, populatedLoci, detectedPanelId: object.panelIds.size === 1 ? [...object.panelIds][0] : null,
         panelLoci: object.panelIds.size === 1 ? panels.find(panel => panel.id === [...object.panelIds][0])?.lociOrder || [] : [], sources: object.sources, audit: object.audit });
     }
     result.sourceLoci = result.catalogLoci.filter(locus => result.files.some(file => file.sourceLoci.includes(locus)));

@@ -22,6 +22,7 @@ test('Единый workspace: импорт, ревизии, поиск, gate, п
   } = require('../src/services/workspace/workspaceApprovalService');
   await pool.query(require('fs').readFileSync(require('path').join(__dirname, '../database/migrations/039_optional_staff_registration.sql'), 'utf8'));
   const service = new WorkspaceApprovalService(pool);
+  await pool.query('INSERT INTO workspace_configuration(id,enabled) VALUES(true,false) ON CONFLICT(id) DO UPDATE SET enabled=false');
   t.after(() => pool.end());
   const org = (await pool.query("INSERT INTO organizations(name) VALUES($1) RETURNING id", ['SYN-workspace-' + randomUUID()])).rows[0].id;
   const foreignOrg = (await pool.query("INSERT INTO organizations(name) VALUES($1) RETURNING id", ['SYN-foreign-' + randomUUID()])).rows[0].id;
@@ -493,6 +494,36 @@ test('Единый workspace: импорт, ревизии, поиск, gate, п
     assert.equal((await pool.query('SELECT count(*)::int n FROM workspace_publications WHERE master_approval_id=$1',[d.id])).rows[0].n,0);
     assert.equal((await pool.query('SELECT count(*)::int n FROM master_array_profiles WHERE source_workspace_profile_id=ANY($1::uuid[])',[source.ids])).rows[0].n,0);
     const fresh=await service.approvalDetail(reviewer,d.id);await service.decideApproval(reviewer,d.id,'approve',fresh.reviewToken);
+  });
+
+  await t.test('ЧС: обязательный номер только из Excel, сохранение в БД, списке, PATCH и повторном импорте', async () => {
+    const number = '000123/А';
+    const d = await service.createDraft(analyst, [file([{ ...profile('SYN-CHS-NUMBER', 'chs'), assignedNumber: number }])]);
+    assert.equal(d.rows[0].assignedNumber, number);
+    assert.equal((await service.validateDraft(analyst, d.id, d.revision)).valid, true);
+    await assert.rejects(service.patchDraft(analyst, d.id, d.revision, [{ draftRowId: d.rows[0].draftRowId, assignedNumber: 'forged' }]), /Неизвестное поле/);
+    const committed = await service.commitDraft(analyst, d.id, d.revision, randomUUID());
+    const id = committed.ids[0];
+    assert.equal((await service.list(analyst)).profiles.find(row => row.id === id).assignedNumber, number);
+    await assert.rejects(service.patch(analyst, id, { assignedNumber: 'forged' }), /Неизвестное поле/);
+    const before = (await pool.query('SELECT str_data,analysis_revision FROM dna_profiles WHERE id=$1', [id])).rows[0];
+    await service.patch(analyst, id, { comment: 'SYN updated' });
+    const stored = (await pool.query('SELECT * FROM dna_profiles WHERE id=$1', [id])).rows[0];
+    assert.equal(stored.sample_name, number); assert.equal(stored.provenance.assignedNumber, number);
+    assert.deepEqual(stored.str_data, before.str_data); assert.equal(stored.analysis_revision, before.analysis_revision);
+    const exported = await service.exportProfiles(analyst, [id]);
+    const again = await service.createDraft(analyst, [{ originalname: 'SYN.xlsx', buffer: exported }]);
+    assert.equal(again.rows[0].assignedNumber, number);
+    assert.equal((await service.validateDraft(analyst, again.id, again.revision)).valid, true);
+    const missing = await service.createDraft(analyst, [file([profile('SYN-CHS-MISSING', 'chs')])]);
+    assert((await service.validateDraft(analyst, missing.id, missing.revision)).errors.some(row => row.issues.some(issue => issue.code === 'ASSIGNED_NUMBER_REQUIRED')));
+    await assert.rejects(service.commitDraft(analyst, missing.id, missing.revision, randomUUID()), error => error.code === 'VALIDATION_FAILED');
+    const raw = await service.createDraft(analyst, [file([profile('SYN-CHANGE-TO-CHS')])]);
+    const rawCommit = await service.commitDraft(analyst, raw.id, raw.revision, randomUUID());
+    await assert.rejects(service.patch(analyst, rawCommit.ids[0], { expertiseType: 'chs' }), error => error.details?.some(issue => issue.code === 'ASSIGNED_NUMBER_REQUIRED'));
+    // Наличие новой проверки не лишает доступа к старому ЧС с сохранёнными исходными колонками.
+    await pool.query('UPDATE dna_profiles SET provenance=$1 WHERE id=$2', [JSON.stringify({ legacyCells: { [require('../src/utils/emergencyAssignedNumber').ASSIGNED_HEADER]: number } }), id]);
+    assert.equal((await service.list(analyst)).profiles.find(row => row.id === id).assignedNumber, number);
   });
 
 });

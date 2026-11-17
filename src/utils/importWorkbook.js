@@ -3,7 +3,7 @@ const { orderNormalizedLoci } = require('./normalizedExcelLayout');
 const { isMissingAllele } = require('./alleleTokens');
 const { formatExportLocusValue } = require('./exportAlleles');
 
-const ASSIGNED_HEADER = '№ присвоенный в в/ч № 522 ЦПООП Северо-Кавказского военного округа, г. Ростов-на-Дону';
+const { ASSIGNED_HEADER, getAssignedNumber } = require('./emergencyAssignedNumber');
 const { FORMAT, FIELDS, serializeV2 } = require('./objectImportV2');
 
 const MASTER_EXPORT_FORMAT = 'MASTER_ARRAY_EXPORT';
@@ -14,10 +14,11 @@ function createImportWorkbook({ profiles, loci, importFormat = 'genetic', source
   const exportLoci = orderNormalizedLoci(loci);
   const unified = sourceFormat === FORMAT;
   const emergency = importFormat === 'emergency';
-  const metadataColumns = unified ? Object.keys(FIELDS).length : emergency ? 4 : 2;
-  const headers = [...(unified ? Object.values(FIELDS) : emergency ? [ASSIGNED_HEADER, 'Привоз', 'Год', 'Sample Name'] : ['Объект', 'Год']), ...exportLoci];
+  const assignedColumn = !unified && !emergency && profiles.some(profile => getAssignedNumber(profile));
+  const metadataColumns = unified ? Object.keys(FIELDS).length : emergency ? 4 : assignedColumn ? 3 : 2;
+  const headers = [...(unified ? Object.values(FIELDS) : emergency ? [ASSIGNED_HEADER, 'Привоз', 'Год', 'Sample Name'] : ['Объект', 'Год', ...(assignedColumn ? [ASSIGNED_HEADER] : [])]), ...exportLoci];
   const rows = [headers, ...profiles.map(profile => [
-    ...(unified ? Object.values(serializeV2(profile)) : emergency ? [profile.emergency.assignedNumber, profile.emergency.shippingNumber, profile.year ?? '', profile.objectNumber] : [profile.objectNumber, profile.year ?? '']),
+    ...(unified ? Object.values(serializeV2(profile)) : emergency ? [profile.emergency.assignedNumber, profile.emergency.shippingNumber, profile.year ?? '', profile.objectNumber] : [profile.objectNumber, profile.year ?? '', ...(assignedColumn ? [getAssignedNumber(profile)] : [])]),
     ...exportLoci.map(locus => unified ? (Array.isArray(profile.strData?.[locus]) ? profile.strData[locus].join(',') : '') : formatExportLocusValue(profile.strData[locus], locus))
   ])];
   const sheet = XLSX.utils.aoa_to_sheet(rows);

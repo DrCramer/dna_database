@@ -9,6 +9,7 @@ const {
 } = require('./alleleTokens');
 const detector = new LociTypeDetector();
 const FORMAT = 'DNA_IMPORT_V2';
+const { ASSIGNED_HEADER, getAssignedNumber } = require('./emergencyAssignedNumber');
 const {
   OBJECT_TYPES: TYPES
 } = require('./objectTypes');
@@ -26,7 +27,8 @@ const FIELDS = Object.freeze({
   legacyImportNumber: 'Старое значение привоза/служебной колонки',
   sourceObjectNumber: 'Исходный номер из файла',
   provenanceJson: 'Происхождение JSON',
-  genotypeJson: 'Генотип JSON'
+  genotypeJson: 'Генотип JSON',
+  assignedNumber: ASSIGNED_HEADER
 });
 function stableJSON(value) {
   if (Array.isArray(value)) return '[' + value.map(stableJSON).join(',') + ']';
@@ -51,8 +53,8 @@ function analysisHash(row) {
     strData: row.strData
   });
 }
-function validateObject(row) {
-  const issues = require('./objectTypes').objectMetadataIssues(row);
+function validateObject(row, options) {
+  const issues = require('./objectTypes').objectMetadataIssues(row, options);
   const add = (code, message) => issues.push({
     code,
     message
@@ -83,7 +85,8 @@ function serializeV2(profile) {
     legacyImportNumber: provenance.importNumber ?? '',
     sourceObjectNumber: provenance.sourceObjectNumber ?? profile.objectNumber ?? '',
     provenanceJson: stableJSON(provenance),
-    genotypeJson: stableJSON(profile.strData || {})
+    genotypeJson: stableJSON(profile.strData || {}),
+    assignedNumber: getAssignedNumber(profile)
   };
 }
 module.exports = {

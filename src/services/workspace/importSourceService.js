@@ -31,6 +31,7 @@ const {
 } = require('../converters/ngsAstrExcelParser');
 const sourceDetector = require('../converters/geneticSourceDetector');
 const detector = new LociTypeDetector();
+const { isAssignedNumberHeader, getAssignedNumber } = require('../../utils/emergencyAssignedNumber');
 const text = v => String(v ?? '').trim();
 const fieldAliases = {
   objectNumber: ['объект', '№ объекта', 'sample name', 'наименование образца'],
@@ -222,7 +223,7 @@ function parseFiles(files) {
     if (objectIndex < 0 && column(...fieldAliases.fullName, ...fieldAliases.registrationNumber) < 0) throw Object.assign(new Error('Не найден полный номер объекта.'), {
       status: 400
     });
-    const fieldColumns = name => headers.map((header, index) => (fieldAliases[name] || [FIELDS[name].toLowerCase()]).includes(key(header)) ? index : -1).filter(index => index >= 0);
+    const fieldColumns = name => headers.map((header, index) => (name === 'assignedNumber' ? isAssignedNumberHeader(header) : (fieldAliases[name] || [FIELDS[name].toLowerCase()]).includes(key(header))) ? index : -1).filter(index => index >= 0);
     for (let index = headerIndex + 1; index < matrix.length; index++) {
       const values = matrix[index];
       if (!values.some(v => text(v))) continue;
@@ -242,7 +243,7 @@ function parseFiles(files) {
         registrationNumber: get('registrationNumber') || null,
         comment: get('comment')
       });
-      for (const field of ['fullName', 'registrationNumber']) {
+      for (const field of ['fullName', 'registrationNumber', 'assignedNumber']) {
         if (new Set(fieldColumns(field).map(column => text(values[column])).filter(Boolean)).size > 1) row.sourceIssues.push({
           code: 'METADATA_COLUMN_CONFLICT',
           message: `Различаются значения столбцов «${FIELDS[field]}». Проверьте исходный файл.`
@@ -281,10 +282,12 @@ function parseFiles(files) {
           });
         }
       }
+      row.assignedNumber = fieldColumns('assignedNumber').length ? get('assignedNumber') : getAssignedNumber({ provenance: row.provenance });
+      if (fieldColumns('assignedNumber').length || row.assignedNumber) row.provenance.assignedNumber = row.assignedNumber;
       for (const [col, header] of headers.entries()) {
         const canonical = detector.getCanonicalLocusName(header);
         if (!canonical) {
-          if (text(values[col]) && !metadataHeaders.has(key(header)) && !sourceDetector.isServiceColumn(header) && !/^№?\s*присвоенный в в\/ч/i.test(text(header))) row.sourceIssues.push({
+          if (text(values[col]) && !metadataHeaders.has(key(header)) && !sourceDetector.isServiceColumn(header) && !isAssignedNumberHeader(header)) row.sourceIssues.push({
             code: 'UNKNOWN_COLUMN',
             message: `Неизвестный столбец «${text(header) || XLSX.utils.encode_col(col)}» с данными. Сопоставьте его в конвертере.`
           });

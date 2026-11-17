@@ -30,6 +30,7 @@ const err = (message, status = 400, code = 'WORKSPACE_INVALID', details) => Obje
   code,
   details
 });
+const { getAssignedNumber } = require('../../utils/emergencyAssignedNumber');
 const {
   WORKSPACE_WRITE_ROLES: WRITE_ROLES
 } = require('../../utils/objectTypes');
@@ -44,6 +45,7 @@ function requireUpload(user) {
 const objectFromDB = p => ({
   id: p.id,
   objectNumber: p.internal_number ?? '',
+  assignedNumber: getAssignedNumber(p),
   year: p.year,
   expertiseType: p.expertise_type,
   fullName: p.full_name || '',
@@ -85,7 +87,7 @@ class WorkspaceService {
     const nightFilter=this.hasRunOrigin?"AND (x.origin<>'night' OR x.state='complete')":'';
     const {
       rows
-    } = await this.pool.query(`SELECT p.id,p.internal_number,p.year,p.expertise_type,p.full_name,p.registration_number,p.comment,p.str_data,p.analysis_revision,p.provenance,pub.published_id,pub.destination,s.id search_id,s.state run_state,s.algorithm_version,CASE WHEN s.proof_revision=p.analysis_revision THEN s.proof_state END proof_state,CASE WHEN s.proof_revision=p.analysis_revision THEN s.proof_stages END proof_stages,s.completed_at search_completed_at,approval.id approval_id,approval.state approval_state,approval.decision_comment,approval.decided_at,approval.submitted_at,approval.decider_name,
+    } = await this.pool.query(`SELECT p.id,p.internal_number,p.sample_name,p.import_format,p.year,p.expertise_type,p.full_name,p.registration_number,p.comment,p.str_data,p.analysis_revision,p.provenance,pub.published_id,pub.destination,s.id search_id,s.state run_state,s.algorithm_version,CASE WHEN s.proof_revision=p.analysis_revision THEN s.proof_state END proof_state,CASE WHEN s.proof_revision=p.analysis_revision THEN s.proof_stages END proof_stages,s.completed_at search_completed_at,approval.id approval_id,approval.state approval_state,approval.decision_comment,approval.decided_at,approval.submitted_at,approval.decider_name,
  s.workspace_revision run_workspace_revision,s.master_revision,s.staff_revision,rv.master_revision current_master_revision,rv.staff_revision current_staff_revision
  FROM dna_profiles p JOIN workspace_reference_versions rv ON rv.organization_id=p.organization_id
  LEFT JOIN LATERAL(SELECT * FROM workspace_publications x WHERE x.workspace_profile_id=p.id AND x.analysis_revision=p.analysis_revision AND ((x.destination='master' AND EXISTS(SELECT 1 FROM master_array_profiles target WHERE target.id=x.published_id AND target.source_workspace_profile_id=p.id AND target.is_active=true)) OR (x.destination='staff' AND EXISTS(SELECT 1 FROM staff_profiles target WHERE target.id=x.published_id AND target.source_workspace_profile_id=p.id AND target.is_active=true))) ORDER BY x.created_at DESC LIMIT 1) pub ON true
@@ -140,9 +142,9 @@ class WorkspaceService {
         if (Object.hasOwn(patch, 'objectNumber') && !Object.hasOwn(patch, 'registrationNumber')) row.registrationNumber = row.objectNumber || null;
         if (Object.hasOwn(patch, 'registrationNumber') && !Object.hasOwn(patch, 'objectNumber')) row.objectNumber = row.registrationNumber || '';
       }
-      const issues = validateObject(row);
+      const issues = validateObject(row, { requireAssignedNumber: row.expertiseType === 'chs' && p.expertise_type !== 'chs' });
       if (issues.length) throw err('Исправьте поля объекта.', 400, 'VALIDATION_FAILED', issues);
-      await c.query(`UPDATE dna_profiles SET internal_number=$1,sample_name=$2,year=$3,expertise_type=$4,full_name=$5,registration_number=$6,comment=$7,str_data=$8,str_data_encrypted=NULL,sample_name_encrypted=NULL WHERE id=$9`, [row.expertiseType === 'staff' && !row.objectNumber ? null : row.objectNumber, row.expertiseType === 'staff' ? row.objectNumber : row.objectNumber.split('-')[0], row.year, row.expertiseType, row.fullName || null, row.expertiseType === 'staff' ? row.objectNumber || null : null, row.comment, JSON.stringify(row.strData), id]);
+      await c.query(`UPDATE dna_profiles SET internal_number=$1,sample_name=$2,year=$3,expertise_type=$4,full_name=$5,registration_number=$6,comment=$7,str_data=$8,str_data_encrypted=NULL,sample_name_encrypted=NULL,provenance=$10 WHERE id=$9`, [row.expertiseType === 'staff' && !row.objectNumber ? null : row.objectNumber, row.expertiseType === 'staff' ? row.objectNumber : row.expertiseType === 'chs' && row.assignedNumber ? row.assignedNumber : row.objectNumber.split('-')[0], row.year, row.expertiseType, row.fullName || null, row.expertiseType === 'staff' ? row.objectNumber || null : null, row.comment, JSON.stringify(row.strData), id, JSON.stringify({ ...p.provenance, assignedNumber: row.assignedNumber })]);
       return {
         id
       };
@@ -189,7 +191,7 @@ class WorkspaceService {
     return {
       ...draft,
       ...payload,
-      rows: payload.rows.map(normalizeStoredImportFilename),
+      rows: payload.rows.map(row => ({ ...normalizeStoredImportFilename(row), assignedNumber: getAssignedNumber(row) })),
       source_checksums: draft.source_checksums.map(source => source.filenameDecoded ? source : {
         ...source,
         filename: decodeUploadFilename(source.filename),
@@ -251,7 +253,7 @@ class WorkspaceService {
       seen = new Map(),
       errors = [];
     for (const row of chosen) {
-      const issues = [...row.sourceIssues, ...validateObject(row)];
+      const issues = [...row.sourceIssues, ...validateObject(row, { requireAssignedNumber: true })];
       const key = businessKey(row);
       if (key !== null && seen.has(key)) {
         issues.push({
@@ -325,8 +327,9 @@ class WorkspaceService {
       for (const row of d.rows.filter(r => r.included)) {
         const id = randomUUID();
         await c.query(`INSERT INTO dna_profiles(id,user_id,organization_id,workspace_id,year,internal_number,sample_name,str_data,import_format,expertise_type,full_name,registration_number,comment,provenance,file_source)
- VALUES($1,$2,$3,$4,$5,$6,$7,$8,'genetic',$9,$10,$11,$12,$13,$14)`, [id, user.id, user.organization_id, w.id, row.year, row.expertiseType === 'staff' && !row.objectNumber ? null : row.objectNumber, row.expertiseType === 'staff' ? row.objectNumber : row.objectNumber.split('-')[0], JSON.stringify(row.strData), row.expertiseType, row.fullName || null, row.expertiseType === 'staff' ? row.objectNumber || null : null, row.comment, JSON.stringify({
+ VALUES($1,$2,$3,$4,$5,$6,$7,$8,'genetic',$9,$10,$11,$12,$13,$14)`, [id, user.id, user.organization_id, w.id, row.year, row.expertiseType === 'staff' && !row.objectNumber ? null : row.objectNumber, row.expertiseType === 'staff' ? row.objectNumber : row.expertiseType === 'chs' && row.assignedNumber ? row.assignedNumber : row.objectNumber.split('-')[0], JSON.stringify(row.strData), row.expertiseType, row.fullName || null, row.expertiseType === 'staff' ? row.objectNumber || null : null, row.comment, JSON.stringify({
           ...row.provenance,
+          assignedNumber: getAssignedNumber(row),
           sourceSampleName: row.sourceSampleName,
           importDraftId: d.id,
           draftRowId: row.draftRowId

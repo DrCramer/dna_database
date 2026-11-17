@@ -6,11 +6,16 @@ const OBJECT_TYPES = Object.freeze({
   staff: 'Сотрудник'
 });
 const WORKSPACE_WRITE_ROLES = Object.freeze(['admin','system_administrator','department_head','user_analyst','analyst']);
-function objectMetadataIssues(row) {
+function objectMetadataIssues(row, { requireAssignedNumber = false } = {}) {
   const issues=[];const add=(code,message)=>issues.push({code,message});
   if (typeof row.objectNumber !== 'string' || row.objectNumber.length > 100 || /[\u0000-\u001f\u007f]/.test(row.objectNumber) || row.expertiseType !== 'staff' && !row.objectNumber.trim()) add('OBJECT_NUMBER', 'Укажите полный номер объекта (до 100 символов).');
   if (!Number.isInteger(row.year) || row.year < 1900 || row.year > 2100) add('YEAR', 'Укажите год от 1900 до 2100.');
   if (!Object.hasOwn(OBJECT_TYPES, row.expertiseType || '')) add('TYPE', 'Выберите тип экспертизы.');
+  if (row.expertiseType === 'chs') {
+    const number = require('./emergencyAssignedNumber').getAssignedNumber(row);
+    if (requireAssignedNumber && !number) add('ASSIGNED_NUMBER_REQUIRED', 'Для ЧС обязателен номер, присвоенный в в/ч. Загрузите Excel со столбцом «№ присвоенный в в/ч № 522 ЦПООП Северо-Кавказского военного округа, г. Ростов-на-Дону».');
+    if (number.length > 255 || /[\u0000-\u001f\u007f]/.test(number)) add('ASSIGNED_NUMBER_INVALID', 'Номер, присвоенный в в/ч, должен содержать до 255 символов без управляющих знаков. Исправьте исходный Excel.');
+  }
   if (row.expertiseType === 'staff') {
     if (row.objectNumber && !/^\d+-G$/.test(row.objectNumber)) add('REGISTRATION', 'Если номер сотрудника указан, он должен содержать цифры и латинскую -G; ведущие нули сохраняются.');
     if (row.registrationNumber && row.registrationNumber !== row.objectNumber) add('REGISTRATION_CONFLICT', 'Номер объекта и № рег. различаются.');
