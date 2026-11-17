@@ -31,6 +31,7 @@ const err = (message, status = 400, code = 'WORKSPACE_INVALID', details) => Obje
   details
 });
 const { getAssignedNumber } = require('../../utils/emergencyAssignedNumber');
+const { restoreKnownImportMetadata } = require('../../utils/workspaceImportMetadata');
 const {
   WORKSPACE_WRITE_ROLES: WRITE_ROLES
 } = require('../../utils/objectTypes');
@@ -191,7 +192,7 @@ class WorkspaceService {
     return {
       ...draft,
       ...payload,
-      rows: payload.rows.map(row => ({ ...normalizeStoredImportFilename(row), assignedNumber: getAssignedNumber(row) })),
+      rows: payload.rows.map(row => ({ ...restoreKnownImportMetadata(normalizeStoredImportFilename(row)), assignedNumber: getAssignedNumber(row) })),
       source_checksums: draft.source_checksums.map(source => source.filenameDecoded ? source : {
         ...source,
         filename: decodeUploadFilename(source.filename),

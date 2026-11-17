@@ -1346,6 +1346,18 @@
 .workspace-table .workspace-assigned-column { min-width: 166px; max-width: 210px; font-variant-numeric: tabular-nums; overflow-wrap: anywhere; }
 .workspace-table .workspace-assigned-column[data-invalid="true"] { color: var(--status-warning); }
 .workspace-assigned-detail { padding: 8px 12px; background: var(--surface-elevated); border-radius: 6px; overflow-wrap: anywhere; }
+.workspace-import-issues { padding: 14px 18px; margin-bottom: 12px; border: 1px solid var(--status-warning); border-radius: 10px; background: var(--surface-card); overflow-wrap: anywhere; }
+.workspace-import-issues:focus { outline: 2px solid var(--brand-primary); outline-offset: 2px; }
+.workspace-import-issues-heading, .workspace-import-issues li { display: flex; align-items: flex-start; justify-content: space-between; gap: 12px; }
+.workspace-import-issues h2 { margin: 0; font-size: 15px; }
+.workspace-import-issues p { margin: 5px 0 0; color: var(--text-secondary); font-size: 12px; }
+.workspace-import-issues ul { list-style: none; padding: 0; margin: 10px 0 0; }
+.workspace-import-issues li { padding: 10px 0; border-top: 1px solid var(--border-subtle); font-size: 13px; }
+.workspace-import-issues li > div { min-width: 0; flex: 1; }
+.workspace-import-issues li > button { flex-shrink: 0; }
+.workspace-issue-count { display: inline-block; margin-left: 10px; color: var(--text-secondary); font-size: 12px; }
+.workspace-primary-issue { margin: 5px 0; font-size: 12px; line-height: 1.4; }
+@media (max-width: 600px) { .workspace-import-issues-heading, .workspace-import-issues li { flex-direction: column; } }
 .workspace-table .workspace-type-column { width: 118px; min-width: 118px; }
 .workspace-table .workspace-name-column { min-width: 200px; max-width: 220px; }
 .workspace-table .workspace-comment-column { min-width: 210px; max-width: 260px; }

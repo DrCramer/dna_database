@@ -526,4 +526,22 @@ test('Единый workspace: импорт, ревизии, поиск, gate, п
     assert.equal((await service.list(analyst)).profiles.find(row => row.id === id).assignedNumber, number);
   });
 
+
+  await t.test('Черновик реестра ЧС: восстановление известных служебных колонок не меняет payload и пользовательские правки', async () => {
+    const source = await service.createDraft(analyst, [file([{...profile('SYN-REGISTRY-METADATA','chs'),assignedNumber:'000123'}])]);
+    const {unseal,seal}=require('../src/services/workspace/workspaceCrypto');
+    const payload=unseal((await pool.query('SELECT encrypted_payload FROM workspace_import_drafts WHERE id=$1',[source.id])).rows[0].encrypted_payload);
+    payload.rows[0].comment='SYN ручная правка';
+    payload.rows[0].provenance.legacyColumns=[{header:'RT (Small)',value:'0.123'},{header:'№ постановления',value:'SYN-registry'}];
+    payload.rows[0].sourceIssues=payload.rows[0].provenance.legacyColumns.map(column=>({code:'UNKNOWN_COLUMN',message:'Неизвестный столбец «'+column.header+'» с данными. Сопоставьте его в конвертере.'}));
+    const encrypted=seal(payload);await pool.query('UPDATE workspace_import_drafts SET encrypted_payload=$1 WHERE id=$2',[encrypted,source.id]);
+    const restored=await service.draft(analyst,source.id);
+    assert.deepEqual(restored.rows[0].sourceIssues,[]);assert.equal(restored.rows[0].comment,'SYN ручная правка');assert.deepEqual(restored.rows[0].strData,payload.rows[0].strData);
+    assert.equal((await pool.query('SELECT encrypted_payload FROM workspace_import_drafts WHERE id=$1',[source.id])).rows[0].encrypted_payload,encrypted);
+    assert.equal((await service.validateDraft(analyst,source.id,source.revision)).valid,true);
+    const committed=await service.commitDraft(analyst,source.id,source.revision,randomUUID());
+    const saved=(await pool.query('SELECT comment,provenance,str_data FROM dna_profiles WHERE id=$1',[committed.ids[0]])).rows[0];
+    assert.equal(saved.comment,'SYN ручная правка');assert.deepEqual(saved.provenance.legacyColumns,payload.rows[0].provenance.legacyColumns);assert.deepEqual(saved.str_data,payload.rows[0].strData);
+  });
+
 });

@@ -3,6 +3,8 @@ import { canTransferStaffName, transferStaffName } from '../../../../src/utils/s
 import MasterApprovalDialog from './MasterApprovalDialog';
 import WorkspaceStaffSettings from './WorkspaceStaffSettings';
 import WorkspaceSearchProgress from './WorkspaceSearchProgress';
+import WorkspaceImportIssues from './WorkspaceImportIssues';
+import { collectWorkspaceImportIssues } from '../../../../src/utils/workspaceImportIssues';
 import { readSearchStream } from '../../../../src/utils/searchProgressProtocol';
 import { staffSearchOptions } from '../../../../src/utils/staffSearchOptions';
 import { WORKSPACE_PROFILE_FIELDS, changedWorkingProfiles } from '../../../../src/utils/workspaceProfileChanges';
@@ -120,6 +122,7 @@ export default function WorkspacePage({
   }, [mode, user.id, user.organization_id]);
   const resultColors = useMemo(storedComparisonColors, [result?.id]);
   const [viewFilter, setViewFilter] = useState('all');
+  const [issueGroup, setIssueGroup] = useState(null);
   const [editingId, setEditingId] = useState(null);
   const [dragging, setDragging] = useState(false);
   const [editorError, setEditorError] = useState('');
@@ -141,6 +144,7 @@ export default function WorkspacePage({
   draftRef.current = draft;
   rowsRef.current = rows;
   const input = useRef(),
+    objectTable = useRef(null),
     retryFiles = useRef([]),
     commitKey = useRef(),
     initial = useRef(null),
@@ -199,6 +203,7 @@ export default function WorkspacePage({
     setError('');
     setDetails(null);
     setViewFilter('all');
+    setIssueGroup(null);
     setEditingId(null);
     setPage(0);
     setValidation(null);
@@ -243,15 +248,21 @@ export default function WorkspacePage({
       upload([preparedFile.file]);
     }
   }, [preparedFile, isImport, canUpload, user.id, user.organization_id]);
+  const importIssues = useMemo(() => isImport ? collectWorkspaceImportIssues(rows, validation) : null, [isImport, rows, validation]);
+  const groupRows = issueGroup && importIssues?.groups.find(group => group.key === issueGroup)?.rowIds;
+  useEffect(() => { if (issueGroup && !groupRows) { setIssueGroup(null); setViewFilter('all'); } }, [issueGroup, groupRows]);
+  useEffect(() => {
+    if (isImport && !importIssues.rowCount && !importIssues.globalIssues.length && error.startsWith('Загрузка остановлена.')) setError('');
+  }, [isImport, importIssues, error]);
   const id = row => row.draftRowId || row.id,
     visible = useMemo(() => {
-      const filtered = rows.filter(row => viewFilter === 'all' || viewFilter === 'selected' && (isImport ? row.included : selected.has(row.id)) || viewFilter === 'empty' && !Object.values(row.strData || {}).some(value => value.length) || viewFilter === 'issues' && ((row.sourceIssues || []).length || objectMetadataIssues(row, { requireAssignedNumber: isImport }).length || validation?.errors.some(item => item.draftRowId === row.draftRowId && item.issues.length)) || viewFilter === 'ready' && (row.searchState || row.state) === 'CHECKED' || viewFilter === 'stale' && ['STALE', 'NOT_CHECKED', 'INSUFFICIENT_DATA'].includes(row.state)).filter(row => `${row.objectNumber} ${row.expertiseType === 'chs' ? row.assignedNumber || '' : ''} ${row.year ?? ''} ${types[row.expertiseType] || ''} ${row.fullName || ''} ${row.comment || ''}`.toLowerCase().includes(query.toLowerCase()));
+      const filtered = rows.filter(row => viewFilter === 'all' || viewFilter === 'selected' && (isImport ? row.included : selected.has(row.id)) || viewFilter === 'empty' && !Object.values(row.strData || {}).some(value => value.length) || viewFilter === 'issues' && ((row.sourceIssues || []).length || (isImport ? importIssues.byRow.get(row.draftRowId)?.length : objectMetadataIssues(row).length) || validation?.errors.some(item => item.draftRowId === row.draftRowId && item.issues.length)) || viewFilter === 'ready' && (row.searchState || row.state) === 'CHECKED' || viewFilter === 'stale' && ['STALE', 'NOT_CHECKED', 'INSUFFICIENT_DATA'].includes(row.state)).filter(row => !groupRows || groupRows.has(id(row))).filter(row => `${row.objectNumber} ${row.expertiseType === 'chs' ? row.assignedNumber || '' : ''} ${row.year ?? ''} ${types[row.expertiseType] || ''} ${row.fullName || ''} ${row.comment || ''}`.toLowerCase().includes(query.toLowerCase()));
       const value = row => sort.field.startsWith('locus:') ? (row.strData[sort.field.slice(6)] || []).join(',') : row[sort.field] ?? '';
       return sort.field ? filtered.sort((a, b) => String(value(a)).localeCompare(String(value(b)), 'ru', {
         numeric: true,
         sensitivity: 'base'
       }) * sort.direction) : filtered;
-    }, [rows, query, sort, viewFilter, selected, isImport, validation]);
+    }, [rows, query, sort, viewFilter, selected, isImport, validation, importIssues, groupRows]);
   useEffect(() => {
     setPage(current => Math.min(current, Math.max(0, Math.ceil(visible.length / 50) - 1)));
   }, [visible.length]);
@@ -470,7 +481,7 @@ export default function WorkspacePage({
         });
         setValidation(valid);
         if (!valid.valid) {
-          setError(`В выбранных строках ошибок: ${valid.errors.length}. Исправьте их или снимите выбор.`);
+          setError('Загрузка остановлена. Причины и затронутые объекты показаны в блоке «Что мешает загрузке».');
           return;
         }
         if (name === 'commit') {
@@ -577,8 +588,8 @@ export default function WorkspacePage({
   const staffNameCandidates = isImport ? affected.filter(canTransferStaffName) : [];
   const readyCount = rows.filter(row => (row.searchState || row.state) === 'CHECKED' && row.approvalState !== 'pending').length;
   const dirtyCount = !isImport && initial.current ? changedWorkingProfiles(rows, initial.current).length : 0;
-  const issuesFor = row => [...(row.sourceIssues || []), ...objectMetadataIssues(row, { requireAssignedNumber: isImport }), ...(validation?.errors.find(item => item.draftRowId === row.draftRowId)?.issues || [])].filter((issue, index, list) => list.findIndex(item => item.message === issue.message) === index);
-  const errorCount = isImport ? included.filter(row => issuesFor(row).length).length : 0;
+  const issuesFor = row => importIssues?.byRow.get(id(row)) || [];
+  const errorCount = importIssues?.rowCount || 0;
   const draftPending = isImport && initial.current && rows !== initial.current && JSON.stringify(rows) !== JSON.stringify(initial.current);
   const sourceFiles = [...new Set(rows.map(row => row.sourceFilename).filter(Boolean))];
   const selectable = visible.filter(row => !isImport || !row.provenance?.classification || row.provenance.classification.included);
@@ -645,6 +656,8 @@ export default function WorkspacePage({
     {!!rows.length && (isImport || profilesReady) && <>
       {isImport && <div className="workspace-draft-status"><span><strong>{rows.length.toLocaleString('ru-RU')}</strong> объектов из файлов{errorCount > 0 && <span className="workspace-draft-warning"> · требуют внимания: {errorCount}</span>}</span><span><span className={`workspace-save-dot ${autoSaving || draftPending ? 'is-saving' : ''}`} /><span role="status">{autoSaving ? 'Сохраняем правки…' : draftPending ? 'Правки ожидают сохранения' : 'Черновик сохранён'}</span><small>· 24 часа</small></span></div>}
 
+      {isImport && <WorkspaceImportIssues summary={importIssues} validation={validation} activeGroup={issueGroup} onShowGroup={key => { setIssueGroup(key); setViewFilter('issues'); setQuery(''); setPage(0); requestAnimationFrame(() => objectTable.current?.focus()); }} onShowAll={() => { setIssueGroup(null); setViewFilter('all'); setPage(0); }} />}
+
       <section className="workspace-data-card">
         <div className="workspace-profile-controls">
         <div className="workspace-data-heading"><div><h2>{isImport ? 'Объекты из файлов' : 'Рабочие профили'}</h2>{isImport && <p>Укажите год и тип. Для ЧС обязателен присвоенный номер из Excel; ФИО заполняется только для сотрудников.</p>}</div>{!isImport && !!dirtyCount && <span className="workspace-badge" data-state="STALE">Есть изменения: {dirtyCount}</span>}</div>
@@ -658,6 +671,7 @@ export default function WorkspacePage({
             }}><WorkspaceIcon name="close" /></button>}</label>
           <select className="form-select workspace-filter" aria-label="Показать объекты" value={viewFilter} onChange={e => {
             setViewFilter(e.target.value);
+            setIssueGroup(null);
             setPage(0);
           }}><option value="all">Все объекты</option><option value="selected">Только выбранные</option><option value="empty">Без генотипа</option>{isImport ? <option value="issues">Требуют внимания</option> : <><option value="ready">Готовы к публикации</option><option value="stale">Нужен повторный поиск</option></>}</select>
           <span className="workspace-filter-count">Найдено: {visible.length.toLocaleString('ru-RU')}</span>
@@ -685,7 +699,7 @@ export default function WorkspacePage({
                 }}><option value="standard">Стандартный</option><option value="duplicate_v5">Дубликаты v5</option><option value="contamination">Контаминация</option></select></label><button className="btn btn-secondary" disabled={busy || !canEdit} onClick={() => setStaffSettingsOpen(true)}>Контаминация сотрудников: настройки</button><p>Сотрудники: {staffOptions.useV5Algorithm ? 'v5.0' : staffOptions.useV4Algorithm ? 'v4.0' : 'v1.5'} · порог {staffOptions.threshold}. Изменение параметров требует нового полного поиска.</p></div></details>}</div>
 
         </div>
-        <div className="workspace-table-scroll" tabIndex="0" role="region" aria-label="Таблица объектов">
+        <div className="workspace-table-scroll" ref={objectTable} tabIndex="0" role="region" aria-label="Таблица объектов">
           <table className={`workspace-table ${isImport ? 'workspace-import-table' : ''}`}><thead><tr><th className="workspace-check-column"><input type="checkbox" aria-label="Выбрать все строки текущего фильтра" checked={allSelected} ref={el => {
                     if (el) el.indeterminate = !allSelected && selectable.some(isSelected);
                   }} disabled={busy || !selectable.length} onChange={e => chooseAll(e.target.checked)} /></th>{sortHeader('objectNumber', 'Объект', 'workspace-object-column')}{showAssignedNumber && sortHeader('assignedNumber', <span title={ASSIGNED_HEADER}>№ присвоенный в в/ч<small>ЧС · из Excel</small></span>, 'workspace-assigned-column')}{sortHeader('year', 'Год', 'workspace-year-column')}{sortHeader('expertiseType', 'Тип', 'workspace-type-column')}{showStaff && sortHeader('fullName', 'ФИО сотрудника', 'workspace-name-column')}{sortHeader('comment', 'Комментарий', 'workspace-comment-column')}<th className="workspace-state-column">{isImport ? 'Данные и проверка' : 'Состояние'}</th>{!isImport && loci.map(locus => <React.Fragment key={locus}>{sortHeader('locus:' + locus, locus, 'workspace-locus-column')}</React.Fragment>)}<th className="workspace-row-actions">Действия</th></tr></thead>
@@ -700,12 +714,12 @@ export default function WorkspacePage({
                       return next;
                     })} /></td>
                 <td className="workspace-object-column">{editable ? <input aria-label="Номер объекта" aria-invalid={issues.some(issue => ['OBJECT_NUMBER', 'REGISTRATION', 'REGISTRATION_CONFLICT'].includes(issue.code))} className="form-input" value={row.objectNumber} placeholder={row.expertiseType === 'staff' ? 'Необязательно' : ''} disabled={busy || !canEdit} onChange={e => change(row, 'objectNumber', e.target.value)} /> : <button className="workspace-object-link" title={row.objectNumber || row.fullName} onClick={() => editGenotype(row)}>{row.objectNumber || 'Без номера'}</button>}<small title={objectNumber(row)}>{objectNumber(row)}</small></td>
-                {showAssignedNumber && <td className="workspace-assigned-column" data-invalid={issues.some(issue => issue.code.startsWith('ASSIGNED_NUMBER'))}><span title={row.expertiseType === 'chs' || !row.expertiseType ? row.assignedNumber || 'Загрузите Excel с присвоенным номером' : ''}>{row.expertiseType === 'chs' || !row.expertiseType ? row.assignedNumber || '—' : '—'}</span></td>}
+                {showAssignedNumber && <td className="workspace-assigned-column" data-invalid={issues.some(issue => String(issue.code || '').startsWith('ASSIGNED_NUMBER'))}><span title={row.expertiseType === 'chs' || !row.expertiseType ? row.assignedNumber || 'Загрузите Excel с присвоенным номером' : ''}>{row.expertiseType === 'chs' || !row.expertiseType ? row.assignedNumber || '—' : '—'}</span></td>}
                 <td className="workspace-year-column">{editable ? <input aria-label="Год объекта" aria-invalid={issues.some(issue => issue.code === 'YEAR')} className="form-input" type="number" min="1900" max="2100" value={row.year ?? ''} disabled={busy || !canEdit} onChange={e => change(row, 'year', e.target.value === '' ? null : Number(e.target.value))} /> : row.year || '—'}</td>
                 <td className="workspace-type-column">{editable ? <select aria-label="Тип объекта" aria-invalid={issues.some(issue => issue.code === 'TYPE')} className="form-select" value={row.expertiseType || ''} disabled={busy || !canEdit} onChange={e => change(row, 'expertiseType', e.target.value || null)}><option value="">Выберите тип</option>{Object.entries(types).map(([code, label]) => <option key={code} value={code}>{label}</option>)}</select> : <span className="workspace-type" data-type={row.expertiseType}>{types[row.expertiseType] || 'Не указан'}</span>}</td>
                 {showStaff && <td className="workspace-name-column">{editable && row.expertiseType === 'staff' ? <input aria-label="ФИО сотрудника" aria-invalid={issues.some(issue => issue.code === 'FULL_NAME')} className="form-input" value={row.fullName || ''} disabled={busy || !canEdit} onChange={e => change(row, 'fullName', e.target.value)} placeholder="Фамилия Имя Отчество" /> : <span className={row.fullName ? '' : 'workspace-muted'} title={row.fullName || ''}>{row.fullName || '—'}</span>}</td>}
                 <td className="workspace-comment-column">{editable ? <textarea aria-label="Комментарий объекта" className="form-input workspace-comment" rows="1" value={row.comment || ''} disabled={busy || !canEdit} onChange={e => change(row, 'comment', e.target.value)} placeholder="Необязательно" /> : <span className={`workspace-comment-preview ${row.comment ? '' : 'workspace-muted'}`} title={row.comment || ''}>{row.comment || '—'}</span>}</td>
-                <td className="workspace-state-column">{isImport ? <><span className="workspace-badge" data-state={issues.length ? 'STALE' : countEmpty([row]) ? 'NO_GENOTYPE' : 'CHECKED'}>{issues.length ? `Замечаний: ${issues.length}` : countEmpty([row]) ? 'Нет генотипа' : 'Готов к загрузке'}</span>{issues.length > 0 && <details className="workspace-issues"><summary>Что исправить</summary>{issues.map((issue, index) => <div className="workspace-row-error" key={index}>{issue.message}</div>)}</details>}</> : stateBadge(row)}</td>
+                <td className="workspace-state-column">{isImport ? <><span className="workspace-badge" data-state={issues.length ? 'STALE' : countEmpty([row]) ? 'NO_GENOTYPE' : 'CHECKED'}>{issues.length ? `Замечаний: ${issues.length}` : countEmpty([row]) ? 'Нет генотипа' : 'Готов к загрузке'}</span>{issues.length > 0 && <div className="workspace-issues"><p className="workspace-row-error workspace-primary-issue">{issues[0].message}</p>{issues.length > 1 && <details><summary>Все причины ({issues.length})</summary>{issues.slice(1).map((issue, index) => <div className="workspace-row-error" key={index}>{issue.message}</div>)}</details>}</div>}</> : stateBadge(row)}</td>
                 {!isImport && loci.map(locus => <td className="workspace-alleles" key={locus}>{(row.strData[locus] || []).join(',') || <span className="workspace-muted">—</span>}</td>)}
                 <td className="workspace-row-actions"><div>{!isImport && canEdit && <button className="workspace-icon-button" aria-label={`Редактировать ${row.objectNumber || row.fullName}`} title="Редактировать метаданные" disabled={busy} onClick={() => setEditingId(editingId === row.id ? null : row.id)}><WorkspaceIcon name={editingId === row.id ? 'check' : 'edit'} /></button>}<button className="workspace-icon-button" aria-label={`Открыть генотип ${row.objectNumber || row.fullName}`} title="Генотип и источник" onClick={() => editGenotype(row)}><WorkspaceIcon name="open" /></button></div></td>
               </tr>;

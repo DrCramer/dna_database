@@ -32,12 +32,14 @@ const {
 const sourceDetector = require('../converters/geneticSourceDetector');
 const detector = new LociTypeDetector();
 const { isAssignedNumberHeader, getAssignedNumber } = require('../../utils/emergencyAssignedNumber');
+const { COMMENT_HEADERS, isRegistryMetadataHeader } = require('../../utils/workspaceImportMetadata');
 const text = v => String(v ?? '').trim();
 const fieldAliases = {
   objectNumber: ['объект', '№ объекта', 'sample name', 'наименование образца'],
   year: ['год', 'год исследования', 'year'],
   expertiseType: ['тип экспертизы', 'категория'],
   fullName: ['фио', 'ф.и.о.', 'фио сотрудника', 'ф.и.о. сотрудника', 'сотрудник', 'full name', 'employee name'],
+  comment: COMMENT_HEADERS,
   registrationNumber: ['№ рег.', '№ рег', '№ регистрации', 'регистрационный номер', 'registration number', 'staff id']
 };
 const metadataHeaders = new Set([...Object.values(FIELDS), ...Object.values(fieldAliases).flat(), 'Sample Name', 'Наименование образца', '№ Объекта', 'Sample Type', 'Year', 'Год исследования', 'Категория', 'Панель', 'Система', 'Эксперт', 'Место назначения', 'Географическое происхождение', 'Родственные связи', '№ Заключения эксперта', 'Статус проверки', 'ФИО (сотрудник/посетитель)', 'Место рождения', 'Занесение в реестр', 'Дата сдачи образца', 'Привоз'].map(v => String(v).trim().toLowerCase()));
@@ -227,7 +229,10 @@ function parseFiles(files) {
     for (let index = headerIndex + 1; index < matrix.length; index++) {
       const values = matrix[index];
       if (!values.some(v => text(v))) continue;
-      const get = name => fieldColumns(name).map(column => text(values[column])).find(Boolean) || '';
+      const get = name => {
+        const entries = fieldColumns(name).map(column => text(values[column])).filter(Boolean);
+        return name === 'comment' ? [...new Set(entries)].join('\n') : entries[0] || '';
+      };
       const objectValue = objectIndex >= 0 ? text(values[objectIndex]) : get('registrationNumber');
       const expertiseType = normalizeType(get('expertiseType'));
       const number = expertiseType === 'staff' && !objectValue ? get('registrationNumber') : objectValue;
@@ -287,8 +292,9 @@ function parseFiles(files) {
       for (const [col, header] of headers.entries()) {
         const canonical = detector.getCanonicalLocusName(header);
         if (!canonical) {
-          if (text(values[col]) && !metadataHeaders.has(key(header)) && !sourceDetector.isServiceColumn(header) && !isAssignedNumberHeader(header)) row.sourceIssues.push({
+          if (text(values[col]) && !metadataHeaders.has(key(header)) && !sourceDetector.isServiceColumn(header) && !isAssignedNumberHeader(header) && !isRegistryMetadataHeader(header)) row.sourceIssues.push({
             code: 'UNKNOWN_COLUMN',
+            column: text(header),
             message: `Неизвестный столбец «${text(header) || XLSX.utils.encode_col(col)}» с данными. Сопоставьте его в конвертере.`
           });
           continue;
