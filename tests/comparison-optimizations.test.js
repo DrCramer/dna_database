@@ -105,11 +105,11 @@ test('Dense staff matches switch to one pass; zero threshold preserves every mat
 test('v4 prefilter uses rounded scores; returned v5 evidence cannot mutate the parsed cache', async () => {
   const p={id:'SYN',str_data:{TH01:['9.3','9.3']}},s={...p,id:'SYN-staff'};
   const analyzer=new Analyzer(null,{quiet:true,cacheAlleles:true,optimizeComparisons:true});
-  const accepted=await analyzer.detectStaffContamination(p,[s],{useV5Algorithm:false,useV4Algorithm:true,threshold:10,locusWeights:{TH01:0.9996}});
+  const accepted=await analyzer.detectStaffContamination(p,[s],{useV5Algorithm:false,useV4Algorithm:true,minLociMatch:1,threshold:10,locusWeights:{TH01:0.9996}});
   assert.equal(accepted[0].finalScore,10);
-  const rejected=await analyzer.detectStaffContamination(p,[s],{useV5Algorithm:false,useV4Algorithm:true,threshold:10.002,locusWeights:{TH01:1.0004}});
+  const rejected=await analyzer.detectStaffContamination(p,[s],{useV5Algorithm:false,useV4Algorithm:true,minLociMatch:1,threshold:10.002,locusWeights:{TH01:1.0004}});
   assert.equal(rejected.length,0);
-  const options={threshold:0,useV5Algorithm:true};
+  const options={threshold:0,minLociMatch:1,useV5Algorithm:true};
   const expected=await analyzer.detectStaffContamination(p,[s],options);
   const changed=await analyzer.detectStaffContamination(p,[s],options);
   changed[0].detailedMatches[0].sampleAlleles.push('999');

@@ -36,6 +36,7 @@ function locusCell(cell, raw, presentation) {
 
 class StaffContaminationExcelExportService {
   async createWorkbookBuffer({ result, colors }) {
+    if (result.outdated) throw Object.assign(new Error('Критерии поиска обновлены. Выполните повторный полный поиск перед экспортом контаминаций сотрудников.'), { status: 409, code: 'SEARCH_CRITERIA_CHANGED' });
     const groups = staffComparisonGroups(result.staff || [], result.staffProfiles);
     if (!groups.length) throw Object.assign(new Error('Нет найденных контаминаций сотрудников для выгрузки.'), { status: 400 });
     if (1 + groups.reduce((count, group) => count + 1 + group.matches.length, 0) > 1048576) {

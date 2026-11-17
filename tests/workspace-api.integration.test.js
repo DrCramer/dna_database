@@ -322,6 +322,14 @@ test('Workspace API: реальные сессии, роли, чужие UUID, l
     await service.configureSearch(actor, { staffOptions: { ...staffOptions, threshold: 100 } });
     assert.equal((await service.list(actor)).profiles.find(p => p.id === profile).searchState, 'STALE');
     const stored = await service.search(actor, run.id); assert.deepEqual(stored.parameters.staffOptions, staffOptions);
+    assert.equal(stored.outdated, false);
+    await pool.query("UPDATE workspace_search_runs SET algorithm_version='SYN-old-criteria' WHERE id=$1", [run.id]);
+    const oldResponse = await call('/api/workspace/searches/' + run.id, 'user_analyst');
+    assert.equal(oldResponse.status, 200); assert.equal((await oldResponse.json()).outdated, true);
+    const oldExport = await call('/api/workspace/searches/' + run.id + '/staff-contaminations-xlsx', 'user_analyst', {});
+    assert.equal(oldExport.status, 409); assert.equal((await oldExport.json()).code, 'SEARCH_CRITERIA_CHANGED');
+    assert.equal((await call('/api/workspace/searches/' + run.id + '/staff-contaminations-xlsx', 'foreign', {})).status, 404);
+    await pool.query('UPDATE workspace_search_runs SET algorithm_version=$1 WHERE id=$2', [require('../src/services/workspace/workspaceSearchService').ALGORITHM_VERSION, run.id]);
     // The legacy task route falls back to threshold 5.5 when zero was saved.
     const zero = await service.fullSearch(actor, [profile], { staffOptions: { threshold: 0, useV5Algorithm: false, useV4Algorithm: true } });
     assert(zero.staff.every(group => group.matches.every(match => match.finalScore >= 5.5)));

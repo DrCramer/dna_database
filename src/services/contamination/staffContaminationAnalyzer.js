@@ -1,5 +1,8 @@
 const { multisetIntersection } = require("../../utils/alleleComparison");
 const { informativeAlleles, isSpecialAllele } = require("../../utils/alleleTokens");
+const { LociTypeDetector } = require("../../utils/lociTypeDetector");
+const locusDetector = new LociTypeDetector();
+const locusKey = locus => locusDetector.getCanonicalLocusName(locus) || locus;
 /**
  * Алгоритм выявления контаминации сотрудников через анализ STR-профилей
  * Адаптирован для интеграции с DNA Analysis Web Application
@@ -174,6 +177,11 @@ class StaffContaminationAnalyzer {
             const allLoci = (context.allLoci || getAnalysisLoci([sampleProfile, ...staffProfiles])).filter(locus =>
                 !this.skipLoci.includes(locus) && !ignored.includes(locus)
             );
+            const minimumLoci = Number.isInteger(opts.minLociMatch) && opts.minLociMatch > 0
+                ? opts.minLociMatch : this.defaultOptions.minLociMatch;
+            // *, **, ?, OL и прочие служебные токены не дают данных для сравнения.
+            // Особенно важно для v4: один сохранившийся маркер иначе даёт 10/10.
+            if (new Set(allLoci.filter(locus => this.parseAlleles(sampleData[locus]).length > 0).map(locusKey)).size < minimumLoci) return [];
 
             if (!this.quiet) logger.info('Начало анализа контаминации (v4.0 с нормализацией)', {
                 sampleId: sampleProfile.id,
@@ -229,7 +237,12 @@ class StaffContaminationAnalyzer {
                 
                 // Добавляем результат если превышен порог
                 if (evidence.finalScore >= opts.threshold) {
-                    results.push(evidence);
+                    const matchedLoci = new Set((evidence.detailedMatches || [])
+                        .filter(detail => this.parseAlleles(detail.explainedAlleles).length > 0)
+                        .map(detail => locusKey(detail.locus)));
+                    // Применяем заданный минимум к реальным совпадениям во всех
+                    // версиях. Балл/число заполненных локусов не заменяют критерий.
+                    if (matchedLoci.size >= minimumLoci) results.push(evidence);
                 }
             }
 

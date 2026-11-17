@@ -65,7 +65,7 @@ test('Контаминация включает AMEL, Yindel и DYS391; явны
   const str_data = { AMEL: ['X', 'Y'], Yindel: ['1'], DYS391: ['10'], D6S1043: ['8', '10', '12'] };
   const sample = { id: 'synthetic', str_data };
   const staff = [{ id: 'synthetic-staff', full_name: 'Синтетический сотрудник', str_data }];
-  const options = { threshold: 0, useV5Algorithm: false, useV4Algorithm: true };
+  const options = { threshold: 0, minLociMatch: 1, useV5Algorithm: false, useV4Algorithm: true };
   const result = await analyzer.detectStaffContamination(sample, staff, options);
   assert.deepEqual(new Set(result[0].detailedMatches.map(match => match.locus)), new Set(Object.keys(str_data)));
   const ignored = await analyzer.detectStaffContamination(sample, staff, { ...options, ignoredLoci: ['AMEL'] });

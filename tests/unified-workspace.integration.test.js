@@ -57,7 +57,7 @@ test('Единый workspace: импорт, ревизии, поиск, gate, п
       originalname: 'SYN импорт.xlsx',
       buffer: createImportWorkbook({
         profiles,
-        loci: Object.keys(data),
+        loci: [...new Set(profiles.flatMap(p => Object.keys(p.strData || {})))],
         sourceFormat: FORMAT
       })
     };
@@ -542,6 +542,31 @@ test('Единый workspace: импорт, ревизии, поиск, gate, п
     const committed=await service.commitDraft(analyst,source.id,source.revision,randomUUID());
     const saved=(await pool.query('SELECT comment,provenance,str_data FROM dna_profiles WHERE id=$1',[committed.ids[0]])).rows[0];
     assert.equal(saved.comment,'SYN ручная правка');assert.deepEqual(saved.provenance.legacyColumns,payload.rows[0].provenance.legacyColumns);assert.deepEqual(saved.str_data,payload.rows[0].strData);
+  });
+
+
+  await t.test('Неполный профиль со звёздочками не становится контаминацией по одному RS; старые версии требуют пересчёта',async()=>{
+    const actor=await user('user_analyst'),controlData={...data,rs199815934:['1']};
+    const control=await load(admin,[{...profile('987654-G','staff',controlData),fullName:'SYN положительный контроль'}]);
+    const controlRun=await service.fullSearch(admin,control.ids);
+    const published=await service.publish(admin,control.ids,controlRun.id);
+    const staffId=published.published[0].publishedId;
+    const sparse={...Object.fromEntries(Object.keys(data).map(locus=>[locus,['*']])),rs199815934:['1']};
+    const working=await load(actor,[profile('SYN-SPARSE-RS','ug',sparse),profile('SYN-REAL-CONTROL','ug',controlData)]);
+    await service.configureSearch(actor,{minMatches:12,staffOptions:{useV4Algorithm:true,useV5Algorithm:false,threshold:5.5,minLociMatch:8}});
+    const before=(await pool.query('SELECT id,str_data FROM dna_profiles WHERE id=ANY($1::uuid[]) ORDER BY id',[working.ids])).rows;
+    const result=await service.fullSearch(actor,working.ids);
+    assert.equal(result.staff.find(group=>group.profileId===working.ids[0]).matches.length,0);
+    assert.equal(result.profiles.find(row=>row.profileId===working.ids[0]).state,'INSUFFICIENT_DATA');
+    assert(result.staff.find(group=>group.profileId===working.ids[1]).matches.some(match=>match.staffId===staffId));
+    assert.deepEqual((await pool.query('SELECT id,str_data FROM dna_profiles WHERE id=ANY($1::uuid[]) ORDER BY id',[working.ids])).rows,before);
+    assert.equal((await service.search(actor,result.id)).outdated,false);
+    await pool.query("UPDATE workspace_search_runs SET algorithm_version='existing-task-comparison+staff-v5/workspace-1' WHERE id=$1",[result.id]);
+    const old=await service.search(actor,result.id);
+    assert.equal(old.outdated,true);
+    assert.equal((await service.list(actor)).profiles.find(row=>row.id===working.ids[1]).searchState,'STALE');
+    await assert.rejects(new (require('../src/services/audit/staffContaminationExcelExportService').StaffContaminationExcelExportService)().createWorkbookBuffer({result:old}),error=>error.status===409);
+    await assert.rejects(service.search(other,result.id),error=>error.status===404);
   });
 
 });

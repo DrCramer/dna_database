@@ -6,12 +6,13 @@ const { syntheticProfiles } = require('../scripts/benchmark-task-search');
 const baseline = require('./fixtures/staff-search-baseline.json');
 const json = value => JSON.parse(JSON.stringify(value));
 
-test('Staff workers: frozen v1.5/v4/v5 results, special alleles, panels, sex filtering and self exclusions stay identical', async () => {
+test('Staff workers: qualified frozen v1.5/v4/v5 results retain scores and apply the minimum-locus gate', async () => {
   for (const { input, expected } of baseline.records) {
     const before = structuredClone(input);
     for (const useWorkers of [false, true]) {
       const result = await runStaffSearch(input, { useWorkers, minParallelComparisons: 0 });
-      assert.deepEqual(json(result.results), expected);
+      const minimum = input.options.minLociMatch || 8;
+      assert.deepEqual(json(result.results), expected.map(group => ({ ...group, matches: group.matches.filter(match => new Set(match.matchingLoci).size >= minimum) })));
       assert.equal(result.comparisons, 11);
       assert.equal(result.workerCount, useWorkers ? Math.min(workerLimit(), input.referenceProfiles.length) : 0);
     }

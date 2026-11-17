@@ -26,6 +26,9 @@ async function exportBook(result, colors) {
 }
 function at(sheet, row, name) { return sheet.getRow(row).getCell(sheet.getRow(1).values.indexOf(name)); }
 function underlined(cell) { return (cell.value.richText || []).filter(run => run.font?.underline).map(run => run.text); }
+test('Контаминации старой версии не выдаются за актуальный XLSX: требуется повторный поиск',async()=>{
+  await assert.rejects(new StaffContaminationExcelExportService().createWorkbookBuffer({result:{...fixture(),outdated:true}}),error=>error.status===409&&error.code==='SEARCH_CRITERIA_CHANGED');
+});
 
 test('XLSX staff сохраняет снимки, цвета, полные счётчики и кратность выделенных аллелей как UI', async () => {
   const result = fixture(), before = structuredClone(result);

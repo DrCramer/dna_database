@@ -27,7 +27,7 @@ const {
   seal,
   unseal
 } = require('./workspaceCrypto');
-const ALGORITHM_VERSION = 'existing-task-comparison+staff-v5/workspace-1';
+const ALGORITHM_VERSION = 'existing-task-comparison+staff-v5/workspace-2-min-loci';
 class WorkspaceSearchService extends WorkspaceService {
   async configureSearch(user, parameters) {
     requireUser(user, true);
@@ -245,7 +245,8 @@ class WorkspaceSearchService extends WorkspaceService {
       id: run.id,
       state: run.state,
       errorCode: run.error_code,
-      ...(run.encrypted_result ? unseal(run.encrypted_result) : {})
+      ...(run.encrypted_result ? unseal(run.encrypted_result) : {}),
+      outdated: run.algorithm_version !== ALGORITHM_VERSION
     };
   }
   async publicationPreview(user, ids) {
