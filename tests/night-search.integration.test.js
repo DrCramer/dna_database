@@ -1,5 +1,9 @@
 const test=require('node:test'),assert=require('node:assert/strict'),{randomUUID}=require('node:crypto');
 const url=process.env.NIGHT_SEARCH_TEST_DATABASE_URL;
+const scientificResult = groups => groups.map(group => {
+  const withoutHistory = ({ duplicateHistory, ...match }) => match;
+  return { ...group, matches: group.matches.map(withoutHistory), exportMatches: group.exportMatches.map(withoutHistory) };
+});
 test('Night search: durable checkpoints, window, fencing, rights, results and global manual priority',{skip:!url},async t=>{
   assert.match(new URL(url).pathname,/^\/dna_night_search_test_/);
   Object.assign(process.env,{DATABASE_URL:url,NODE_ENV:'test',UNIFIED_WORKSPACE_ENABLED:'true',JWT_SECRET:'SYN-night-test-only'});
@@ -57,8 +61,12 @@ test('Night search: durable checkpoints, window, fencing, rights, results and gl
     const chunk=(await pool.query('SELECT encrypted_result FROM workspace_search_job_chunks WHERE job_id=$1 LIMIT 1',[job.id])).rows[0];assert(chunk);assert.doesNotMatch(chunk.encrypted_result,/"TH01"/);
     await night.control(user,job.id,'resume');job=await night.claim();assert(job);await night.process(job);
     const completed=(await pool.query('SELECT * FROM workspace_search_jobs WHERE id=$1',[job.id])).rows[0];assert.equal(completed.state,'complete');
-    const result=await service.search(user,completed.result_run_id),expected=JSON.parse(JSON.stringify(await service.fullSearch(user,ids)));
-    assert.deepEqual(result.internal.results,expected.internal.results);assert.deepEqual(result.master.results,expected.master.results);assert.deepEqual(result.staff,expected.staff);
+    const result=await service.search(user,completed.result_run_id,{duplicateHistory:true}),expected=JSON.parse(JSON.stringify(await service.fullSearch(user,ids)));
+    assert.deepEqual(scientificResult(result.internal.results),scientificResult(expected.internal.results));assert.deepEqual(scientificResult(result.master.results),scientificResult(expected.master.results));assert.deepEqual(result.staff,expected.staff);
+    const nightMatches=result.internal.results.flatMap(group=>group.exportMatches);
+    const manualMatches=expected.internal.results.flatMap(group=>group.exportMatches);
+    assert(nightMatches.length>0 && nightMatches.every(match=>match.duplicateHistory.status==='new'));
+    assert(manualMatches.every(match=>match.duplicateHistory.status==='known' && match.duplicateHistory.firstFoundAt===nightMatches[0].duplicateHistory.firstFoundAt));
     assert.equal(JSON.stringify((await pool.query('SELECT id,str_data FROM dna_profiles WHERE id=ANY($1::uuid[]) ORDER BY id',[ids])).rows),originalGenotypes);
     assert(result.profiles.every(p=>p.state==='CHECKED'));assert.equal((await night.preview(admin)).needed,0);
     const same=await night.jobs(admin,true);assert.equal(same.jobs[0].result_run_id,null,'admin monitor cannot disclose another owner result');
@@ -77,7 +85,7 @@ test('Night search: durable checkpoints, window, fencing, rights, results and gl
     const row=(await pool.query('SELECT * FROM workspace_search_jobs WHERE id=$1',[job.id])).rows[0];
     assert.equal(row.state,'complete');assert.notEqual(row.manifest,old);
     const result=await service.search(user,row.result_run_id),expected=JSON.parse(JSON.stringify(await service.fullSearch(user,ids)));
-    assert.deepEqual(result.internal.results,expected.internal.results);assert.deepEqual(result.staff,expected.staff);
+    assert.deepEqual(scientificResult(result.internal.results),scientificResult(expected.internal.results));assert.deepEqual(result.staff,expected.staff);
   });
   await t.test('Expired lease is recovered with a new token; closed window prevents scheduled work',async()=>{
     await service.patch(user,ids[0],{strData:{...data,TH01:['7','9']}});

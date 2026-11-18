@@ -1,10 +1,13 @@
-import React, { useId, useRef, useState } from 'react';
+import React, { useId, useLayoutEffect, useRef, useState } from 'react';
 import UiIcon from '../Common/UiIcon';
 import WorkspaceDuplicateResults, { WorkspaceStaffResults } from './WorkspaceDuplicateResults';
 
 export default function WorkspaceSearchResultTabs({ result, colors, staffActions }) {
   const id = useId();
   const buttons = useRef([]);
+  const results = useRef(null);
+  const scrollPositions = useRef([]);
+  const pendingScroll = useRef(null);
   const staffCount = result.staff.filter(group => group.matches.length > 0).length;
   const tabs = [
     { id: 'internal', label: 'Внутри личного массива', icon: 'grid', count: result.internal.results.length, groups: result.internal.results },
@@ -17,10 +20,31 @@ export default function WorkspaceSearchResultTabs({ result, colors, staffActions
     return { active, visited: [active] };
   });
 
-  const select = index => setSelection(current => ({
-    active: index,
-    visited: current.visited.includes(index) ? current.visited : [...current.visited, index]
-  }));
+  useLayoutEffect(() => {
+    if (pendingScroll.current) {
+      const { scroller, top } = pendingScroll.current;
+      pendingScroll.current = null;
+      scroller.scrollTop = top;
+    }
+  }, [selection.active]);
+
+  const select = index => {
+    if (index === selection.active) return;
+    const scroller = results.current?.closest('.workspace-search-results');
+    if (scroller) {
+      scrollPositions.current[selection.active] = scroller.scrollTop;
+      const tabsTop = results.current.getBoundingClientRect().top - scroller.getBoundingClientRect().top
+        + scroller.scrollTop - scroller.clientTop;
+      pendingScroll.current = {
+        scroller,
+        top: scrollPositions.current[index] ?? Math.min(scroller.scrollTop, Math.max(0, tabsTop))
+      };
+    }
+    setSelection(current => ({
+      active: index,
+      visited: current.visited.includes(index) ? current.visited : [...current.visited, index]
+    }));
+  };
 
   const handleTabKey = (event, index) => {
     let next;
@@ -33,32 +57,34 @@ export default function WorkspaceSearchResultTabs({ result, colors, staffActions
     }
     event.preventDefault();
     select(next);
-    buttons.current[next]?.focus();
+    buttons.current[next]?.focus({ preventScroll: true });
   };
 
   const ignoredLoci = result.parameters?.ignoredLoci || [];
-  return <>
-    <div className="workspace-result-tabs" role="tablist" aria-label="Разделы результатов поиска">
-      {tabs.map((tab, index) => <button
-        key={tab.id}
-        ref={button => { buttons.current[index] = button; }}
-        type="button"
-        id={`${id}-tab-${index}`}
-        role="tab"
-        aria-label={tab.label}
-        aria-controls={`${id}-panel-${index}`}
-        aria-selected={selection.active === index}
-        aria-describedby={`${id}-count-${index}`}
-        tabIndex={selection.active === index ? 0 : -1}
-        onClick={() => select(index)}
-        onKeyDown={event => handleTabKey(event, index)}
-      >
-        <UiIcon name={tab.icon} className="workspace-icon" />
-        <span className="workspace-result-tab-label">{tab.label}</span>
-        <span className="workspace-count-pill" id={`${id}-count-${index}`}>
-          {result.outdated ? 'Архив' : tab.count.toLocaleString('ru-RU')}
-        </span>
-      </button>)}
+  return <div ref={results}>
+    <div className="workspace-result-tabbar">
+      <div className="workspace-result-tabs" role="tablist" aria-label="Разделы результатов поиска">
+        {tabs.map((tab, index) => <button
+          key={tab.id}
+          ref={button => { buttons.current[index] = button; }}
+          type="button"
+          id={`${id}-tab-${index}`}
+          role="tab"
+          aria-label={tab.label}
+          aria-controls={`${id}-panel-${index}`}
+          aria-selected={selection.active === index}
+          aria-describedby={`${id}-count-${index}`}
+          tabIndex={selection.active === index ? 0 : -1}
+          onClick={() => select(index)}
+          onKeyDown={event => handleTabKey(event, index)}
+        >
+          <UiIcon name={tab.icon} className="workspace-icon" />
+          <span className="workspace-result-tab-label">{tab.label}</span>
+          <span className="workspace-count-pill" id={`${id}-count-${index}`}>
+            {result.outdated ? 'Архив' : tab.count.toLocaleString('ru-RU')}
+          </span>
+        </button>)}
+      </div>
     </div>
     {tabs.map((tab, index) => <div
       className="workspace-result-panel"
@@ -85,5 +111,5 @@ export default function WorkspaceSearchResultTabs({ result, colors, staffActions
         />}
       </>}
     </div>)}
-  </>;
+  </div>;
 }

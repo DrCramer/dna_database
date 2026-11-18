@@ -88,6 +88,33 @@ test('Единый workspace: импорт, ревизии, поиск, gate, п
     return {published,replayed:outcome.replayed};
   }
   let ids, run;
+  await t.test('История дубликатов учитывает старый поиск, первую дату, владельца и очистку истории', async () => {
+    const actor = await user('user_analyst');
+    const pair = await load(actor, [profile('SYN-HISTORY-1'), profile('SYN-HISTORY-2')]);
+    const first = await service.fullSearch(actor, [pair.ids[0]]);
+    const firstMatch = first.internal.results[0].exportMatches[0];
+    assert.equal(firstMatch.duplicateHistory.status, 'new');
+    const firstAt = firstMatch.duplicateHistory.firstFoundAt;
+    // Сохраняем исходный снимок, имитируя результат до добавления индекса 041.
+    await pool.query('UPDATE workspace_search_runs SET duplicate_pair_keys=NULL,duplicate_history_complete=NULL WHERE id=$1', [first.id]);
+    // Обратное направление той же пары, а старый результат пока не проиндексирован.
+    const second = await service.fullSearch(actor, [pair.ids[1]]);
+    assert.deepEqual(second.internal.results[0].matches[0].duplicateHistory, { status: 'unknown', firstFoundAt: null });
+    const { indexSavedDuplicateHistory } = require('../src/services/workspace/workspaceDuplicateHistory');
+    const { ALGORITHM_VERSION } = require('../src/services/workspace/workspaceSearchService');
+    const indexed = await indexSavedDuplicateHistory(pool, ALGORITHM_VERSION);
+    assert(indexed.indexed >= 1);
+    assert.equal(indexed.incomplete, 0);
+    const repeated = await service.search(actor, second.id, { duplicateHistory: true });
+    assert.deepEqual(repeated.internal.results[0].matches[0].duplicateHistory, { status: 'known', firstFoundAt: firstAt });
+    assert.deepEqual(repeated.internal.results[0].exportMatches[0].duplicateHistory, { status: 'known', firstFoundAt: firstAt });
+    assert.equal((await service.search(actor, first.id, { duplicateHistory: true })).internal.results[0].matches[0].duplicateHistory.status, 'new');
+    await assert.rejects(service.search(other, second.id, { duplicateHistory: true }), /недоступен/);
+    await pool.query("UPDATE workspace_search_runs SET state='cancelled',encrypted_result=NULL WHERE id=$1", [first.id]);
+    const cleared = (await pool.query('SELECT duplicate_pair_keys,duplicate_history_complete FROM workspace_search_runs WHERE id=$1', [first.id])).rows[0];
+    assert.deepEqual(cleared, { duplicate_pair_keys: null, duplicate_history_complete: null });
+    assert.equal((await service.search(actor, second.id, { duplicateHistory: true })).internal.results[0].matches[0].duplicateHistory.status, 'new');
+  });
   await t.test('Один постоянный контейнер при конкурентном входе; владелец не зависит от отдела', async () => {
     const list = await Promise.all(Array.from({
       length: 8

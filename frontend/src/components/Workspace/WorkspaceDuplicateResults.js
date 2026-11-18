@@ -6,6 +6,12 @@ import { getLocusComparisonPresentation, formatLocusValue, normalizeMatchColors 
 
 const GROUP_PAGE_SIZE = 5;
 const MATCH_PAGE_SIZE = 50;
+const historyFilters = [
+  { value: 'all', label: 'Все' },
+  { value: 'new', label: 'Новые' },
+  { value: 'known', label: 'Ранее найденные' }
+];
+const historyDate = new Intl.DateTimeFormat('ru-RU', { dateStyle: 'short', timeZone: 'Europe/Moscow' });
 const labels = {
   full: 'Полное совпадение',
   partial: 'Частичное совпадение',
@@ -27,6 +33,17 @@ function backgroundStyle(color) {
 }
 function matchesOf(group) { return group.exportMatches || group.matches || []; }
 function objectNumber(profile) { return profile.internal_number || profile.objectNumber || profile.full_name || profile.sample_name || 'Без номера'; }
+
+function DuplicateHistoryMark({ history }) {
+  const status = history?.status || 'unknown';
+  const label = status === 'new' ? 'Новый' : status === 'known' ? 'Ранее найден' : 'История недоступна';
+  const date = history?.firstFoundAt ? new Date(history.firstFoundAt) : null;
+  return <span className="workspace-duplicate-history">
+    <span className="workspace-duplicate-history-badge" data-history={status}>{label}</span>
+    {date && <small>Впервые <time dateTime={history.firstFoundAt}>{historyDate.format(date)}</time></small>}
+    {!date && status === 'known' && <small>Первая дата недоступна</small>}
+  </span>;
+}
 
 function Alleles({ raw, presentation, highlightAll = false }) {
   if (!presentation?.alleles?.length || !highlightAll && presentation.status !== 'partial') return formatLocusValue(raw) || '—';
@@ -79,7 +96,7 @@ function ComparisonGroup({ group, ignoredLoci, colors, kind }) {
             })}
           </tr>
           {comparisons.map(({ match, data, cells, fullMatches }, index) => <tr key={`${match.id || index}:${match.source || ''}`} data-profile-id={match.id}>
-            <td data-fixed="role">{isStaff ? 'Сотрудник' : 'Дубликат'}</td><th scope="row" data-fixed="object" title={isStaff ? `${match.full_name}${match.internal_number ? ' · № рег. ' + match.internal_number : ' · без регистрационного номера'}` : objectNumber(match)}>{isStaff ? <><span className="workspace-staff-name">{match.full_name}</span><small className="workspace-staff-registration">{match.internal_number ? '№ рег. ' + match.internal_number : 'Без регистрационного номера'}</small></> : objectNumber(match)}</th><td>{match.year ?? '—'}</td>
+            <td data-fixed="role">{isStaff ? 'Сотрудник' : 'Дубликат'}</td><th scope="row" data-fixed="object" title={isStaff ? `${match.full_name}${match.internal_number ? ' · № рег. ' + match.internal_number : ' · без регистрационного номера'}` : objectNumber(match)}>{isStaff ? <><span className="workspace-staff-name">{match.full_name}</span><small className="workspace-staff-registration">{match.internal_number ? '№ рег. ' + match.internal_number : 'Без регистрационного номера'}</small></> : <>{objectNumber(match)}<DuplicateHistoryMark history={match.duplicateHistory} /></>}</th><td>{match.year ?? '—'}</td>
             {isStaff && <td className="workspace-staff-score">{match.staffEvidence.finalScore ?? match.staffEvidence.score ?? match.staffEvidence.contaminationScore ?? '—'}</td>}<td className="workspace-duplicate-count" title="Полностью совпавшие локусы">{fullMatches}</td>
             {loci.map(locus => <td key={locus} data-locus={locus} data-status={cells[locus].status}
               title={`${locus}: ${labels[cells[locus].status]}${isStaff && cells[locus].explainedAlleles.length ? '. Учтённые аллели: ' + cells[locus].explainedAlleles.join(',') : ''}`}
@@ -100,20 +117,36 @@ function ComparisonGroup({ group, ignoredLoci, colors, kind }) {
 export default function WorkspaceDuplicateResults({ groups, ignoredLoci = [], kind = 'duplicates', matchColors }) {
   const isStaff = kind === 'staff';
   const [page, setPage] = useState(0);
+  const [historyFilter, setHistoryFilter] = useState('all');
   const [savedColors] = useState(storedComparisonColors);
   const colors = matchColors || savedColors;
-  const found = useMemo(() => groups.filter(group => matchesOf(group).length > 0), [groups]);
+  const found = useMemo(() => groups.flatMap(group => {
+    const matches = matchesOf(group);
+    if (isStaff || historyFilter === 'all') return matches.length ? [group] : [];
+    const filtered = matches.filter(match => match.duplicateHistory?.status === historyFilter);
+    return filtered.length ? [{ ...group, exportMatches: filtered }] : [];
+  }), [groups, historyFilter, isStaff]);
   const pageCount = Math.ceil(found.length / GROUP_PAGE_SIZE);
   const currentPage = Math.min(page, Math.max(0, pageCount - 1));
   const visible = found.slice(currentPage * GROUP_PAGE_SIZE, (currentPage + 1) * GROUP_PAGE_SIZE);
-  if (!found.length) return <p className="workspace-no-matches">{isStaff ? 'Контаминаций сотрудниками не найдено.' : 'Совпадений не найдено.'}</p>;
+  if (isStaff && !found.length) return <p className="workspace-no-matches">Контаминаций сотрудниками не найдено.</p>;
   return <div className="workspace-duplicate-results">
+    {!isStaff && groups.some(group => matchesOf(group).length) && <div className="workspace-duplicate-history-filters" role="group" aria-label="История дубликатов">
+      {historyFilters.map(({ value, label }) => <button type="button" key={value}
+        className="btn btn-secondary btn-sm"
+        aria-pressed={historyFilter === value}
+        onClick={() => { setHistoryFilter(value); setPage(0); }}
+      >{label}</button>)}
+    </div>}
+    {!found.length ? <p className="workspace-duplicate-filter-empty">{historyFilter === 'new' ? 'Новых дубликатов нет.' :
+      historyFilter === 'known' ? 'Ранее найденных дубликатов нет.' : 'Совпадений не найдено.'}</p> : <>
     <div className="workspace-duplicate-legend" aria-label="Обозначения совпадений">{[['fullMatch', 'Полное совпадение'], ['partialMatch', 'Частичное совпадение'], ['noMatch', 'Нет совпадения']].map(([key, text]) => <span key={key}><i style={{ '--duplicate-legend-color': colors[key] }} aria-hidden="true" />{text}</span>)}<span>{isStaff ? 'Цвет соответствует результату алгоритма; подчёркнуты учтённые аллели' : 'Пустые и исключённые локусы не подсвечиваются'}</span></div>
     {pageCount > 1 && <nav className="workspace-duplicate-pagination" aria-label={isStaff ? 'Страницы объектов' : 'Страницы эталонов'}>
       <span>{isStaff ? 'Объекты' : 'Эталоны'} {currentPage * GROUP_PAGE_SIZE + 1}–{Math.min((currentPage + 1) * GROUP_PAGE_SIZE, found.length)} из {found.length}</span>
       <div><button className="btn btn-secondary btn-sm" disabled={currentPage === 0} onClick={() => setPage(currentPage - 1)}>{isStaff ? 'Предыдущие объекты' : 'Предыдущие эталоны'}</button><button className="btn btn-secondary btn-sm" disabled={currentPage + 1 >= pageCount} onClick={() => setPage(currentPage + 1)}>{isStaff ? 'Следующие объекты' : 'Следующие эталоны'}</button></div>
     </nav>}
-    {visible.map((group, i) => <ComparisonGroup key={group.reference.id || i} group={group} ignoredLoci={ignoredLoci} colors={colors} kind={kind} />)}
+    {visible.map((group, i) => <ComparisonGroup key={`${historyFilter}:${group.reference.id || i}`} group={group} ignoredLoci={ignoredLoci} colors={colors} kind={kind} />)}
+    </>}
   </div>;
 }
 

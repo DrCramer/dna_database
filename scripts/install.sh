@@ -189,6 +189,12 @@ if [[ "$night_ready" != t ]]; then
     docker compose exec -T db psql -U dna_user -d dna_analysis -v ON_ERROR_STOP=1 -q < database/migrations/040_night_search.sql
 fi
 
+# 041 adds an index for duplicate history in workspace mode.
+duplicate_history_missing="$(docker compose exec -T db psql -U dna_user -d dna_analysis -Atq -v ON_ERROR_STOP=1 -c "SELECT to_regclass('personal_workspaces') IS NOT NULL AND to_regclass('workspace_duplicate_history_scope') IS NULL")"
+if [[ "$duplicate_history_missing" == t ]]; then
+    docker compose exec -T db psql -U dna_user -d dna_analysis -v ON_ERROR_STOP=1 -q < database/migrations/041_workspace_duplicate_history.sql
+fi
+
 user_count="$(db_sql -c 'SELECT COUNT(*) FROM users')"
 if [[ "$user_count" == 0 ]]; then
     docker compose run --rm --no-deps web node scripts/bootstrap-admin.js

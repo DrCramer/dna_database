@@ -242,7 +242,7 @@ module.exports = function workspaceRouter(service = new WorkspaceApprovalService
     const { StaffContaminationExcelExportService } = require('../services/audit/staffContaminationExcelExportService');
     workbookDownload(res, 'Контаминации_сотрудников.xlsx').send(await new StaffContaminationExcelExportService().createWorkbookBuffer({ result, colors: options.colors }));
   }));
-  router.get('/searches/:id', handle(async (req, res) => res.json(await service.search(req.user, uuid(req.params.id)))));
+  router.get('/searches/:id', handle(async (req, res) => res.json(await service.search(req.user, uuid(req.params.id), { duplicateHistory: true }))));
   const targets = Joi.object().pattern(/^[0-9a-f-]{36}$/i, Joi.string().guid()).default({});
   router.post('/approval-preview', handle(async (req,res) => {
     const v=check(Joi.object({ids,existingTargets:targets}),req.body);

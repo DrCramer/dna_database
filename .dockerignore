@@ -24,6 +24,7 @@ node_modules
 !/scripts/install-memory-watch.sh
 !/scripts/attach-profiles-to-task.js
 !/scripts/export-task-v2.js
+!/scripts/index-workspace-duplicate-history.js
 !/scripts/benchmark-task-search.js
 !/scripts/benchmark-staff-search.js
 !/scripts/workspace-preflight.js

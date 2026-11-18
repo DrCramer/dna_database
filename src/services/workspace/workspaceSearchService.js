@@ -28,6 +28,7 @@ const {
   seal,
   unseal
 } = require('./workspaceCrypto');
+const { collectDuplicatePairs, annotateDuplicateHistory } = require('./workspaceDuplicateHistory');
 const ALGORITHM_VERSION = 'existing-task-comparison+staff-v5/workspace-3-certain-duplicates';
 class WorkspaceSearchService extends WorkspaceService {
   async configureSearch(user, parameters) {
@@ -206,6 +207,8 @@ class WorkspaceSearchService extends WorkspaceService {
           workspace: working.length
         }
       };
+      const pairs = collectDuplicatePairs(result);
+      const historyScope = [w.id, user.id, user.organization_id, ALGORITHM_VERSION];
       onProgress?.({ stage: 'saving', status: 'running' });
       await this.transaction(async c => {
         const current = await this.workspace(user, c, true);
@@ -226,7 +229,11 @@ class WorkspaceSearchService extends WorkspaceService {
           SELECT $1,p.profile_id,p.revision,p.hash,p.state,p.stages
           FROM jsonb_to_recordset($2::jsonb) AS p(profile_id uuid,revision bigint,hash text,state text,stages jsonb)
           ON CONFLICT(search_run_id,profile_id) DO UPDATE SET state=EXCLUDED.state,stages=EXCLUDED.stages`, [id, JSON.stringify(finalProofs)]);
-        await c.query("UPDATE workspace_search_runs SET state='complete',completed_at=now(),encrypted_result=$1 WHERE id=$2", [seal(result), id]);
+        const { rows: [saved] } = await c.query(`UPDATE workspace_search_runs
+          SET state='complete',completed_at=clock_timestamp(),encrypted_result=$1,duplicate_pair_keys=$2,duplicate_history_complete=$3
+          WHERE id=$4 RETURNING completed_at::text AS completed_at`,
+        [seal(result), [...pairs.keys.keys()], pairs.complete, id]);
+        await annotateDuplicateHistory(c, pairs, { scope: historyScope, completedAt: saved.completed_at, runId: id });
         await execution.complete?.(c,id);
       });
       onProgress?.({ stage: 'complete', status: 'running' });
@@ -236,20 +243,29 @@ class WorkspaceSearchService extends WorkspaceService {
       throw e;
     }
   }
-  async search(user, id) {
+  async search(user, id, { duplicateHistory = false } = {}) {
     requireUser(user);
     const {
       rows
-    } = await this.pool.query('SELECT * FROM workspace_search_runs WHERE id=$1 AND owner_id=$2 AND organization_id=$3', [id, user.id, user.organization_id]);
+    } = await this.pool.query(`SELECT id, workspace_id, state, error_code, encrypted_result, algorithm_version,
+      completed_at::text AS completed_at FROM workspace_search_runs WHERE id=$1 AND owner_id=$2 AND organization_id=$3`, [id, user.id, user.organization_id]);
     if (!rows.length) throw err('Поиск недоступен.', 404);
     const run = rows[0];
-    return {
+    const result = {
       id: run.id,
       state: run.state,
       errorCode: run.error_code,
       ...(run.encrypted_result ? unseal(run.encrypted_result) : {}),
       outdated: run.algorithm_version !== ALGORITHM_VERSION
     };
+    if (duplicateHistory && !result.outdated && run.state === 'complete' && run.encrypted_result && run.completed_at) {
+      await annotateDuplicateHistory(this.pool, collectDuplicatePairs(result), {
+        scope: [run.workspace_id, user.id, user.organization_id, run.algorithm_version],
+        completedAt: run.completed_at,
+        runId: id
+      });
+    }
+    return result;
   }
   async publicationPreview(user, ids) {
     requireUser(user);
