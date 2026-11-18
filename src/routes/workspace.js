@@ -205,22 +205,26 @@ module.exports = function workspaceRouter(service = new WorkspaceApprovalService
     }
   }));
   router.post('/searches/:id/duplicates-xlsx', handle(async (req, res) => {
-    if (Object.keys(req.body).length) throw Object.assign(new Error('Неизвестные параметры выгрузки.'), {
-      status: 400
-    });
-    const result = await service.search(req.user, uuid(req.params.id));
+    const { stage, historyFilter } = check(Joi.object({
+      stage: Joi.string().valid('internal', 'master'),
+      historyFilter: Joi.string().valid('all', 'new', 'known').default('all')
+    }).default({}), req.body);
+    const result = await service.search(req.user, uuid(req.params.id), { duplicateHistory: true });
     if (result.outdated) throw Object.assign(new Error('Критерии поиска обновлены. Выполните повторный полный поиск перед экспортом дубликатов.'), { status: 409, code: 'SEARCH_CRITERIA_CHANGED' });
     if (result.state !== 'complete') throw Object.assign(new Error('Поиск ещё не завершён.'), {
       status: 409
     });
-    const comparisons = [...result.internal.results, ...result.master.results].flatMap(group => (group.exportMatches || group.matches).map(match => ({
-      reference: group.reference,
-      matched: match,
-      algorithm: match.algorithm || result.parameters.comparisonAlgorithm || 'standard',
-      matchedLoci: match.matchedLoci,
-      details: match.details
-    })));
-    if (!comparisons.length) throw Object.assign(new Error('Нет найденных дубликатов для выгрузки.'), {
+    const groups = stage ? result[stage].results : [...result.internal.results, ...result.master.results];
+    const comparisons = groups.flatMap(group => (group.exportMatches || group.matches)
+      .filter(match => historyFilter === 'all' || match.duplicateHistory?.status === historyFilter)
+      .map(match => ({
+        reference: group.reference,
+        matched: match,
+        algorithm: match.algorithm || result.parameters.comparisonAlgorithm || 'standard',
+        matchedLoci: match.matchedLoci,
+        details: match.details
+      })));
+    if (!comparisons.length) throw Object.assign(new Error('Нет дубликатов для выгрузки с выбранными параметрами.'), {
       status: 400
     });
     const {
@@ -228,6 +232,7 @@ module.exports = function workspaceRouter(service = new WorkspaceApprovalService
     } = require('../services/audit/duplicateExcelExportService');
     res.type('xlsx').attachment('Duplicates.xlsx').send(await new DuplicateExcelExportService().createWorkbookBuffer({
       comparisons,
+      options: { includeFirstDetectionDate: true },
       metadata: {
         importFormat: 'genetic',
         ignoredLoci: result.parameters.ignoredLoci || []

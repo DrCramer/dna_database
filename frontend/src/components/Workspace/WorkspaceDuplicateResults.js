@@ -114,7 +114,7 @@ function ComparisonGroup({ group, ignoredLoci, colors, kind }) {
   </section>;
 }
 
-export default function WorkspaceDuplicateResults({ groups, ignoredLoci = [], kind = 'duplicates', matchColors }) {
+export default function WorkspaceDuplicateResults({ groups, ignoredLoci = [], kind = 'duplicates', matchColors, onExport, exporting }) {
   const isStaff = kind === 'staff';
   const [page, setPage] = useState(0);
   const [historyFilter, setHistoryFilter] = useState('all');
@@ -131,12 +131,18 @@ export default function WorkspaceDuplicateResults({ groups, ignoredLoci = [], ki
   const visible = found.slice(currentPage * GROUP_PAGE_SIZE, (currentPage + 1) * GROUP_PAGE_SIZE);
   if (isStaff && !found.length) return <p className="workspace-no-matches">Контаминаций сотрудниками не найдено.</p>;
   return <div className="workspace-duplicate-results">
-    {!isStaff && groups.some(group => matchesOf(group).length) && <div className="workspace-duplicate-history-filters" role="group" aria-label="История дубликатов">
-      {historyFilters.map(({ value, label }) => <button type="button" key={value}
-        className="btn btn-secondary btn-sm"
-        aria-pressed={historyFilter === value}
-        onClick={() => { setHistoryFilter(value); setPage(0); }}
-      >{label}</button>)}
+    {!isStaff && groups.some(group => matchesOf(group).length) && <div className="workspace-duplicate-toolbar">
+      <div className="workspace-duplicate-history-filters" role="group" aria-label="История дубликатов">
+        {historyFilters.map(({ value, label }) => <button type="button" key={value}
+          className="btn btn-secondary btn-sm"
+          aria-pressed={historyFilter === value}
+          onClick={() => { setHistoryFilter(value); setPage(0); }}
+        >{label}</button>)}
+      </div>
+      {onExport && <button type="button" className="btn btn-secondary" disabled={exporting || !found.length}
+        onClick={() => onExport(historyFilter)}>
+        {exporting ? 'Подготовка Excel…' : 'Экспорт дубликатов в Excel'}
+      </button>}
     </div>}
     {!found.length ? <p className="workspace-duplicate-filter-empty">{historyFilter === 'new' ? 'Новых дубликатов нет.' :
       historyFilter === 'known' ? 'Ранее найденных дубликатов нет.' : 'Совпадений не найдено.'}</p> : <>

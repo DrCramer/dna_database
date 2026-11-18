@@ -107,6 +107,7 @@ export default function WorkspacePage({
   const [approvalWindow, setApprovalWindow] = useState(null);
   const [autoSaving, setAutoSaving] = useState(false);
   const [exportingStaff, setExportingStaff] = useState(false);
+  const [exportingDuplicates, setExportingDuplicates] = useState(false);
   const [activeView, setActiveView] = useState('profiles');
   const resultViewButton = useRef(null);
   const showingResults = !isImport && !!result && activeView === 'results';
@@ -748,15 +749,21 @@ export default function WorkspacePage({
     {profilesReady && !rows.length && <section className="workspace-empty"><span className="workspace-empty-icon"><WorkspaceIcon name="grid" /></span><h2>Здесь будут ваши генотипы</h2><p>Загрузите файлы, выберите нужные объекты и начните работу с личным массивом.</p><a className="btn btn-primary" href="/upload"><WorkspaceIcon name="upload" />Загрузить первые файлы</a><div><span><WorkspaceIcon name="check" />Без назначения задачи</span><span><WorkspaceIcon name="shield" />С доступом только для вас</span></div></section>}
     </div>
 
-    {result && <section className="workspace-search-results" hidden={!showingResults} tabIndex="0" aria-label="Результаты поиска"><div className="workspace-data-heading"><div><span className="workspace-eyebrow">Поиск завершён</span><h2>Результаты полного поиска</h2><p>Проверено: {result.profiles.filter(profile => profile.state === 'CHECKED').length}; без генотипа: {result.profiles.filter(profile => profile.state === 'NO_GENOTYPE').length}; недостаточно локусов: {result.profiles.filter(profile => profile.state === 'INSUFFICIENT_DATA').length}.</p></div><button className="btn btn-secondary" disabled={result.outdated} onClick={async () => {
+    {result && <section className="workspace-search-results" hidden={!showingResults} tabIndex="0" aria-label="Результаты поиска"><div className="workspace-data-heading"><div><span className="workspace-eyebrow">Поиск завершён</span><h2>Результаты полного поиска</h2><p>Проверено: {result.profiles.filter(profile => profile.state === 'CHECKED').length}; без генотипа: {result.profiles.filter(profile => profile.state === 'NO_GENOTYPE').length}; недостаточно локусов: {result.profiles.filter(profile => profile.state === 'INSUFFICIENT_DATA').length}.</p></div></div>
+      {result.outdated && <div className="workspace-message workspace-message-error" role="alert">Критерии поиска обновлены. Это архивный результат; выполните повторный полный поиск. Прежние результаты не используются для публикации и выгрузки.</div>}
+      <WorkspaceSearchResultTabs key={result.id} result={result} colors={resultColors}
+        exportingDuplicates={exportingDuplicates} onDuplicateExport={async (stage, historyFilter) => {
+          setExportingDuplicates(true);
+          setError('');
           try {
-            saveFile(await api('/searches/' + result.id + '/duplicates-xlsx', {}, 'POST', true), 'Дубликаты.xlsx');
+            const file = await api('/searches/' + result.id + '/duplicates-xlsx', { stage, historyFilter }, 'POST', true);
+            saveFile(file, 'Дубликаты.xlsx');
           } catch (e) {
             setError(e.message);
+          } finally {
+            setExportingDuplicates(false);
           }
-        }}><WorkspaceIcon name="download" />Экспорт дубликатов в Excel</button></div>
-      {result.outdated && <div className="workspace-message workspace-message-error" role="alert">Критерии поиска обновлены. Это архивный результат; выполните повторный полный поиск. Прежние результаты не используются для публикации и выгрузки.</div>}
-      <WorkspaceSearchResultTabs key={result.id} result={result} colors={resultColors} staffActions={
+        }} staffActions={
         <button className="btn btn-secondary" disabled={exportingStaff} onClick={async () => {
           setExportingStaff(true);
           try {

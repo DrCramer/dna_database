@@ -295,6 +295,77 @@ test('Workspace API: реальные сессии, роли, чужие UUID, l
     await pool.query("UPDATE workspace_search_runs SET state='complete' WHERE id=$1", [empty.id]);
     await service.configureSearch(actor, { staffOptions: {} });
   });
+  await t.test('Экспорт дубликатов XLSX учитывает вкладку, фильтр и дату первого обнаружения', async () => {
+    const ExcelJS = require('exceljs');
+    const { WorkspaceApprovalService } = require('../src/services/workspace/workspaceApprovalService');
+    const service = new WorkspaceApprovalService(pool);
+    const actor = await User.findById(users.user_analyst.id);
+    const strData = Object.fromEntries(Object.keys(data).map(locus => [locus, ['10', '11']]));
+    async function importProfiles(numbers) {
+      const buffer = createImportWorkbook({
+        profiles: numbers.map(n => ({ objectNumber: 'SYN-EXP-' + n, year: 2026, expertiseType: 'ug', strData })),
+        loci: Object.keys(strData),
+        sourceFormat: 'DNA_IMPORT_V2'
+      });
+      const draft = await service.createDraft(actor, [{ originalname: 'SYN-export.xlsx', buffer }]);
+      return (await service.commitDraft(actor, draft.id, draft.revision, randomUUID())).ids;
+    }
+    const [reference, known] = await importProfiles([1, 2]);
+    const firstSearch = await service.fullSearch(actor, [reference], { minMatches: 15 });
+    await pool.query("UPDATE workspace_search_runs SET completed_at='2026-01-01T22:30:00Z' WHERE id=$1", [firstSearch.id]);
+    const [newMatch] = await importProfiles([3]);
+    const secondSearch = await service.fullSearch(actor, [reference], { minMatches: 15 });
+    await pool.query("UPDATE workspace_search_runs SET completed_at='2026-01-03T10:00:00Z' WHERE id=$1", [secondSearch.id]);
+
+    const endpoint = '/api/workspace/searches/' + secondSearch.id + '/duplicates-xlsx';
+    const dto = await (await call('/api/workspace/searches/' + secondSearch.id, 'user_analyst')).json();
+    const observed = dto.internal.results[0].matches;
+    assert.deepEqual(observed.find(match => match.id === known).duplicateHistory, {
+      status: 'known', firstFoundAt: '2026-01-01T22:30:00.000Z'
+    });
+    assert.deepEqual(observed.find(match => match.id === newMatch).duplicateHistory, {
+      status: 'new', firstFoundAt: '2026-01-03T10:00:00.000Z'
+    });
+
+    const knownRow = ['SYN-EXP-2', new Date('2026-01-02T00:00:00Z')];
+    const newRow = ['SYN-EXP-3', new Date('2026-01-03T00:00:00Z')];
+    for (const [body, expected] of [
+      [{ stage: 'internal', historyFilter: 'known' }, [knownRow]],
+      [{ stage: 'internal', historyFilter: 'new' }, [newRow]],
+      [{ stage: 'internal', historyFilter: 'all' }, [knownRow, newRow]],
+      [{}, [knownRow, newRow]]
+    ]) {
+      const response = await call(endpoint, 'user_analyst', body);
+      assert.equal(response.status, 200);
+      assert.match(response.headers.get('content-type'), /spreadsheetml/);
+      const book = new ExcelJS.Workbook();
+      await book.xlsx.load(Buffer.from(await response.arrayBuffer()));
+      const sheet = book.getWorksheet('Сравнения');
+      assert.equal(sheet.getCell('E1').value, 'Дата первого обнаружения');
+      assert.equal(sheet.getCell('E2').value, null);
+      const pairs = [];
+      sheet.eachRow(row => {
+        if (row.getCell(1).value !== 'Совпавший профиль') return;
+        assert.equal(row.getCell(4).value, '15');
+        assert.equal(row.getCell(5).numFmt, 'dd.mm.yyyy');
+        pairs.push([row.getCell(2).value, row.getCell(5).value]);
+      });
+      assert.deepEqual(pairs.sort(([left], [right]) => left.localeCompare(right)), expected);
+    }
+    assert.equal((await call(endpoint, 'user_analyst', { stage: 'master' })).status, 400);
+    assert.equal((await call(endpoint, 'user_analyst', { stage: 'staff' })).status, 400);
+    assert.equal((await call(endpoint, 'user_analyst', { historyFilter: 'unknown' })).status, 400);
+    assert.equal((await call(endpoint, 'foreign', { stage: 'internal', historyFilter: 'known' })).status, 404);
+
+    await pool.query("UPDATE workspace_search_runs SET duplicate_pair_keys=NULL, duplicate_history_complete=false WHERE id=$1", [firstSearch.id]);
+    const response = await call(endpoint, 'user_analyst', { stage: 'internal', historyFilter: 'all' });
+    assert.equal(response.status, 200);
+    const book = new ExcelJS.Workbook();
+    await book.xlsx.load(Buffer.from(await response.arrayBuffer()));
+    const sheet = book.getWorksheet('Сравнения');
+    for (let row = 3; row <= sheet.rowCount; row += 1) assert.equal(sheet.getCell(row, 5).value, null);
+    assert.equal((await call(endpoint, 'user_analyst', { stage: 'internal', historyFilter: 'new' })).status, 400);
+  });
   await t.test('Прежние настройки staff сохраняются, доходят до поиска и совпадают с прямым main-анализом', async () => {
     const { WorkspaceApprovalService } = require('../src/services/workspace/workspaceApprovalService');
     const { staffSearchOptions } = require('../src/utils/staffSearchOptions');

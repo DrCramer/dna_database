@@ -1634,7 +1634,8 @@
 .workspace-duplicate-history small { color: var(--text-secondary); font-size: 11px; font-weight: 400; }
 .workspace-duplicate-history-badge { padding: 2px 5px; border-radius: 4px; background: var(--surface-muted); color: var(--text-secondary); font-size: 11px; }
 .workspace-duplicate-history-badge[data-history="new"] { background: var(--status-info-bg); color: var(--brand-primary); }
-.workspace-duplicate-history-filters { display: flex; flex-wrap: wrap; gap: 6px; margin-bottom: 12px; }
+.workspace-duplicate-toolbar { display: flex; flex-wrap: wrap; justify-content: space-between; align-items: center; gap: 10px; margin-bottom: 12px; }
+.workspace-duplicate-history-filters { display: flex; flex-wrap: wrap; gap: 6px; }
 .workspace-duplicate-history-filters .btn[aria-pressed="true"] { border-color: var(--brand-primary); background: var(--status-info-bg); color: var(--brand-primary); }
 .workspace-duplicate-filter-empty { margin: 4px 0; color: var(--text-secondary); font-size: 13px; }
 .workspace-duplicate-table thead th { position: sticky; top: 0; height: 48px; z-index: 5; background: var(--surface-raised, var(--surface-card)); color: var(--text-secondary); font-size: 12px; line-height: 16px; text-align: center; }

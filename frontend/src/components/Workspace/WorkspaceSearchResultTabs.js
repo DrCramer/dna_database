@@ -2,7 +2,7 @@ import React, { useId, useLayoutEffect, useRef, useState } from 'react';
 import UiIcon from '../Common/UiIcon';
 import WorkspaceDuplicateResults, { WorkspaceStaffResults } from './WorkspaceDuplicateResults';
 
-export default function WorkspaceSearchResultTabs({ result, colors, staffActions }) {
+export default function WorkspaceSearchResultTabs({ result, colors, staffActions, onDuplicateExport, exportingDuplicates }) {
   const id = useId();
   const buttons = useRef([]);
   const results = useRef(null);
@@ -108,6 +108,8 @@ export default function WorkspaceSearchResultTabs({ result, colors, staffActions
         /> : <WorkspaceDuplicateResults
           groups={tab.groups}
           ignoredLoci={ignoredLoci}
+          onExport={historyFilter => onDuplicateExport(tab.id, historyFilter)}
+          exporting={exportingDuplicates}
         />}
       </>}
     </div>)}
