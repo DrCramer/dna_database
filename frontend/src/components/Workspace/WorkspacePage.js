@@ -16,6 +16,7 @@ import { getAnalysisLoci } from '../../../../src/utils/analysisLoci';
 import { orderNormalizedLoci } from '../../../../src/utils/normalizedExcelLayout';
 import { OBJECT_TYPES as types, WORKSPACE_WRITE_ROLES, objectMetadataIssues } from '../../../../src/utils/objectTypes';
 import { ASSIGNED_HEADER } from '../../../../src/utils/emergencyAssignedNumber';
+import importExamplesUrl from '../../../public/dna-import-examples.zip';
 const states = {
   NOT_CHECKED: 'Не проверен',
   CHECKING: 'Проверяется',
@@ -650,7 +651,13 @@ export default function WorkspacePage({
       }} />
       <span className="workspace-drop-icon"><WorkspaceIcon name={rows.length ? 'file' : 'upload'} /></span>
       <div className="workspace-drop-copy"><h2>{rows.length ? `Файлов в черновике: ${sourceFiles.length || 1}` : 'Перетащите файлы сюда'}</h2><p>{rows.length ? sourceFiles.join(' · ') : 'Excel, GeneMapper TXT и NGS ASTR+ · до 100 файлов'}</p>{!rows.length && <span className="workspace-drop-hint">Или выберите их на компьютере. Задача и отделение не нужны.</span>}</div>
-      <div className="workspace-drop-actions"><button className="btn btn-primary" disabled={busy || !canUpload} onClick={() => input.current.click()}>{busy ? 'Обработка файлов…' : rows.length ? 'Заменить файлы' : 'Выбрать файлы'}</button><a href="/excel-converter">Открыть конвертер <span aria-hidden="true">↗</span></a></div>
+      <div className="workspace-drop-actions">
+        <div className="workspace-drop-buttons">
+          <button className="btn btn-primary" disabled={busy || !canUpload} onClick={() => input.current.click()}>{busy ? 'Обработка файлов…' : rows.length ? 'Заменить файлы' : 'Выбрать файлы'}</button>
+          <a className="btn btn-secondary" href={importExamplesUrl} download="dna-import-examples.zip"><WorkspaceIcon name="download" />Скачать примеры файлов</a>
+        </div>
+        <a href="/excel-converter">Открыть конвертер <span aria-hidden="true">↗</span></a>
+      </div>
     </section>}
 
     <div className="workspace-profile-panel" hidden={showingResults}>

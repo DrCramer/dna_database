@@ -29,6 +29,7 @@ coverage/
 *.log
 *.rar
 *.zip
+!/frontend/public/dna-import-examples.zip
 *.tar
 *.tar.gz
 *.dump

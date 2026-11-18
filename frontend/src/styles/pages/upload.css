@@ -1269,8 +1269,9 @@
 .workspace-drop p { color: var(--text-secondary); margin: 0 0 5px; font-size: 13px; line-height: 1.5; overflow-wrap: anywhere; }
 .workspace-drop-hint { color: var(--text-muted); font-size: 12px; }
 .workspace-drop-actions { display: flex; flex-direction: column; gap: 13px; align-items: center; margin-top: 22px; }
-.workspace-drop-actions a { font-size: 13px; color: var(--text-link); text-decoration: none; }
-.workspace-drop-actions a:hover { text-decoration: underline; }
+.workspace-drop-buttons { display: flex; flex-wrap: wrap; justify-content: center; gap: 8px; }
+.workspace-drop-actions > a { font-size: 13px; color: var(--text-link); text-decoration: none; }
+.workspace-drop-actions > a:hover { text-decoration: underline; }
 .workspace-drop-compact { flex-direction: row; text-align: left; padding: 12px 18px; gap: 14px; border-style: solid; border-color: var(--border-default); }
 .workspace-drop-compact .workspace-drop-icon { width: 40px; height: 44px; border-radius: 10px; }
 .workspace-drop-compact .workspace-drop-icon .workspace-icon { width: 21px; height: 21px; }
@@ -1550,7 +1551,8 @@
   .workspace-drop { padding: 28px 18px; }
   .workspace-drop-compact { padding: 14px; gap: 12px; flex-wrap: wrap; }
   .workspace-drop-compact .workspace-drop-copy { flex-basis: calc(100% - 55px); }
-  .workspace-drop-compact .workspace-drop-actions { flex-direction: row; width: 100%; justify-content: space-between; }
+  .workspace-drop-compact .workspace-drop-actions { flex-direction: row; flex-wrap: wrap; width: 100%; justify-content: space-between; }
+  .workspace-drop-compact .workspace-drop-buttons { justify-content: flex-start; }
   .workspace-message { flex-wrap: wrap; }
 }
 @media (max-width: 480px) {
