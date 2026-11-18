@@ -8,7 +8,8 @@ import { collectWorkspaceImportIssues } from '../../../../src/utils/workspaceImp
 import { readSearchStream } from '../../../../src/utils/searchProgressProtocol';
 import { staffSearchOptions } from '../../../../src/utils/staffSearchOptions';
 import { WORKSPACE_PROFILE_FIELDS, changedWorkingProfiles } from '../../../../src/utils/workspaceProfileChanges';
-import WorkspaceDuplicateResults, { WorkspaceStaffResults, storedComparisonColors } from './WorkspaceDuplicateResults';
+import { storedComparisonColors } from './WorkspaceDuplicateResults';
+import WorkspaceSearchResultTabs from './WorkspaceSearchResultTabs';
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { useAuth } from '../../contexts/AuthContext';
 import { getAnalysisLoci } from '../../../../src/utils/analysisLoci';
@@ -755,18 +756,15 @@ export default function WorkspacePage({
           }
         }}><WorkspaceIcon name="download" />Экспорт дубликатов в Excel</button></div>
       {result.outdated && <div className="workspace-message workspace-message-error" role="alert">Критерии поиска обновлены. Это архивный результат; выполните повторный полный поиск. Прежние результаты не используются для публикации и выгрузки.</div>}
-      <div className="workspace-result-overview"><div><WorkspaceIcon name="grid" /><span>Внутри личного массива<strong>{result.internal.results.length} групп с совпадениями</strong></span></div><div><WorkspaceIcon name="search" /><span>Мастер-массив<strong>{result.master.results.length} групп · {result.referenceCounts.master} эталонов</strong></span></div><div><WorkspaceIcon name="shield" /><span>Контаминация сотрудников<strong>{result.outdated ? 'Требуется повторный поиск' : result.staff.filter(item => item.matches.length).length + ' объектов · ' + result.referenceCounts.staff + ' эталонов'}</strong></span></div></div>
-      {[['Внутри личного массива', result.internal.results], ['Мастер-массив', result.master.results]].map(([title, groups]) => <details className="workspace-result-group" key={title} open={groups.length > 0}><summary>{title}<span className="workspace-count-pill">{result.outdated ? 'Архив' : groups.length}</span><WorkspaceIcon name="chevron" /></summary>{result.outdated ? <p className="workspace-no-matches">Критерии сравнения обновлены. Выполните новый полный поиск.</p> : <WorkspaceDuplicateResults key={result.id + title} groups={groups} ignoredLoci={result.parameters?.ignoredLoci || []} />}</details>)}
-      <details className="workspace-result-group"><summary>Контаминация сотрудников<span className="workspace-count-pill">{result.outdated ? 'Архив' : result.staff.filter(item => item.matches.length).length}</span><WorkspaceIcon name="chevron" /></summary>
-        {!result.outdated && result.staff.some(item => item.matches.length) && <div className="workspace-result-actions"><button className="btn btn-secondary" disabled={exportingStaff} onClick={async () => {
+      <WorkspaceSearchResultTabs key={result.id} result={result} colors={resultColors} staffActions={
+        <button className="btn btn-secondary" disabled={exportingStaff} onClick={async () => {
           setExportingStaff(true);
           try {
             saveFile(await api('/searches/' + result.id + '/staff-contaminations-xlsx', { colors: resultColors }, 'POST', true), 'Контаминации_сотрудников.xlsx');
           } catch (e) { setError(e.message); }
           finally { setExportingStaff(false); }
-        }}><WorkspaceIcon name="download" />{exportingStaff ? 'Подготовка Excel…' : 'Экспорт контаминаций сотрудников в Excel'}</button></div>}
-        {result.outdated ? <p className="workspace-no-matches">Для проверки контаминаций сотрудников запустите новый полный поиск.</p> : <WorkspaceStaffResults key={result.id + ':staff'} groups={result.staff} staffProfiles={result.staffProfiles} ignoredLoci={result.parameters?.staffOptions?.ignoredLoci ?? result.parameters?.ignoredLoci ?? []} colors={resultColors} />}
-      </details>
+        }}><WorkspaceIcon name="download" />{exportingStaff ? 'Подготовка Excel…' : 'Экспорт контаминаций сотрудников в Excel'}</button>
+      } />
     </section>}
 
     {searchProgress && <WorkspaceSearchProgress progress={searchProgress} selectedCount={selected.size} onCancel={() => {
