@@ -8,6 +8,7 @@ function Decision({ issue, apply, disabled, count = 1 }) {
   const [value, setValue] = useState(issue.normalizedValue || '');
   const alreadyApplied = !issue.hard && issue.userDecision?.action === 'manual' && issue.userDecision.value === value;
   const structural = !issue.locus && issue.code !== 'INVALID_OBJECT';
+  if (issue.sourceCorrectionRequired || issue.code === 'INVALID_SOURCE_YEAR') return <span>Исправьте исходный Excel и загрузите его снова.</span>;
   if (issue.ngs) return <span>Откройте локус в NGS-предпросмотре источника: решение принимается с учётом Result и Detail.</span>;
   if (structural) return <span>Откройте вкладку «Образцы и распознавание»</span>;
   const action = decision => apply(decision);

@@ -77,14 +77,6 @@
   letter-spacing: -0.03em;
 }
 
-.helix-aside-text {
-  max-width: 620px;
-  margin: 0;
-  color: var(--text-secondary);
-  font-size: var(--font-size-lg);
-  line-height: 1.7;
-}
-
 .helix-feature-list {
   display: grid;
   gap: var(--space-4);

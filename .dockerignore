@@ -23,6 +23,7 @@ node_modules
 !/scripts/memory-watch.py
 !/scripts/install-memory-watch.sh
 !/scripts/attach-profiles-to-task.js
+!/scripts/export-task-v2.js
 !/scripts/benchmark-task-search.js
 !/scripts/benchmark-staff-search.js
 !/scripts/workspace-preflight.js

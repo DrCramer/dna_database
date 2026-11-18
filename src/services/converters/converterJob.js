@@ -11,6 +11,11 @@ async function executeConverterJob({files,options,panels,operation},converter=ne
   const auditFiles=result.files.filter(f=>f.geneMapper).map(f=>({fileId:f.id,filename:f.name,year:f.year,panels:f.geneMapper.panelNames,summary:f.geneMapper.summary,haploidDuplicatesConfirmed:options.files?.[f.id]?.confirmHaploidDuplicates===true,excludedObjects:f.geneMapper.samples.filter(s=>!s.exportable).map(s=>({name:s.sampleName,category:s.classification,status:s.status}))}));
   if(operation==='preview'){
     if(options.lazyFiles!==true)for(const f of result.preparedFiles)if(f.ready)f.base64=converter.export(geneMapperExportResult(result,f.fileId),options.export).toString('base64');
+    // Original transfer metadata is needed for export, not the preview grid.
+    for (const profile of result.profiles) if (profile.transfer) {
+      delete profile.provenance;
+      delete profile.sourceIssues;
+    }
     const preview=[FORMAT,LEGACY_FORMAT].includes(options.previewFormat)?packConverterPreview(result,options.previewFormat):result;
     return {bytes:new TextEncoder().encode(JSON.stringify(preview)),mime:'application/json',auditFiles};
   }

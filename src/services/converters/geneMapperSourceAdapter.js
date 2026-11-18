@@ -12,7 +12,7 @@ function panelIdentity(name) {
   return normalized;
 }
 
-function adaptGeneMapper(source, settings, panels) {
+function adaptGeneMapper(source, settings, panels, usePanels = true) {
   const markerKeys = source.markers.map(marker => marker.key);
   const rows = [['Объект', ...source.markers.map(marker => marker.header)]];
   const rowMetadata = new Map(), samples = [];
@@ -21,7 +21,7 @@ function adaptGeneMapper(source, settings, panels) {
     const included = !sample.empty && !['ladder', 'control'].includes(sample.classification.category) && (typeof choice.include === 'boolean' ? choice.include : sample.included);
     const candidates = panelCandidates(sample.sourceLoci.filter(locus => detector.getCanonicalLocusName(locus)), panels);
     const exact = candidates.filter(candidate => candidate.exact && sample.panelNames.length === 1 && panelIdentity(candidate.name) === panelIdentity(sample.panelNames[0]));
-    const selectedId = choice.panelId ?? (source.panelNames.length <= 1 ? settings.panelId : undefined);
+    const selectedId = usePanels ? choice.panelId ?? (source.panelNames.length <= 1 ? settings.panelId : undefined) : undefined;
     if (selectedId && !panels.some(panel => panel.id === selectedId)) throw new Error('Выбранная панель образца недоступна в активном отделении.');
     const panelId = selectedId === '' ? null : selectedId || (exact.length === 1 ? exact[0].id : null);
     const status = { sampleName: sample.sampleName, sampleIndex, sampleTypes: sample.sampleTypes, sampleTypeInferred: source.sampleTypeInferred, panelNames: sample.panelNames,

@@ -17,7 +17,11 @@ function objectPriority(header) {
 
 function isServiceColumn(header) {
   const name = normalizeHeader(header);
-  return /^(?:№\s*п\s*[/.]?\s*п|количество (?:локусов нпв|исследованных локусов)|smpl)$/.test(name);
+  return isYearColumn(header) || /^(?:№\s*п\s*[/.]?\s*п|количество (?:локусов нпв|исследованных локусов)|smpl)$/.test(name);
+}
+
+function isYearColumn(header) {
+  return ['год', 'год исследования', 'year'].includes(normalizeHeader(header));
 }
 
 function headerCandidates(rows) {
@@ -111,4 +115,4 @@ function detectSourceFormat(workbook, settings = {}) {
     ambiguous, resultSheet, detailSheet, resultHeader, detailHeader };
 }
 
-module.exports = { objectPriority, isServiceColumn, headerCandidates, objectCandidates, chooseObjectColumn, meaningfulSheets, readRows, suggestLoci, panelCandidates, detectSourceFormat, NGS_FORMAT, GENEMAPPER_FORMAT };
+module.exports = { objectPriority, isServiceColumn, isYearColumn, headerCandidates, objectCandidates, chooseObjectColumn, meaningfulSheets, readRows, suggestLoci, panelCandidates, detectSourceFormat, NGS_FORMAT, GENEMAPPER_FORMAT };

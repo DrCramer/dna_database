@@ -7,7 +7,8 @@ import ThemeSwitcher from '../Common/ThemeSwitcher';
 import UiIcon from '../Common/UiIcon';
 
 const Header = ({ user, onNavigate, onLogout, hasRole }) => {
-  const { activeDepartment, workspaceMode } = useAuth();
+  const { activeDepartment, workspaceMode, workspaceModeReady } = useAuth();
+  const showLegacyPanels = workspaceModeReady && !workspaceMode;
   const displayName = getUserDisplayName(user);
   const isGenetic = workspaceMode || resolveProfileImportFormat(activeDepartment) === 'genetic';
   const [showSettingsMenu, setShowSettingsMenu] = useState(false);
@@ -170,7 +171,7 @@ const Header = ({ user, onNavigate, onLogout, hasRole }) => {
   return (
     <header className={`app-header${!workspaceMode ? ' has-department' : ''}`}>
       <div className="header-left">
-        <button onClick={() => navigate('/dashboard')} className="logo-button" aria-label="ХеликсМатч — на главную">
+        <button onClick={() => navigate('/dashboard')} className="logo-button" aria-label="ДНК Эксперт — на главную">
           <div className="hm-loader-container hm-loader-small">
             <div className="dna-loader">
               <div className="dna-row row-1">
@@ -215,7 +216,7 @@ const Header = ({ user, onNavigate, onLogout, hasRole }) => {
               </div>
             </div>
           </div>
-          <span className="logo-text">ХеликсМатч</span>
+          <span className="logo-text">ДНК Эксперт</span>
         </button>
         <button ref={navigationToggle} className="navigation-toggle" aria-label="Разделы сайта" aria-expanded={showNavigation} aria-controls="main-navigation" onClick={() => setShowNavigation(!showNavigation)}><UiIcon name={showNavigation ? 'close' : 'menu'} /><span>Разделы</span></button>
       </div>
@@ -223,8 +224,8 @@ const Header = ({ user, onNavigate, onLogout, hasRole }) => {
       <nav id="main-navigation" aria-label="Основные разделы" className={`header-nav${showNavigation ? ' is-open' : ''}`}>
         {renderNavigation()}
         {isGenetic && <div className="nav-dropdown" ref={settingsMenuRef}>
-          <button className={`nav-link dropdown-trigger ${['/settings/panels', '/settings/allele-references', '/settings/night-search', '/excel-converter'].some(isActive) ? 'active' : ''}`} title="Настройки" aria-expanded={showSettingsMenu} aria-controls="settings-menu" onClick={() => setShowSettingsMenu(!showSettingsMenu)}><UiIcon name="settings" className="nav-icon" /><span>Настройки</span><span className="dropdown-arrow" aria-hidden="true">{showSettingsMenu ? '▲' : '▼'}</span></button>
-          {showSettingsMenu && <div className="dropdown-menu" id="settings-menu"><button className={`dropdown-item ${isActive('/settings/panels') ? 'active' : ''}`} onClick={() => navigate('/settings/panels')}><UiIcon name="layers" className="nav-icon" /><span className="dropdown-item-label">Панели</span></button><button className={`dropdown-item ${isActive('/settings/allele-references') ? 'active' : ''}`} onClick={() => navigate('/settings/allele-references')}><UiIcon name="book" className="nav-icon" /><span className="dropdown-item-label">Генетические справочники</span></button>{workspaceMode && <button className="dropdown-item" onClick={() => navigate('/settings/night-search')}><UiIcon name="settings" className="nav-icon"/><span className="dropdown-item-label">Ночная сверка</span></button>}<button className="dropdown-item" onClick={() => navigate('/excel-converter')}><UiIcon name="file" className="nav-icon" /><span className="dropdown-item-label">Конвертер профилей</span></button></div>}
+          <button className={`nav-link dropdown-trigger ${['/settings/allele-references', '/settings/night-search', '/excel-converter', ...(showLegacyPanels ? ['/settings/panels'] : [])].some(isActive) ? 'active' : ''}`} title="Настройки" aria-expanded={showSettingsMenu} aria-controls="settings-menu" onClick={() => setShowSettingsMenu(!showSettingsMenu)}><UiIcon name="settings" className="nav-icon" /><span>Настройки</span><span className="dropdown-arrow" aria-hidden="true">{showSettingsMenu ? '▲' : '▼'}</span></button>
+          {showSettingsMenu && <div className="dropdown-menu" id="settings-menu">{showLegacyPanels && <button className={`dropdown-item ${isActive('/settings/panels') ? 'active' : ''}`} onClick={() => navigate('/settings/panels')}><UiIcon name="layers" className="nav-icon" /><span className="dropdown-item-label">Панели</span></button>}<button className={`dropdown-item ${isActive('/settings/allele-references') ? 'active' : ''}`} onClick={() => navigate('/settings/allele-references')}><UiIcon name="book" className="nav-icon" /><span className="dropdown-item-label">Генетические справочники</span></button>{workspaceMode && <button className="dropdown-item" onClick={() => navigate('/settings/night-search')}><UiIcon name="settings" className="nav-icon"/><span className="dropdown-item-label">Ночная сверка</span></button>}<button className="dropdown-item" onClick={() => navigate('/excel-converter')}><UiIcon name="file" className="nav-icon" /><span className="dropdown-item-label">Конвертер профилей</span></button></div>}
         </div>}
       </nav>
 

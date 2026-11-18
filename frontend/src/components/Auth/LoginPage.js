@@ -99,32 +99,28 @@ const LoginPage = ({
       <div className="helix-login-layout">
         <section className="helix-login-aside">
           <div className="helix-brand-badge">Система судебно-генетического анализа</div>
-          <h1 className="helix-aside-title">Единая рабочая среда для ДНК-анализа и экспертных задач.</h1>
-          <p className="helix-aside-text">
-            Система поддерживает загрузку профилей, сравнение генотипов, контроль задач
-            и работу в светлой и темной темах оформления.
-          </p>
+          <h1 className="helix-aside-title">Работа с ДНК-профилями</h1>
 
           <div className="helix-feature-list">
             <div className="helix-feature-item">
+              <span className="helix-feature-icon"><UiIcon name="upload" /></span>
+              <div>
+                <strong>Импорт профилей</strong>
+                <p>Загрузка из Excel и GeneMapper TXT с проверкой данных перед импортом.</p>
+              </div>
+            </div>
+            <div className="helix-feature-item">
               <span className="helix-feature-icon"><UiIcon name="grid" /></span>
               <div>
-                <strong>Анализ генотипов</strong>
-                <p>Поиск совпадений, сравнение локусов и экспертная интерпретация.</p>
+                <strong>Личный массив</strong>
+                <p>Профили и результаты их проверки в разделе «Мои генотипы».</p>
               </div>
             </div>
             <div className="helix-feature-item">
-              <span className="helix-feature-icon"><UiIcon name="file" /></span>
+              <span className="helix-feature-icon"><UiIcon name="search" /></span>
               <div>
-                <strong>Работа по задачам</strong>
-                <p>Распределение, контроль и фиксация результатов по отделам.</p>
-              </div>
-            </div>
-            <div className="helix-feature-item">
-              <span className="helix-feature-icon"><UiIcon name="settings" /></span>
-              <div>
-                <strong>Две темы оформления</strong>
-                <p>Комфортная работа в светлом и темном режимах.</p>
+                <strong>Сравнение генотипов</strong>
+                <p>Поиск дубликатов в личном и мастер-массивах, проверка на контаминацию сотрудниками.</p>
               </div>
             </div>
           </div>
@@ -147,7 +143,7 @@ const LoginPage = ({
               </div>
             </div>
 
-            <h2 className="helix-title">ХеликсМатч</h2>
+            <h2 className="helix-title">ДНК Эксперт</h2>
             <p className="helix-subtitle">Вход в аналитическую систему</p>
           </div>
 

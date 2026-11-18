@@ -28,7 +28,8 @@ router.use(authenticate);
 router.use(async (req, res, next) => {
   try {
     if (!['admin', 'system_administrator', 'department_head', 'user_analyst', 'analyst'].includes(req.user.role)) throw new PanelError('Нет прав на конвертацию профилей.', 403);
-    if (require('../services/workspace/workspaceMode').workspaceModeEnabled()) { req.converterFormat = 'genetic'; req.converterScope = {departmentId:null,organizationId:req.user.organization_id}; return next(); }
+    req.converterWorkspaceMode = require('../services/workspace/workspaceMode').workspaceModeEnabled();
+    if (req.converterWorkspaceMode) { req.converterFormat = 'genetic'; req.converterScope = {departmentId:null,organizationId:req.user.organization_id}; return next(); }
     const { rows } = await require('../config/database').query('SELECT id,name,organization_id FROM departments WHERE id=$1 AND is_active=true', [req.activeDepartmentId]);
     const department = rows[0];
     req.converterFormat = resolveProfileImportFormat(department);
@@ -63,9 +64,10 @@ for (const operation of ['preview', 'export']) router.post(`/${operation}`, (req
       if(!options||typeof options!=='object'||Array.isArray(options))throw new ConversionError('Некорректные настройки конвертации.');
       for(const file of req.files||[])file.originalname=require('../utils/uploadFilename').decodeUploadFilename(file.originalname);
       if(req.converterFormat==='emergency'&&(req.files||[]).some(f=>!/\.txt$/i.test(f.originalname)))throw new ConversionError('В отделении ЧС конвертер принимает GeneMapper TXT.','FORMAT_NOT_AVAILABLE',403);
-      req.converterStage='panels';const panels=req.converterFormat==='genetic'?await GenotypePanel.list(req.converterScope):[];
+      const usePanels = !req.converterWorkspaceMode && options.usePanels !== false;
+      const panels = usePanels && req.converterFormat === 'genetic' ? await GenotypePanel.list(req.converterScope) : [];
       req.converterStage='conversion';
-      const result=await converterWorker.run({files:(req.files||[]).map(f=>({originalname:f.originalname,buffer:f.buffer})),options:{...options,importFormat:req.converterFormat},panels,operation},controller.signal);
+      const result=await converterWorker.run({files:(req.files||[]).map(f=>({originalname:f.originalname,buffer:f.buffer})),options:{...options,importFormat:req.converterFormat,usePanels},panels,operation},controller.signal);
       if(controller.signal.aborted)return;
       if(result.auditFiles.length){req.converterStage='audit';await logGeneMapperConversion({userId:req.user.id,departmentId:req.converterScope.departmentId,organizationId:req.converterScope.organizationId,ipAddress:req.ip,userAgent:req.get('User-Agent'),details:{operation,files:result.auditFiles}});}
       res.set('Cache-Control','private, no-store').type(result.mime);

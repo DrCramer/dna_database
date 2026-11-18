@@ -55,7 +55,7 @@ const PORT = config.get('app.port');
 global.app = app;
 
 // Log startup configuration (safe version without secrets)
-logger.info('Starting DNA Analysis Web Application');
+logger.info('Запуск «ДНК Эксперт»');
 logger.info('Configuration loaded:', config.getSafeConfig());
 
 // Security middleware (HTTP only for internal network)

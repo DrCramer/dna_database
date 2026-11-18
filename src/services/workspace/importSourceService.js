@@ -190,157 +190,165 @@ function parseFiles(files) {
       rows.push(row);
       continue;
     }
-    const sheetName = workbook.SheetNames.find(n => n.trim().toLowerCase() === 'sbt_horizont') || workbook.SheetNames[0],
-      sheet = workbook.Sheets[sheetName];
-    if (sheet['!ref']) {
-      const range = XLSX.utils.decode_range(sheet['!ref']);
-      if ((range.e.r + 1) * (range.e.c + 1) > 2000000) throw Object.assign(new Error('Таблица превышает 2 миллиона ячеек. Разделите её на несколько файлов; строки не были усечены.'), {
-        status: 413
-      });
-    }
-    const matrix = XLSX.utils.sheet_to_json(sheet, {
-      header: 1,
-      defval: '',
-      raw: false,
-      blankrows: true
-    });
-    const unified = workbook.Custprops?.DNAProfileSourceFormat === FORMAT;
-    const candidate = sourceDetector.headerCandidates(matrix)[0];
-    const explicit = matrix.findIndex(row => {
-      const names = row.map(key);
-      const hasObject = names.some(name => fieldAliases.objectNumber.includes(name));
-      const hasName = names.some(name => fieldAliases.fullName.includes(name));
-      const hasRegistration = names.some(name => fieldAliases.registrationNumber.includes(name));
-      const hasContext = names.some(name => [...fieldAliases.year, ...fieldAliases.expertiseType].includes(name));
-      const hasLoci = row.some(header => detector.getCanonicalLocusName(header));
-      return hasObject && (hasContext || hasLoci || hasName || hasRegistration) || (hasName || hasRegistration) && (hasContext || hasLoci || hasName && hasRegistration) || !candidate && names.filter(Boolean).length === 1 && hasName;
-    });
-    const headerIndex = unified ? 0 : explicit >= 0 ? explicit : candidate ? candidate.row - 1 : -1;
-    if (headerIndex < 0) throw Object.assign(new Error('Не найдена поддерживаемая таблица объектов. Используйте конвертер для выбора строки заголовков.'), {
-      status: 400
-    });
-    const headers = matrix[headerIndex];
-    const column = (...names) => headers.findIndex(h => names.includes(key(h)));
-    const objectIndex = column(...fieldAliases.objectNumber);
-    if (objectIndex < 0 && column(...fieldAliases.fullName, ...fieldAliases.registrationNumber) < 0) throw Object.assign(new Error('Не найден полный номер объекта.'), {
-      status: 400
-    });
-    const fieldColumns = name => headers.map((header, index) => (name === 'assignedNumber' ? isAssignedNumberHeader(header) : (fieldAliases[name] || [FIELDS[name].toLowerCase()]).includes(key(header))) ? index : -1).filter(index => index >= 0);
-    for (let index = headerIndex + 1; index < matrix.length; index++) {
-      const values = matrix[index];
-      if (!values.some(v => text(v))) continue;
-      const get = name => {
-        const entries = fieldColumns(name).map(column => text(values[column])).filter(Boolean);
-        return name === 'comment' ? [...new Set(entries)].join('\n') : entries[0] || '';
-      };
-      const objectValue = objectIndex >= 0 ? text(values[objectIndex]) : get('registrationNumber');
-      const expertiseType = normalizeType(get('expertiseType'));
-      const number = expertiseType === 'staff' && !objectValue ? get('registrationNumber') : objectValue;
-      const row = newRow(file, checksum, {
-        sheet: sheetName,
-        row: index + 1
-      }, {
-        objectNumber: number,
-        sourceSampleName: number || get('fullName'),
-        year: get('year') ? Number(get('year')) : null,
-        expertiseType,
-        fullName: get('fullName'),
-        registrationNumber: get('registrationNumber') || null,
-        comment: get('comment')
-      });
-      for (const field of ['fullName', 'registrationNumber', 'assignedNumber']) {
-        if (new Set(fieldColumns(field).map(column => text(values[column])).filter(Boolean)).size > 1) row.sourceIssues.push({
-          code: 'METADATA_COLUMN_CONFLICT',
-          message: `Различаются значения столбцов «${FIELDS[field]}». Проверьте исходный файл.`
-        });
-      }
-      const sampleTypeIndex = column('sample type');
-      const classification = classifySample(row.objectNumber || row.fullName, [sampleTypeIndex >= 0 ? text(values[sampleTypeIndex]) : 'Sample']);
-      row.provenance.classification = classification;
-      if (!classification.included) {
-        row.included = false;
-        row.sourceIssues.push({
-          code: 'CONTROL',
-          message: classification.reason
-        });
-      }
-      row.provenance.sourceObjectNumber = row.objectNumber;
-      if (!unified) row.provenance.legacyColumns = headers.map((header, i) => ({
-        header: String(header),
-        value: String(values[i] ?? '')
-      })).filter(item => !detector.getCanonicalLocusName(item.header));
-      if (!unified) row.provenance.alleleOrigins = headers.map((header, i) => ({
-        locus: detector.getCanonicalLocusName(header),
-        raw: String(values[i] ?? '')
-      })).filter(item => item.locus);
-      if (!unified) row.provenance.legacyCells = Object.fromEntries(headers.map((header, i) => [String(header), String(values[i] ?? '')]).filter(([header]) => !detector.getCanonicalLocusName(header)));
-      if (unified) {
-        try {
-          row.provenance = {
-            ...JSON.parse(get('provenanceJson') || '{}'),
-            ...row.provenance
-          };
-        } catch {
-          row.sourceIssues.push({
-            code: 'PROVENANCE_JSON',
-            message: 'Повреждены сведения о происхождении.'
-          });
-        }
-      }
-      row.assignedNumber = fieldColumns('assignedNumber').length ? get('assignedNumber') : getAssignedNumber({ provenance: row.provenance });
-      if (fieldColumns('assignedNumber').length || row.assignedNumber) row.provenance.assignedNumber = row.assignedNumber;
-      for (const [col, header] of headers.entries()) {
-        const canonical = detector.getCanonicalLocusName(header);
-        if (!canonical) {
-          if (text(values[col]) && !metadataHeaders.has(key(header)) && !sourceDetector.isServiceColumn(header) && !isAssignedNumberHeader(header) && !isRegistryMetadataHeader(header)) row.sourceIssues.push({
-            code: 'UNKNOWN_COLUMN',
-            column: text(header),
-            message: `Неизвестный столбец «${text(header) || XLSX.utils.encode_col(col)}» с данными. Сопоставьте его в конвертере.`
-          });
-          continue;
-        }
-        const locus = unified ? String(header) : canonical;
-        const address = XLSX.utils.encode_cell({
-          r: index,
-          c: col
-        });
-        if (sheet[address]?.f && sheet[address].v == null) row.sourceIssues.push({
-          code: 'FORMULA_WITHOUT_RESULT',
-          locus,
-          message: `Нет результата формулы ${address}.`
-        });
-        if (Object.hasOwn(row.strData, locus)) row.sourceIssues.push({
-          code: 'DUPLICATE_LOCUS',
-          locus,
-          message: `Повтор столбца ${locus}.`
-        });
-        row.strData[locus] = unified ? text(values[col]) ? String(values[col]).split(',') : [] : normalizedCell(values[col], locus, row);
-      }
-      if (unified) {
-        try {
-          const data = JSON.parse(get('genotypeJson') || '{}');
-          if (!data || typeof data !== 'object' || Array.isArray(data)) throw Error();
-          for (const [locus, alleles] of Object.entries(data)) if (JSON.stringify(row.strData[locus] || []) !== JSON.stringify(alleles)) row.sourceIssues.push({
-            code: 'GENOTYPE_CONFLICT',
-            locus,
-            message: `Столбец ${locus} отличается от сохранённой структуры аллелей. Подтвердите ручное значение.`
-          });
-          row.strData = data;
-        } catch {
-          row.sourceIssues.push({
-            code: 'GENOTYPE_JSON',
-            message: 'Повреждена структура генотипа JSON; данные не были отброшены.'
-          });
-        }
-      }
-      rows.push(row);
-    }
+    for (const row of parseProfileTable(file, checksum, workbook)) rows.push(row);
   }
   return {
     rows,
     checksums
   };
 }
-module.exports = {
-  parseFiles
-};
+function parseProfileTable(file, checksum, workbook) {
+  const rows = [];
+  const sheetName = workbook.SheetNames.find(n => n.trim().toLowerCase() === 'sbt_horizont') || workbook.SheetNames[0],
+    sheet = workbook.Sheets[sheetName];
+  if (sheet['!ref']) {
+    const range = XLSX.utils.decode_range(sheet['!fullref'] || sheet['!ref']);
+    if (range.e.r > XLSX.utils.decode_range(sheet['!ref']).e.r) throw Object.assign(new Error('Лист превышает лимит строк. Разделите исходный файл.'), { status: 413 });
+    if ((range.e.r + 1) * (range.e.c + 1) > 2000000) throw Object.assign(new Error('Таблица превышает 2 миллиона ячеек. Разделите её на несколько файлов; строки не были усечены.'), {
+      status: 413
+    });
+  }
+  const matrix = XLSX.utils.sheet_to_json(sheet, {
+    header: 1,
+    defval: '',
+    raw: false,
+    blankrows: true
+  });
+  const unified = workbook.Custprops?.DNAProfileSourceFormat === FORMAT;
+  const candidate = sourceDetector.headerCandidates(matrix)[0];
+  const explicit = matrix.findIndex(row => {
+    const names = row.map(key);
+    const hasObject = names.some(name => fieldAliases.objectNumber.includes(name));
+    const hasName = names.some(name => fieldAliases.fullName.includes(name));
+    const hasRegistration = names.some(name => fieldAliases.registrationNumber.includes(name));
+    const hasContext = names.some(name => [...fieldAliases.year, ...fieldAliases.expertiseType].includes(name));
+    const hasLoci = row.some(header => detector.getCanonicalLocusName(header));
+    return hasObject && (hasContext || hasLoci || hasName || hasRegistration) || (hasName || hasRegistration) && (hasContext || hasLoci || hasName && hasRegistration) || !candidate && names.filter(Boolean).length === 1 && hasName;
+  });
+  const headerIndex = unified ? 0 : explicit >= 0 ? explicit : candidate ? candidate.row - 1 : -1;
+  if (headerIndex < 0) throw Object.assign(new Error('Не найдена поддерживаемая таблица объектов. Используйте конвертер для выбора строки заголовков.'), {
+    status: 400
+  });
+  const headers = matrix[headerIndex];
+  const column = (...names) => headers.findIndex(h => names.includes(key(h)));
+  const objectIndex = column(...fieldAliases.objectNumber);
+  if (objectIndex < 0 && column(...fieldAliases.fullName, ...fieldAliases.registrationNumber) < 0) throw Object.assign(new Error('Не найден полный номер объекта.'), {
+    status: 400
+  });
+  const fieldColumns = name => headers.map((header, index) => (name === 'assignedNumber' ? isAssignedNumberHeader(header) : (fieldAliases[name] || [FIELDS[name].toLowerCase()]).includes(key(header))) ? index : -1).filter(index => index >= 0);
+  for (let index = headerIndex + 1; index < matrix.length; index++) {
+    const values = matrix[index];
+    if (!values.some(v => text(v))) continue;
+    const get = name => {
+      const entries = fieldColumns(name).map(column => text(values[column])).filter(Boolean);
+      return name === 'comment' ? [...new Set(entries)].join('\n') : entries[0] || '';
+    };
+    const objectValue = objectIndex >= 0 ? text(values[objectIndex]) : get('registrationNumber');
+    const expertiseType = normalizeType(get('expertiseType'));
+    const number = expertiseType === 'staff' && !objectValue ? get('registrationNumber') : objectValue;
+    const row = newRow(file, checksum, {
+      sheet: sheetName,
+      row: index + 1
+    }, {
+      objectNumber: number,
+      sourceSampleName: number || get('fullName'),
+      year: get('year') ? Number(get('year')) : null,
+      expertiseType,
+      fullName: get('fullName'),
+      registrationNumber: get('registrationNumber') || null,
+      comment: get('comment')
+    });
+    for (const field of ['fullName', 'registrationNumber', 'assignedNumber', 'year']) {
+      if (new Set(fieldColumns(field).map(column => text(values[column])).filter(Boolean)).size > 1) row.sourceIssues.push({
+        code: 'METADATA_COLUMN_CONFLICT',
+        message: `Различаются значения столбцов «${FIELDS[field]}». Проверьте исходный файл.`
+      });
+    }
+    const sampleTypeIndex = column('sample type');
+    const classification = classifySample(row.objectNumber || row.fullName, [sampleTypeIndex >= 0 ? text(values[sampleTypeIndex]) : 'Sample']);
+    row.provenance.classification = classification;
+    if (!classification.included) {
+      row.included = false;
+      row.sourceIssues.push({
+        code: 'CONTROL',
+        message: classification.reason
+      });
+    }
+    row.provenance.sourceObjectNumber = row.objectNumber;
+    if (!unified) row.provenance.legacyColumns = headers.map((header, i) => ({
+      header: String(header),
+      value: String(values[i] ?? '')
+    })).filter(item => !detector.getCanonicalLocusName(item.header));
+    if (!unified) row.provenance.alleleOrigins = headers.map((header, i) => ({
+      locus: detector.getCanonicalLocusName(header),
+      raw: String(values[i] ?? '')
+    })).filter(item => item.locus);
+    if (!unified) row.provenance.legacyCells = Object.fromEntries(headers.map((header, i) => [String(header), String(values[i] ?? '')]).filter(([header]) => !detector.getCanonicalLocusName(header)));
+    if (unified) {
+      try {
+        const provenance = JSON.parse(get('provenanceJson') || '{}');
+        if (!provenance || typeof provenance !== 'object' || Array.isArray(provenance)) throw Error();
+        row.provenance = {
+          ...provenance,
+          ...row.provenance
+        };
+      } catch {
+        row.sourceIssues.push({
+          code: 'PROVENANCE_JSON',
+          message: 'Повреждены сведения о происхождении.'
+        });
+      }
+    }
+    row.assignedNumber = fieldColumns('assignedNumber').length ? get('assignedNumber') : getAssignedNumber({ provenance: row.provenance });
+    if (fieldColumns('assignedNumber').length || row.assignedNumber) row.provenance.assignedNumber = row.assignedNumber;
+    for (const [col, header] of headers.entries()) {
+      const canonical = detector.getCanonicalLocusName(header);
+      if (!canonical) {
+        if (text(values[col]) && !metadataHeaders.has(key(header)) && !sourceDetector.isServiceColumn(header) && !isAssignedNumberHeader(header) && !isRegistryMetadataHeader(header)) row.sourceIssues.push({
+          code: 'UNKNOWN_COLUMN',
+          column: text(header),
+          message: `Неизвестный столбец «${text(header) || XLSX.utils.encode_col(col)}» с данными. Сопоставьте его в конвертере.`
+        });
+        continue;
+      }
+      const locus = unified ? String(header) : canonical;
+      const address = XLSX.utils.encode_cell({
+        r: index,
+        c: col
+      });
+      if (sheet[address]?.f && sheet[address].v == null) row.sourceIssues.push({
+        code: 'FORMULA_WITHOUT_RESULT',
+        locus,
+        message: `Нет результата формулы ${address}.`
+      });
+      if (Object.hasOwn(row.strData, locus)) row.sourceIssues.push({
+        code: 'DUPLICATE_LOCUS',
+        locus,
+        message: `Повтор столбца ${locus}.`
+      });
+      row.strData[locus] = unified ? text(values[col]) ? String(values[col]).split(',') : [] : normalizedCell(values[col], locus, row);
+    }
+    const genotypeJSON = unified ? get('genotypeJson') : '';
+    if (genotypeJSON) {
+      try {
+        const data = JSON.parse(genotypeJSON);
+        if (!data || typeof data !== 'object' || Array.isArray(data) || Object.values(data).some(alleles => !Array.isArray(alleles) || alleles.some(value => typeof value !== 'string'))) throw Error();
+        for (const locus of new Set([...Object.keys(row.strData), ...Object.keys(data)])) if (JSON.stringify(row.strData[locus] ?? []) !== JSON.stringify(data[locus] ?? [])) row.sourceIssues.push({
+          code: 'GENOTYPE_CONFLICT',
+          locus,
+          message: `Столбец ${locus} отличается от сохранённой структуры аллелей. Подтвердите ручное значение.`
+        });
+        row.strData = data;
+      } catch {
+        row.sourceIssues.push({
+          code: 'GENOTYPE_JSON',
+          message: 'Повреждена структура генотипа JSON; данные не были отброшены.'
+        });
+      }
+    }
+    rows.push(row);
+  }
+  return rows;
+}
+
+module.exports = { parseFiles, parseProfileTable };

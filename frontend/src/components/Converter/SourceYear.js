@@ -5,8 +5,9 @@ export default function SourceYear({ file, disabled, apply, onDraftChange }) {
   const [year, setYear] = useState(String(file.year ?? file.geneMapper?.suggestedYear ?? ''));
   const valid = year === '' || /^\d{4}$/.test(year) && Number(year) >= 1900 && Number(year) <= 2100;
   const confirmed = year !== '' && year === String(file.year ?? '');
+  if (file.hasYearColumn && !file.missingSourceYears) return <p className="converter-hint">Год указан в строках файла.</p>;
   return <div className="converter-source-year">
-    <label htmlFor={id}>Год исследования</label>
+    <label htmlFor={id}>{file.hasYearColumn ? `Год для пустых строк (${file.missingSourceYears})` : 'Год исследования'}</label>
     <div className="converter-year-input">
       <input id={id} className="form-input" type="number" min="1900" max="2100" step="1" value={year} disabled={disabled}
         onChange={event => { setYear(event.target.value); onDraftChange?.(event.target.value); }} placeholder="2026" aria-invalid={!valid} />

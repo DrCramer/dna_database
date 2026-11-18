@@ -67,6 +67,12 @@ const LoginForm = ({ onNavigate, setShowTransition, setTransitionStatus }) => {
   );
 };
 
+const LegacyGenotypePanels = () => {
+  const { workspaceMode, workspaceModeReady } = useAuth();
+  if (!workspaceModeReady) return null;
+  return workspaceMode ? <Navigate to="/analysis" /> : <GenotypePanelsPage />;
+};
+
 // Protected Route Component
 const ProtectedRoute = ({ children, onNavigate, fluid = false }) => {
   const { user, loading, logout, hasRole } = useAuth();
@@ -1542,7 +1548,7 @@ function App() {
             />
             <Route
               path="/settings/panels"
-              element={<ProtectedRoute onNavigate={navigate}><PageTransition><GenotypePanelsPage /></PageTransition></ProtectedRoute>}
+              element={<ProtectedRoute onNavigate={navigate}><PageTransition><LegacyGenotypePanels /></PageTransition></ProtectedRoute>}
             />
             <Route
               path="/settings/allele-references"

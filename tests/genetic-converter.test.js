@@ -20,6 +20,61 @@ function file(rows, name = 'old.xlsx', sheets) {
 const headers = ['Объект', 'TH01', 'D5S818', 'D21S11'];
 const values = ['7,9', '11,12', '29,30'];
 const standard = [headers, ['258-11x (2)_a', ...values]];
+test('Обычный Excel: год считывается из строки и различает одинаковые номера объектов', () => {
+  const input = file([
+    ['Объект', 'Год', ...headers.slice(1)],
+    ['SYN-1', 2024, ...values],
+    ['SYN-1', '2025', ...values],
+    ['SYN-2', '', ...values]
+  ]);
+  const first = converter.convert([input]);
+  assert.equal(first.files[0].missingSourceYears, 1);
+  assert.equal(first.canUpload, false);
+  const result = converter.convert([input], { files: { [first.files[0].id]: { year: 2026 } } });
+  assert.equal(result.canUpload, true);
+  assert.deepEqual(result.profiles.map(row => row.year), [2024, 2025, 2026]);
+});
+
+test('Сокращённый DNA_IMPORT_V2: локусы без JSON и годы из файла переживают оба пути импорта', () => {
+  const { parseFiles } = require('../src/services/workspace/importSourceService');
+  const book = XLSX.utils.book_new();
+  book.Custprops = { DNAProfileSourceFormat: 'DNA_IMPORT_V2' };
+  XLSX.utils.book_append_sheet(book, XLSX.utils.aoa_to_sheet([
+    ['Объект', 'Год', 'TH01', 'D5S818', 'DYS391'],
+    ['SYN-1', '2024', '9.3', '12,F', '10,10'],
+    ['SYN-2', '', '**', '?', '']
+  ]), 'Импорт');
+  const input = { originalname: 'transfer.xlsx', buffer: XLSX.write(book, { type: 'buffer', bookType: 'xlsx' }) };
+  const parsed = parseFiles([input]).rows;
+  assert.deepEqual(parsed.map(row => row.strData), [
+    { TH01: ['9.3'], D5S818: ['12', 'F'], DYS391: ['10', '10'] },
+    { TH01: ['**'], D5S818: ['?'], DYS391: [] }
+  ]);
+  assert.deepEqual(parsed.map(row => row.year), [2024, null]);
+  const first = converter.convert([input]);
+  assert.equal(first.canImport, true);
+  const result = converter.convert([input], { files: { [first.files[0].id]: { year: 2026 } } });
+  assert.equal(result.canUpload, true);
+  assert.equal(result.files[0].missingSourceYears, 1);
+  const copied = parseFiles([{ ...input, buffer: converter.export(result) }]).rows;
+  assert.deepEqual(copied.map(row => row.year), [2024, 2026]);
+  assert.deepEqual(copied.map(row => row.strData), parsed.map(row => row.strData));
+  assert(copied.every(row => !row.sourceIssues.length));
+});
+
+test('DNA_IMPORT_V2: заполненный локус рядом с пустым объектом JSON требует проверки', () => {
+  const { parseFiles } = require('../src/services/workspace/importSourceService');
+  const book = XLSX.utils.book_new();
+  book.Custprops = { DNAProfileSourceFormat: 'DNA_IMPORT_V2' };
+  XLSX.utils.book_append_sheet(book, XLSX.utils.aoa_to_sheet([
+    ['Объект', 'Год', 'TH01', 'Генотип JSON'],
+    ['SYN-1', 2024, '9.3', '{}']
+  ]), 'Импорт');
+  const input = { originalname: 'transfer.xlsx', buffer: XLSX.write(book, { type: 'buffer', bookType: 'xlsx' }) };
+  assert(parseFiles([input]).rows[0].sourceIssues.some(issue => issue.code === 'GENOTYPE_CONFLICT' && issue.locus === 'TH01'));
+  assert.equal(converter.convert([input]).canImport, false);
+});
+
 test('Конвертер сохраняет присвоенный номер из Excel как служебную колонку; разные номера одного объекта блокируют выгрузку', () => {
   const { ASSIGNED_HEADER } = require('../src/utils/emergencyAssignedNumber');
   const source = file([[...headers, ASSIGNED_HEADER], ['SYN-101', ...values, '000123/А']]);

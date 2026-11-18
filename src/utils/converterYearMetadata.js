@@ -3,7 +3,7 @@ const {geneticObjectKey,geneticProfileKey}=require('./profileImportFormat');
 // A single file cannot acquire new cross-file merges when only its year changes.
 // Export still reconverts and validates the original bytes on the server.
 function updateConverterYear(result,options,fileId,value){
-  if(!result||result.files.length!==1||result.files[0].id!==fileId||result.preparedFiles?.some(file=>file.base64))return null;
+  if(!result||result.files.length!==1||result.files[0].id!==fileId||result.files[0].hasYearColumn||result.preparedFiles?.some(file=>file.base64))return null;
   const year=value==null||value===''?null:Number(value);
   if(year!==null&&(!Number.isInteger(year)||year<1900||year>2100))return null;
   const source=result.files[0],keys=new Map(result.profiles.map(profile=>[profile.key,
