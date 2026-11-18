@@ -30,6 +30,8 @@
   flex-shrink: 0;
 }
 
+.header-right .page-help-trigger { white-space: nowrap; }
+
 .logo-button {
   display: flex;
   align-items: center;
@@ -253,6 +255,8 @@
   .logo-button { padding: 0; }
   .logo-button .hm-loader-container { width: 28px; }
   .header-left, .header-right { gap: 6px; }
+  .header-right .page-help-trigger { min-width: var(--control-height-md); padding-inline: 6px; }
+  .header-right .page-help-trigger > span { display: none; }
   .navigation-toggle { display: inline-flex; }
   .user-button { padding-right: 8px; gap: 4px; }
   .header-nav { display: none; position: relative; width: 100%; padding-top: 8px; border-top: 1px solid var(--border-subtle); }

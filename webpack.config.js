@@ -25,11 +25,6 @@ module.exports = {
         test: /\.css$/,
         use: ['style-loader', 'css-loader'],
       },
-      {
-        test: /\.zip$/i,
-        type: 'asset/resource',
-        generator: { filename: 'downloads/[name].[contenthash:8][ext]' },
-      },
     ],
   },
   plugins: [

@@ -16,7 +16,6 @@ import { getAnalysisLoci } from '../../../../src/utils/analysisLoci';
 import { orderNormalizedLoci } from '../../../../src/utils/normalizedExcelLayout';
 import { OBJECT_TYPES as types, WORKSPACE_WRITE_ROLES, objectMetadataIssues } from '../../../../src/utils/objectTypes';
 import { ASSIGNED_HEADER } from '../../../../src/utils/emergencyAssignedNumber';
-import importExamplesUrl from '../../../public/dna-import-examples.zip';
 const states = {
   NOT_CHECKED: 'Не проверен',
   CHECKING: 'Проверяется',
@@ -654,7 +653,7 @@ export default function WorkspacePage({
       <div className="workspace-drop-actions">
         <div className="workspace-drop-buttons">
           <button className="btn btn-primary" disabled={busy || !canUpload} onClick={() => input.current.click()}>{busy ? 'Обработка файлов…' : rows.length ? 'Заменить файлы' : 'Выбрать файлы'}</button>
-          <a className="btn btn-secondary" href={importExamplesUrl} download="dna-import-examples.zip"><WorkspaceIcon name="download" />Скачать примеры файлов</a>
+          <a className="btn btn-secondary" href="/api/workspace/import-examples.zip" download="dna-import-examples.zip"><WorkspaceIcon name="download" />Скачать примеры файлов</a>
         </div>
         <a href="/excel-converter">Открыть конвертер <span aria-hidden="true">↗</span></a>
       </div>

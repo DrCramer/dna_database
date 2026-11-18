@@ -10,6 +10,7 @@ const {
 const {
   workspaceModeEnabled
 } = require('../services/workspace/workspaceMode');
+const { getImportExamplesArchive } = require('../services/workspace/importExamples');
 function workbookDownload(res, filename) {
   res.set({
     'Content-Type': 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
@@ -75,6 +76,15 @@ module.exports = function workspaceRouter(service = new WorkspaceApprovalService
         status: 400
       }))
     }).array('files', 100);
+  // The examples are generated from synthetic values and are independent of user data.
+  router.get('/import-examples.zip', async (_req, res, next) => {
+    try {
+      const archive = await getImportExamplesArchive();
+      res.set('Cache-Control', 'public, no-cache').attachment('dna-import-examples.zip').send(archive);
+    } catch (error) {
+      next(error);
+    }
+  });
   router.use(authenticate);
   router.use((req, res, next) => {
     res.set('Cache-Control', 'private, no-store');

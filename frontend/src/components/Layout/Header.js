@@ -5,6 +5,7 @@ import DepartmentSwitcher from '../Common/DepartmentSwitcher';
 import { resolveProfileImportFormat } from '../../../../src/utils/profileImportFormat';
 import ThemeSwitcher from '../Common/ThemeSwitcher';
 import UiIcon from '../Common/UiIcon';
+import PageHelp from '../Common/PageHelp';
 
 const Header = ({ user, onNavigate, onLogout, hasRole }) => {
   const { activeDepartment, workspaceMode, workspaceModeReady } = useAuth();
@@ -231,6 +232,7 @@ const Header = ({ user, onNavigate, onLogout, hasRole }) => {
 
       <div className="header-right">
         {!workspaceMode && <DepartmentSwitcher />}
+        <PageHelp path={window.location.pathname} workspaceMode={workspaceMode} />
         <ThemeSwitcher />
 
         <div className="user-menu" ref={userMenuRef}>
