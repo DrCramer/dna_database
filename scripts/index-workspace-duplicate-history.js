@@ -12,7 +12,7 @@ async function main() {
     if (!state.locked) throw Object.assign(new Error('Duplicate history indexing is already running'), { code: 'ALREADY_RUNNING' });
     try {
       const report = await indexSavedDuplicateHistory(client, ALGORITHM_VERSION, { canContinue: backgroundAllowed });
-      console.log(JSON.stringify(report));
+      await new Promise(resolve => process.stdout.write(JSON.stringify(report) + '\n', resolve));
       if (report.paused) process.exitCode = 2;
     } finally {
       await client.query('SELECT pg_advisory_unlock(hashtext($1))', [lock]);
@@ -22,7 +22,17 @@ async function main() {
   }
 }
 
-main().catch(error => {
+async function run() {
+  try {
+    await main();
+  } finally {
+    await pool.end();
+  }
+}
+
+// Loading the encryption configuration also starts a session cleanup timer.
+// Close the DB client and finish the CLI without waiting for the server timer.
+run().then(() => process.exit(process.exitCode || 0)).catch(error => {
   console.error('WORKSPACE_DUPLICATE_HISTORY_INDEX_FAILED', error.code || error.name);
-  process.exitCode = 1;
-}).finally(() => pool.end());
+  process.exit(1);
+});
