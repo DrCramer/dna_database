@@ -10,7 +10,7 @@ import { staffSearchOptions } from '../../../../src/utils/staffSearchOptions';
 import { WORKSPACE_PROFILE_FIELDS, changedWorkingProfiles } from '../../../../src/utils/workspaceProfileChanges';
 import { storedComparisonColors } from './WorkspaceDuplicateResults';
 import WorkspaceSearchResultTabs from './WorkspaceSearchResultTabs';
-import React, { useEffect, useMemo, useRef, useState } from 'react';
+import React, { useEffect, useId, useMemo, useRef, useState } from 'react';
 import { useAuth } from '../../contexts/AuthContext';
 import { getAnalysisLoci } from '../../../../src/utils/analysisLoci';
 import { orderNormalizedLoci } from '../../../../src/utils/normalizedExcelLayout';
@@ -94,12 +94,16 @@ export default function WorkspacePage({
     [result, setResult] = useState(null);
   const [year, setYear] = useState(''),
     [type, setType] = useState('ug'),
+    [bulkComment, setBulkComment] = useState(''),
     [bulkScope, setBulkScope] = useState('selected'),
     [undo, setUndo] = useState(null),
     [details, setDetails] = useState(null),
     [genotypeText, setGenotypeText] = useState(''),
     [minMatches, setMinMatches] = useState(15),
     [algorithm, setAlgorithm] = useState('standard');
+  const commentListId = useId();
+  const commentOptions = useMemo(() => [...new Set(rows.map(row => row.comment?.trim())
+    .filter(comment => comment && !/[\r\n]/.test(comment)))].slice(0, 25), [rows]);
   const [sort, setSort] = useState({
     field: '',
     direction: 1
@@ -199,6 +203,7 @@ export default function WorkspacePage({
     setDraft(null);
     setRows([]);
     setValidation(null);
+    setBulkComment('');
     setUndo(null);
     setDetails(null);
     setEditingId(null);
@@ -227,6 +232,7 @@ export default function WorkspacePage({
     setLoadState({ key: loadKey, status: 'loading' });
     setRows([]); setWorkspace(null); setSelected(new Set());
     setError('');
+    setBulkComment('');
     setDetails(null);
     setViewFilter('all');
     setIssueGroup(null);
@@ -364,6 +370,7 @@ export default function WorkspacePage({
       commitKey.current = localStorage.getItem(storageKey + ':commitKey') || d.id;
       localStorage.setItem(storageKey + ':commitKey', commitKey.current);
       setValidation(null);
+      setBulkComment('');
       setUndo(null);
       setPage(0);
       retryFiles.current = [];
@@ -411,8 +418,14 @@ export default function WorkspacePage({
       setError('Выберите значение перед применением.');
       return;
     }
-    const targets = affected.filter(row => bulkScope !== 'empty' || row[field] == null || row[field] === '');
-    if (targets.some(row => row[field] !== '' && row[field] != null && row[field] !== value) && !window.confirm(`Заменить уже заполненные значения? Объектов: ${targets.length}.`)) return;
+    const hasValue = row => field === 'comment' ? Boolean(row.comment?.trim()) : row[field] != null && row[field] !== '';
+    const targets = affected.filter(row => (field !== 'comment' || row.comment !== value) && (bulkScope !== 'empty' || !hasValue(row)));
+    if (!targets.length) {
+      setError('');
+      setNotice('Нет объектов для изменения.');
+      return;
+    }
+    if (targets.some(row => hasValue(row) && row[field] !== value) && !window.confirm(`Заменить уже заполненные значения? Объектов: ${targets.length}.`)) return;
     setUndo(rows);
     const ids = new Set(targets.map(id));
     setRows(old => old.map(row => ids.has(id(row)) ? {
@@ -424,6 +437,7 @@ export default function WorkspacePage({
       } : {})
     } : row));
     setValidation(null);
+    setError('');
     setNotice(`Изменено объектов: ${targets.length}.`);
   }
   function moveStaffNames() {
@@ -747,12 +761,28 @@ export default function WorkspacePage({
           <button className="btn btn-ghost btn-sm" disabled={busy || !canEdit} onClick={() => chooseAll(true)}>Выбрать весь текущий фильтр</button>
           {!!included.length && <button className="btn btn-ghost btn-sm" disabled={busy || !canEdit} onClick={() => chooseAll(false)}>Снять выбор в фильтре</button>}
         </div>
-        <div className="workspace-tools-row"><details className="workspace-bulk" open={isImport ? true : undefined}><summary><WorkspaceIcon name="edit" /><span>Год и тип для нескольких объектов</span><WorkspaceIcon name="chevron" /></summary>
-          <section className="workspace-toolbar" aria-label="Массовое заполнение"><label>Применить к<select className="form-select" value={bulkScope} disabled={busy || !canEdit} onChange={e => setBulkScope(e.target.value)}><option value="selected">Выбранным объектам</option><option value="all">Всем объектам</option><option value="empty">Незаполненным полям</option></select></label><div className="workspace-bulk-field"><label>Год<input className="form-input" type="number" min="1900" max="2100" placeholder="2026" value={year} disabled={busy || !canEdit} onChange={e => setYear(e.target.value)} /></label><button className="btn btn-secondary" disabled={busy || !canEdit} onClick={() => bulk('year', year === '' ? '' : Number(year))}>Применить год</button></div><div className="workspace-bulk-field"><label>Тип<select className="form-select" value={type} disabled={busy || !canEdit} onChange={e => setType(e.target.value)}>{Object.entries(types).map(([code, label]) => <option key={code} value={code}>{label}</option>)}</select></label><button className="btn btn-secondary" disabled={busy || !canEdit} onClick={() => bulk('expertiseType', type)}>Применить тип</button></div><span className="workspace-bulk-count">Объектов: {affected.length}</span>{undo && <button className="btn btn-ghost btn-sm" disabled={busy} onClick={() => {
+        <div className="workspace-tools-row"><details className="workspace-bulk" open={isImport ? true : undefined}><summary><WorkspaceIcon name="edit" /><span>Год, тип и комментарий для нескольких объектов</span><WorkspaceIcon name="chevron" /></summary>
+          <section className="workspace-toolbar" aria-label="Массовое заполнение">
+            <label>Применить к<select className="form-select" value={bulkScope} disabled={busy || !canEdit} onChange={e => setBulkScope(e.target.value)}><option value="selected">Выбранным объектам</option><option value="all">Всем объектам</option><option value="empty">Незаполненным полям</option></select></label>
+            <div className="workspace-bulk-field"><label>Год<input className="form-input" type="number" min="1900" max="2100" placeholder="2026" value={year} disabled={busy || !canEdit} onChange={e => setYear(e.target.value)} /></label><button className="btn btn-secondary" disabled={busy || !canEdit} onClick={() => bulk('year', year === '' ? '' : Number(year))}>Применить год</button></div>
+            <div className="workspace-bulk-field"><label>Тип<select className="form-select" value={type} disabled={busy || !canEdit} onChange={e => setType(e.target.value)}>{Object.entries(types).map(([code, label]) => <option key={code} value={code}>{label}</option>)}</select></label><button className="btn btn-secondary" disabled={busy || !canEdit} onClick={() => bulk('expertiseType', type)}>Применить тип</button></div>
+            <div className="workspace-bulk-field workspace-bulk-comment">
+              <label>Комментарий<input className="form-input" type="text" maxLength={20000}
+                list={commentOptions.length ? commentListId : undefined} placeholder="Введите или выберите текст"
+                value={bulkComment} disabled={busy || !canEdit} onChange={e => setBulkComment(e.target.value)} /></label>
+              {commentOptions.length > 0 && <datalist id={commentListId}>
+                {commentOptions.map(comment => <option key={comment} value={comment} />)}
+              </datalist>}
+              <button type="button" className="btn btn-secondary" disabled={busy || !canEdit || !affected.length || !bulkComment.trim()}
+                onClick={() => bulk('comment', bulkComment.trim())}>Применить комментарий</button>
+            </div>
+            <span className="workspace-bulk-count">Объектов: {affected.length}</span>
+            {undo && <button className="btn btn-ghost btn-sm" disabled={busy} onClick={() => {
                 setRows(undo);
                 setUndo(null);
                 setValidation(null);
-              }}>Отменить массовую правку</button>}</section>
+              }}>Отменить массовую правку</button>}
+          </section>
         {staffNameCandidates.length > 0 && <div className="workspace-staff-mapping"><WorkspaceIcon name="edit" /><div><strong>ФИО записаны в поле «Объект»</strong><p>Можно перенести имена сотрудников в нужную колонку. Регистрационные номера необязательны.</p></div><button className="btn btn-secondary btn-sm" disabled={busy || !canEdit} onClick={moveStaffNames}>Перенести ФИО ({staffNameCandidates.length})</button></div>}
         </details>
         {!isImport && <details className="workspace-search-settings"><summary><WorkspaceIcon name="settings" />Настройки поиска<WorkspaceIcon name="chevron" /></summary><div><label>Минимум локусов<input className="form-input" type="number" min="1" max="500" disabled={busy || !canEdit} value={minMatches} onChange={e => {
