@@ -179,9 +179,33 @@ export default function WorkspacePage({
     if (!response.ok) {
       const failure = await response.json();
       const more = Array.isArray(failure.details) ? failure.details.flatMap(i => i.issues || [i]).map(i => i.message).filter(Boolean).join('\n') : '';
-      throw Error([failure.message, more].filter(Boolean).join('\n'));
+      throw Object.assign(Error([failure.message, more].filter(Boolean).join('\n')), {
+        status: response.status,
+        code: failure.code
+      });
     }
     return blob ? response.blob() : response.json();
+  }
+  function forgetLocalDraft(draftId) {
+    if (localStorage.getItem(storageKey) !== draftId) return;
+    localStorage.removeItem(storageKey);
+    localStorage.removeItem(storageKey + ':commitKey');
+  }
+  function resetImportDraft(draftId) {
+    forgetLocalDraft(draftId);
+    initial.current = null;
+    commitKey.current = undefined;
+    retryFiles.current = [];
+    setDraft(null);
+    setRows([]);
+    setValidation(null);
+    setUndo(null);
+    setDetails(null);
+    setEditingId(null);
+    setQuery('');
+    setViewFilter('all');
+    setIssueGroup(null);
+    setPage(0);
   }
   async function load(active = () => true, signal) {
     const data = await api('/', undefined, 'GET', false, signal);
@@ -215,6 +239,10 @@ export default function WorkspacePage({
       const id = localStorage.getItem(storageKey);
       if (id) api('/import-drafts/' + id, undefined, 'GET', false, controller.signal).then(d => {
         if (alive && !controller.signal.aborted) {
+          if (d.committedAt) {
+            forgetLocalDraft(id);
+            return;
+          }
           setDraft(d);
           setRows(d.rows);
           initial.current = d.rows;
@@ -223,7 +251,10 @@ export default function WorkspacePage({
           localStorage.setItem(storageKey + ':commitKey', commitKey.current);
         }
       }).catch(e => {
-        if (alive && !controller.signal.aborted) setError(e.message);
+        if (alive && !controller.signal.aborted) {
+          if (e.status === 404 || e.status === 410) forgetLocalDraft(id);
+          if (e.status !== 404) setError(e.message);
+        }
       });else {
         setDraft(null);
         setRows([]);
@@ -313,7 +344,7 @@ export default function WorkspacePage({
     });
   }
   async function upload(files) {
-    if (!files.length) return;
+    if (!files.length || busy || importController.current || !canUpload) return;
     retryFiles.current = files;
     if (draft && !window.confirm('Заменить текущий черновик новыми файлами?')) return;
     restoringDraft.current?.abort(); importController.current?.abort();
@@ -341,6 +372,37 @@ export default function WorkspacePage({
       if (!controller.signal.aborted && importController.current === controller && workspaceScope.current === requestScope) setError(e.message);
     } finally {
       if (importController.current === controller && workspaceScope.current === requestScope) { importController.current = null; setBusy(false); }
+    }
+  }
+  async function discardDraft() {
+    if (!draft || busy || importController.current || !canUpload) return;
+    if (!window.confirm('Очистить черновик? Данные файлов и правки в черновике будут удалены.')) return;
+    const draftId = draft.id;
+    const controller = new AbortController();
+    importController.current = controller;
+    setBusy(true);
+    setError('');
+    setNotice('');
+    try {
+      await saveInFlight.current?.catch(() => {});
+      if (controller.signal.aborted) return;
+      const alreadyCommitted = await api('/import-drafts/' + draftId, undefined, 'DELETE', false, controller.signal)
+        .then(() => false, error => {
+          if (error.code === 'DRAFT_ALREADY_COMMITTED') return true;
+          if (error.status === 404) return false;
+          throw error;
+        });
+      if (controller.signal.aborted || importController.current !== controller) return;
+      resetImportDraft(draftId);
+      setError('');
+      setNotice(alreadyCommitted ? 'Черновик уже добавлен в личный массив.' : 'Черновик очищен.');
+    } catch (error) {
+      if (!controller.signal.aborted && importController.current === controller) setError(error.message);
+    } finally {
+      if (importController.current === controller) {
+        importController.current = null;
+        setBusy(false);
+      }
     }
   }
   const affected = rows.filter(row => bulkScope === 'all' || bulkScope === 'empty' || (isImport ? row.included : selected.has(row.id)));
@@ -408,6 +470,7 @@ export default function WorkspacePage({
   useEffect(() => {
     if (!isImport || !draft || busy || JSON.stringify(rows) === JSON.stringify(initial.current)) return undefined;
     const timer = setTimeout(() => {
+      if (importController.current) return;
       setAutoSaving(true);
       saveDraft().catch(e => setError(e.message)).finally(() => setAutoSaving(false));
     }, 800);
@@ -492,10 +555,7 @@ export default function WorkspacePage({
             idempotencyKey: commitKey.current
           });
           setNotice(`Загружено объектов: ${done.ids.length}. Откройте «Мои генотипы» для полного поиска.`);
-          localStorage.removeItem(storageKey);
-          localStorage.removeItem(storageKey + ':commitKey');
-          setDraft(null);
-          setRows([]);
+          resetImportDraft(d.id);
         } else {
           saveFile(await api('/import-drafts/' + d.id + '/export', {
             revision: d.revision
@@ -653,6 +713,7 @@ export default function WorkspacePage({
       <div className="workspace-drop-actions">
         <div className="workspace-drop-buttons">
           <button className="btn btn-primary" disabled={busy || !canUpload} onClick={() => input.current.click()}>{busy ? 'Обработка файлов…' : rows.length ? 'Заменить файлы' : 'Выбрать файлы'}</button>
+          {draft && canUpload && <button type="button" className="btn btn-secondary" disabled={busy} onClick={discardDraft}><WorkspaceIcon name="delete" />Очистить черновик</button>}
           <a className="btn btn-secondary" href="/api/workspace/import-examples.zip" download="dna-import-examples.zip"><WorkspaceIcon name="download" />Скачать примеры файлов</a>
         </div>
         <a href="/excel-converter">Открыть конвертер <span aria-hidden="true">↗</span></a>

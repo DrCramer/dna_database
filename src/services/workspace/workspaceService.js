@@ -165,6 +165,19 @@ class WorkspaceService {
   async pruneDrafts() {
     return (await this.pool.query('DELETE FROM workspace_import_drafts WHERE expires_at<now() AND committed_at IS NULL')).rowCount;
   }
+  async deleteDraft(user, id) {
+    requireUpload(user);
+    return this.transaction(async c => {
+      const { rows: [draft] } = await c.query(
+        'SELECT committed_at FROM workspace_import_drafts WHERE id=$1 AND owner_id=$2 AND organization_id=$3 FOR UPDATE',
+        [id, user.id, user.organization_id]
+      );
+      if (!draft) throw err('Черновик недоступен.', 404);
+      if (draft.committed_at) throw err('Черновик уже добавлен в личный массив.', 409, 'DRAFT_ALREADY_COMMITTED');
+      await c.query('DELETE FROM workspace_import_drafts WHERE id=$1', [id]);
+      return { deleted: true };
+    });
+  }
   async createDraft(user, files) {
     requireUpload(user);
     const w = await this.workspace(user),

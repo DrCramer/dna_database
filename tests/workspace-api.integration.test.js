@@ -125,6 +125,30 @@ test('Workspace API: реальные сессии, роли, чужие UUID, l
       searchRunId: randomUUID()
     })).status, 403);
   });
+  await t.test('Владелец может очистить черновик до импорта, сохранив добавленные профили', async () => {
+    const created = await call('/api/workspace/import-drafts', 'user_analyst', form());
+    assert.equal(created.status, 200);
+    const { id } = await created.json();
+    const path = '/api/workspace/import-drafts/' + id;
+    for (const who of ['admin', 'foreign']) {
+      assert.equal((await call(path, who, undefined, 'DELETE')).status, 404);
+    }
+    assert.equal((await call(path, 'viewer', undefined, 'DELETE')).status, 403);
+    assert.equal((await call(path, 'user_analyst')).status, 200);
+    await pool.query("UPDATE workspace_import_drafts SET expires_at=now()-interval '1 minute' WHERE id=$1", [id]);
+    assert.equal((await call(path, 'user_analyst')).status, 410);
+    const cleared = await call(path, 'user_analyst', undefined, 'DELETE');
+    assert.equal(cleared.status, 200);
+    assert.deepEqual(await cleared.json(), { deleted: true });
+    assert.equal((await call(path, 'user_analyst')).status, 404);
+    assert.equal((await call(path + '/commit', 'user_analyst', { revision: 1, idempotencyKey: randomUUID() })).status, 404);
+
+    const committed = await call('/api/workspace/import-drafts/' + draft.id, 'user_analyst', undefined, 'DELETE');
+    assert.equal(committed.status, 409);
+    assert.equal((await committed.json()).code, 'DRAFT_ALREADY_COMMITTED');
+    const workspace = await (await call('/api/workspace', 'user_analyst')).json();
+    assert(workspace.profiles.some(row => row.id === profile));
+  });
   await t.test('Live search: authenticated stage stream, committed result, own scope and unchanged JSON API', async () => {
     const path='/api/workspace/full-search/stream', body={ids:[profile]};
     assert.equal((await fetch(base+path,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(body)})).status,401);

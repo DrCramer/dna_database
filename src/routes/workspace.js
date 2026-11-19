@@ -311,6 +311,9 @@ module.exports = function workspaceRouter(service = new WorkspaceApprovalService
       resultIds: d.result_ids
     });
   }));
+  router.delete('/import-drafts/:id', handle(async (req, res) => {
+    res.json(await service.deleteDraft(req.user, uuid(req.params.id)));
+  }));
   router.patch('/import-drafts/:id/rows', handle(async (req, res) => {
     const value = check(Joi.object({
       revision,
