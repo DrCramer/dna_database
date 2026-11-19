@@ -75,7 +75,8 @@ export default function MasterArrayExportPage() {
 
   if (!admin) return <div className="alert alert-danger" role="alert">Экспорт мастер-массива доступен только администраторам.</div>;
   const organizations = [...new Map(arrays.map(array => [array.organization_id, array.organization_name])).entries()];
-  const departments = [...new Map(arrays.filter(array => array.organization_id === selected?.organization_id).map(array => [array.department_id, array.department_name])).entries()];
+  const organizationArrays = arrays.filter(array => array.organization_id === selected?.organization_id);
+  const departments = [...new Map(organizationArrays.map(array => [array.department_id ?? '', array.department_name || 'Вся организация'])).entries()];
   const canDownload = preview?.exportable > 0 && (preview.needsReview === 0 || validOnly && confirmed);
   const downloadHint = preview?.exportable === 0
     ? 'Нет профилей, готовых к обратному импорту. Проверьте причины ниже; если не хватает колонок локусов, включите общий каталог и повторите проверку.'
@@ -86,12 +87,12 @@ export default function MasterArrayExportPage() {
   return <div className="master-export-page">
     <header className="page-header"><div><h1 className="page-title">Экспорт мастер-массива</h1><p>Активные профили в формате штатной загрузки. Данные мастер-массива не изменяются.</p></div></header>
     {error && <div className="alert alert-danger" role="alert">{error}</div>}
-    {loading ? <p role="status">Загрузка доступных массивов…</p> : !arrays.length ? <div className="alert alert-info">Нет доступных активных мастер-массивов ЧС или Генетических экспертиз.</div> : <>
+    {loading ? <p role="status">Загрузка доступных массивов…</p> : !arrays.length ? <div className="alert alert-info">Нет доступных активных мастер-массивов.</div> : <>
       <section className="card master-export-card"><h2>Источник и настройки</h2>
         <div className="master-export-fields">
           <label>Организация<select className="form-input" value={selected?.organization_id || ''} disabled={!!busy} onChange={event => setArrayId(arrays.find(array => array.organization_id === event.target.value)?.id || '')}>{organizations.map(([id, name]) => <option key={id} value={id}>{name}</option>)}</select></label>
-          <label>Отделение<select className="form-input" value={selected?.department_id || ''} disabled={!!busy} onChange={event => setArrayId(arrays.find(array => array.department_id === event.target.value)?.id || '')}>{departments.map(([id, name]) => <option key={id} value={id}>{name}</option>)}</select></label>
-          <label>Мастер-массив<select className="form-input" value={arrayId} disabled={!!busy} onChange={event => setArrayId(event.target.value)}>{arrays.filter(array => array.department_id === selected?.department_id).map(array => <option key={array.id} value={array.id}>{array.name} · активных: {array.active_profiles}</option>)}</select></label>
+          <label>Отделение<select className="form-input" value={selected?.department_id ?? ''} disabled={!!busy} onChange={event => setArrayId(organizationArrays.find(array => (array.department_id ?? '') === event.target.value)?.id || '')}>{departments.map(([id, name]) => <option key={id} value={id}>{name}</option>)}</select></label>
+          <label>Мастер-массив<select className="form-input" value={arrayId} disabled={!!busy} onChange={event => setArrayId(event.target.value)}>{organizationArrays.filter(array => array.department_id === selected?.department_id).map(array => <option key={array.id} value={array.id}>{array.name} · активных: {array.active_profiles}</option>)}</select></label>
         </div>
         <p className="master-export-hint">Активных профилей в массиве: <strong>{selected?.active_profiles ?? 0}</strong>.</p>
         <fieldset className="master-export-scope"><legend>Объём</legend><label><input type="radio" name="master-export-scope" checked={scope === 'all'} disabled={!!busy} onChange={() => setScope('all')} />Все активные</label><label><input type="radio" name="master-export-scope" checked={scope === 'filtered'} disabled={!!busy} onChange={() => setScope('filtered')} />По фильтрам</label></fieldset>

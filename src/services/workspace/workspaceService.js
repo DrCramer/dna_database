@@ -101,7 +101,19 @@ class WorkspaceService {
  ) s ON s.profile_id=p.id
  LEFT JOIN LATERAL(SELECT a.*,COALESCE(NULLIF(u.display_name,''),u.username) decider_name FROM workspace_master_approval_items i JOIN workspace_master_approvals a ON a.id=i.approval_id LEFT JOIN users u ON u.id=a.decided_by WHERE i.profile_id=p.id ORDER BY a.submitted_at DESC,a.id DESC LIMIT 1) approval ON true
  WHERE p.workspace_id=$1 AND p.user_id=$2 AND p.organization_id=$3 AND p.is_active=true ORDER BY p.upload_date,p.id`, [w.id, user.id, user.organization_id]);
-    const readiness = p => !hasGenotype(p.str_data) ? 'NO_GENOTYPE' : p.run_state === 'running' ? 'CHECKING' : p.run_state === 'complete' && p.search_completed_at && p.proof_stages?.internal && p.proof_stages?.master && p.proof_stages?.staff && p.algorithm_version === require('./workspaceSearchService').ALGORITHM_VERSION && p.proof_state === 'CHECKED' && p.run_workspace_revision === w.analysis_revision && p.master_revision === p.current_master_revision && p.staff_revision === p.current_staff_revision ? 'CHECKED' : p.search_id ? 'STALE' : 'NOT_CHECKED';
+    const { ALGORITHM_VERSION } = require('./workspaceSearchService');
+    const readiness = p => {
+      if (!hasGenotype(p.str_data)) return 'NO_GENOTYPE';
+      if (!p.search_id) return 'NOT_CHECKED';
+      if (p.run_state === 'running') return 'CHECKING';
+      const current = p.run_state === 'complete' && p.search_completed_at &&
+        p.algorithm_version === ALGORITHM_VERSION && p.run_workspace_revision === w.analysis_revision &&
+        p.master_revision === p.current_master_revision && p.staff_revision === p.current_staff_revision;
+      if (!current) return 'STALE';
+      if (p.proof_state === 'INSUFFICIENT_DATA') return 'INSUFFICIENT_DATA';
+      const stages = p.proof_stages;
+      return p.proof_state === 'CHECKED' && stages?.internal && stages?.master && stages?.staff ? 'CHECKED' : 'STALE';
+    };
     return {
       workspace: w,
       canEdit: WRITE_ROLES.includes(user.role),

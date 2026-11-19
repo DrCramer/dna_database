@@ -36,6 +36,7 @@ test('Workspace API: реальные сессии, роли, чужие UUID, l
   app.use('/api/probability', require('../src/routes/probability')());
   app.use('/api/migration-export', require('../src/routes/legacyMigrationExport')());
   app.use('/api/staff-profiles', require('../src/routes/staffProfiles'));
+  app.use('/api/master-arrays', require('../src/routes/masterArrayExport'));
   const server = app.listen(0, '127.0.0.1');
   await new Promise(resolve => server.once('listening', resolve));
   t.after(async () => {
@@ -449,7 +450,21 @@ test('Workspace API: реальные сессии, роли, чужие UUID, l
     assert.equal((await granted.json()).data.user.can_approve_master,true);
     const real=await User.findById(newUser.id),token=auth.generateToken(real);
     await auth.createSession(newUser.id,token,'127.0.0.1','SYN approval API');users.reviewer={...real,token};
-    const f=new FormData();f.append('files',new Blob([createImportWorkbook({profiles:[1,2,3].map(n=>({objectNumber:'SYN-APP-API-'+n,year:2026,expertiseType:'ug',comment:'SYN',strData:data})),loci:Object.keys(data),sourceFormat:'DNA_IMPORT_V2'})]),'SYN.xlsx');
+    const comment = 'Учебный комментарий ЧС';
+    const sourceProfiles = [1, 2, 3].map(n => ({
+      objectNumber: 'SYN-APP-API-' + n,
+      year: 2026,
+      expertiseType: 'chs',
+      assignedNumber: '00005' + n,
+      comment,
+      strData: data
+    }));
+    const f = new FormData();
+    f.append('files', new Blob([createImportWorkbook({
+      profiles: sourceProfiles,
+      loci: Object.keys(data),
+      sourceFormat: 'DNA_IMPORT_V2'
+    })]), 'SYN.xlsx');
     const draft=await (await call('/api/workspace/import-drafts','user_analyst',f)).json();
     const imported=await call('/api/workspace/import-drafts/'+draft.id+'/commit','user_analyst',{revision:draft.revision,idempotencyKey:randomUUID()});
     assert.equal(imported.status,200);const loaded=await imported.json();
@@ -470,8 +485,38 @@ test('Workspace API: реальные сессии, роли, чужие UUID, l
     assert.equal((await call('/api/workspace/approvals/'+request.id+'/decision','reviewer',{decision:'approve',reviewToken:details.reviewToken})).status,403);
     await call('/api/users/'+newUser.id,'admin',{can_approve_master:true},'PUT');
     assert.equal((await call('/api/workspace/approvals/'+request.id+'/decision','reviewer',{decision:'approve',reviewToken:details.reviewToken})).status,200);
-    const stored=(await pool.query('SELECT count(*)::int n FROM master_array_profiles WHERE source_workspace_profile_id=ANY($1::uuid[])',[loaded.ids])).rows[0].n;
-    assert.equal(stored,2);
+    const stored = (await pool.query(
+      'SELECT master_array_id, internal_number, sample_name, comment FROM master_array_profiles WHERE source_workspace_profile_id=ANY($1::uuid[]) ORDER BY internal_number',
+      [loaded.ids]
+    )).rows;
+    const expectedFields = sourceProfiles.slice(0, 2).map(p => [p.objectNumber, p.assignedNumber, p.comment]);
+    assert.deepEqual(stored.map(p => [p.internal_number, p.sample_name, p.comment]), expectedFields);
+    const masterId = stored[0].master_array_id;
+    const optionsPath = '/api/master-arrays/export/options';
+    const options = await call(optionsPath, 'admin');
+    assert.equal(options.status, 200);
+    assert((await options.json()).arrays.some(array => array.id === masterId && array.department_id === null && array.active_profiles >= 2));
+    assert(!(await (await call(optionsPath, 'foreign')).json()).arrays.some(array => array.id === masterId));
+    const path = '/api/master-arrays/' + masterId + '/export/';
+    assert.equal((await call(path + 'preview', 'foreign', {})).status, 403);
+    assert.equal((await call(path + 'xlsx', 'reviewer', {})).status, 403);
+    const filters = { objectQuery: 'SYN-APP-API-' };
+    const checked = await call(path + 'preview', 'admin', { filters });
+    assert.equal(checked.status, 200);
+    const report = await checked.json();
+    assert.equal(report.exportable, 2);
+    assert.equal(report.needsReview, 0);
+    const response = await call(path + 'xlsx', 'admin', { filters, options: { previewFingerprint: report.fingerprint } });
+    assert.equal(response.status, 200);
+    const buffer = Buffer.from(await response.arrayBuffer());
+    const XLSX = require('xlsx');
+    const sheet = XLSX.read(buffer).Sheets['Импорт'];
+    const exportFields = XLSX.utils.sheet_to_json(sheet).map(row => [row['Объект'], row['Ростовский номер'], row['Комментарий']]).sort();
+    assert.deepEqual(exportFields, expectedFields);
+    const { parseFiles } = require('../src/services/workspace/importSourceService');
+    const roundTrip = parseFiles([{ originalname: 'SYN-master.xlsx', buffer }]).rows;
+    assert(roundTrip.every(row => row.expertiseType === 'chs' && row.sourceIssues.length === 0));
+    assert.deepEqual(roundTrip.map(row => [row.objectNumber, row.assignedNumber, row.comment]).sort(), expectedFields);
     const own=await (await call('/api/workspace','user_analyst')).json();assert.equal(own.profiles.filter(p=>ids.includes(p.id)&&p.state==='PUBLISHED').length,2);
     const me=await call('/api/users/me/profile','user_analyst',{can_approve_master:true},'PUT');
     assert([200,400].includes(me.status));assert.equal((await User.findById(users.user_analyst.id)).can_approve_master,false);

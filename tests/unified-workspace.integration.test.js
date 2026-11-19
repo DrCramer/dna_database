@@ -585,13 +585,16 @@ test('Единый workspace: импорт, ревизии, поиск, gate, п
     const result=await service.fullSearch(actor,working.ids);
     assert.equal(result.staff.find(group=>group.profileId===working.ids[0]).matches.length,0);
     assert.equal(result.profiles.find(row=>row.profileId===working.ids[0]).state,'INSUFFICIENT_DATA');
+    const current=await service.list(actor);
+    assert.equal(current.profiles.find(row=>row.id===working.ids[0]).searchState,'INSUFFICIENT_DATA');
     assert(result.staff.find(group=>group.profileId===working.ids[1]).matches.some(match=>match.staffId===staffId));
     assert.deepEqual((await pool.query('SELECT id,str_data FROM dna_profiles WHERE id=ANY($1::uuid[]) ORDER BY id',[working.ids])).rows,before);
     assert.equal((await service.search(actor,result.id)).outdated,false);
     await pool.query("UPDATE workspace_search_runs SET algorithm_version='existing-task-comparison+staff-v5/workspace-1' WHERE id=$1",[result.id]);
     const old=await service.search(actor,result.id);
     assert.equal(old.outdated,true);
-    assert.equal((await service.list(actor)).profiles.find(row=>row.id===working.ids[1]).searchState,'STALE');
+    const stale=await service.list(actor);
+    for (const id of working.ids) assert.equal(stale.profiles.find(row=>row.id===id).searchState,'STALE');
     await assert.rejects(new (require('../src/services/audit/staffContaminationExcelExportService').StaffContaminationExcelExportService)().createWorkbookBuffer({result:old}),error=>error.status===409);
     await assert.rejects(service.search(other,result.id),error=>error.status===404);
   });
