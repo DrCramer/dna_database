@@ -1538,7 +1538,7 @@
   .workspace-bulk-field { flex: 1 1 220px; }
   .workspace-bulk-field label { flex: 1; min-width: 0; }
   .workspace-bulk-field input, .workspace-bulk-field select { width: 100%; }
-  .workspace-bulk-count { display: none; }
+  .workspace-bulk-count:not([role="status"]) { display: none; }
   .workspace-command-bar { padding: 12px; gap: 10px; flex-wrap: wrap; }
   .workspace-command-actions { margin-left: auto; }
   .workspace-command-actions .btn { min-height: 36px; font-size: 12px; padding-inline: 10px; }

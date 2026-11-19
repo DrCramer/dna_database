@@ -16,6 +16,8 @@ import { getAnalysisLoci } from '../../../../src/utils/analysisLoci';
 import { orderNormalizedLoci } from '../../../../src/utils/normalizedExcelLayout';
 import { OBJECT_TYPES as types, WORKSPACE_WRITE_ROLES, objectMetadataIssues } from '../../../../src/utils/objectTypes';
 import { ASSIGNED_HEADER } from '../../../../src/utils/emergencyAssignedNumber';
+import { extractExpertiseNumber, geneticObjectKey } from '../../../../src/utils/profileImportFormat';
+import { groupRowsWithoutYearByExpertise } from '../../../../src/utils/workspaceImportMetadata';
 const states = {
   NOT_CHECKED: 'Не проверен',
   CHECKING: 'Проверяется',
@@ -96,12 +98,16 @@ export default function WorkspacePage({
     [type, setType] = useState('ug'),
     [bulkComment, setBulkComment] = useState(''),
     [bulkScope, setBulkScope] = useState('selected'),
+    [bulkExpertise, setBulkExpertise] = useState(''),
     [undo, setUndo] = useState(null),
     [details, setDetails] = useState(null),
     [genotypeText, setGenotypeText] = useState(''),
     [minMatches, setMinMatches] = useState(15),
     [algorithm, setAlgorithm] = useState('standard');
   const commentListId = useId();
+  const expertiseListId = useId();
+  const bulkByExpertise = isImport && bulkScope === 'expertise';
+  const expertiseYearGroups = useMemo(() => bulkByExpertise ? groupRowsWithoutYearByExpertise(rows) : null, [bulkByExpertise, rows]);
   const commentPrefix = bulkComment.trim();
   const [savedSuggestions, setSavedSuggestions] = useState(null);
   const commentOptions = useMemo(() => {
@@ -224,6 +230,7 @@ export default function WorkspacePage({
     setRows([]);
     setValidation(null);
     setBulkComment('');
+    setBulkExpertise('');
     setUndo(null);
     setDetails(null);
     setEditingId(null);
@@ -253,6 +260,7 @@ export default function WorkspacePage({
     setRows([]); setWorkspace(null); setSelected(new Set());
     setError('');
     setBulkComment('');
+    setBulkExpertise('');
     setDetails(null);
     setViewFilter('all');
     setIssueGroup(null);
@@ -391,6 +399,7 @@ export default function WorkspacePage({
       localStorage.setItem(storageKey + ':commitKey', commitKey.current);
       setValidation(null);
       setBulkComment('');
+      setBulkExpertise('');
       setUndo(null);
       setPage(0);
       retryFiles.current = [];
@@ -432,10 +441,16 @@ export default function WorkspacePage({
       }
     }
   }
-  const affected = rows.filter(row => bulkScope === 'all' || bulkScope === 'empty' || (isImport ? row.included : selected.has(row.id)));
+  const affected = bulkByExpertise
+    ? expertiseYearGroups.get(geneticObjectKey(bulkExpertise))?.rows ?? []
+    : rows.filter(row => bulkScope === 'all' || bulkScope === 'empty' || (isImport ? row.included : selected.has(row.id)));
   function bulk(field, value) {
     if (value === '' || value == null) {
       setError('Выберите значение перед применением.');
+      return;
+    }
+    if (field === 'year' && (!Number.isInteger(value) || value < 1900 || value > 2100)) {
+      setError('Укажите год от 1900 до 2100.');
       return;
     }
     const hasValue = row => field === 'comment' ? Boolean(row.comment?.trim()) : row[field] != null && row[field] !== '';
@@ -711,7 +726,7 @@ export default function WorkspacePage({
     strData: genotypePreview
   }])) : [];
   const stateBadge = row => <div><span className="workspace-badge" data-state={row.state || 'NOT_CHECKED'}>{row.expertiseType === 'staff' && row.state === 'PUBLISHED' ? 'В эталонах сотрудников' : states[row.state] || 'Не проверен'}</span>{row.approvalId && <button className="workspace-object-link master-approval-history-link" onClick={() => setApprovalWindow({mode:'history',requestId:row.approvalId})}>Решение и история</button>}{row.decisionComment && <small className="master-approval-decision-note">{row.decisionComment}</small>}</div>;
-  const objectNumber = row => row.expertiseType === 'staff' ? 'Регистрационный номер (необязательно)' : row.expertiseType === 'chs' ? 'Номер объекта ЧС' : `№ экспертизы ${row.objectNumber.split('-')[0] || '—'}`;
+  const objectNumber = row => row.expertiseType === 'staff' ? 'Регистрационный номер (необязательно)' : row.expertiseType === 'chs' ? 'Номер объекта ЧС' : `№ экспертизы ${extractExpertiseNumber(row.objectNumber) || '—'}`;
   return <div className={`workspace-page ${isImport ? 'workspace-import-page' : 'workspace-profiles-page'}`} aria-label={isImport ? undefined : 'Мои генотипы'} aria-busy={busy || loadingProfiles}>
     {isImport ? <header className="workspace-heading">
       <div><span className="workspace-eyebrow">Личная рабочая область</span><h1>Загрузка в личный массив</h1>{!rows.length && <p>Добавьте файлы, выберите объекты и подтвердите загрузку.</p>}</div>
@@ -791,8 +806,15 @@ export default function WorkspacePage({
         </div>
         <div className="workspace-tools-row"><details className="workspace-bulk" open={isImport ? true : undefined}><summary><WorkspaceIcon name="edit" /><span>Год, тип и комментарий для нескольких объектов</span><WorkspaceIcon name="chevron" /></summary>
           <section className="workspace-toolbar" aria-label="Массовое заполнение">
-            <label>Применить к<select className="form-select" value={bulkScope} disabled={busy || !canEdit} onChange={e => setBulkScope(e.target.value)}><option value="selected">Выбранным объектам</option><option value="all">Всем объектам</option><option value="empty">Незаполненным полям</option></select></label>
-            <div className="workspace-bulk-field"><label>Год<input className="form-input" type="number" min="1900" max="2100" placeholder="2026" value={year} disabled={busy || !canEdit} onChange={e => setYear(e.target.value)} /></label><button className="btn btn-secondary" disabled={busy || !canEdit} onClick={() => bulk('year', year === '' ? '' : Number(year))}>Применить год</button></div>
+            <label>Применить к<select className="form-select" value={bulkScope} disabled={busy || !canEdit} onChange={e => setBulkScope(e.target.value)}><option value="selected">Выбранным объектам</option><option value="all">Всем объектам</option><option value="empty">Незаполненным полям</option>{isImport && <option value="expertise">Объектам одной экспертизы</option>}</select></label>
+            {bulkByExpertise && <label>Номер экспертизы<input className="form-input" type="text" maxLength={100} list={expertiseListId} placeholder="Например, 431"
+              value={bulkExpertise} disabled={busy || !canEdit} onChange={e => setBulkExpertise(e.target.value)} />
+              <datalist id={expertiseListId}>
+                {[...expertiseYearGroups.values()].map(group => <option key={group.number} value={group.number} />)}
+              </datalist>
+            </label>}
+            <div className="workspace-bulk-field"><label>Год<input className="form-input" type="number" min="1900" max="2100" placeholder="2026" value={year} disabled={busy || !canEdit} onChange={e => setYear(e.target.value)} /></label><button className="btn btn-secondary" disabled={busy || !canEdit || (bulkByExpertise && !affected.length)} onClick={() => bulk('year', year === '' ? '' : Number(year))}>Применить год</button></div>
+            {!bulkByExpertise && <>
             <div className="workspace-bulk-field"><label>Тип<select className="form-select" value={type} disabled={busy || !canEdit} onChange={e => setType(e.target.value)}>{Object.entries(types).map(([code, label]) => <option key={code} value={code}>{label}</option>)}</select></label><button className="btn btn-secondary" disabled={busy || !canEdit} onClick={() => bulk('expertiseType', type)}>Применить тип</button></div>
             <div className="workspace-bulk-field workspace-bulk-comment">
               <label>Комментарий<input className="form-input" type="text" maxLength={20000}
@@ -804,7 +826,8 @@ export default function WorkspacePage({
               <button type="button" className="btn btn-secondary" disabled={busy || !canEdit || !affected.length || !bulkComment.trim()}
                 onClick={() => bulk('comment', bulkComment.trim())}>Применить комментарий</button>
             </div>
-            <span className="workspace-bulk-count">Объектов: {affected.length}</span>
+            </>}
+            <span className="workspace-bulk-count" role={bulkByExpertise ? 'status' : undefined}>{bulkByExpertise ? 'Выбрано без года' : 'Объектов'}: {affected.length}</span>
             {undo && <button className="btn btn-ghost btn-sm" disabled={busy} onClick={() => {
                 setRows(undo);
                 setUndo(null);

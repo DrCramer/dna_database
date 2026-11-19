@@ -1,3 +1,5 @@
+const { extractExpertiseNumber, geneticObjectKey } = require('./profileImportFormat');
+
 const key = value => String(value ?? '').trim().toLowerCase().replace(/\s+/g, ' ');
 const COMMENT_HEADERS = Object.freeze(['комментарий', 'комментарии', 'комментарий (подробное описание объекта)']);
 const REGISTRY_HEADERS = new Set(['№ постановления', '№ рег рцсмэ', 'rt (small)']);
@@ -16,4 +18,18 @@ function restoreKnownImportMetadata(row) {
   });
   return sourceIssues.length === (row.sourceIssues || []).length ? row : { ...row, sourceIssues };
 }
-module.exports = { COMMENT_HEADERS, isRegistryMetadataHeader, restoreKnownImportMetadata };
+function groupRowsWithoutYearByExpertise(rows) {
+  const groups = new Map();
+  for (const row of rows) {
+    if (!row.included || row.provenance?.classification?.included === false ||
+        (row.year != null && row.year !== '') || row.expertiseType === 'chs' || row.expertiseType === 'staff') continue;
+    const number = extractExpertiseNumber(row.objectNumber);
+    if (!number) continue;
+    const caseKey = geneticObjectKey(number);
+    if (!groups.has(caseKey)) groups.set(caseKey, { number, rows: [] });
+    groups.get(caseKey).rows.push(row);
+  }
+  return groups;
+}
+
+module.exports = { COMMENT_HEADERS, isRegistryMetadataHeader, restoreKnownImportMetadata, groupRowsWithoutYearByExpertise };
