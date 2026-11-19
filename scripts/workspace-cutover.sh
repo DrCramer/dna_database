@@ -52,6 +52,10 @@ for directory in runtime/uploads runtime/exports; do
 done
 tar -czf "$backup_dir/files.tar.gz" "${archive_paths[@]}"
 if [[ "${1:-}" == --confirm-production-cutover ]]; then
+    next_env="$(mktemp ./.env.workspace.XXXXXX)"
+    trap 'rm -f -- "$next_env"' EXIT
+    awk '!/^[[:space:]]*(export[[:space:]]+)?UNIFIED_WORKSPACE_ENABLED[[:space:]]*=/' .env > "$next_env"
+    printf '%s\n' 'UNIFIED_WORKSPACE_ENABLED=true' >> "$next_env"
     docker compose stop web
     # Final dump after application writes have stopped.
     docker compose exec -T db pg_dump -U dna_user -d "$workspace_database" --no-owner --no-acl > "$backup_dir/database.final.sql"
@@ -67,11 +71,6 @@ if [[ "${1:-}" == --staging ]]; then
     echo "Staging schema enabled in $workspace_database. Start the isolated web service with UNIFIED_WORKSPACE_ENABLED=true. Production web was not restarted."
     exit 0
 fi
-python3 - <<'PY'
-from pathlib import Path
-p = Path('.env')
-lines = [line for line in p.read_text().splitlines() if not line.startswith('UNIFIED_WORKSPACE_ENABLED=')]
-p.write_text('\n'.join(lines + ['UNIFIED_WORKSPACE_ENABLED=true']) + '\n')
-PY
+mv -- "$next_env" .env
 docker compose up -d --no-deps --wait --wait-timeout 180 web
 echo "Cutover complete. Keep $backup_dir and the old database/archive. Do not delete volumes."

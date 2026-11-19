@@ -12,7 +12,7 @@ function runCutover(t, options = {}) {
   for (const dir of ['bin', 'config', 'scripts', 'database']) fs.mkdirSync(path.join(root, dir));
   fs.copyFileSync(path.join(repo, 'scripts/workspace-cutover.sh'), path.join(root, 'scripts/workspace-cutover.sh'));
   fs.cpSync(path.join(repo, 'database/migrations'), path.join(root, 'database/migrations'), { recursive: true });
-  fs.writeFileSync(path.join(root, '.env'), 'UNIFIED_WORKSPACE_ENABLED=false\n');
+  fs.writeFileSync(path.join(root, '.env'), options.env || 'UNIFIED_WORKSPACE_ENABLED=false\n');
   fs.writeFileSync(path.join(root, 'config/encryption.key'), Buffer.alloc(32));
   fs.writeFileSync(path.join(root, 'bin/git'), '#!/bin/sh\nprintf "%s\\n" fixture-revision\n', { mode: 0o700 });
   const eventsPath = path.join(root, 'events');
@@ -71,12 +71,14 @@ esac
 }
 
 test('Переход сохраняет прежний образ до сборки и делает финальный дамп до миграций', t => {
-  const result = runCutover(t);
+  const env = '# Synthetic settings\nWEB_PORT=3001\nUNIFIED_WORKSPACE_ENABLED=false\nexport UNIFIED_WORKSPACE_ENABLED = false\n';
+  const result = runCutover(t, { env });
   assert.equal(result.status, 0, result.stderr);
   assert.deepEqual(result.events, ['container', 'previous', 'inspect-image', 'tag', 'build', 'backup', 'stop', 'backup',
     ...Array(5).fill('migration'), 'enable', 'up']);
   assert.match(fs.readFileSync(path.join(result.backup, 'previous-image-tag.txt'), 'utf8'), /^dna_database-web:workspace-before-/);
-  assert.match(result.env, /^UNIFIED_WORKSPACE_ENABLED=true\n$/);
+  assert.equal(fs.readFileSync(path.join(result.backup, 'env.before'), 'utf8'), env);
+  assert.equal(result.env, '# Synthetic settings\nWEB_PORT=3001\nUNIFIED_WORKSPACE_ENABLED=true\n');
 });
 
 test('Отсутствующий образ запущенного web описан в предупреждении, SQL-дампы сохраняются', t => {
