@@ -128,8 +128,9 @@ export default function WorkspacePage({
   const [staffSettingsOpen, setStaffSettingsOpen] = useState(false);
   const [searchProgress, setSearchProgress] = useState(null);
   const searchController = useRef(null);
+  const settingsWrite = useRef(null);
   useEffect(() => {
-    setSearchProgress(null); setBusy(false);
+    setSearchProgress(null); setBusy(false); settingsWrite.current = null;
     return () => { searchController.current?.abort(); searchController.current = null; };
   }, [mode, user.id, user.organization_id]);
   const resultColors = useMemo(storedComparisonColors, [result?.id]);
@@ -509,30 +510,36 @@ export default function WorkspacePage({
     }, 800);
     return () => clearTimeout(timer);
   }, [rows, draft?.revision, busy, isImport]);
-  async function updateSearchSettings(next) {
+  async function saveSearchSettings(parameters) {
+    const token = localStorage.getItem('token');
+    const pending = Promise.resolve(settingsWrite.current).catch(() => {}).then(() => {
+      if (workspaceScope.current === storageKey && token === localStorage.getItem('token')) {
+        return api('/search-settings', {
+          parameters: { staffOptions, ...parameters },
+          useStaffFallback: parameters.staffOptions === undefined
+        }, 'PATCH');
+      }
+    });
+    settingsWrite.current = pending;
+    await pending;
     setResult(null);
-    setRows(current => current.map(row => row.state === 'CHECKED' ? {
+    setRows(current => current.map(row => ['CHECKED', 'INSUFFICIENT_DATA'].includes(row.searchState) ? {
       ...row,
-      state: 'STALE'
+      searchState: 'STALE',
+      state: row.state === row.searchState ? 'STALE' : row.state
     } : row));
+  }
+  async function updateSearchSettings(next) {
     try {
-      await api('/search-settings', {
-        parameters: {
-          minMatches: Number(next.minMatches ?? minMatches),
-          comparisonAlgorithm: next.algorithm ?? algorithm,
-          staffOptions
-        }
-      }, 'PATCH');
+      await saveSearchSettings(next);
     } catch (e) {
       setError(e.message);
     }
   }
   async function saveStaffSettings(options) {
     const next = staffSearchOptions(options);
-    await api('/search-settings', { parameters: { staffOptions: next } }, 'PATCH');
+    await saveSearchSettings({ staffOptions: next });
     setStaffOptions(next);
-    setResult(null);
-    setRows(current => current.map(row => ({ ...row, searchState: row.searchState === 'CHECKED' ? 'STALE' : row.searchState, state: row.state === 'CHECKED' ? 'STALE' : row.state })));
     try {
       const saved = JSON.parse(localStorage.getItem('genotypeAnalysisSettings') || '{}');
       localStorage.setItem('genotypeAnalysisSettings', JSON.stringify({ ...saved, ...next }));
@@ -617,12 +624,14 @@ export default function WorkspacePage({
           ids
         }, 'POST', true), 'Генотипы_' + new Date().toISOString().slice(0, 10) + '.xlsx');
         if (name === 'search') {
+          await settingsWrite.current;
           const response = await fetch('/api/workspace/full-search/stream', {
             method: 'POST', signal: controller.signal,
             headers: { Authorization: `Bearer ${localStorage.getItem('token')}`, 'Content-Type': 'application/json', Accept: 'application/x-ndjson' },
             body: JSON.stringify({
               ids,
-              parameters: { minMatches: Number(minMatches), comparisonAlgorithm: algorithm, staffOptions }
+              parameters: { staffOptions },
+              useStaffFallback: true
             })
           });
           const found = await readSearchStream(response, reportProgress);
@@ -807,12 +816,12 @@ export default function WorkspacePage({
         {!isImport && <details className="workspace-search-settings"><summary><WorkspaceIcon name="settings" />Настройки поиска<WorkspaceIcon name="chevron" /></summary><div><label>Минимум локусов<input className="form-input" type="number" min="1" max="500" disabled={busy || !canEdit} value={minMatches} onChange={e => {
                   setMinMatches(e.target.value);
                   if (Number(e.target.value) >= 1 && Number(e.target.value) <= 500) updateSearchSettings({
-                    minMatches: e.target.value
+                    minMatches: Number(e.target.value)
                   });
                 }} /></label><label>Алгоритм<select className="form-select" aria-label="Алгоритм сравнения" disabled={busy || !canEdit} value={algorithm} onChange={e => {
                   setAlgorithm(e.target.value);
                   updateSearchSettings({
-                    algorithm: e.target.value
+                    comparisonAlgorithm: e.target.value
                   });
                 }}><option value="standard">Стандартный</option><option value="duplicate_v5">Дубликаты v5</option><option value="contamination">Контаминация</option></select></label><button className="btn btn-secondary" disabled={busy || !canEdit} onClick={() => setStaffSettingsOpen(true)}>Контаминация сотрудников: настройки</button><p>Сотрудники: {staffOptions.useV5Algorithm ? 'v5.0' : staffOptions.useV4Algorithm ? 'v4.0' : 'v1.5'} · порог {staffOptions.threshold}. Изменение параметров требует нового полного поиска.</p></div></details>}</div>
 

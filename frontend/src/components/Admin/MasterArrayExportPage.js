@@ -1,6 +1,8 @@
 import React, { useEffect, useRef, useState } from 'react';
 import { useAuth } from '../../contexts/AuthContext';
 import { matchesRoles } from '../../../../src/utils/accessPolicyRules';
+import { getProfileUploadPermissions } from '../../../../src/utils/profileUploadPermissions';
+import { Link } from 'react-router-dom';
 
 function saveBlob(blob, name) {
   const url = URL.createObjectURL(blob), anchor = document.createElement('a');
@@ -9,8 +11,10 @@ function saveBlob(blob, name) {
 }
 
 export default function MasterArrayExportPage() {
-  const { user, activeDepartmentId } = useAuth();
+  const { user, activeDepartmentId, workspaceMode } = useAuth();
   const admin = matchesRoles(user, ['admin', 'system_administrator']);
+  const permissions = getProfileUploadPermissions(user);
+  const canImport = workspaceMode && (permissions.can_upload_with_task || permissions.can_upload_without_task);
   const [arrays, setArrays] = useState([]), [arrayId, setArrayId] = useState('');
   const [loading, setLoading] = useState(true), [busy, setBusy] = useState(''), [error, setError] = useState('');
   const [scope, setScope] = useState('all'), [yearFrom, setYearFrom] = useState(''), [yearTo, setYearTo] = useState(''), [objectQuery, setObjectQuery] = useState('');
@@ -85,7 +89,10 @@ export default function MasterArrayExportPage() {
       : preview?.needsReview > 0 && !confirmed
         ? 'Подтвердите исключение проблемных записей — после этого кнопка выгрузки станет доступна.' : '';
   return <div className="master-export-page">
-    <header className="page-header"><div><h1 className="page-title">Экспорт мастер-массива</h1><p>Активные профили в формате штатной загрузки. Данные мастер-массива не изменяются.</p></div></header>
+    <header className="page-header"><div><h1 className="page-title">Экспорт мастер-массива</h1><p>Активные профили в формате штатной загрузки. Данные мастер-массива не изменяются.</p></div>
+      {canImport && <div className="header-actions"><Link className="btn btn-secondary" to="/upload">Загрузить XLSX</Link></div>}
+    </header>
+    {canImport && <p className="master-export-hint">Для публикации из Excel загрузите файл в личный массив, выполните полный поиск и отправьте объекты на подтверждение.</p>}
     {error && <div className="alert alert-danger" role="alert">{error}</div>}
     {loading ? <p role="status">Загрузка доступных массивов…</p> : !arrays.length ? <div className="alert alert-info">Нет доступных активных мастер-массивов.</div> : <>
       <section className="card master-export-card"><h2>Источник и настройки</h2>

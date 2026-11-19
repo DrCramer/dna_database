@@ -28,7 +28,10 @@ async function streamWorkspaceSearch(req, res, service, value) {
   const timeout = setTimeout(() => controller.abort(err('Превышено время поиска (10 минут).', 408, 'SEARCH_TIMEOUT')), 600000);
   heartbeat.unref(); timeout.unref();
   try {
-    const result = await service.fullSearch(req.user, value.ids, value.parameters, controller.signal, progress);
+    const { staffOptions, ...otherParameters } = value.parameters || {};
+    const parameters = value.useStaffFallback ? otherParameters : value.parameters;
+    const execution = value.useStaffFallback ? { initialStaffOptions: staffOptions } : undefined;
+    const result = await service.fullSearch(req.user, value.ids, parameters, controller.signal, progress, execution);
     if (!controller.signal.aborted) send({ type: 'result', result });
   } catch (e) {
     res.locals.workspaceOperationFailed = true;

@@ -29,22 +29,52 @@ const {
   unseal
 } = require('./workspaceCrypto');
 const { collectDuplicatePairs, annotateDuplicateHistory } = require('./workspaceDuplicateHistory');
+const { WORKSPACE_WRITE_ROLES } = require('../../utils/objectTypes');
 const ALGORITHM_VERSION = 'existing-task-comparison+staff-v5/workspace-3-certain-duplicates';
+function effectiveSearchParameters(stored = {}, changes = {}, initialStaffOptions) {
+  const parameters = {
+    minMatches: 15,
+    ignoredLoci: [],
+    comparisonAlgorithm: 'standard',
+    ...stored,
+    ...changes
+  };
+  parameters.staffOptions = staffSearchOptions(changes.staffOptions ?? stored?.staffOptions ?? initialStaffOptions);
+  return parameters;
+}
+
 class WorkspaceSearchService extends WorkspaceService {
-  async configureSearch(user, parameters) {
+  async saveSearchParameters(client, workspace, parameters) {
+    await client.query('UPDATE personal_workspaces SET analysis_parameters=$1,analysis_revision=analysis_revision+1 WHERE id=$2 AND analysis_parameters IS DISTINCT FROM $1::jsonb', [JSON.stringify(parameters), workspace.id]);
+    return parameters;
+  }
+
+  async configureSearch(user, parameters, initialStaffOptions) {
     requireUser(user, true);
     return this.transaction(async client => {
       const workspace = await this.workspace(user, client, true);
-      const effective = {
-        minMatches: 15,
-        ignoredLoci: [],
-        comparisonAlgorithm: 'standard',
-        ...workspace.analysis_parameters,
-        ...parameters
-      };
-      effective.staffOptions = staffSearchOptions(parameters.staffOptions ?? workspace.analysis_parameters.staffOptions);
-      await client.query('UPDATE personal_workspaces SET analysis_parameters=$1,analysis_revision=analysis_revision+1 WHERE id=$2 AND analysis_parameters IS DISTINCT FROM $1::jsonb', [JSON.stringify(effective), workspace.id]);
-      return effective;
+      return this.saveSearchParameters(client, workspace, effectiveSearchParameters(workspace.analysis_parameters, parameters, initialStaffOptions));
+    });
+  }
+
+  async manageUserSearchSettings(admin, userId, changes) {
+    requireUser(admin);
+    if (!['admin', 'system_administrator'].includes(admin.role)) throw err('Настройки доступны администратору организации.', 403);
+    return this.transaction(async client => {
+      const { rows: [target] } = await client.query(
+        'SELECT id,organization_id,role,is_active FROM users WHERE id=$1 AND organization_id=$2 AND is_active=true FOR SHARE',
+        [userId, admin.organization_id]
+      );
+      if (!target || !WORKSPACE_WRITE_ROLES.includes(target.role)) throw err('Пользователь недоступен для настройки поиска.', 404);
+      if (!changes) {
+        const { rows: [workspace] } = await client.query('SELECT analysis_parameters FROM personal_workspaces WHERE owner_id=$1 AND organization_id=$2', [target.id, target.organization_id]);
+        return effectiveSearchParameters(workspace?.analysis_parameters);
+      }
+      const workspace = await this.workspace(target, client, true);
+      if (changes.duplicateSettings) {
+        changes = { ...changes, duplicateSettings: { ...workspace.analysis_parameters.duplicateSettings, ...changes.duplicateSettings } };
+      }
+      return this.saveSearchParameters(client, workspace, effectiveSearchParameters(workspace.analysis_parameters, changes));
     });
   }
   async fullSearch(user, ids, parameters = {}, signal, onProgress, execution = {}) {
@@ -52,7 +82,7 @@ class WorkspaceSearchService extends WorkspaceService {
     onProgress = progress => { try { progressSink?.(progress); } catch { /* Telemetry cannot invalidate a committed search. */ } };
     requireUser(user, true);
     onProgress?.({ stage: 'preparing', status: 'running' });
-    if (!execution.readSavedParameters) parameters = await this.configureSearch(user, parameters);
+    if (!execution.readSavedParameters) await this.configureSearch(user, parameters, execution.initialStaffOptions);
     requireUser(user, true);
     const w = await this.workspace(user),
       id = randomUUID(),
@@ -61,11 +91,10 @@ class WorkspaceSearchService extends WorkspaceService {
     try {
       await reader.query('BEGIN ISOLATION LEVEL REPEATABLE READ READ ONLY');
       const workspace = (await reader.query('SELECT * FROM personal_workspaces WHERE id=$1', [w.id])).rows[0];
-      if(execution.readSavedParameters) {
-        if(!workspace.analysis_parameters?.staffOptions)throw err('Сначала сохраните настройки поиска.',409,'SETTINGS_REQUIRED');
-        parameters={minMatches:15,ignoredLoci:[],comparisonAlgorithm:'standard',...workspace.analysis_parameters};
-        parameters.staffOptions=staffSearchOptions(parameters.staffOptions);
+      if (execution.readSavedParameters && !workspace.analysis_parameters?.staffOptions) {
+        throw err('Сначала сохраните настройки поиска.', 409, 'SETTINGS_REQUIRED');
       }
+      parameters = effectiveSearchParameters(workspace.analysis_parameters);
       if(!execution.allProfiles)profiles = await this.ownProfiles(reader, user, w, ids);
       working = (await reader.query('SELECT * FROM dna_profiles WHERE workspace_id=$1 AND user_id=$2 AND organization_id=$3 AND is_active=true', [w.id, user.id, user.organization_id])).rows;
       if(execution.allProfiles) {

@@ -517,9 +517,57 @@ test('Workspace API: реальные сессии, роли, чужие UUID, l
     const roundTrip = parseFiles([{ originalname: 'SYN-master.xlsx', buffer }]).rows;
     assert(roundTrip.every(row => row.expertiseType === 'chs' && row.sourceIssues.length === 0));
     assert.deepEqual(roundTrip.map(row => [row.objectNumber, row.assignedNumber, row.comment]).sort(), expectedFields);
+    const reimport = new FormData();
+    reimport.append('files', new Blob([buffer]), 'SYN-master.xlsx');
+    const newDraft = await call('/api/workspace/import-drafts', 'reviewer', reimport);
+    assert.equal(newDraft.status, 200);
+    const { id: draftId, revision, rows } = await newDraft.json();
+    assert.deepEqual(rows.map(row => [row.objectNumber, row.assignedNumber, row.comment]).sort(), expectedFields);
+    const importedAgain = await call('/api/workspace/import-drafts/' + draftId + '/commit', 'reviewer', { revision, idempotencyKey: randomUUID() });
+    assert.equal(importedAgain.status, 200);
+    assert.equal((await importedAgain.json()).ids.length, 2);
     const own=await (await call('/api/workspace','user_analyst')).json();assert.equal(own.profiles.filter(p=>ids.includes(p.id)&&p.state==='PUBLISHED').length,2);
     const me=await call('/api/users/me/profile','user_analyst',{can_approve_master:true},'PUT');
     assert([200,400].includes(me.status));assert.equal((await User.findById(users.user_analyst.id)).can_approve_master,false);
+  });
+
+  await t.test('Администратор задаёт поисковые настройки пользователя для ручного и ночного поиска', async () => {
+    const actor = users.user_analyst;
+    const path = '/api/workspace/users/' + actor.id + '/search-settings';
+    assert.equal((await call(path, 'user_analyst')).status, 403);
+    assert.equal((await call(path, 'department_head', { parameters: { minMatches: 18 } }, 'PATCH')).status, 403);
+    assert.equal((await call(path, 'foreign')).status, 404);
+    assert.equal((await call(path, 'foreign', { parameters: { minMatches: 18 } }, 'PATCH')).status, 404);
+    const initial = await call(path, 'admin');
+    assert.equal(initial.status, 200);
+    assert.equal(typeof (await initial.json()).parameters.minMatches, 'number');
+    assert.equal((await call(path, 'admin', { parameters: { minMatches: 0 } }, 'PATCH')).status, 400);
+    const changes = { minMatches: 18, comparisonAlgorithm: 'standard', staffOptions: { threshold: 10, minLociMatch: 9, useV4Algorithm: true, useV5Algorithm: false } };
+    const updated = await call(path, 'admin', { parameters: changes }, 'PATCH');
+    assert.equal(updated.status, 200);
+    const saved = (await updated.json()).parameters;
+    assert.equal(saved.minMatches, 18);
+    assert.equal(saved.staffOptions.threshold, 10);
+    assert.equal(saved.staffOptions.useV5Algorithm, false);
+    const { workspace } = await (await call('/api/workspace', 'user_analyst')).json();
+    assert.deepEqual(workspace.analysis_parameters, saved);
+    const ordinaryEdit = await call('/api/workspace/search-settings', 'user_analyst', {
+      useStaffFallback: true,
+      parameters: { comparisonAlgorithm: 'standard', staffOptions: { threshold: 5.5 } }
+    }, 'PATCH');
+    assert.equal((await ordinaryEdit.json()).parameters.staffOptions.threshold, 10);
+    const response = await call('/api/workspace/full-search/stream', 'user_analyst', {
+      ids: [profile],
+      parameters: { staffOptions: { threshold: 5.5 } },
+      useStaffFallback: true
+    });
+    assert.equal(response.status, 200);
+    const frames = (await response.text()).trim().split('\n').map(line => JSON.parse(line));
+    const result = frames.find(frame => frame.type === 'result')?.result;
+    assert.deepEqual(result?.parameters, saved);
+    const { WorkspaceApprovalService } = require('../src/services/workspace/workspaceApprovalService');
+    const night = await new WorkspaceApprovalService(pool).fullSearch(actor, [profile], {}, undefined, undefined, { readSavedParameters: true });
+    assert.deepEqual(night.parameters, saved);
   });
 
   await t.test('Общий комментарий сохраняется у всех объектов, выгружается в XLSX и доступен в подсказках владельца', async () => {

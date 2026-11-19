@@ -1,13 +1,16 @@
 import UiIcon from '../Common/UiIcon';
 import UserForm from './UserForm';
+import UserSearchSettingsDialog from './UserSearchSettingsDialog';
 import { getUserDisplayName } from '../../../../src/utils/userDisplayName';
+import { WORKSPACE_WRITE_ROLES } from '../../../../src/utils/objectTypes';
 import React, { useState, useEffect } from 'react';
 import { useAuth } from '../../contexts/AuthContext';
 import { getProfileUploadPermissions } from '../../../../src/utils/profileUploadPermissions';
 
 const UserManagement = ({ onBack }) => {
-  const { hasRole, user: currentUser, refreshUser } = useAuth();
+  const { hasRole, user: currentUser, refreshUser, workspaceMode } = useAuth();
   const canManageUploadPermissions = hasRole('admin');
+  const canManageSearch = workspaceMode && ['admin', 'system_administrator'].includes(currentUser?.role);
   const [users, setUsers] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
@@ -19,6 +22,7 @@ const UserManagement = ({ onBack }) => {
   const [showCreateForm, setShowCreateForm] = useState(false);
   const [editingUser, setEditingUser] = useState(null);
   const [showUserDetails, setShowUserDetails] = useState(null);
+  const [searchSettingsUser, setSearchSettingsUser] = useState(null);
   const [organizations, setOrganizations] = useState([]);
   const [departments, setDepartments] = useState([]);
 
@@ -399,6 +403,15 @@ const UserManagement = ({ onBack }) => {
                     >
                       <UiIcon name="edit" />
                     </button>
+                    {canManageSearch && user.is_active && user.organization_id === currentUser.organization_id && WORKSPACE_WRITE_ROLES.includes(user.role) &&
+                      <button
+                        onClick={() => setSearchSettingsUser(user)}
+                        className="user-action-btn department-action-btn department-action-settings btn btn-secondary btn-icon btn-sm"
+                        title="Настройки поиска"
+                        aria-label={'Настройки поиска · ' + getUserDisplayName(user)}
+                      >
+                        <UiIcon name="settings" />
+                      </button>}
                     <button
                       onClick={() => handleResetPassword(user.id)}
                       className="user-action-btn department-action-btn department-action-settings user-action-reset btn btn-secondary btn-icon btn-sm"
@@ -478,6 +491,11 @@ const UserManagement = ({ onBack }) => {
           onClose={() => setShowUserDetails(null)}
         />
       )}
+      {searchSettingsUser && <UserSearchSettingsDialog
+        user={searchSettingsUser}
+        onClose={() => setSearchSettingsUser(null)}
+        onSaved={() => setNotice('Настройки поиска пользователя сохранены.')}
+      />}
     </div>
   );
 };

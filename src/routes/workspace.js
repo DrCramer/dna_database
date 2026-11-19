@@ -50,6 +50,7 @@ const searchSchema = Joi.object({
 }).options({
   convert: false
 });
+const searchWithStaffFallback = searchSchema.keys({ useStaffFallback: Joi.boolean() });
 const revision = Joi.number().integer().min(1).required();
 const patch = Joi.object({
   draftRowId: Joi.string().guid().required(),
@@ -193,13 +194,23 @@ module.exports = function workspaceRouter(service = new WorkspaceApprovalService
     workbookDownload(res, 'Генотипы_' + new Date().toISOString().slice(0, 10) + '.xlsx').send(await service.exportProfiles(req.user, value.ids));
   }));
   router.patch('/search-settings', handle(async (req, res) => {
-    const value = check(searchSchema.fork('ids', s => s.forbidden()), req.body);
+    const value = check(searchWithStaffFallback.fork('ids', s => s.forbidden()), req.body);
+    const { staffOptions, ...remaining } = value.parameters;
     res.json({
-      parameters: await service.configureSearch(req.user, value.parameters)
+      parameters: value.useStaffFallback
+        ? await service.configureSearch(req.user, remaining, staffOptions)
+        : await service.configureSearch(req.user, value.parameters)
     });
   }));
+  router.get('/users/:id/search-settings', handle(async (req, res) => {
+    res.json({ parameters: await service.manageUserSearchSettings(req.user, uuid(req.params.id)) });
+  }));
+  router.patch('/users/:id/search-settings', handle(async (req, res) => {
+    const { parameters } = check(searchSchema.fork('ids', field => field.forbidden()), req.body);
+    res.json({ parameters: await service.manageUserSearchSettings(req.user, uuid(req.params.id), parameters) });
+  }));
   router.post('/full-search/stream', handle(async (req, res) => {
-    const value = check(searchSchema, req.body);
+    const value = check(searchWithStaffFallback, req.body);
     await require('../services/workspace/workspaceSearchStream').streamWorkspaceSearch(req, res, service, value);
   }));
   router.post('/full-search', handle(async (req, res) => {
