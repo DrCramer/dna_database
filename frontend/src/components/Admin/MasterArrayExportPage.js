@@ -2,7 +2,6 @@ import React, { useEffect, useRef, useState } from 'react';
 import { useAuth } from '../../contexts/AuthContext';
 import { matchesRoles } from '../../../../src/utils/accessPolicyRules';
 import { getProfileUploadPermissions } from '../../../../src/utils/profileUploadPermissions';
-import { Link } from 'react-router-dom';
 
 function saveBlob(blob, name) {
   const url = URL.createObjectURL(blob), anchor = document.createElement('a');
@@ -90,7 +89,7 @@ export default function MasterArrayExportPage() {
         ? 'Подтвердите исключение проблемных записей — после этого кнопка выгрузки станет доступна.' : '';
   return <div className="master-export-page">
     <header className="page-header"><div><h1 className="page-title">Экспорт мастер-массива</h1><p>Активные профили в формате штатной загрузки. Данные мастер-массива не изменяются.</p></div>
-      {canImport && <div className="header-actions"><Link className="btn btn-secondary" to="/upload">Загрузить XLSX</Link></div>}
+      {canImport && <div className="header-actions"><a className="btn btn-secondary" href="/upload">Загрузить XLSX</a></div>}
     </header>
     {canImport && <p className="master-export-hint">Для публикации из Excel загрузите файл в личный массив, выполните полный поиск и отправьте объекты на подтверждение.</p>}
     {error && <div className="alert alert-danger" role="alert">{error}</div>}
