@@ -120,6 +120,21 @@ class WorkspaceService {
       }))
     };
   }
+  async commentSuggestions(user, prefix) {
+    requireUser(user, true);
+    const { rows } = await this.pool.query(
+      `SELECT btrim(comment) AS value
+       FROM dna_profiles
+       WHERE user_id=$1 AND organization_id=$2 AND workspace_id IS NOT NULL AND is_active=true
+         AND starts_with(lower(btrim(comment)), lower($3))
+         AND strpos(comment, chr(10))=0 AND strpos(comment, chr(13))=0
+       GROUP BY btrim(comment)
+       ORDER BY max(upload_date) DESC NULLS LAST, btrim(comment)
+       LIMIT 25`,
+      [user.id, user.organization_id, prefix]
+    );
+    return rows.map(row => row.value);
+  }
   async ownProfiles(c, user, w, ids, lock = false) {
     if (!Array.isArray(ids) || !ids.length || ids.length > 10000 || new Set(ids).size !== ids.length) throw err('Выберите от 1 до 10000 уникальных профилей.');
     const {

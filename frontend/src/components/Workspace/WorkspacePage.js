@@ -102,8 +102,14 @@ export default function WorkspacePage({
     [minMatches, setMinMatches] = useState(15),
     [algorithm, setAlgorithm] = useState('standard');
   const commentListId = useId();
-  const commentOptions = useMemo(() => [...new Set(rows.map(row => row.comment?.trim())
-    .filter(comment => comment && !/[\r\n]/.test(comment)))].slice(0, 25), [rows]);
+  const commentPrefix = bulkComment.trim();
+  const [savedSuggestions, setSavedSuggestions] = useState(null);
+  const commentOptions = useMemo(() => {
+    const saved = savedSuggestions?.scope === storageKey && savedSuggestions.prefix === commentPrefix ? savedSuggestions.comments : [];
+    const prefix = commentPrefix.toLocaleLowerCase('ru');
+    const current = rows.map(row => row.comment?.trim()).filter(comment => comment && !/[\r\n]/.test(comment) && comment.toLocaleLowerCase('ru').startsWith(prefix));
+    return [...new Set([...current, ...saved])].slice(0, 25);
+  }, [rows, savedSuggestions, storageKey, commentPrefix]);
   const [sort, setSort] = useState({
     field: '',
     direction: 1
@@ -190,6 +196,19 @@ export default function WorkspacePage({
     }
     return blob ? response.blob() : response.json();
   }
+  useEffect(() => {
+    if (!canEdit || !commentPrefix) return undefined;
+    const controller = new AbortController();
+    const timer = setTimeout(async () => {
+      try {
+        const { comments } = await api('/comment-suggestions', { prefix: commentPrefix }, 'POST', false, controller.signal);
+        if (!controller.signal.aborted) setSavedSuggestions({ scope: storageKey, prefix: commentPrefix, comments });
+      } catch {
+        // A failed lookup still leaves suggestions from the open table available.
+      }
+    }, 250);
+    return () => { clearTimeout(timer); controller.abort(); };
+  }, [canEdit, storageKey, commentPrefix]);
   function forgetLocalDraft(draftId) {
     if (localStorage.getItem(storageKey) !== draftId) return;
     localStorage.removeItem(storageKey);
@@ -743,7 +762,7 @@ export default function WorkspacePage({
 
       <section className="workspace-data-card">
         <div className="workspace-profile-controls">
-        <div className="workspace-data-heading"><div><h2>{isImport ? 'Объекты из файлов' : 'Рабочие профили'}</h2>{isImport && <p>Укажите год и тип. Для ЧС обязателен присвоенный номер из Excel; ФИО заполняется только для сотрудников.</p>}</div>{!isImport && !!dirtyCount && <span className="workspace-badge" data-state="STALE">Есть изменения: {dirtyCount}</span>}</div>
+        <div className="workspace-data-heading"><div><h2>{isImport ? 'Объекты из файлов' : 'Рабочие профили'}</h2>{isImport && <p>Укажите год и тип. Для ЧС обязателен ростовский номер из Excel; ФИО заполняется только для сотрудников.</p>}</div>{!isImport && !!dirtyCount && <span className="workspace-badge" data-state="STALE">Есть изменения: {dirtyCount}</span>}</div>
         <div className="workspace-filter-bar">
           <label className="workspace-search"><WorkspaceIcon name="search" /><input className="form-input" aria-label="Поиск объектов" value={query} onChange={e => {
               setQuery(e.target.value);
@@ -768,11 +787,11 @@ export default function WorkspacePage({
             <div className="workspace-bulk-field"><label>Тип<select className="form-select" value={type} disabled={busy || !canEdit} onChange={e => setType(e.target.value)}>{Object.entries(types).map(([code, label]) => <option key={code} value={code}>{label}</option>)}</select></label><button className="btn btn-secondary" disabled={busy || !canEdit} onClick={() => bulk('expertiseType', type)}>Применить тип</button></div>
             <div className="workspace-bulk-field workspace-bulk-comment">
               <label>Комментарий<input className="form-input" type="text" maxLength={20000}
-                list={commentOptions.length ? commentListId : undefined} placeholder="Введите или выберите текст"
+                list={commentListId} placeholder="Введите или выберите текст"
                 value={bulkComment} disabled={busy || !canEdit} onChange={e => setBulkComment(e.target.value)} /></label>
-              {commentOptions.length > 0 && <datalist id={commentListId}>
+              <datalist id={commentListId}>
                 {commentOptions.map(comment => <option key={comment} value={comment} />)}
-              </datalist>}
+              </datalist>
               <button type="button" className="btn btn-secondary" disabled={busy || !canEdit || !affected.length || !bulkComment.trim()}
                 onClick={() => bulk('comment', bulkComment.trim())}>Применить комментарий</button>
             </div>
@@ -801,7 +820,7 @@ export default function WorkspacePage({
         <div className="workspace-table-scroll" ref={objectTable} tabIndex="0" role="region" aria-label="Таблица объектов">
           <table className={`workspace-table ${isImport ? 'workspace-import-table' : ''}`}><thead><tr><th className="workspace-check-column"><input type="checkbox" aria-label="Выбрать все строки текущего фильтра" checked={allSelected} ref={el => {
                     if (el) el.indeterminate = !allSelected && selectable.some(isSelected);
-                  }} disabled={busy || !selectable.length} onChange={e => chooseAll(e.target.checked)} /></th>{sortHeader('objectNumber', 'Объект', 'workspace-object-column')}{showAssignedNumber && sortHeader('assignedNumber', <span title={ASSIGNED_HEADER}>№ присвоенный в в/ч<small>ЧС · из Excel</small></span>, 'workspace-assigned-column')}{sortHeader('year', 'Год', 'workspace-year-column')}{sortHeader('expertiseType', 'Тип', 'workspace-type-column')}{showStaff && sortHeader('fullName', 'ФИО сотрудника', 'workspace-name-column')}{sortHeader('comment', 'Комментарий', 'workspace-comment-column')}<th className="workspace-state-column">{isImport ? 'Данные и проверка' : 'Состояние'}</th>{!isImport && loci.map(locus => <React.Fragment key={locus}>{sortHeader('locus:' + locus, locus, 'workspace-locus-column')}</React.Fragment>)}<th className="workspace-row-actions">Действия</th></tr></thead>
+                  }} disabled={busy || !selectable.length} onChange={e => chooseAll(e.target.checked)} /></th>{sortHeader('objectNumber', 'Объект', 'workspace-object-column')}{showAssignedNumber && sortHeader('assignedNumber', <span>{ASSIGNED_HEADER}<small>ЧС · из Excel</small></span>, 'workspace-assigned-column')}{sortHeader('year', 'Год', 'workspace-year-column')}{sortHeader('expertiseType', 'Тип', 'workspace-type-column')}{showStaff && sortHeader('fullName', 'ФИО сотрудника', 'workspace-name-column')}{sortHeader('comment', 'Комментарий', 'workspace-comment-column')}<th className="workspace-state-column">{isImport ? 'Данные и проверка' : 'Состояние'}</th>{!isImport && loci.map(locus => <React.Fragment key={locus}>{sortHeader('locus:' + locus, locus, 'workspace-locus-column')}</React.Fragment>)}<th className="workspace-row-actions">Действия</th></tr></thead>
             <tbody>{pageRows.map(row => {
                 const editable = isImport || editingId === row.id;
                 const issues = isImport ? issuesFor(row) : [];
@@ -882,7 +901,7 @@ export default function WorkspacePage({
     }}>
       <div className="workspace-editor-header"><div><span className="workspace-eyebrow">Генотип объекта</span><h2>{details.objectNumber || 'Без номера'}<span className="workspace-type" data-type={details.expertiseType}>{types[details.expertiseType] || 'Тип не задан'}</span></h2></div><button className="workspace-icon-button" aria-label="Закрыть окно" onClick={() => setDetails(null)}><WorkspaceIcon name="close" /></button></div>
       <div className="workspace-editor-body"><div className="workspace-editor-summary"><span><strong>{details.year || '—'}</strong>Год</span><span><strong>{previewLoci.filter(locus => genotypePreview[locus]?.length).length}</strong>Локусов с данными</span><span className="workspace-editor-source" title={details.sourceFilename || details.provenance?.sourceFilename || ''}><WorkspaceIcon name="file" />{details.sourceFilename || details.provenance?.sourceFilename || 'Профиль из личного массива'}</span></div>
-        {details.expertiseType === 'chs' && <p className="workspace-assigned-detail"><strong title={ASSIGNED_HEADER}>№ присвоенный в в/ч:</strong> {details.assignedNumber || 'Не указан в исходном Excel'}</p>}
+        {details.expertiseType === 'chs' && <p className="workspace-assigned-detail"><strong>{ASSIGNED_HEADER}:</strong> {details.assignedNumber || 'Не указан в исходном Excel'}</p>}
         <div className="workspace-genotype-grid">{previewLoci.map(locus => <label key={locus}>{locus}<input className="form-input" aria-label={`Аллели ${locus}`} readOnly={!canEdit} value={Object.hasOwn(locusEdits, locus) ? locusEdits[locus] : Array.isArray(genotypePreview[locus]) ? genotypePreview[locus].join(',') : String(genotypePreview[locus] ?? '')} onChange={e => {
               setLocusEdits(current => ({
                 ...current,

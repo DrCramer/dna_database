@@ -91,7 +91,8 @@ module.exports = function workspaceRouter(service = new WorkspaceApprovalService
     next();
   });
   router.use((req, res, next) => {
-    if (!['GET', 'HEAD'].includes(req.method)) res.once('finish', () => {
+    const readOnly = ['GET', 'HEAD'].includes(req.method) || (req.method === 'POST' && req.path === '/comment-suggestions');
+    if (!readOnly) res.once('finish', () => {
       require('../models/OperationHistory').logOperation({
         userId: req.user.id,
         operationType: 'WORKSPACE_OPERATION',
@@ -171,6 +172,10 @@ module.exports = function workspaceRouter(service = new WorkspaceApprovalService
   router.post('/search-jobs/:id/:action',handle(async(req,res)=>{check(Joi.object({}),req.body);res.json(await night(req).control(req.user,uuid(req.params.id),req.params.action));}));
   router.get('/', handle(async (req, res) => res.json(await service.list(req.user))));
   router.get('/profiles', handle(async (req, res) => res.json(await service.list(req.user))));
+  router.post('/comment-suggestions', handle(async (req, res) => {
+    const { prefix } = check(Joi.object({ prefix: Joi.string().trim().min(1).max(20000).required() }), req.body);
+    res.json({ comments: await service.commentSuggestions(req.user, prefix) });
+  }));
   router.patch('/profiles/:id', handle(async (req, res) => {
     const value = check(patch.fork('draftRowId', s => s.forbidden()), req.body);
     res.json(await service.patch(req.user, uuid(req.params.id), value));

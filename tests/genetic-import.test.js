@@ -188,6 +188,23 @@ test('Старый ЧС mapping, год и служебные поля сохр�
   await assert.rejects(excel.parseExcelFile(workbook(rows), 'emergency.xlsx', { importFormat: 'emergency' }), /Год|год/);
 });
 
+test('ЧС: валидатор и legacy-парсер читают ростовский номер в разных регистрах', async () => {
+  for (const [headers, values] of [
+    [[' рОСТОвский НОМЕР ', 'Привоз', 'Год', 'Sample Name'], ['000123/А', 7, 2024, '110-1']],
+    [['Sample Name', 'РОСТОВСКИЙ номер', 'Привоз', 'Год'], ['110-1', '000123/А', 7, 2024]]
+  ]) {
+    const buffer = workbook([[...headers, 'D3S1358', 'vWA', 'D16S539'], [...values, '15,18', '18,18', '9,11']]);
+    const checked = validation.validateFile(buffer, 'emergency.xlsx', { importFormat: 'emergency' });
+    assert.equal(checked.valid, true, JSON.stringify(checked.errors));
+    const [profile] = await excel.parseExcelFile(buffer, 'emergency.xlsx', { importFormat: 'emergency' });
+    assert.equal(profile.sampleName, '000123/А');
+    assert.equal(profile.internalNumber, '110-1');
+    assert.equal(profile.year, 2024);
+    assert.equal(String(profile.importNumber), '7');
+    assert.deepEqual(profile.strData.D3S1358, ['15', '18']);
+  }
+});
+
 test('Модель требует год для нового genetic-профиля', () => {
   assert.throws(() => DNAProfile.validateImportFields({ sampleName: 'A-1' }), /Год обязателен/);
   assert.throws(() => DNAProfile.validateImportFields({ importFormat: 'genetic', sampleName: 'A-1' }), /активное отделение/);

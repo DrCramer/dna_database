@@ -9,6 +9,7 @@ const { assertProfileUploadAllowed } = require("../security/profileUploadPolicy"
 const { readConversionMetadata, CONVERSION_META_SHEET } = require("../../utils/geneticConversionMetadata");
 const { informativeAlleles, amelogeninTokens, normalizeSpecialAllele, normalizeSrySignal, isSpecialAllele, isMissingAllele } = require("../../utils/alleleTokens");
 const { resolveProfileImportFormat, normalizeObjectName, extractExpertiseNumber, geneticObjectKey, geneticProfileKey, getGeneticHeaders, validateGeneticHeaders } = require("../../utils/profileImportFormat");
+const { isAssignedNumberHeader } = require('../../utils/emergencyAssignedNumber');
 
 // Импортируем конвертер латинских символов
 const { LatinToCyrillicConverter } = require('./latinToCyrillicConverter');
@@ -1311,7 +1312,7 @@ class ExcelService {
     const thirdColumnHeader = headers[2];
     
     // Проверяем, что это файл с правильной структурой (check_7-107_edit.xlsx)
-    const isNewStructure = firstColumnHeader && firstColumnHeader.toString().toLowerCase().includes('присвоенный');
+    const isNewStructure = isAssignedNumberHeader(firstColumnHeader) || firstColumnHeader && firstColumnHeader.toString().toLowerCase().includes('присвоенный');
     
     let internalNumber = ''; // Основной номер (уникальный в году)
     let sampleName = '';     // Второстепенный номер (может повторяться)
@@ -1392,7 +1393,8 @@ class ExcelService {
       internalNumber = internalNumberResult.normalized; // Основной номер
       
       // Найти столбец с присвоенными номерами
-      const assignedNumberIndex = headers.findIndex(header => 
+      const namedAssignedIndex = headers.findIndex(isAssignedNumberHeader);
+      const assignedNumberIndex = namedAssignedIndex >= 0 ? namedAssignedIndex : headers.findIndex(header =>
         header && (
           header.toString().toLowerCase().includes('присвоенный') ||
           header.toString().toLowerCase().includes('в/ч') ||

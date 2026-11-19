@@ -1,3 +1,5 @@
+const { ASSIGNED_HEADER, getAssignedNumber } = require('./emergencyAssignedNumber');
+
 // Shared browser/server dictionary; business types do not select a source format or a role.
 const OBJECT_TYPES = Object.freeze({
   chs: 'ЧС',
@@ -12,8 +14,8 @@ function objectMetadataIssues(row, { requireAssignedNumber = false } = {}) {
   if (!Number.isInteger(row.year) || row.year < 1900 || row.year > 2100) add('YEAR', 'Укажите год от 1900 до 2100.');
   if (!Object.hasOwn(OBJECT_TYPES, row.expertiseType || '')) add('TYPE', 'Выберите тип экспертизы.');
   if (row.expertiseType === 'chs') {
-    const number = require('./emergencyAssignedNumber').getAssignedNumber(row);
-    if (requireAssignedNumber && !number) add('ASSIGNED_NUMBER_REQUIRED', 'Для ЧС обязателен номер, присвоенный в в/ч. Загрузите Excel со столбцом «№ присвоенный в в/ч № 522 ЦПООП Северо-Кавказского военного округа, г. Ростов-на-Дону».');
+    const number = getAssignedNumber(row);
+    if (requireAssignedNumber && !number) add('ASSIGNED_NUMBER_REQUIRED', `Для ЧС обязателен ростовский номер. Загрузите Excel со столбцом «${ASSIGNED_HEADER}».`);
     if (number.length > 255 || /[\u0000-\u001f\u007f]/.test(number)) add('ASSIGNED_NUMBER_INVALID', 'Номер, присвоенный в в/ч, должен содержать до 255 символов без управляющих знаков. Исправьте исходный Excel.');
   }
   if (row.expertiseType === 'staff') {

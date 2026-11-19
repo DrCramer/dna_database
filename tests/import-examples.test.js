@@ -27,6 +27,9 @@ test('Generated import examples have Russian names and work with the normal impo
   const from = name => rows.filter(row => row.sourceFilename === name);
   assert.deepEqual(names.map(name => from(name).length), [1, 3, 1, 2, 2, 1]);
   assert.equal(from(chs)[0].assignedNumber, 'DEMO-VCH-001');
+  assert(from(chs)[0].provenance.legacyColumns.some(column =>
+    column.header === 'Ростовский номер' && column.value === 'DEMO-VCH-001'));
+  assert.match(await zip.file('README.txt').async('string'), /«Ростовский номер»/);
   assert.equal(from(gr)[0].expertiseType, 'gr');
   const [first, same, different] = from(ug);
   assert.deepEqual(first.strData, same.strData);

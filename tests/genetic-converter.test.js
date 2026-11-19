@@ -77,11 +77,13 @@ test('DNA_IMPORT_V2: заполненный локус рядом с пусты�
 
 test('Конвертер сохраняет присвоенный номер из Excel как служебную колонку; разные номера одного объекта блокируют выгрузку', () => {
   const { ASSIGNED_HEADER } = require('../src/utils/emergencyAssignedNumber');
-  const source = file([[...headers, ASSIGNED_HEADER], ['SYN-101', ...values, '000123/А']]);
+  const source = file([[...headers, 'роСТОвский НОМЕР'], ['SYN-101', ...values, '000123/А']]);
   const result = converter.convert([source], { year: 2026 });
   assert.equal(result.canImport, true);
   assert.equal(result.profiles[0].assignedNumber, '000123/А');
   const exported = converter.export(result);
+  const sheet = XLSX.read(exported).Sheets['Импорт'];
+  assert(XLSX.utils.sheet_to_json(sheet, { header: 1 })[0].includes('Ростовский номер'));
   const [parsed] = require('../src/services/workspace/importSourceService').parseFiles([{ originalname: 'SYN.xlsx', buffer: exported }]).rows;
   assert.equal(parsed.assignedNumber, '000123/А');
   const conflicting = converter.convert([file([[...headers,ASSIGNED_HEADER],['SYN-101',...values,'0001'],['SYN-101',...values,'0002']])], { year: 2026 });

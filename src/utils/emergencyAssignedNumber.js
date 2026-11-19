@@ -1,8 +1,10 @@
 // Номер реестра ЧС приходит из Excel. Он не является номером объекта/экспертизы.
-const ASSIGNED_HEADER = '№ присвоенный в в/ч № 522 ЦПООП Северо-Кавказского военного округа, г. Ростов-на-Дону';
+const ASSIGNED_HEADER = 'Ростовский номер';
 const text = value => String(value ?? '').trim();
 function isAssignedNumberHeader(value) {
-  return /^(?:№\s*)?присвоенный\s+в\s+в\s*[/\\]\s*ч(?:\s|$)/i.test(text(value));
+  const header = text(value);
+  return header.toLowerCase().replace(/\s+/g, ' ') === ASSIGNED_HEADER.toLowerCase() ||
+    /^(?:№\s*)?присвоенный\s+в\s+в\s*[/\\]\s*ч(?:\s|$)/i.test(header);
 }
 function getAssignedNumber(row = {}) {
   if (Object.hasOwn(row, 'assignedNumber')) return text(row.assignedNumber);

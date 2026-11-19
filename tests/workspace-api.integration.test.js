@@ -477,4 +477,50 @@ test('Workspace API: реальные сессии, роли, чужие UUID, l
     assert([200,400].includes(me.status));assert.equal((await User.findById(users.user_analyst.id)).can_approve_master,false);
   });
 
+  await t.test('Общий комментарий сохраняется у всех объектов, выгружается в XLSX и доступен в подсказках владельца', async () => {
+    const XLSX = require('xlsx');
+    const names = ['SYN-COMMENT-1', 'SYN-COMMENT-2', 'SYN-COMMENT-3'];
+    const comment = 'Учебная партия 100% готова';
+    const archive = createImportWorkbook({
+      profiles: names.map(objectNumber => ({ objectNumber, year: 2026, expertiseType: 'ug', strData: data })),
+      loci: Object.keys(data),
+      sourceFormat: 'DNA_IMPORT_V2'
+    });
+    const form = new FormData();
+    form.append('files', new Blob([archive]), 'SYN-comments.xlsx');
+    const created = await call('/api/workspace/import-drafts', 'user_analyst', form);
+    assert.equal(created.status, 200);
+    const draft = await created.json();
+    const draftPath = '/api/workspace/import-drafts/' + draft.id;
+    assert.equal(draft.rows.length, names.length);
+    const patched = await call(draftPath + '/rows', 'user_analyst', {
+      revision: draft.revision,
+      rows: draft.rows.map(({ draftRowId }) => ({ draftRowId, comment }))
+    }, 'PATCH');
+    assert.equal(patched.status, 200);
+    const { revision } = await patched.json();
+    const suggestionPath = '/api/workspace/comment-suggestions';
+    const lookup = who => call(suggestionPath, who, { prefix: 'учебная партия 100%' });
+    assert.deepEqual(await (await lookup('user_analyst')).json(), { comments: [] });
+
+    const committed = await call(draftPath + '/commit', 'user_analyst', { revision, idempotencyKey: randomUUID() });
+    assert.equal(committed.status, 200);
+    const { ids } = await committed.json();
+    assert.equal(ids.length, names.length);
+    const workspace = await (await call('/api/workspace', 'user_analyst')).json();
+    const imported = workspace.profiles.filter(row => ids.includes(row.id));
+    assert.deepEqual(imported.map(row => row.objectNumber).sort(), names);
+    assert(imported.every(row => row.comment === comment));
+    const xlsx = await call('/api/workspace/profiles/export', 'user_analyst', { ids });
+    assert.equal(xlsx.status, 200);
+    const book = XLSX.read(Buffer.from(await xlsx.arrayBuffer()), { type: 'buffer' });
+    const rows = XLSX.utils.sheet_to_json(book.Sheets['Импорт']);
+    assert.deepEqual(rows.map(row => [row['Объект'], row['Комментарий']]).sort(), names.map(name => [name, comment]));
+    assert.deepEqual(await (await lookup('user_analyst')).json(), { comments: [comment] });
+    for (const who of ['admin', 'foreign']) {
+      assert.deepEqual(await (await lookup(who)).json(), { comments: [] });
+    }
+    assert.equal((await lookup('viewer')).status, 403);
+    assert.equal((await call(suggestionPath, 'user_analyst', { prefix: '' })).status, 400);
+  });
 });
