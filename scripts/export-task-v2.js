@@ -6,7 +6,7 @@ const path = require('node:path');
 const crypto = require('node:crypto');
 const { createRequire } = require('node:module');
 const projectRequire = createRequire(path.join(process.cwd(), 'package.json'));
-const ASSIGNED_HEADER = '№ присвоенный в в/ч № 522 ЦПООП Северо-Кавказского военного округа, г. Ростов-на-Дону';
+const ASSIGNED_HEADER = 'Ростовский номер';
 const HEADERS = ['Объект', 'Год', 'Тип экспертизы', 'ФИО', 'Комментарий', '№ рег.',
   'Старое отделение', 'Источник записи', 'Исходный ID', 'Прежнее имя образца',
   'Старое значение привоза/служебной колонки', 'Исходный номер из файла',
