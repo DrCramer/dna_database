@@ -1,4 +1,20 @@
 import React, { useEffect, useRef } from 'react';
+import { formatImportIssueLocation, getWorkspaceImportIssueContext } from '../../../../src/utils/workspaceImportIssues';
+
+const issueSubject = issue => issue.locus ? 'Локус ' + issue.locus : issue.column ? 'Столбец ' + issue.column : '';
+
+export function WorkspaceImportIssue({ row, issue, primary = false, includeFile = false }) {
+  const subject = issueSubject(issue);
+  const context = getWorkspaceImportIssueContext(row, issue);
+  const location = formatImportIssueLocation(context, includeFile);
+  const raw = context.rawValue.length > 120 ? context.rawValue.slice(0, 120) + '…' : context.rawValue;
+  return <div className={primary ? 'workspace-row-error workspace-primary-issue' : 'workspace-row-error'}>
+    {subject && <strong className="workspace-issue-locus">{subject}</strong>}
+    <div>{issue.message}</div>
+    {location && <small className="workspace-issue-source">{location}</small>}
+    {raw && <small className="workspace-issue-source">Исходное значение «{raw}»</small>}
+  </div>;
+}
 
 export default function WorkspaceImportIssues({ summary, validation, activeGroup, onShowGroup, onShowAll }) {
   const panel = useRef(null);
@@ -7,8 +23,11 @@ export default function WorkspaceImportIssues({ summary, validation, activeGroup
   }, [validation]);
   if (!summary.groups.length && !summary.globalIssues.length) return null;
   const groupItem = group => <li key={group.key}>
-    <div><strong>{group.message}</strong><span className="workspace-issue-count">Объектов: {group.rowIds.size}</span>
-      {group.examples.length > 0 && <p>Например: {group.examples.map(example => example.objectNumber + (example.row ? ' (строка ' + example.row + ')' : '')).join(', ')}</p>}
+    <div><strong>{[issueSubject(group), group.message].filter(Boolean).join(' · ')}</strong><span className="workspace-issue-count">Объектов: {group.rowIds.size}</span>
+      {group.examples.length > 0 && <p>Например: {group.examples.map(example => {
+        const location = formatImportIssueLocation(example, true);
+        return example.objectNumber + (location ? ' (' + location + ')' : '');
+      }).join(', ')}</p>}
     </div>
     <button type="button" className="btn btn-secondary btn-sm" aria-pressed={activeGroup === group.key} onClick={() => onShowGroup(group.key)}>Показать объекты ({group.rowIds.size})</button>
   </li>;

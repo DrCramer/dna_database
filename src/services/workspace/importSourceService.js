@@ -69,10 +69,12 @@ function newRow(file, checksum, location, values = {}) {
     ...values
   };
 }
-function normalizedCell(raw, locus, row, decision) {
-  const result = normalizeAlleleValue(raw, locus, decision);
+function normalizedCell(raw, locus, row, cell) {
+  const result = normalizeAlleleValue(raw, locus);
   if (result.hard) row.sourceIssues.push({
     locus,
+    cell,
+    rawValue: String(raw ?? ''),
     code: 'ALLELE_REVIEW',
     message: result.events.map(e => e.reason).join(' ')
   });
@@ -201,6 +203,7 @@ function parseProfileTable(file, checksum, workbook) {
   const rows = [];
   const sheetName = workbook.SheetNames.find(n => n.trim().toLowerCase() === 'sbt_horizont') || workbook.SheetNames[0],
     sheet = workbook.Sheets[sheetName];
+  const start = XLSX.utils.decode_range(sheet['!ref'] || 'A1').s;
   if (sheet['!ref']) {
     const range = XLSX.utils.decode_range(sheet['!fullref'] || sheet['!ref']);
     if (range.e.r > XLSX.utils.decode_range(sheet['!ref']).e.r) throw Object.assign(new Error('Лист превышает лимит строк. Разделите исходный файл.'), { status: 413 });
@@ -248,7 +251,7 @@ function parseProfileTable(file, checksum, workbook) {
     const number = expertiseType === 'staff' && !objectValue ? get('registrationNumber') : objectValue;
     const row = newRow(file, checksum, {
       sheet: sheetName,
-      row: index + 1
+      row: start.r + index + 1
     }, {
       objectNumber: number,
       sourceSampleName: number || get('fullName'),
@@ -303,30 +306,30 @@ function parseProfileTable(file, checksum, workbook) {
     if (fieldColumns('assignedNumber').length || row.assignedNumber) row.provenance.assignedNumber = row.assignedNumber;
     for (const [col, header] of headers.entries()) {
       const canonical = detector.getCanonicalLocusName(header);
+      const cell = XLSX.utils.encode_cell({ r: start.r + index, c: start.c + col });
       if (!canonical) {
         if (text(values[col]) && !metadataHeaders.has(key(header)) && !sourceDetector.isServiceColumn(header) && !isAssignedNumberHeader(header) && !isRegistryMetadataHeader(header)) row.sourceIssues.push({
           code: 'UNKNOWN_COLUMN',
           column: text(header),
+          cell,
           message: `Неизвестный столбец «${text(header) || XLSX.utils.encode_col(col)}» с данными. Сопоставьте его в конвертере.`
         });
         continue;
       }
       const locus = unified ? String(header) : canonical;
-      const address = XLSX.utils.encode_cell({
-        r: index,
-        c: col
-      });
-      if (sheet[address]?.f && sheet[address].v == null) row.sourceIssues.push({
+      if (sheet[cell]?.f && sheet[cell].v == null) row.sourceIssues.push({
         code: 'FORMULA_WITHOUT_RESULT',
         locus,
-        message: `Нет результата формулы ${address}.`
+        cell,
+        message: `Нет результата формулы ${cell}.`
       });
       if (Object.hasOwn(row.strData, locus)) row.sourceIssues.push({
         code: 'DUPLICATE_LOCUS',
         locus,
+        cell,
         message: `Повтор столбца ${locus}.`
       });
-      row.strData[locus] = unified ? text(values[col]) ? String(values[col]).split(',') : [] : normalizedCell(values[col], locus, row);
+      row.strData[locus] = unified ? text(values[col]) ? String(values[col]).split(',') : [] : normalizedCell(values[col], locus, row, cell);
     }
     const genotypeJSON = unified ? get('genotypeJson') : '';
     if (genotypeJSON) {

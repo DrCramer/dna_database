@@ -1,7 +1,7 @@
 const test = require('node:test'), assert = require('node:assert/strict'), XLSX = require('xlsx');
 const { parseFiles } = require('../src/services/workspace/importSourceService');
 const { restoreKnownImportMetadata } = require('../src/utils/workspaceImportMetadata');
-const { collectWorkspaceImportIssues } = require('../src/utils/workspaceImportIssues');
+const { collectWorkspaceImportIssues, getWorkspaceImportIssueContext, formatImportIssueLocation } = require('../src/utils/workspaceImportIssues');
 const { createImportWorkbook, ASSIGNED_HEADER } = require('../src/utils/importWorkbook');
 const { FORMAT, validateObject } = require('../src/utils/objectImportV2');
 const base = { objectNumber: 'SYN-1', draftRowId: 'SYN-id', included: true, year: 2026, expertiseType: 'chs', assignedNumber: '00001', comment: '', strData: { TH01: ['7','9.3'] }, sourceIssues: [] };
@@ -40,4 +40,36 @@ test('Сводка группирует 100 ошибок по уникальны
   assert.equal(report.groups.find(group=>group.code==='DUPLICATE_OBJECT').rowIds.size,1);
   assert.equal(collectWorkspaceImportIssues(rows.map(row=>({...row,included:false})),validation).rowCount,0);
   assert.equal(collectWorkspaceImportIssues([base],{errors:[{issues:[{code:'EMPTY_SELECTION',message:'Выберите строки.'}]}]}).globalIssues.length,1);
+});
+
+test('Excel сохраняет локус, исходное значение и точный адрес даже при смещённой таблице', () => {
+  const book = XLSX.utils.book_new();
+  const sheet = XLSX.utils.aoa_to_sheet([]);
+  XLSX.utils.sheet_add_aoa(sheet, [
+    ['Объект', 'Год', 'Тип экспертизы', ASSIGNED_HEADER, 'TH01', 'D21S11'],
+    ['SYN-1', 2026, 'ЧС', '00001', '9.12', 'SYN_INVALID']
+  ], { origin: 'C7' });
+  XLSX.utils.book_append_sheet(book, sheet, 'Импорт');
+  const [row] = parseFiles([{ originalname: 'SYN.xlsx', buffer: XLSX.write(book, { type: 'buffer', bookType: 'xlsx' }) }]).rows;
+  assert.deepEqual(row.sourceLocation, { sheet: 'Импорт', row: 8 });
+  assert.deepEqual(row.sourceIssues.filter(issue => issue.code === 'ALLELE_REVIEW').map(({ locus, cell, rawValue }) => [locus, cell, rawValue]),
+    [['TH01', 'G8', '9.12'], ['D21S11', 'H8', 'SYN_INVALID']]);
+  const report = collectWorkspaceImportIssues([row]);
+  assert.equal(report.groups.find(group => group.locus === 'TH01').examples[0].cell, 'G8');
+});
+
+test('Старый черновик показывает сохранённую строку и значение без угадывания адреса', () => {
+  const issue = { code: 'ALLELE_REVIEW', locus: 'TH01', message: 'Нужно решение' };
+  const row = { ...base, sourceFilename: 'SYN.xlsx', sourceLocation: { sheet: 'Импорт', row: 314 },
+    provenance: { alleleOrigins: [{ locus: 'TH01', raw: '9.12' }] }, sourceIssues: [issue] };
+  const context = getWorkspaceImportIssueContext(row, issue);
+  assert.equal(formatImportIssueLocation(context, true), 'SYN.xlsx · Импорт · строка 314');
+  assert.equal(context.rawValue, '9.12');
+  assert.equal(context.cell, undefined);
+  const report = collectWorkspaceImportIssues([row]);
+  assert.equal(formatImportIssueLocation(report.groups[0].examples[0], true), 'SYN.xlsx · Импорт · строка 314');
+  const repeated = { ...row, sourceIssues: ['G314', 'H314'].map(cell => ({ ...issue, cell })) };
+  const distinct = collectWorkspaceImportIssues([repeated]);
+  assert.equal(distinct.byRow.get(row.draftRowId).length, 2);
+  assert.equal(distinct.groups[0].rowIds.size, 1);
 });

@@ -3,7 +3,7 @@ import { canTransferStaffName, transferStaffName } from '../../../../src/utils/s
 import MasterApprovalDialog from './MasterApprovalDialog';
 import WorkspaceStaffSettings from './WorkspaceStaffSettings';
 import WorkspaceSearchProgress from './WorkspaceSearchProgress';
-import WorkspaceImportIssues from './WorkspaceImportIssues';
+import WorkspaceImportIssues, { WorkspaceImportIssue } from './WorkspaceImportIssues';
 import { collectWorkspaceImportIssues } from '../../../../src/utils/workspaceImportIssues';
 import { readSearchStream } from '../../../../src/utils/searchProgressProtocol';
 import { staffSearchOptions } from '../../../../src/utils/staffSearchOptions';
@@ -725,6 +725,7 @@ export default function WorkspacePage({
   const previewLoci = genotypePreview && !Array.isArray(genotypePreview) && typeof genotypePreview === 'object' ? orderNormalizedLoci(getAnalysisLoci([{
     strData: genotypePreview
   }])) : [];
+  const detailIssues = details && isImport ? issuesFor(details) : details?.sourceIssues || [];
   const stateBadge = row => <div><span className="workspace-badge" data-state={row.state || 'NOT_CHECKED'}>{row.expertiseType === 'staff' && row.state === 'PUBLISHED' ? 'В эталонах сотрудников' : states[row.state] || 'Не проверен'}</span>{row.approvalId && <button className="workspace-object-link master-approval-history-link" onClick={() => setApprovalWindow({mode:'history',requestId:row.approvalId})}>Решение и история</button>}{row.decisionComment && <small className="master-approval-decision-note">{row.decisionComment}</small>}</div>;
   const objectNumber = row => row.expertiseType === 'staff' ? 'Регистрационный номер (необязательно)' : row.expertiseType === 'chs' ? 'Номер объекта ЧС' : `№ экспертизы ${extractExpertiseNumber(row.objectNumber) || '—'}`;
   return <div className={`workspace-page ${isImport ? 'workspace-import-page' : 'workspace-profiles-page'}`} aria-label={isImport ? undefined : 'Мои генотипы'} aria-busy={busy || loadingProfiles}>
@@ -869,7 +870,15 @@ export default function WorkspacePage({
                 <td className="workspace-type-column">{editable ? <select aria-label="Тип объекта" aria-invalid={issues.some(issue => issue.code === 'TYPE')} className="form-select" value={row.expertiseType || ''} disabled={busy || !canEdit} onChange={e => change(row, 'expertiseType', e.target.value || null)}><option value="">Выберите тип</option>{Object.entries(types).map(([code, label]) => <option key={code} value={code}>{label}</option>)}</select> : <span className="workspace-type" data-type={row.expertiseType}>{types[row.expertiseType] || 'Не указан'}</span>}</td>
                 {showStaff && <td className="workspace-name-column">{editable && row.expertiseType === 'staff' ? <input aria-label="ФИО сотрудника" aria-invalid={issues.some(issue => issue.code === 'FULL_NAME')} className="form-input" value={row.fullName || ''} disabled={busy || !canEdit} onChange={e => change(row, 'fullName', e.target.value)} placeholder="Фамилия Имя Отчество" /> : <span className={row.fullName ? '' : 'workspace-muted'} title={row.fullName || ''}>{row.fullName || '—'}</span>}</td>}
                 <td className="workspace-comment-column">{editable ? <textarea aria-label="Комментарий объекта" className="form-input workspace-comment" rows="1" value={row.comment || ''} disabled={busy || !canEdit} onChange={e => change(row, 'comment', e.target.value)} placeholder="Необязательно" /> : <span className={`workspace-comment-preview ${row.comment ? '' : 'workspace-muted'}`} title={row.comment || ''}>{row.comment || '—'}</span>}</td>
-                <td className="workspace-state-column">{isImport ? <><span className="workspace-badge" data-state={issues.length ? 'STALE' : countEmpty([row]) ? 'NO_GENOTYPE' : 'CHECKED'}>{issues.length ? `Замечаний: ${issues.length}` : countEmpty([row]) ? 'Нет генотипа' : 'Готов к загрузке'}</span>{issues.length > 0 && <div className="workspace-issues"><p className="workspace-row-error workspace-primary-issue">{issues[0].message}</p>{issues.length > 1 && <details><summary>Все причины ({issues.length})</summary>{issues.slice(1).map((issue, index) => <div className="workspace-row-error" key={index}>{issue.message}</div>)}</details>}</div>}</> : stateBadge(row)}</td>
+                <td className="workspace-state-column">{isImport ? <>
+                  <span className="workspace-badge" data-state={issues.length ? 'STALE' : countEmpty([row]) ? 'NO_GENOTYPE' : 'CHECKED'}>{issues.length ? `Замечаний: ${issues.length}` : countEmpty([row]) ? 'Нет генотипа' : 'Готов к загрузке'}</span>
+                  {issues.length > 0 && <div className="workspace-issues">
+                    <WorkspaceImportIssue row={row} issue={issues[0]} primary />
+                    {issues.length > 1 && <details><summary>Другие замечания ({issues.length - 1})</summary>
+                      {issues.slice(1).map((issue, index) => <WorkspaceImportIssue key={index} row={row} issue={issue} />)}
+                    </details>}
+                  </div>}
+                </> : stateBadge(row)}</td>
                 {!isImport && loci.map(locus => <td className="workspace-alleles" key={locus}>{(row.strData[locus] || []).join(',') || <span className="workspace-muted">—</span>}</td>)}
                 <td className="workspace-row-actions"><div>{!isImport && canEdit && <button className="workspace-icon-button" aria-label={`Редактировать ${row.objectNumber || row.fullName}`} title="Редактировать метаданные" disabled={busy} onClick={() => setEditingId(editingId === row.id ? null : row.id)}><WorkspaceIcon name={editingId === row.id ? 'check' : 'edit'} /></button>}<button className="workspace-icon-button" aria-label={`Открыть генотип ${row.objectNumber || row.fullName}`} title="Генотип и источник" onClick={() => editGenotype(row)}><WorkspaceIcon name="open" /></button></div></td>
               </tr>;
@@ -934,7 +943,7 @@ export default function WorkspacePage({
       <div className="workspace-editor-header"><div><span className="workspace-eyebrow">Генотип объекта</span><h2>{details.objectNumber || 'Без номера'}<span className="workspace-type" data-type={details.expertiseType}>{types[details.expertiseType] || 'Тип не задан'}</span></h2></div><button className="workspace-icon-button" aria-label="Закрыть окно" onClick={() => setDetails(null)}><WorkspaceIcon name="close" /></button></div>
       <div className="workspace-editor-body"><div className="workspace-editor-summary"><span><strong>{details.year || '—'}</strong>Год</span><span><strong>{previewLoci.filter(locus => genotypePreview[locus]?.length).length}</strong>Локусов с данными</span><span className="workspace-editor-source" title={details.sourceFilename || details.provenance?.sourceFilename || ''}><WorkspaceIcon name="file" />{details.sourceFilename || details.provenance?.sourceFilename || 'Профиль из личного массива'}</span></div>
         {details.expertiseType === 'chs' && <p className="workspace-assigned-detail"><strong>{ASSIGNED_HEADER}:</strong> {details.assignedNumber || 'Не указан в исходном Excel'}</p>}
-        <div className="workspace-genotype-grid">{previewLoci.map(locus => <label key={locus}>{locus}<input className="form-input" aria-label={`Аллели ${locus}`} readOnly={!canEdit} value={Object.hasOwn(locusEdits, locus) ? locusEdits[locus] : Array.isArray(genotypePreview[locus]) ? genotypePreview[locus].join(',') : String(genotypePreview[locus] ?? '')} onChange={e => {
+        <div className="workspace-genotype-grid">{previewLoci.map(locus => <label key={locus}>{locus}<input className="form-input" aria-label={`Аллели ${locus}`} aria-invalid={detailIssues.some(issue => issue.locus === locus) || undefined} readOnly={!canEdit} value={Object.hasOwn(locusEdits, locus) ? locusEdits[locus] : Array.isArray(genotypePreview[locus]) ? genotypePreview[locus].join(',') : String(genotypePreview[locus] ?? '')} onChange={e => {
               setLocusEdits(current => ({
                 ...current,
                 [locus]: e.target.value
@@ -951,7 +960,9 @@ export default function WorkspacePage({
               setLocusEdits({});
               setEditorError('');
             }} /></label></details>
-        {!!details.sourceIssues?.length && <div className="workspace-editor-issues"><strong>Замечания к исходным данным</strong>{details.sourceIssues.map((issue, index) => <p key={index}>{issue.message}</p>)}</div>}
+        {!!detailIssues.length && <div className="workspace-editor-issues"><strong>Замечания к данным</strong>
+          {detailIssues.map((issue, index) => <WorkspaceImportIssue key={index} row={details} issue={issue} includeFile />)}
+        </div>}
         {editorError && <p className="workspace-row-error" role="alert">{editorError}</p>}
       </div>
       <div className="workspace-editor-footer"><span>Изменения применятся после подтверждения.</span><button className="btn btn-secondary" onClick={() => setDetails(null)}>Закрыть</button><button className="btn btn-primary" disabled={!canEdit} onClick={() => {

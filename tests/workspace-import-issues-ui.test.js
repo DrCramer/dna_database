@@ -12,3 +12,13 @@ test('Имена и сообщения отображаются безопасн
  const html=renderToStaticMarkup(React.createElement(Component,{summary,activeGroup:summary.groups[0].key,onShowGroup(){},onShowAll(){}}));
  assert(!html.includes('<script>'));assert(!html.includes('<img'));assert.match(html,/&lt;script&gt;/);assert.match(html,/aria-pressed="true"/);assert.match(html,/Показать все объекты/);
 });
+test('Замечание в строке показывает локус, адрес Excel и экранированное исходное значение',()=>{
+ const {WorkspaceImportIssue}=compiled.exports;
+ const issue={code:'ALLELE_REVIEW',locus:'TH01',cell:'G8',rawValue:'<script>SYN</script>',message:'Проверьте аллели.'};
+ const row={...base,sourceFilename:'SYN.xlsx',sourceLocation:{sheet:'Импорт',row:8},sourceIssues:[issue]};
+ const html=renderToStaticMarkup(React.createElement(WorkspaceImportIssue,{row,issue,includeFile:true}));
+ assert.match(html,/Локус TH01/);assert.match(html,/SYN.xlsx · Импорт · G8/);
+ assert.match(html,/Исходное значение «&lt;script&gt;SYN&lt;\/script&gt;»/);assert(!html.includes('<script>'));
+ const summary=collectWorkspaceImportIssues([row],null);
+ assert.match(renderToStaticMarkup(React.createElement(Component,{summary})),/Локус TH01.*SYN.xlsx · Импорт · G8/);
+});

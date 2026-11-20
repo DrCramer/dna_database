@@ -1398,6 +1398,9 @@
 .workspace-issues { margin-top: 6px; font-size: 11px; max-width: 215px; }
 .workspace-issues summary { color: var(--text-secondary); cursor: pointer; }
 .workspace-row-error { color: var(--status-danger); line-height: 1.5; overflow-wrap: anywhere; margin-top: 5px; font-size: 12px; }
+.workspace-issue-locus { display: block; color: var(--text-primary); }
+.workspace-issue-source { display: block; color: var(--text-secondary); font-size: 11px; }
+.workspace-genotype-grid input[aria-invalid="true"] { border-color: var(--status-danger); }
 .workspace-pagination { display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 12px; padding: 10px 20px; border-top: 1px solid var(--border-subtle); font-size: 12px; color: var(--text-secondary); }
 .workspace-pagination > div { display: flex; align-items: center; gap: 10px; }
 .workspace-pagination > small { color: var(--text-muted); font-size: 11px; }

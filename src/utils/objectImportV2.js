@@ -55,16 +55,17 @@ function analysisHash(row) {
 }
 function validateObject(row, options) {
   const issues = require('./objectTypes').objectMetadataIssues(row, options);
-  const add = (code, message) => issues.push({
+  const add = (code, message, locus) => issues.push({
     code,
-    message
+    message,
+    ...(locus ? { locus } : {})
   });
   const data = row.strData;
   if (!data || typeof data !== 'object' || Array.isArray(data)) add('GENOTYPE', 'Генотип должен быть объектом локусов.');else for (const [locus, alleles] of Object.entries(data)) {
-    if (!detector.getCanonicalLocusName(locus)) add('LOCUS', `Неизвестный локус: ${locus}.`);
-    if (!Array.isArray(alleles) || alleles.length > 100 || alleles.some(value => typeof value !== 'string' || !value || value.length > 500)) add('ALLELES', `Неверная структура аллелей ${locus}.`);else {
+    if (!detector.getCanonicalLocusName(locus)) add('LOCUS', `Неизвестный локус: ${locus}.`, locus);
+    if (!Array.isArray(alleles) || alleles.length > 100 || alleles.some(value => typeof value !== 'string' || !value || value.length > 500)) add('ALLELES', `Неверная структура аллелей ${locus}.`, locus);else {
       const checked = detector.validateAlleles(locus, alleles);
-      if (!checked.isValid) add('ALLELES', `${locus}: ${checked.errors.join('; ')}`);
+      if (!checked.isValid) add('ALLELES', `${locus}: ${checked.errors.join('; ')}`, locus);
     }
   }
   return issues;
