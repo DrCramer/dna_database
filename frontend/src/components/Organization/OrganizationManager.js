@@ -1,3 +1,4 @@
+import UiIcon from '../Common/UiIcon';
 import React, { useState, useEffect } from 'react';
 
 const OrganizationManager = ({ hasRole, onNavigate }) => {
@@ -158,7 +159,7 @@ const OrganizationManager = ({ hasRole, onNavigate }) => {
       <div className="page-header">
         <div className="page-title-section">
           <h1 className="page-title">
-            <span>🏢</span>
+            <UiIcon name="building" />
             <span>Управление организациями</span>
           </h1>
           <p className="page-subtitle">Эта страница позволит вам управлять организациями в системе.</p>
@@ -169,7 +170,7 @@ const OrganizationManager = ({ hasRole, onNavigate }) => {
             onClick={() => setShowCreateForm(!showCreateForm)}
             className="create-organization-btn btn btn-primary"
           >
-            <span>➕</span>
+            <UiIcon name="plus" />
             <span>{showCreateForm ? 'Отмена' : 'Создать организацию'}</span>
           </button>
           {onNavigate && (
@@ -177,7 +178,7 @@ const OrganizationManager = ({ hasRole, onNavigate }) => {
               onClick={() => onNavigate('/dashboard')}
               className="nav-button btn btn-secondary"
             >
-              Назад к дашборду
+              На главную
             </button>
           )}
         </div>
@@ -317,21 +318,21 @@ const OrganizationManager = ({ hasRole, onNavigate }) => {
                       title="Просмотр"
                       onClick={() => console.log('View org:', org.id)}
                     >
-                      👁️
+                      <UiIcon name="eye" />
                     </button>
                     <button
                       className="organization-action-btn organization-action-edit btn btn-secondary btn-icon btn-sm"
                       title="Редактировать"
                       onClick={() => setEditingOrg(org.id)}
                     >
-                      ✏️
+                      <UiIcon name="edit" />
                     </button>
                     <button
                       className="organization-action-btn organization-action-settings btn btn-secondary btn-icon btn-sm"
                       title="Настройки"
                       onClick={() => setError('Функция настроек пока не реализована')}
                     >
-                      ⚙️
+                      <UiIcon name="settings" />
                     </button>
                     {org.is_active && (
                       <button
@@ -339,7 +340,7 @@ const OrganizationManager = ({ hasRole, onNavigate }) => {
                         title="Удалить"
                         onClick={() => handleDeactivateOrganization(org.id)}
                       >
-                        🗑️
+                        <UiIcon name="delete" />
                       </button>
                     )}
                   </div>

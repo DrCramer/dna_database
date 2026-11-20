@@ -3,17 +3,9 @@
  */
 
 const { parentPort, workerData } = require('worker_threads');
+const { prepareLocusData, isExactLocusMatch } = require('../utils/exactLocusComparison');
 
 
-
-/**
- * Проверка является ли значение числовым
- */
-function isNumericValue(value) {
-  if (!value) return false;
-  const str = value.trim().toUpperCase();
-  return str !== '' && !/[*?F]/i.test(str);
-}
 
 /**
  * Предобработка профиля
@@ -28,26 +20,8 @@ function preprocessProfile(profile, ignoredLoci) {
     const locusData = loci[locus];
     if (!locusData) continue;
     
-    // Новый формат: массив аллелей
-    let str;
-    if (Array.isArray(locusData)) {
-      str = locusData.filter(a => a && a !== '').join(',');
-    } else if (typeof locusData === 'object' && (locusData.allele1 || locusData.allele2)) {
-      // Старый формат: объект с allele1/allele2
-      str = `${locusData.allele1 || ''}${locusData.allele2 ? ',' + locusData.allele2 : ''}`;
-    } else {
-      str = locusData.toString();
-    }
-    
-    if (isNumericValue(str)) {
-      const parts = str.split(',').map(p => p.trim());
-      processedLoci[locus] = {
-        str: str,
-        parts: parts,
-        isHomozygote: parts.length === 2 && parts[0] === parts[1],
-        partsSet: new Set(parts)
-      };
-    }
+    const prepared = prepareLocusData(locusData);
+    if (prepared.exactComparable) processedLoci[locus] = prepared;
   }
   
   return processedLoci;
@@ -73,15 +47,7 @@ function compareProfiles(refLoci, compLoci, minMatches) {
     const refData = refLoci[locus];
     const compData = compLoci[locus];
     
-    let isMatched = false;
-    
-    if (refData.isHomozygote) {
-      // Гомозигота - быстрая проверка
-      isMatched = compData.isHomozygote && refData.parts[0] === compData.parts[0];
-    } else {
-      // Гетерозигота - используем Set для быстрой проверки
-      isMatched = refData.parts.every(part => compData.partsSet.has(part));
-    }
+    const isMatched = isExactLocusMatch(refData, compData);
     
     if (isMatched) {
       numericMatchCount++;

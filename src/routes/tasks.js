@@ -17,6 +17,7 @@ const authService = require("../services/security/authService");
 const websocketService = require("../services/infrastructure/websocketService");
 
 const router = express.Router();
+router.use((req,res,next)=>{if(require('../services/workspace/workspaceMode').workspaceModeEnabled()&&!['GET','HEAD'].includes(req.method))return authenticate(req,res,()=>res.status(409).json({message:'Задачи доступны только как архив. Новая работа выполняется в личном массиве.'}));next();});
 
 function getActiveDepartmentId(req) {
     return req.activeDepartmentId || req.user.department_id || null;

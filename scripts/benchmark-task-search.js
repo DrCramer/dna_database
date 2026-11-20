@@ -16,9 +16,9 @@ function syntheticProfiles(count) {
   return profiles;
 }
 
-async function benchmark({ count = 3000, algorithm = 'duplicate_v5', useWorkers = true, legacy } = {}) {
+async function benchmark({ count = 3000, algorithm = 'duplicate_v5', useWorkers = true, useCandidateIndex = true, legacy } = {}) {
   const profiles = syntheticProfiles(count);
-  const input = { referenceProfiles: profiles, compareProfiles: profiles, searchMode: 'task', comparisonAlgorithm: algorithm, minMatches: 15 };
+  const input = { referenceProfiles: profiles, compareProfiles: profiles, searchMode: 'task', comparisonAlgorithm: algorithm, minMatches: 15, useCandidateIndex };
   let maxDelayMs = 0, previous = performance.now();
   const timer = setInterval(() => { const now = performance.now(); maxDelayMs = Math.max(maxDelayMs, now - previous - 10); previous = now; }, 10);
   await new Promise(resolve => setTimeout(resolve, 20));
@@ -29,14 +29,14 @@ async function benchmark({ count = 3000, algorithm = 'duplicate_v5', useWorkers 
   clearInterval(timer);
   return {
     profiles: count, algorithm, mode: result.mode || 'legacy', workers: result.workerCount || 0,
-    comparisons: result.comparisons, durationMs: Math.round(durationMs), maxEventLoopDelayMs: Math.round(maxDelayMs),
+    comparisons: result.comparisons, candidateComparisons: result.candidateComparisons, durationMs: Math.round(durationMs), maxEventLoopDelayMs: Math.round(maxDelayMs),
     groups: result.results.length,
     resultHash: createHash('sha256').update(JSON.stringify(result.results)).digest('hex')
   };
 }
 
 if (require.main === module) {
-  benchmark({ count: Number(process.argv[2] || 3000), algorithm: process.argv[3] || 'duplicate_v5', useWorkers: process.argv[4] !== 'sequential' })
+  benchmark({ count: Number(process.argv[2] || 3000), algorithm: process.argv[3] || 'duplicate_v5', useWorkers: process.argv[4] !== 'sequential', useCandidateIndex: process.argv[5] !== 'exhaustive' })
     .then(result => console.log(JSON.stringify(result))).catch(error => { console.error(error); process.exitCode = 1; });
 }
 module.exports = { syntheticProfiles, benchmark };

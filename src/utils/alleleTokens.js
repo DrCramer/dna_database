@@ -26,10 +26,18 @@ function alleleTokens(value) {
 function informativeAlleles(value) {
   return alleleTokens(value).filter(token => !isMissingAllele(token) && !isSpecialAllele(token) && !token.includes('?'));
 }
+// Проверяется исходная запись до удаления служебных токенов. Неизвестная
+// вторая аллель не превращает пару в подтверждённую гомозиготу.
+function hasUnknownAlleles(value) {
+  if (Array.isArray(value)) return value.some(hasUnknownAlleles);
+  if (value && typeof value === 'object') return hasUnknownAlleles([value.allele1, value.allele2]);
+  if (value == null) return false;
+  return String(value).split(/[,;/]/).some(part => isSpecialAllele(part) || /[*?]/.test(part) || alleleTokens(part).some(isSpecialAllele));
+}
 
 function amelogeninTokens(value) {
   const normalized = String(value ?? '').replace(/\s+/g, '').toUpperCase().replace(/Х/g, 'X').replace(/У/g, 'Y');
   return normalized.split(/[,;/]/).flatMap(token => /^[XY]{1,2}$/.test(token) ? [...token] : [normalizeSpecialAllele(token) || token]).filter(Boolean);
 }
 
-module.exports = { normalizeSpecialAllele, isSpecialAllele, isMissingAllele, isCertainNumericAllele, normalizeSrySignal, alleleTokens, informativeAlleles, amelogeninTokens };
+module.exports = { normalizeSpecialAllele, isSpecialAllele, isMissingAllele, isCertainNumericAllele, normalizeSrySignal, alleleTokens, informativeAlleles, hasUnknownAlleles, amelogeninTokens };

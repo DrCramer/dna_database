@@ -19,7 +19,7 @@ class EnvironmentConfig {
         return {
             // Application Configuration
             app: {
-                name: 'DNA Analysis Web Application',
+                name: 'ДНК Эксперт',
                 version: process.env.npm_package_version || '1.0.0',
                 environment: process.env.NODE_ENV || 'development',
                 port: parseInt(process.env.PORT) || 3000,

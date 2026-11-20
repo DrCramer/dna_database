@@ -1,6 +1,7 @@
 import React, { useEffect, useRef, useState } from 'react';
 import { useAuth } from '../../contexts/AuthContext';
 import { matchesRoles } from '../../../../src/utils/accessPolicyRules';
+import { getProfileUploadPermissions } from '../../../../src/utils/profileUploadPermissions';
 
 function saveBlob(blob, name) {
   const url = URL.createObjectURL(blob), anchor = document.createElement('a');
@@ -9,8 +10,10 @@ function saveBlob(blob, name) {
 }
 
 export default function MasterArrayExportPage() {
-  const { user, activeDepartmentId } = useAuth();
+  const { user, activeDepartmentId, workspaceMode } = useAuth();
   const admin = matchesRoles(user, ['admin', 'system_administrator']);
+  const permissions = getProfileUploadPermissions(user);
+  const canImport = workspaceMode && (permissions.can_upload_with_task || permissions.can_upload_without_task);
   const [arrays, setArrays] = useState([]), [arrayId, setArrayId] = useState('');
   const [loading, setLoading] = useState(true), [busy, setBusy] = useState(''), [error, setError] = useState('');
   const [scope, setScope] = useState('all'), [yearFrom, setYearFrom] = useState(''), [yearTo, setYearTo] = useState(''), [objectQuery, setObjectQuery] = useState('');
@@ -75,17 +78,27 @@ export default function MasterArrayExportPage() {
 
   if (!admin) return <div className="alert alert-danger" role="alert">Экспорт мастер-массива доступен только администраторам.</div>;
   const organizations = [...new Map(arrays.map(array => [array.organization_id, array.organization_name])).entries()];
-  const departments = [...new Map(arrays.filter(array => array.organization_id === selected?.organization_id).map(array => [array.department_id, array.department_name])).entries()];
+  const organizationArrays = arrays.filter(array => array.organization_id === selected?.organization_id);
+  const departments = [...new Map(organizationArrays.map(array => [array.department_id ?? '', array.department_name || 'Вся организация'])).entries()];
   const canDownload = preview?.exportable > 0 && (preview.needsReview === 0 || validOnly && confirmed);
+  const downloadHint = preview?.exportable === 0
+    ? 'Нет профилей, готовых к обратному импорту. Проверьте причины ниже; если не хватает колонок локусов, включите общий каталог и повторите проверку.'
+    : preview?.needsReview > 0 && !validOnly
+      ? 'Для выгрузки доступной части отметьте «Выгрузить только пригодные». Проблемные записи останутся в мастер-массиве.'
+      : preview?.needsReview > 0 && !confirmed
+        ? 'Подтвердите исключение проблемных записей — после этого кнопка выгрузки станет доступна.' : '';
   return <div className="master-export-page">
-    <header className="page-header"><div><h1>Экспорт мастер-массива</h1><p>Активные профили в формате штатной загрузки. Данные мастер-массива не изменяются.</p></div></header>
+    <header className="page-header"><div><h1 className="page-title">Экспорт мастер-массива</h1><p>Активные профили в формате штатной загрузки. Данные мастер-массива не изменяются.</p></div>
+      {canImport && <div className="header-actions"><a className="btn btn-secondary" href="/upload">Загрузить XLSX</a></div>}
+    </header>
+    {canImport && <p className="master-export-hint">Для публикации из Excel загрузите файл в личный массив, выполните полный поиск и отправьте объекты на подтверждение.</p>}
     {error && <div className="alert alert-danger" role="alert">{error}</div>}
-    {loading ? <p role="status">Загрузка доступных массивов…</p> : !arrays.length ? <div className="alert alert-info">Нет доступных активных мастер-массивов ЧС или Генетических экспертиз.</div> : <>
+    {loading ? <p role="status">Загрузка доступных массивов…</p> : !arrays.length ? <div className="alert alert-info">Нет доступных активных мастер-массивов.</div> : <>
       <section className="card master-export-card"><h2>Источник и настройки</h2>
         <div className="master-export-fields">
           <label>Организация<select className="form-input" value={selected?.organization_id || ''} disabled={!!busy} onChange={event => setArrayId(arrays.find(array => array.organization_id === event.target.value)?.id || '')}>{organizations.map(([id, name]) => <option key={id} value={id}>{name}</option>)}</select></label>
-          <label>Отделение<select className="form-input" value={selected?.department_id || ''} disabled={!!busy} onChange={event => setArrayId(arrays.find(array => array.department_id === event.target.value)?.id || '')}>{departments.map(([id, name]) => <option key={id} value={id}>{name}</option>)}</select></label>
-          <label>Мастер-массив<select className="form-input" value={arrayId} disabled={!!busy} onChange={event => setArrayId(event.target.value)}>{arrays.filter(array => array.department_id === selected?.department_id).map(array => <option key={array.id} value={array.id}>{array.name} · активных: {array.active_profiles}</option>)}</select></label>
+          <label>Отделение<select className="form-input" value={selected?.department_id ?? ''} disabled={!!busy} onChange={event => setArrayId(organizationArrays.find(array => (array.department_id ?? '') === event.target.value)?.id || '')}>{departments.map(([id, name]) => <option key={id} value={id}>{name}</option>)}</select></label>
+          <label>Мастер-массив<select className="form-input" value={arrayId} disabled={!!busy} onChange={event => setArrayId(event.target.value)}>{organizationArrays.filter(array => array.department_id === selected?.department_id).map(array => <option key={array.id} value={array.id}>{array.name} · активных: {array.active_profiles}</option>)}</select></label>
         </div>
         <p className="master-export-hint">Активных профилей в массиве: <strong>{selected?.active_profiles ?? 0}</strong>.</p>
         <fieldset className="master-export-scope"><legend>Объём</legend><label><input type="radio" name="master-export-scope" checked={scope === 'all'} disabled={!!busy} onChange={() => setScope('all')} />Все активные</label><label><input type="radio" name="master-export-scope" checked={scope === 'filtered'} disabled={!!busy} onChange={() => setScope('filtered')} />По фильтрам</label></fieldset>
@@ -97,6 +110,7 @@ export default function MasterArrayExportPage() {
       </section>
       {preview && <section className="card master-export-card" aria-live="polite"><h2>Предпросмотр</h2>
         <dl className="master-export-summary"><div><dt>Выбрано</dt><dd>{preview.totalMatched}</dd></div><div><dt>Готовы к импорту</dt><dd>{preview.exportable}</dd></div><div><dt>Требуют проверки</dt><dd>{preview.needsReview}</dd></div><div><dt>Локусов</dt><dd>{preview.lociCount}</dd></div></dl>
+        {preview.totalMatched > 0 && downloadHint && <p className="alert alert-info" role="status">{downloadHint}</p>}
         {!preview.totalMatched ? <p>По выбранным фильтрам нет активных профилей.</p> : <>
           <details><summary>Пример объектов (до 10)</summary><ul>{preview.examples.map(example => <li key={example.id}>{example.objectNumber || 'Без номера'} · {example.year ?? 'Без года'} · {example.ready ? 'Готов' : 'Требует проверки'}</li>)}</ul></details>
           {preview.needsReview > 0 && <div className="master-export-problems"><p>Полная выгрузка заблокирована: проблемных записей — {preview.needsReview}. Их данные не исправляются автоматически.</p>

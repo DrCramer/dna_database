@@ -54,6 +54,7 @@ const authSchemas = {
     }),
 
     register: Joi.object({
+        can_approve_master: Joi.boolean().strict().default(false),
         username: Joi.string()
             .min(3)
             .max(50)

@@ -1,10 +1,10 @@
-const { alleleTokens, informativeAlleles } = require('./alleleTokens');
+const { alleleTokens, informativeAlleles, hasUnknownAlleles } = require('./alleleTokens');
 const { equalAlleleArrays } = require('./alleleComparison');
 
 function prepareLocusData(value) {
   const parts = informativeAlleles(value);
   return { parts, partsSet: new Set(parts), isHomozygote: parts.length === 2 && parts[0] === parts[1],
-    exactComparable: parts.length > 0 && parts.length === alleleTokens(value).length,
+    exactComparable: parts.length > 0 && parts.length === alleleTokens(value).length && !hasUnknownAlleles(value),
     exactSignature: JSON.stringify([...parts].sort()) };
 }
 

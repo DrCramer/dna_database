@@ -9,9 +9,20 @@ const {
 } = require("../../utils/locusComparisonPresentation");
 
 const XLSX_MIME = 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet';
+const discoveryDateFormat = new Intl.DateTimeFormat('en-GB', {
+  timeZone: 'Europe/Moscow', day: 'numeric', month: 'numeric', year: 'numeric'
+});
+
+function discoveryDate(firstFoundAt) {
+  if (!firstFoundAt) return null;
+  const date = new Date(firstFoundAt);
+  if (!Number.isFinite(date.getTime())) return null;
+  const parts = Object.fromEntries(discoveryDateFormat.formatToParts(date).map(({ type, value }) => [type, value]));
+  return new Date(Date.UTC(Number(parts.year), Number(parts.month) - 1, Number(parts.day)));
+}
 
 function objectIdentifier(profile, genetic) {
-  if (genetic) return String(profile.internal_number ?? profile.internalNumber ?? '').trim();
+  if (genetic) return String(profile.internal_number || profile.internalNumber || profile.full_name || '').trim();
   return String(profile.internal_number ?? profile.internalNumber ?? profile.sample_name ?? profile.sampleName ?? '').trim();
 }
 
@@ -99,6 +110,7 @@ function validateOptions(options = {}) {
     includeHighlights: options.includeHighlights !== false,
     highlightAlleles: options.highlightAlleles !== false,
     includeComparisons: options.includeComparisons !== false,
+    includeFirstDetectionDate: options.includeFirstDetectionDate === true,
     includeAnalysis: options.includeAnalysis !== false,
     locusMode: options.locusMode === 'visible' ? 'visible' : 'all',
     visibleLoci: Array.isArray(options.visibleLoci) ? options.visibleLoci.map(String).slice(0, 500) : [],
@@ -186,6 +198,7 @@ class DuplicateExcelExportService {
     if (opts.includeComparisons) {
       const comparisonsSheet = workbook.addWorksheet('Сравнения');
       const fixedHeaders = ['Роль', 'Объект', 'Эталон', 'Совпавшие локусы'];
+      const dateColumn = opts.includeFirstDetectionDate ? fixedHeaders.push('Дата первого обнаружения') : null;
       comparisonsSheet.addRow([...fixedHeaders, ...loci]);
       const groups = new Map();
       pairs.forEach(pair => {
@@ -198,6 +211,7 @@ class DuplicateExcelExportService {
         const refLabel = displayIdentifier(reference, genetic);
         const refRow = comparisonsSheet.addRow([
           'Эталон', refLabel, refLabel, '',
+          ...(dateColumn ? [null] : []),
           ...loci.map(locus => formatExportLocusValue(profileLoci(reference)[locus], locus))
         ]);
         refRow.eachCell((cell, column) => {
@@ -221,11 +235,13 @@ class DuplicateExcelExportService {
           const fullMatchCount = [...matchedPresentations.values()].filter(presentation => presentation.status === 'full').length;
           const matchedRow = comparisonsSheet.addRow([
             'Совпавший профиль', displayIdentifier(matched, genetic), refLabel, fullMatchCount,
+            ...(dateColumn ? [discoveryDate(matched.duplicateHistory?.firstFoundAt)] : []),
             ...loci.map(locus => formatExportLocusValue(profileLoci(matched)[locus], locus))
           ]);
           matchedRow.eachCell((cell, column) => {
             if (column <= fixedHeaders.length) {
-              setText(cell, matchedRow.getCell(column).value);
+              if (column === dateColumn) cell.numFmt = 'dd.mm.yyyy';
+              else setText(cell, cell.value);
               applyBodyCellStyle(cell);
               return;
             }
@@ -245,6 +261,7 @@ class DuplicateExcelExportService {
       comparisonsSheet.getColumn(2).width = 24;
       comparisonsSheet.getColumn(3).width = 24;
       comparisonsSheet.getColumn(4).width = 18;
+      if (dateColumn) comparisonsSheet.getColumn(dateColumn).width = 28;
       for (let column = fixedHeaders.length + 1; column <= comparisonsSheet.columnCount; column += 1) comparisonsSheet.getColumn(column).numFmt = '@';
     }
 

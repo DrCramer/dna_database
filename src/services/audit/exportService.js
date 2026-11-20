@@ -115,7 +115,7 @@ class ExportService {
 
       // Get file stats
       const stats = await fs.stat(filePath);
-      await this.registry.register(exportId, exportFilename, { userId, departmentId: scope.params[0], organizationId: scope.params[1] });
+      await this.registry.register(exportId, exportFilename, { userId, departmentId: scope.departmentId, organizationId: scope.organizationId });
 
       const exportResult = {
         exportId,
@@ -1370,7 +1370,7 @@ class ExportService {
 
       // Get file stats
       const stats = await fs.stat(filePath);
-      await this.registry.register(exportId, exportFilename, { userId, departmentId: scope.params[0], organizationId: scope.params[1] });
+      await this.registry.register(exportId, exportFilename, { userId, departmentId: scope.departmentId, organizationId: scope.organizationId });
 
       const exportResult = {
         exportId,

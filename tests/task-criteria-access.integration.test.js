@@ -5,12 +5,12 @@ const {randomUUID}=require('node:crypto');
 const databaseUrl=process.env.CRITERIA_TEST_DATABASE_URL;
 test('Сравнение сотрудников: реальные PostgreSQL/authenticate, назначение задачи и границы отделения', {skip:!databaseUrl}, async t=>{
   assert.match(new URL(databaseUrl).pathname,/^\/dna_criteria_test(?:_|$)/);
-  process.env.DATABASE_URL=databaseUrl; process.env.NODE_ENV='test'; process.env.JWT_SECRET='isolated-criteria-test-jwt-secret-2026';
+  process.env.DATABASE_URL=databaseUrl; process.env.NODE_ENV='test'; process.env.UNIFIED_WORKSPACE_ENABLED='false'; process.env.JWT_SECRET='isolated-criteria-test-jwt-secret-2026';
   const {query,pool}=require('../src/config/database');
   const User=require('../src/models/User');
   const interval=global.setInterval;global.setInterval=(...args)=>interval(...args).unref();
   const auth=require('../src/services/security/authService');const router=require('../src/routes/genotypeAnalysisRoutes');global.setInterval=interval;
-  const express=require('express');const app=express();app.use(express.json());app.locals.pool=pool;app.use('/analysis',router);
+  const express=require('express');const app=express();app.use(express.json());app.locals.pool=pool;app.use('/analysis',router);app.use('/staff',require('../src/routes/staffContaminationRoutes'));
   const server=app.listen(0,'127.0.0.1');await new Promise(resolve=>server.once('listening',resolve));
   t.after(async()=>{server.closeAllConnections();await new Promise(resolve=>server.close(resolve));await pool.end();});
   const suffix=randomUUID().slice(0,8);
@@ -56,4 +56,28 @@ test('Сравнение сотрудников: реальные PostgreSQL/aut
     assert.equal(JSON.stringify((await query('SELECT row_to_json(dp) FROM dna_profiles dp ORDER BY id')).rows),before);
     assert.equal((await query('SELECT assigned_to_user FROM tasks WHERE id=$1',[target])).rows[0].assigned_to_user,b.id);
   });
+  await t.test('Staff API: параллельный анализ задачи сохраняет её границы и исключает чужих/неактивных сотрудников',async()=>{
+    for(let i=0;i<29;i++)await profile(source,a,data);
+    const ownStaff=[];
+    for(let i=0;i<100;i++)ownStaff.push((await query(`INSERT INTO staff_profiles(staff_id,full_name,str_data,created_by,organization_id)
+      VALUES($1,$2,$3,$4,$5) RETURNING id`,['SYN-'+randomUUID(),'Synthetic staff '+i,JSON.stringify(data),a.id,org])).rows[0].id);
+    const foreignUser=(await query("INSERT INTO users(username,password_hash,role,organization_id) VALUES($1,'synthetic-unused','user_analyst',$2) RETURNING id",['SYN-'+randomUUID(),foreignOrg])).rows[0].id;
+    await query(`INSERT INTO staff_profiles(staff_id,full_name,str_data,created_by,organization_id)
+      VALUES($1,'Synthetic foreign',$2,$3,$4)`,['SYN-'+randomUUID(),JSON.stringify(data),foreignUser,foreignOrg]);
+    await query(`INSERT INTO staff_profiles(staff_id,full_name,str_data,created_by,organization_id,is_active)
+      VALUES($1,'Synthetic inactive',$2,$3,$4,false)`,['SYN-'+randomUUID(),JSON.stringify(data),a.id,org]);
+    const endpoint='http://127.0.0.1:'+server.address().port+'/staff/analyze-task';
+    const request=async(taskId,useWorkers)=>fetch(endpoint,{method:'POST',headers:{Authorization:'Bearer '+a.token,'X-Active-Department-Id':dept,'Content-Type':'application/json'},body:JSON.stringify({taskId,useWorkers,options:{threshold:1}})});
+    const single=await request(source,false),parallel=await request(source,true);
+    assert.equal(single.status,200);assert.equal(parallel.status,200);
+    const expected=await single.json(),actual=await parallel.json();
+    assert.equal(actual.statistics.mode,'multi-threaded');assert(actual.statistics.workerCount>0);
+    assert.equal(actual.statistics.profilesAnalyzed,30);assert.equal(actual.statistics.staffProfilesCompared,100);
+    assert.equal(actual.statistics.comparisons,3000);
+    const clean=rows=>rows.map(({timestamp,...row})=>row);
+    assert.deepEqual(clean(actual.data),clean(expected.data));
+    assert(actual.data.every(row=>ownStaff.includes(row.staffProfile.id)));
+    assert.equal((await request(target,true)).status,403);
+  });
+
 });

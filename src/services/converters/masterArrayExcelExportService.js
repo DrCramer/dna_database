@@ -5,6 +5,8 @@ const { LociTypeDetector, ALL_LOCI } = require('../../utils/lociTypeDetector');
 const { resolveProfileImportFormat, normalizeObjectName, geneticProfileKey } = require('../../utils/profileImportFormat');
 const { orderNormalizedLoci } = require('../../utils/normalizedExcelLayout');
 const { createImportWorkbook, MASTER_EXPORT_FORMAT } = require('../../utils/importWorkbook');
+const { FORMAT, FIELDS, TYPES, businessKey, serializeV2, validateObject } = require('../../utils/objectImportV2');
+const { getAssignedNumber } = require('../../utils/emergencyAssignedNumber');
 const { ExcelService } = require('./excelService');
 const { exportAlleles } = require('../../utils/exportAlleles');
 
@@ -32,6 +34,7 @@ function decodeMasterRow(row, key) {
 }
 
 function prepareMasterExport(rows, importFormat, options = {}) {
+  const unified = importFormat === FORMAT;
   const entries = rows.map(raw => {
     const problems = [];
     const add = (code, message) => problems.push({ code, message });
@@ -40,8 +43,17 @@ function prepareMasterExport(rows, importFormat, options = {}) {
     const objectNumber = typeof row.internal_number === 'string' ? row.internal_number : '';
     if (!objectNumber || objectNumber !== normalizeObjectName(objectNumber) || objectNumber.length > 100 || /[\u0000-\u001f\u007f]/.test(objectNumber)) add('OBJECT', 'Не заполнен или некорректен полный номер объекта.');
     if (!Number.isInteger(row.year) || row.year < 1900 || row.year > 2100) add('YEAR', 'Необходим год от 1900 до 2100; отсутствующий год не подставляется.');
-    const profile = { objectNumber, year: row.year, strData: {}, emergency: { assignedNumber: row.sample_name, shippingNumber: row.import_number } };
+    let metadata = row.metadata || {};
+    try { if (typeof metadata === 'string') metadata = JSON.parse(metadata); } catch { metadata = {}; }
+    const profile = { objectNumber, year: row.year, strData: {} };
+    if (unified) {
+      profile.expertiseType = row.expertise_type;
+      profile.assignedNumber = row.expertise_type === 'chs' ? getAssignedNumber({ ...row, metadata }) : '';
+      profile.comment = row.comment ?? '';
+      if (!Object.hasOwn(TYPES, profile.expertiseType) || profile.expertiseType === 'staff') add('TYPE', 'Не указан тип экспертизы ЧС, УГ или ГР.');
+    }
     if (importFormat === 'emergency') {
+      profile.emergency = { assignedNumber: row.sample_name, shippingNumber: row.import_number };
       for (const [field, label, max] of [['sample_name', 'присвоенный номер в/ч', 255], ['internal_number', 'Sample Name', 100], ['import_number', 'привоз', 100]]) {
         const value = row[field];
         if (typeof value !== 'string' || !value.trim() || value.trim() !== value || value.length > max || /[\u0000-\u001f\u007f]/.test(value)) add('EMERGENCY_METADATA', `Не заполнено или некорректно поле «${label}».`);
@@ -60,21 +72,28 @@ function prepareMasterExport(rows, importFormat, options = {}) {
       const alleles = value == null || value === '' ? [] : Array.isArray(value) ? value : typeof value === 'string' || typeof value === 'number' ? String(value).split(',') : null;
       if (!alleles || alleles.length > 100 || alleles.some(a => !['number', 'string'].includes(typeof a) || !String(a) || String(a).length > 500)) { add('ALLELES', `Некорректная структура аллелей ${locus}.`); continue; }
       const tokens = alleles.map(String);
-      try {
+      if (!unified) try {
         const exported = exportAlleles(tokens, locus);
-        const parsed = excel.parseAlleleValue(exported.join(','), locus, detector.detectLocusType(locus), 0, 'master-export.xlsx', { genetic: importFormat === 'genetic', preserveAlleleCount: true });
+        const parsed = excel.parseAlleleValue(exported.join(','), locus, detector.detectLocusType(locus), 0, 'master-export.xlsx', { genetic: importFormat === 'genetic', preserveAlleleCount: true, preserveExportAlleles: true });
         if (JSON.stringify(parsed) !== JSON.stringify(exported)) add('ALLELE_ROUND_TRIP', `Штатный импорт изменит аллели ${locus}; требуется проверка.`);
       } catch { add('ALLELE_VALIDATION', `Аллели ${locus} не проходят штатную проверку импорта.`); }
       profile.strData[locus] = tokens;
     }
     if (!Object.values(profile.strData).some(values => values.length)) add('EMPTY_PROFILE', 'В профиле нет генетических данных.');
-    let metadata = row.metadata || {};
-    try { if (typeof metadata === 'string') metadata = JSON.parse(metadata); } catch { metadata = {}; }
+    if (unified) {
+      for (const issue of validateObject(profile, { requireAssignedNumber: true })) {
+        if (!problems.some(problem => problem.code === issue.code)) add(issue.code, issue.message);
+      }
+      if (Object.values(serializeV2(profile)).some(value => String(value).length > 32767) ||
+          Object.values(profile.strData).some(alleles => alleles.join(',').length > 32767)) {
+        add('CELL_LIMIT', 'Значение превышает лимит ячейки XLSX.');
+      }
+    }
     return { id: row.id, profile, problems, panelOrder: Array.isArray(metadata?.panelLociOrder) ? metadata.panelLociOrder : [] };
   });
   const identities = new Map();
   for (const entry of entries) {
-    const key = importFormat === 'genetic' ? geneticProfileKey(entry.profile.year, entry.profile.objectNumber) : `${entry.profile.year}:${entry.profile.objectNumber}`;
+    const key = unified ? businessKey(entry.profile) : importFormat === 'genetic' ? geneticProfileKey(entry.profile.year, entry.profile.objectNumber) : `${entry.profile.year}:${entry.profile.objectNumber}`;
     if (!identities.has(key)) identities.set(key, []);
     identities.get(key).push(entry);
   }
@@ -86,11 +105,12 @@ function prepareMasterExport(rows, importFormat, options = {}) {
   ALL_LOCI.forEach(locus => { if (options.includeCatalogLoci || actual.has(locus)) ordered.add(locus); });
   actual.forEach(locus => ordered.add(locus));
   const loci = orderNormalizedLoci([...ordered]);
-  if (loci.length < 3) candidates.forEach(entry => entry.problems.push({ code: 'LOCUS_COLUMNS', message: 'Для штатного импорта нужны минимум 3 колонки локусов. Можно включить общий каталог.' }));
+  if (!unified && loci.length < 3) candidates.forEach(entry => entry.problems.push({ code: 'LOCUS_COLUMNS', message: 'Для штатного импорта нужны минимум 3 колонки локусов. Можно включить общий каталог.' }));
   const valid = entries.filter(entry => !entry.problems.length);
   const reasons = entries.filter(entry => entry.problems.length).map(entry => ({ id: entry.id, objectNumber: entry.profile.objectNumber, year: entry.profile.year, problems: entry.problems }));
   const exportRows = options.exportValidOnly ? valid.length : rows.length;
-  if (exportRows + 1 > 1048576 || (exportRows + 1) * (loci.length + (importFormat === 'emergency' ? 4 : 2)) > MAX_CELLS) throw new MasterExportError('Файл превышает допустимый размер XLSX. Уточните фильтры.', 413, 'EXPORT_TOO_LARGE');
+  const metadataColumns = unified ? Object.keys(FIELDS).length : importFormat === 'emergency' ? 4 : 2;
+  if (exportRows + 1 > 1048576 || (exportRows + 1) * (loci.length + metadataColumns) > MAX_CELLS) throw new MasterExportError('Файл превышает допустимый размер XLSX. Уточните фильтры.', 413, 'EXPORT_TOO_LARGE');
   return {
     profiles: valid.map(entry => entry.profile), loci,
     summary: { totalMatched: rows.length, exportable: valid.length, needsReview: reasons.length, reasons, lociCount: loci.length, totalExportRows: exportRows,
@@ -109,15 +129,19 @@ class MasterArrayExcelExportService {
 
   async list(user) {
     const departments = await this.departments(user);
-    if (!departments.length) return [];
     const result = await this.pool.query(`SELECT ma.id, ma.name, d.id AS department_id, d.name AS department_name,
       o.id AS organization_id, o.name AS organization_name,
-      (SELECT count(*)::int FROM master_array_profiles p WHERE p.master_array_id=ma.id AND p.is_active=true) AS active_profiles
-      FROM master_arrays ma JOIN departments d ON d.id=ma.department_id JOIN organizations o ON o.id=d.organization_id
-      WHERE ma.is_active=true AND d.is_active=true AND o.is_active=true AND d.id=ANY($1::uuid[])
-        AND ($2::uuid IS NULL OR o.id=$2) ORDER BY o.name,d.name,ma.name,ma.id`,
-    [departments.map(dept => dept.id), user.role === 'system_administrator' ? null : user.organization_id]);
-    return result.rows.filter(row => resolveProfileImportFormat({ name: row.department_name })).map(row => ({ ...row, importFormat: resolveProfileImportFormat({ name: row.department_name }) }));
+      (SELECT count(*)::int FROM master_array_profiles p WHERE p.master_array_id=ma.id AND p.is_active=true
+        AND (ma.department_id IS NOT NULL OR p.organization_id=o.id)) AS active_profiles
+      FROM master_arrays ma LEFT JOIN departments d ON d.id=ma.department_id
+      JOIN organizations o ON o.id=COALESCE(d.organization_id,ma.organization_id)
+      WHERE ma.is_active=true AND o.is_active=true AND (
+        (ma.department_id IS NULL AND ma.organization_default=true AND o.id=$2)
+        OR (d.is_active=true AND d.id=ANY($1::uuid[]) AND ($3 OR o.id=$2))
+      ) ORDER BY o.name,d.name NULLS FIRST,ma.name,ma.id`,
+    [departments.map(dept => dept.id), user.organization_id ?? null, user.role === 'system_administrator']);
+    return result.rows.map(row => ({ ...row, importFormat: row.department_id === null ? FORMAT : resolveProfileImportFormat({ name: row.department_name }) }))
+      .filter(row => row.importFormat);
   }
 
   async inspect(user, masterArrayId, { filters = {}, options = {} } = {}, download = false) {
@@ -125,23 +149,31 @@ class MasterArrayExcelExportService {
     const client = await this.pool.connect();
     try {
       await client.query('BEGIN ISOLATION LEVEL REPEATABLE READ READ ONLY');
-      const arrayResult = await client.query(`SELECT ma.id,ma.name,ma.department_id,ma.is_active,
-        d.name AS department_name,d.organization_id,d.is_active AS department_active,o.is_active AS organization_active
-        FROM master_arrays ma JOIN departments d ON d.id=ma.department_id JOIN organizations o ON o.id=d.organization_id WHERE ma.id=$1`, [masterArrayId]);
+      const arrayResult = await client.query(`SELECT ma.id,ma.name,ma.department_id,ma.is_active,ma.organization_default,
+        d.name AS department_name,o.id AS organization_id,d.is_active AS department_active,o.is_active AS organization_active
+        FROM master_arrays ma LEFT JOIN departments d ON d.id=ma.department_id
+        JOIN organizations o ON o.id=COALESCE(d.organization_id,ma.organization_id) WHERE ma.id=$1`, [masterArrayId]);
       const array = arrayResult.rows[0];
       if (!array) throw new MasterExportError('Мастер-массив не найден.', 404);
-      if (!departments.some(dept => dept.id === array.department_id && dept.organization_id === array.organization_id)) throw new MasterExportError('Мастер-массив недоступен.', 403);
-      if (!array.is_active || !array.department_active || !array.organization_active) throw new MasterExportError('Мастер-массив, отделение или организация неактивны.', 409);
-      const importFormat = resolveProfileImportFormat({ name: array.department_name });
+      const unified = array.department_id === null && array.organization_default;
+      const allowed = unified ? array.organization_id === user.organization_id
+        : departments.some(dept => dept.id === array.department_id && dept.organization_id === array.organization_id);
+      if (!allowed) throw new MasterExportError('Мастер-массив недоступен.', 403);
+      if (!array.is_active || !array.organization_active || (!unified && !array.department_active)) throw new MasterExportError('Мастер-массив, отделение или организация неактивны.', 409);
+      const importFormat = unified ? FORMAT : resolveProfileImportFormat({ name: array.department_name });
       if (!importFormat) throw new MasterExportError('Для этого отделения нет импорт-совместимого формата.', 400);
-      const params = [array.id, array.department_id, array.organization_id];
-      let where = 'p.master_array_id=$1 AND ma.department_id=$2 AND d.organization_id=$3 AND p.is_active=true AND ma.is_active=true AND d.is_active=true AND o.is_active=true';
+      const params = [array.id];
+      let where = 'p.master_array_id=$1 AND p.is_active=true';
+      if (unified) {
+        params.push(array.organization_id);
+        where += ' AND p.organization_id=$2';
+      }
       for (const [field, operator] of [['yearFrom', '>='], ['yearTo', '<=']]) if (filters[field] != null) { params.push(filters[field]); where += ` AND p.year${operator}$${params.length}`; }
       if (filters.objectQuery) {
         params.push(`%${filters.objectQuery.replace(/[\\%_]/g, '\\$&')}%`);
         where += ` AND (p.internal_number ILIKE $${params.length} ESCAPE '\\' OR p.sample_name ILIKE $${params.length} ESCAPE '\\')`;
       }
-      const joins = 'FROM master_array_profiles p JOIN master_arrays ma ON ma.id=p.master_array_id JOIN departments d ON d.id=ma.department_id JOIN organizations o ON o.id=d.organization_id';
+      const joins = 'FROM master_array_profiles p';
       const count = (await client.query(`SELECT count(*)::int AS total, COALESCE(sum(pg_column_size(p)),0)::bigint AS bytes ${joins} WHERE ${where}`, params)).rows[0];
       if (count.total > MAX_ROWS || Number(count.bytes) > MAX_SOURCE_BYTES) throw new MasterExportError('Выборка слишком велика для одного XLSX (до 50 000 строк и 50 МиБ исходных данных). Уточните фильтры.', 413, 'EXPORT_TOO_LARGE');
       const rows = [];
@@ -166,9 +198,9 @@ class MasterArrayExcelExportService {
       }
       await client.query('COMMIT');
       if (!download) return preview;
-      const buffer = createImportWorkbook({ profiles: result.profiles, loci: result.loci, importFormat, sourceFormat: MASTER_EXPORT_FORMAT, hideEmptyLoci: options.hideEmptyLoci });
+      const buffer = createImportWorkbook({ profiles: result.profiles, loci: result.loci, importFormat, sourceFormat: unified ? FORMAT : MASTER_EXPORT_FORMAT, hideEmptyLoci: options.hideEmptyLoci });
       if (buffer.length > 10 * 1024 * 1024) throw new MasterExportError('Размер файла превышает лимит штатного импорта 10 МиБ. Уточните фильтры.', 413, 'EXPORT_TOO_LARGE');
-      const name = array.department_name.replace(/[^\p{L}\p{N}_-]+/gu, '-').slice(0, 90);
+      const name = (array.department_name || array.name).replace(/[^\p{L}\p{N}_-]+/gu, '-').slice(0, 90);
       return { preview, buffer, filename: `Мастер-массив_${name}_${new Intl.DateTimeFormat('en-CA', { timeZone: 'Europe/Moscow', year: 'numeric', month: '2-digit', day: '2-digit' }).format(new Date())}${options.exportValidOnly ? '_только-пригодные' : ''}.xlsx` };
     } catch (error) { await client.query('ROLLBACK').catch(() => {}); throw error; }
     finally { client.release(); }

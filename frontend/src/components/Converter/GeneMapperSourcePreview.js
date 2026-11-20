@@ -12,11 +12,11 @@ export default function GeneMapperSourcePreview({ file, result, options, update,
   const set = patch => update({ ...options, files: { ...options.files, [file.id]: { ...settings, ...patch } } });
   const sampleSet = (sample, patch) => set({ samples: { ...settings.samples, [sample.sampleName]: { ...settings.samples?.[sample.sampleName], ...patch } } });
   const needsReview = gene.samples.filter(sample => sample.included && !sample.exportable);
-  const [filter, setFilter] = useState(needsReview.length ? 'review' : 'excluded');
+  const [filter, setFilter] = useState(needsReview.length ? 'review' : 'all');
   const filtered = gene.samples.filter(sample => filter === 'all' || (filter === 'review' ? sample.included && !sample.exportable : !sample.included));
   const current = Math.min(page, Math.max(0, Math.ceil(filtered.length / 30) - 1));
   return <div className="converter-gene-preview">
-    <p className="converter-hint">Панель источника: {gene.panelNames.join(', ') || 'не указана'} · Всего образцов: {gene.summary.totalSamples}</p>
+    <p className="converter-hint">Всего образцов: {gene.summary.totalSamples}</p>
     <details><summary>Настройки GeneMapper</summary>
       <div className="converter-source-controls"><label>Кодировка TXT<select className="form-input" value={settings.encoding || 'auto'} disabled={disabled} onChange={event => set({ encoding: event.target.value })}><option value="auto">Автоматически</option><option value="utf-8">UTF-8</option><option value="windows-1251">Windows-1251</option><option value="utf-16le">UTF-16 LE</option><option value="utf-16be">UTF-16 BE</option></select></label></div>
       <label className="converter-export-toggle"><input type="checkbox" checked={settings.confirmHaploidDuplicates === true} disabled={disabled} onChange={event => set({ confirmHaploidDuplicates: event.target.checked })} />Подтверждаю дублированные вызовы Y-маркеров: 10,10 → 10</label>
@@ -31,7 +31,7 @@ export default function GeneMapperSourcePreview({ file, result, options, update,
           <th scope="row">{sample.sampleName}<small>{sample.sampleTypes.join(', ')}</small></th>
           <td>{sample.populatedLoci} / {sample.totalLoci}</td><td><strong>{sample.status}</strong><p>{sample.reason}</p>{sample.warnings > 0 && <span>Предупреждений: {sample.warnings}</span>}</td>
           {result.importFormat === 'emergency' && <td><MetadataInput key={sample.emergency.assignedNumber} label={`№ в в/ч ${sample.sampleName}`} value={sample.emergency.assignedNumber} disabled={disabled || !sample.included} apply={assignedNumber => sampleSet(sample, { assignedNumber })} /><MetadataInput key={sample.emergency.shippingNumber} label={`Привоз ${sample.sampleName}`} value={sample.emergency.shippingNumber} numeric disabled={disabled || !sample.included} apply={shippingNumber => sampleSet(sample, { shippingNumber })} /></td>}
-          <td><details><summary>Параметры образца</summary><p>{sample.panelNames.join(', ') || 'Панель не указана'}</p><label>Панель<select className="form-input" aria-label={`Панель ${sample.sampleName}`} value={sample.panelId || ''} disabled={disabled} onChange={event => sampleSet(sample, { panelId: event.target.value })}><option value="">Не назначена</option>{sample.panelCandidates.map(panel => <option key={panel.id} value={panel.id}>{panel.name}</option>)}</select></label>{profile && <dl>{profile.sourceLoci.map(locus => <React.Fragment key={locus}><dt>{locus}</dt><dd>{profile.strData[locus]?.join(',') || '—'}</dd></React.Fragment>)}</dl>}</details></td></tr>;
+          <td><details><summary>Локусы образца</summary>{profile && <dl>{profile.sourceLoci.map(locus => <React.Fragment key={locus}><dt>{locus}</dt><dd>{profile.strData[locus]?.join(',') || '—'}</dd></React.Fragment>)}</dl>}</details></td></tr>;
       })}</tbody></table></div>
     {!filtered.length && <p className="converter-hint">Нет образцов с выбранным состоянием.</p>}
     {filtered.length > 30 && <div className="converter-actions"><button className="btn btn-secondary" disabled={!current} onClick={() => setPage(current - 1)}>Назад</button><span>Страница {current + 1} из {Math.max(1, Math.ceil(filtered.length / 30))}</span><button className="btn btn-secondary" disabled={(current + 1) * 30 >= filtered.length} onClick={() => setPage(current + 1)}>Далее</button></div>}

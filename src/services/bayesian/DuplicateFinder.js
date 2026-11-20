@@ -6,6 +6,7 @@
  */
 
 const { logger } = require('../../utils/logger');
+const { prepareLocusData } = require('../../utils/exactLocusComparison');
 
 class DuplicateFinder {
     constructor(lrCalculator, systemParameters, populationManager = null) {
@@ -62,7 +63,7 @@ class DuplicateFinder {
                     comparisonCount++;
                     
                     // Add only if above threshold
-                    if (comparisonResult.probability >= threshold) {
+                    if (comparisonResult.totalLoci > 0 && comparisonResult.matchingLoci > 0 && comparisonResult.probability >= threshold) {
                         logger.debug(`✅ Match found: ${candidateProfile.id} with probability ${comparisonResult.probability}`);
                         duplicateResults.push(comparisonResult);
                         aboveThresholdCount++;
@@ -465,7 +466,7 @@ class DuplicateFinder {
         const common = [];
         
         for (const locusName of loci1.keys()) {
-            if (loci2.has(locusName)) {
+            if (loci2.has(locusName) && prepareLocusData(loci1.get(locusName)?.alleles).exactComparable && prepareLocusData(loci2.get(locusName)?.alleles).exactComparable) {
                 common.push(locusName);
             }
         }
@@ -480,7 +481,7 @@ class DuplicateFinder {
      * @returns {boolean} True if alleles match exactly
      */
     compareAlleles(alleles1, alleles2) {
-        if (!alleles1 || !alleles2) {
+        if (!prepareLocusData(alleles1).exactComparable || !prepareLocusData(alleles2).exactComparable) {
             return false;
         }
         
@@ -502,7 +503,7 @@ class DuplicateFinder {
      * @returns {boolean} True if there's at least one common allele
      */
     hasPartialMatch(alleles1, alleles2) {
-        if (!alleles1 || !alleles2) {
+        if (!prepareLocusData(alleles1).exactComparable || !prepareLocusData(alleles2).exactComparable) {
             return false;
         }
         
@@ -533,6 +534,7 @@ class DuplicateFinder {
             let validLoci = 0;
             
             for (const [locusName, locusData] of loci) {
+                if (!prepareLocusData(locusData.alleles).exactComparable) continue;
                 const alleleFreqs = populationData.locusFrequencies.get(locusName);
                 
                 if (alleleFreqs && alleleFreqs.frequencies) {

@@ -76,7 +76,7 @@ export default function GenotypePanelsPage() {
   };
 
   return <div className="panels-page">
-    <div className="page-header"><div><h1>Генетические панели</h1><p className="page-subtitle">Название, состав и порядок локусов для отделения «Генетические экспертизы».</p></div>
+    <div className="page-header"><div><h1 className="page-title">Генетические панели</h1><p className="page-subtitle">Название, состав и порядок локусов для отделения «Генетические экспертизы».</p></div>
       {isGenetic && canEdit && <button className="btn btn-primary" disabled={saving || loading} onClick={() => { setDraft(emptyPanel()); setLocusInput(''); setError(''); setMessage(''); }}>Создать панель</button>}
     </div>
     {!isGenetic ? <div className="alert alert-info">Выберите отделение «Генетические экспертизы», чтобы открыть справочник панелей.</div> : <>

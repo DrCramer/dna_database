@@ -1,6 +1,7 @@
 const XLSX = require('xlsx');
 const { logger } = require("../../utils/logger");
 const { validateGeneticHeaders, normalizeObjectName, getGeneticHeaders } = require("../../utils/profileImportFormat");
+const { ASSIGNED_HEADER, isAssignedNumberHeader } = require('../../utils/emergencyAssignedNumber');
 const { LociTypeDetector, LOCI_TYPES } = require("../../utils/lociTypeDetector");
 const locusTypeDetector = new LociTypeDetector();
 
@@ -38,11 +39,11 @@ const GENETIC_REQUIRED_COLUMNS = {
 const EMERGENCY_REQUIRED_COLUMNS = {
   'Sample Name': { required: true, type: 'string', description: 'Название образца' },
   'Привоз': { required: true, type: 'number', description: 'Номер привоза (только цифры)' },
-  '№ присвоенный в в/ч № 522 ЦПООП Северо-Кавказского военного округа, г. Ростов-на-Дону': { 
+  [ASSIGNED_HEADER]: {
     required: true, 
     type: 'string', 
     // УБРАЛИ ПАТТЕРН - номера могут содержать любые символы
-    description: 'Номер в/ч (любой формат)' 
+    description: 'Ростовский номер (любой формат)'
   },
   'Год': { required: false, type: 'string', description: 'Год исследования' },
 };
@@ -125,7 +126,7 @@ class FileValidationService {
     // Проверяем наличие характерных столбцов для ЧС
     const hasEmergencyColumns = columns.some(col => {
       const colName = col ? col.toString().toLowerCase() : '';
-      return colName.includes('в/ч') || 
+      return isAssignedNumberHeader(col) || colName.includes('в/ч') ||
              colName.includes('привоз') || 
              colName.includes('522') ||
              colName.includes('цпооп') ||
@@ -227,7 +228,7 @@ class FileValidationService {
       const validationHeaders = expertiseType === EXPERTISE_TYPES.EMERGENCY ? headers.map(header => {
         const name = String(header || '').trim().toLowerCase();
         if (name === 'наименование образца') return 'Sample Name';
-        if (name.startsWith('присвоенный в в/ч')) return '№ присвоенный в в/ч № 522 ЦПООП Северо-Кавказского военного округа, г. Ростов-на-Дону';
+        if (isAssignedNumberHeader(header)) return ASSIGNED_HEADER;
         return header;
       }) : headers;
       // Валидация заголовков

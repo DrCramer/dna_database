@@ -16,6 +16,7 @@ function referenceSettings(options = {}) {
 class AlleleReferenceService {
   constructor({ sets = [], observations = [], panels = [], settings = {} } = {}) {
     this.settings = referenceSettings(settings);
+    this.evaluationCache = new Map();
     this.sets = sets.map(set => {
       const index = new Map();
       for (const row of set.values || []) {
@@ -63,6 +64,14 @@ class AlleleReferenceService {
     return { referenceSetId: choice.set?.id || null, referenceVersion: choice.set?.sourceVersion || null, referenceName: choice.set?.name || null, reason: choice.reason };
   }
   evaluate(raw, locus, panelId, referenceSetId) {
+    const cacheKey=JSON.stringify([raw,locus,panelId??null,referenceSetId===undefined?this.settings.referenceSetId:referenceSetId]);
+    if(this.evaluationCache.has(cacheKey))return this.evaluationCache.get(cacheKey);
+    const result=this.evaluateUncached(raw,locus,panelId,referenceSetId);
+    if(this.evaluationCache.size>=4096)this.evaluationCache.delete(this.evaluationCache.keys().next().value);
+    this.evaluationCache.set(cacheKey,result);
+    return result;
+  }
+  evaluateUncached(raw, locus, panelId, referenceSetId) {
     const type = detector.detectLocusType(locus);
     const choice = this.ladder(panelId, referenceSetId);
     const sets = [...(choice.set ? [choice.set] : []), ...(this.settings.variants ? this.sets.filter(set => set.type !== 'KIT_LADDER' && (set.type !== 'Y_STR_REFERENCE' || type === LOCI_TYPES.Y_CHROMOSOME)) : [])];

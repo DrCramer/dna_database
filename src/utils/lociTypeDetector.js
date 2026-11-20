@@ -417,17 +417,23 @@ class LociTypeDetector {
         return result;
     }
 
-    // Значения зарегистрированных Y-InDel — строки 1/2. Их биологическое
-    // значение (INS/DEL) здесь намеренно не назначается.
+    // Обычные значения зарегистрированных Y-InDel — строки 1/2. Служебные
+    // токены разрешены, как у остальных локусов, но не означают INS/DEL.
     validateYIndelAlleles(alleles) {
         const result = { isValid: true, errors: [], warnings: [] };
         if (alleles.length > 1) result.warnings.push('В гаплоидном Y-InDel обнаружено несколько аллелей: возможна смесь или аномалия.');
+        let specialCount = 0;
         for (const allele of alleles) {
+            if (isSpecialAllele(allele)) {
+                specialCount++;
+                continue;
+            }
             if (allele !== '1' && allele !== '2') {
-                result.errors.push(`Недопустимое значение Y-InDel аллеля: ${allele} (допускаются только 1 или 2)`);
+                result.errors.push(`Недопустимое значение Y-InDel аллеля: ${allele} (допускаются 1, 2 и служебные обозначения *, **, ?, F, OL)`);
                 result.isValid = false;
             }
         }
+        if (specialCount) result.warnings.push('Служебные значения Y-InDel сохранены; они не являются обычными аллелями 1/2.');
         return result;
     }
 

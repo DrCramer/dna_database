@@ -24,9 +24,26 @@ test('Предобработка duplicate_v5 сохраняет скор, ра�
 test('Поиск задач: эталонные критерии, порядок, детали и экспорт одинаковы с workers и без них', async () => {
   for (const { input, expected } of fixtures) {
     const original = structuredClone(input);
+    let serial;
     for (const useWorkers of [false, true]) {
       const result = await runProfileSearch(input, { useWorkers, minParallelComparisons: 0 });
-      assert.deepEqual(json({ results: result.results, comparisons: result.comparisons }), expected,
+      const actual = json({ results: result.results, comparisons: result.comparisons });
+      if (!useWorkers) serial = actual; else assert.deepEqual(actual, serial);
+      // Совместимость прежней математики проверяется на определённых профилях.
+      // Старые фикстуры с ?, * сохраняются; исправленное поведение проверяет
+      // duplicate-unknowns.test.js, а не прежние ошибочные ожидания.
+      const certain = new Set([...input.referenceProfiles, ...input.compareProfiles]
+        .filter(p => !Object.values(p.str_data || {}).some(require('../src/utils/alleleTokens').hasUnknownAlleles)).map(p => p.id));
+      const known = value => input.comparisonAlgorithm !== 'duplicate_v5' ? value : {
+        ...value, results: value.results.filter(group => certain.has(group.reference.id)).map(group => {
+          const matches = group.matches.filter(match => certain.has(match.id));
+          return { ...group, matches,
+            ...(group.exportMatches ? { exportMatches: group.exportMatches.filter(match => certain.has(match.id)) } : {}),
+            ...(Object.hasOwn(group,'matchCount') ? { matchCount: matches.length } : {}),
+            ...(Object.hasOwn(group,'displayedCount') ? { displayedCount: matches.length } : {}) };
+        }).filter(group => group.matches.length)
+      };
+      assert.deepEqual(known(actual), known(expected),
         `${input.searchMode}, ${input.comparisonAlgorithm}, v5=${input.useV5Algorithm}, workers=${useWorkers}`);
       assert.equal(result.workerCount, useWorkers ? Math.min(workerLimit(), input.referenceProfiles.length) : 0);
     }
@@ -83,4 +100,20 @@ test('Параллельный расчёт оставляет основной 
     assert(result.workerCount > 0 && result.workerCount <= workerLimit());
     assert.equal(result.comparisons, 300 * 299);
   } finally { clearInterval(timer); }
+});
+
+test('Один эталон: распределение массива сравнения сохраняет глобальный top-100, экспорт и порядок равных баллов', async () => {
+  const profiles = syntheticProfiles(205);
+  profiles.forEach(profile => { profile.str_data = structuredClone(profiles[0].str_data); });
+  profiles[10].str_data.TH01 = ['99'];
+  for (const searchMode of ['workspace_master', 'department_tasks', 'master_array']) {
+    for (const comparisonAlgorithm of ['standard', 'duplicate_v5', 'contamination']) {
+      const input = { referenceProfiles: [profiles[0]], compareProfiles: profiles, searchMode, comparisonAlgorithm };
+      const single = await runProfileSearch(input, { useWorkers: false });
+      const parallel = await runProfileSearch(input, { minParallelComparisons: 0 });
+      assert.deepEqual(parallel.results, single.results, searchMode + ':' + comparisonAlgorithm);
+      assert.equal(parallel.comparisons, single.comparisons);
+      assert.equal(parallel.workerCount, Math.min(workerLimit(), profiles.length));
+    }
+  }
 });

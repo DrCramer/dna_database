@@ -1,0 +1,619 @@
+const test = require('node:test'),
+  assert = require('node:assert/strict'),
+  {
+    randomUUID
+  } = require('node:crypto');
+const url = process.env.WORKSPACE_TEST_DATABASE_URL;
+test('Workspace API: реальные сессии, роли, чужие UUID, legacy gate, Probability и безопасное чтение', {
+  skip: !url
+}, async t => {
+  assert.match(new URL(url).pathname, /^\/dna_workspace_test(?:_|$)/);
+  process.env.DATABASE_URL = url;
+  process.env.NODE_ENV = 'test';
+  process.env.UNIFIED_WORKSPACE_ENABLED = 'true';
+  process.env.JWT_SECRET = 'isolated-workspace-api-synthetic-key';
+  const interval = global.setInterval;
+  global.setInterval = (...args) => interval(...args).unref();
+  const {
+      pool
+    } = require('../src/config/database'),
+    User = require('../src/models/User'),
+    auth = require('../src/services/security/authService'),
+    express = require('express'),
+    {
+      createImportWorkbook
+    } = require('../src/utils/importWorkbook');
+  await pool.query(require('fs').readFileSync(require('path').join(__dirname, '../database/migrations/039_optional_staff_registration.sql'), 'utf8'));
+  await pool.query('INSERT INTO workspace_configuration(id,enabled) VALUES(true,true) ON CONFLICT(id) DO UPDATE SET enabled=true');
+  const app = express();
+  app.locals.pool = pool;
+  app.use(express.json());
+  app.use(require('../src/middleware/requestContext').requestContext);
+  app.use('/api/users', require('../src/routes/users'));
+  app.use('/api/auth', require('../src/routes/auth'));
+  app.use('/api/workspace', require('../src/routes/workspace')());
+  app.use('/api/profiles', require('../src/routes/workspaceLegacyBridge'));
+  app.use('/api/probability', require('../src/routes/probability')());
+  app.use('/api/migration-export', require('../src/routes/legacyMigrationExport')());
+  app.use('/api/staff-profiles', require('../src/routes/staffProfiles'));
+  app.use('/api/master-arrays', require('../src/routes/masterArrayExport'));
+  const server = app.listen(0, '127.0.0.1');
+  await new Promise(resolve => server.once('listening', resolve));
+  t.after(async () => {
+    server.closeAllConnections();
+    await new Promise(resolve => server.close(resolve));
+    await pool.end();
+  });
+  const base = `http://127.0.0.1:${server.address().port}`;
+  const org = (await pool.query('INSERT INTO organizations(name) VALUES($1) RETURNING id', ['SYN-api-' + randomUUID()])).rows[0].id,
+    foreignOrg = (await pool.query('INSERT INTO organizations(name) VALUES($1) RETURNING id', ['SYN-foreign-' + randomUUID()])).rows[0].id;
+  const users = {};
+  for (const role of ['admin', 'department_head', 'user_analyst', 'viewer', 'foreign']) {
+    const id = randomUUID();
+    await pool.query("INSERT INTO users(id,username,password_hash,role,organization_id,can_upload_with_task,can_upload_without_task) VALUES($1,$2,'synthetic',$3,$4,true,false)", [id, 'SYN-' + id, role === 'foreign' ? 'admin' : role, role === 'foreign' ? foreignOrg : org]);
+    const user = await User.findById(id),
+      token = auth.generateToken(user);
+    await auth.createSession(id, token, '127.0.0.1', 'workspace-synthetic-api');
+    users[role] = {
+      ...user,
+      token
+    };
+  }
+  async function call(path, who = 'admin', body, method = body ? 'POST' : 'GET') {
+    const multipart = body instanceof FormData;
+    return fetch(base + path, {
+      method,
+      headers: {
+        Authorization: `Bearer ${users[who].token}`,
+        ...(!multipart ? {
+          'Content-Type': 'application/json'
+        } : {})
+      },
+      ...(body ? {
+        body: multipart ? body : JSON.stringify(body)
+      } : {})
+    });
+  }
+  const data = Object.fromEntries(['TH01', 'D5S818', 'D3S1358', 'D21S11', 'vWA', 'FGA', 'D13S317', 'D7S820', 'D16S539', 'CSF1PO', 'TPOX', 'D8S1179', 'D18S51', 'D2S441', 'D19S433'].map(l => [l, ['12', '13']]));
+  const buffer = createImportWorkbook({
+    profiles: [{
+      objectNumber: 'SYN-1',
+      year: 2026,
+      expertiseType: 'ug',
+      comment: 'SYN',
+      strData: data
+    }],
+    loci: Object.keys(data),
+    sourceFormat: 'DNA_IMPORT_V2'
+  });
+  function form() {
+    const f = new FormData();
+    f.append('files', new Blob([buffer]), 'SYN.xlsx');
+    return f;
+  }
+  let profile, draft;
+  await t.test('Вход без отдела, старое право загрузки в задачу достаточно; viewer не загружает', async () => {
+    assert.equal((await fetch(base + '/api/workspace')).status, 401);
+    assert.equal((await call('/api/workspace/config')).status, 200);
+    assert.equal((await call('/api/workspace/import-drafts', 'viewer', form())).status, 403);
+    const r = await call('/api/workspace/import-drafts', 'user_analyst', form());
+    assert.equal(r.status, 200, await r.clone().text());
+    draft = await r.json();
+    const commit = await call('/api/workspace/import-drafts/' + draft.id + '/commit', 'user_analyst', {
+      revision: 1,
+      idempotencyKey: randomUUID()
+    });
+    assert.equal(commit.status, 200, await commit.clone().text());
+    profile = (await commit.json()).ids[0];
+  });
+  await t.test('Подмена владельца, организации, workspace/draft UUID и checked не разрешает запись', async () => {
+    assert.equal((await call('/api/workspace/profiles/' + profile, 'user_analyst', { assignedNumber: 'SYN-forged' }, 'PATCH')).status, 400);
+    assert.equal((await call('/api/workspace/import-drafts/' + draft.id + '/rows', 'user_analyst', { revision: 1, rows: [{ draftRowId: draft.rows[0].draftRowId, assignedNumber: 'SYN-forged' }] }, 'PATCH')).status, 400);
+    assert.equal((await call('/api/workspace/import-drafts/' + draft.id, 'foreign')).status, 404);
+    assert.equal((await call('/api/workspace/profiles/' + profile, 'admin', {
+      comment: 'SYN'
+    }, 'PATCH')).status, 403);
+    assert.equal((await call('/api/workspace/profiles/' + profile, 'user_analyst', {
+      organization_id: foreignOrg
+    }, 'PATCH')).status, 400);
+    assert.equal((await call('/api/workspace/publish', 'user_analyst', {
+      ids: [profile],
+      searchRunId: randomUUID(),
+      checked: true
+    })).status, 400);
+    assert.equal((await call('/api/workspace/publish', 'user_analyst', {
+      ids: [profile],
+      searchRunId: randomUUID()
+    })).status, 403);
+  });
+  await t.test('Владелец может очистить черновик до импорта, сохранив добавленные профили', async () => {
+    const created = await call('/api/workspace/import-drafts', 'user_analyst', form());
+    assert.equal(created.status, 200);
+    const { id } = await created.json();
+    const path = '/api/workspace/import-drafts/' + id;
+    for (const who of ['admin', 'foreign']) {
+      assert.equal((await call(path, who, undefined, 'DELETE')).status, 404);
+    }
+    assert.equal((await call(path, 'viewer', undefined, 'DELETE')).status, 403);
+    assert.equal((await call(path, 'user_analyst')).status, 200);
+    await pool.query("UPDATE workspace_import_drafts SET expires_at=now()-interval '1 minute' WHERE id=$1", [id]);
+    assert.equal((await call(path, 'user_analyst')).status, 410);
+    const cleared = await call(path, 'user_analyst', undefined, 'DELETE');
+    assert.equal(cleared.status, 200);
+    assert.deepEqual(await cleared.json(), { deleted: true });
+    assert.equal((await call(path, 'user_analyst')).status, 404);
+    assert.equal((await call(path + '/commit', 'user_analyst', { revision: 1, idempotencyKey: randomUUID() })).status, 404);
+
+    const committed = await call('/api/workspace/import-drafts/' + draft.id, 'user_analyst', undefined, 'DELETE');
+    assert.equal(committed.status, 409);
+    assert.equal((await committed.json()).code, 'DRAFT_ALREADY_COMMITTED');
+    const workspace = await (await call('/api/workspace', 'user_analyst')).json();
+    assert(workspace.profiles.some(row => row.id === profile));
+  });
+  await t.test('Live search: authenticated stage stream, committed result, own scope and unchanged JSON API', async () => {
+    const path='/api/workspace/full-search/stream', body={ids:[profile]};
+    assert.equal((await fetch(base+path,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(body)})).status,401);
+    assert.equal((await call(path,'viewer',body)).status,403);
+    assert.equal((await call(path,'user_analyst',{ids:['invalid']})).status,400);
+    const response=await call(path,'user_analyst',body);
+    assert.match(response.headers.get('content-type'),/application\/x-ndjson/);
+    assert.match(response.headers.get('cache-control'),/no-transform/);
+    const frames=(await response.text()).trim().split('\n').map(s=>JSON.parse(s));
+    assert.deepEqual([...new Set(frames.filter(f=>f.type==='progress').map(f=>f.progress.stage))],['preparing','internal','master','staff','saving','complete']);
+    const result=frames.at(-1);assert.equal(result.type,'result');
+    assert.equal((await call('/api/workspace/searches/'+result.result.id,'user_analyst')).status,200);
+    assert.equal((await call('/api/workspace/searches/'+result.result.id,'foreign')).status,404);
+    const denied=(await (await call(path,'foreign',body)).text()).trim().split('\n').map(s=>JSON.parse(s));
+    assert.equal(denied.at(-1).type,'error');assert(denied.at(-1).status>=400);
+    assert(!denied.some(f=>f.type==='result'));
+    const legacy=await call('/api/workspace/full-search','user_analyst',body);
+    assert.equal(legacy.status,200);assert((await legacy.json()).internal);
+  });
+  await t.test('Legacy upload и staff API не обходят pipeline; чужие личные профили не раскрываются', async () => {
+    assert.equal((await call('/api/profiles/upload', 'admin', {})).status, 409);
+    assert.equal((await call('/api/staff-profiles/upload', 'admin', {})).status, 409);
+    const own = await (await call('/api/profiles/search?q=SYN', 'user_analyst')).json(),
+      other = await (await call('/api/profiles/search?q=SYN', 'admin')).json();
+    assert.equal(own.profiles.length, 1);
+    assert.equal(own.profiles[0].objectNumber, 'SYN-1');
+    assert.equal(other.profiles.length, 0);
+    assert.equal((await call('/api/profiles/' + profile, 'foreign')).status, 404);
+    assert.equal((await call('/api/migration-export/options', 'department_head')).status, 403);
+  });
+  await t.test('IDENT/TRIO и источники Probability работают без отдела; сохранённый расчёт не виден другому', async () => {
+    assert.equal((await call('/api/probability/configuration', 'user_analyst')).status, 200);
+    const body = {
+      mode: 'IDENT',
+      participants: [{
+        role: 'object',
+        sourceType: 'manual',
+        displayName: 'SYN',
+        manualOverrides: {
+          D1S1656: '13,14'
+        }
+      }]
+    };
+    const saved = await call('/api/probability/calculations', 'user_analyst', body);
+    assert.equal(saved.status, 201, await saved.clone().text());
+    const value = await saved.json();
+    assert.equal((await call('/api/probability/calculations/' + value.id, 'admin')).status, 404);
+    assert.equal((await call('/api/probability/calculations/' + value.id, 'user_analyst')).status, 200);
+  });
+  await t.test('Недопустимые файлы отклоняются целиком, без тихого исключения части', async () => {
+    const f = form();
+    f.append('files', new Blob(['SYN']), 'unsupported.csv');
+    assert.equal((await call('/api/workspace/import-drafts', 'admin', f)).status, 400);
+  });
+  await t.test('Спецтокены Y-InDel проходят XLSX-черновик, валидацию и запись без замены обычными аллелями', async () => {
+    const XLSX = require('xlsx'), book = XLSX.utils.book_new();
+    const names = ['Rs771783753', 'rs199815934', 'rs759551978'];
+    const values = ['*', '**', '?', 'F', '1,*'];
+    XLSX.utils.book_append_sheet(book, XLSX.utils.aoa_to_sheet([
+      ['Объект', 'Год', 'Тип экспертизы', ...Object.keys(data), ...names],
+      ...values.map((value, i) => [`SYN-YINDEL-${i}`, 2026, 'ug', ...Object.values(data).map(a => a.join(',')), value, value, value])
+    ]), 'Профили');
+    const f = new FormData();
+    f.append('files', new Blob([XLSX.write(book, { type: 'buffer', bookType: 'xlsx' })]), 'SYN-YINDEL.xlsx');
+    const response = await call('/api/workspace/import-drafts', 'user_analyst', f);
+    assert.equal(response.status, 200, await response.clone().text());
+    const d = await response.json();
+    assert.equal(d.rows.length, values.length);
+    for (const row of d.rows) assert.equal(row.sourceIssues.length, 0);
+    const checked = await call('/api/workspace/import-drafts/' + d.id + '/validate', 'user_analyst', { revision: d.revision });
+    assert.equal(checked.status, 200);
+    assert.equal((await checked.json()).valid, true);
+    const committed = await call('/api/workspace/import-drafts/' + d.id + '/commit', 'user_analyst', {
+      revision: d.revision, idempotencyKey: randomUUID()
+    });
+    assert.equal(committed.status, 200, await committed.clone().text());
+    const result = await committed.json();
+    assert.equal(result.ids.length, values.length);
+    for (const id of result.ids) {
+      const saved = await pool.query('SELECT internal_number,str_data FROM dna_profiles WHERE id=$1', [id]);
+      const source = d.rows.find(row => row.objectNumber === saved.rows[0].internal_number);
+      for (const locus of names) assert.deepEqual(saved.rows[0].str_data[locus], source.strData[locus]);
+    }
+  });
+  await t.test('Русский multipart filename и перенос ФИО сохраняются после reload без изменения генотипа', async () => {
+    const XLSX = require('xlsx'), book = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(book,XLSX.utils.aoa_to_sheet([
+      ['Объект','Год','Тип экспертизы',...Object.keys(data)],
+      ['Тестов Т. Т.',2026,'Сотрудник',...Object.values(data).map(alleles=>alleles.join(','))]
+    ]),'Сотрудники');
+    const raw = XLSX.write(book,{type:'buffer',bookType:'xlsx'});
+    const f = new FormData();
+    f.append('files', new Blob([raw]), 'Сотрудники_2.xlsx');
+    const created = await call('/api/workspace/import-drafts', 'admin', f);
+    assert.equal(created.status, 200);
+    const d = await created.json();
+    assert.equal(d.rows[0].sourceFilename, 'Сотрудники_2.xlsx');
+    const {
+      transferStaffName
+    } = require('../src/utils/staffImportMapping');
+    const moved = transferStaffName(d.rows[0]);
+    const saved = await call('/api/workspace/import-drafts/' + d.id + '/rows', 'admin', {
+      revision: d.revision,
+      rows: [{
+        draftRowId: moved.draftRowId,
+        objectNumber: moved.objectNumber,
+        registrationNumber: moved.registrationNumber,
+        fullName: moved.fullName
+      }]
+    }, 'PATCH');
+    assert.equal(saved.status, 200);
+    const current = await saved.json();
+    const reloaded = await (await call('/api/workspace/import-drafts/' + d.id)).json();
+    assert.equal(reloaded.rows[0].fullName, 'Тестов Т. Т.');
+    assert.equal(reloaded.rows[0].objectNumber, '');
+    assert.deepEqual(reloaded.rows[0].strData, data);
+    assert.equal(reloaded.rows[0].provenance.staffNameTransfer.sourceObjectNumber, 'Тестов Т. Т.');
+    const validation = await (await call('/api/workspace/import-drafts/' + d.id + '/validate', 'admin', {
+      revision: current.revision
+    })).json();
+    assert.equal(validation.valid, true, 'Registration is optional after the name transfer');
+    const repaired = await call('/api/workspace/import-drafts/' + d.id + '/rows', 'admin', {
+      revision: current.revision,
+      rows: [{
+        draftRowId: moved.draftRowId,
+        objectNumber: '00870-G',
+        registrationNumber: '00870-G'
+      }]
+    }, 'PATCH');
+    const ready = await repaired.json();
+    const commit = await call('/api/workspace/import-drafts/' + d.id + '/commit', 'admin', {
+      revision: ready.revision,
+      idempotencyKey: d.id
+    });
+    assert.equal(commit.status, 200);
+  });
+  await t.test('Экспорт staff XLSX: авторизация, сохранённый снимок, палитра, пустые и незавершённые поиски', async () => {
+    const { WorkspaceApprovalService } = require('../src/services/workspace/workspaceApprovalService');
+    const service = new WorkspaceApprovalService(pool), actor = await User.findById(users.user_analyst.id), admin = await User.findById(users.admin.id);
+    const staffFile = { originalname: 'SYN-staff.xlsx', buffer: createImportWorkbook({
+      profiles: [{ objectNumber: '00991-G', fullName: 'Тестовый С. С.', year: 2025, expertiseType: 'staff', strData: data }],
+      loci: Object.keys(data), sourceFormat: 'DNA_IMPORT_V2'
+    }) };
+    const d = await service.createDraft(admin, [staffFile]), loaded = await service.commitDraft(admin, d.id, d.revision, randomUUID());
+    const staffRun = await service.fullSearch(admin, loaded.ids); await service.publish(admin, loaded.ids, staffRun.id);
+    const run = await service.fullSearch(actor, [profile]);
+    const endpoint = '/api/workspace/searches/' + run.id + '/staff-contaminations-xlsx';
+    assert.equal((await fetch(base + endpoint, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: '{}' })).status, 401);
+    for (const who of ['admin', 'department_head', 'foreign', 'viewer']) assert.equal((await call(endpoint, who, {})).status, 404);
+    assert.equal((await call('/api/workspace/searches/not-a-uuid/staff-contaminations-xlsx', 'user_analyst', {})).status, 400);
+    for (const body of [{ staffProfiles: [] }, { colors: { fullMatch: 'red' } }, { colors: { unknown: '#112233' } }]) assert.equal((await call(endpoint, 'user_analyst', body)).status, 400);
+    await service.patch(actor, profile, { strData: { ...data, TH01: ['7', '9'] } });
+    const exported = await call(endpoint, 'user_analyst', { colors: { fullMatch: '#112233', partialMatchAllele: '#ABCDEF' } });
+    assert.equal(exported.status, 200, await exported.clone().text());
+    assert.match(exported.headers.get('content-type'), /spreadsheetml/);
+    assert.match(exported.headers.get('content-disposition'), /filename\*=UTF-8''/);
+    assert.equal(exported.headers.get('cache-control'), 'private, no-store');
+    const ExcelJS = require('exceljs'), book = new ExcelJS.Workbook(); await book.xlsx.load(Buffer.from(await exported.arrayBuffer()));
+    const sheet = book.getWorksheet('Контаминации'), column = sheet.getRow(1).values.indexOf('TH01');
+    assert.equal(sheet.rowCount, 3); assert.equal(sheet.getCell(2, column).text, '12,13');
+    assert.equal(sheet.getCell(3, column).fill.fgColor.argb, 'FF112233');
+    assert.equal(sheet.getCell(3, column).value.richText[0].font.color.argb, 'FFABCDEF');
+    await service.patch(actor, profile, { strData: data });
+    const empty = await service.fullSearch(actor, [profile], { staffOptions: { threshold: 100 } });
+    assert.equal((await call('/api/workspace/searches/' + empty.id + '/staff-contaminations-xlsx', 'user_analyst', {})).status, 400);
+    await pool.query("UPDATE workspace_search_runs SET state='running' WHERE id=$1", [empty.id]);
+    assert.equal((await call('/api/workspace/searches/' + empty.id + '/staff-contaminations-xlsx', 'user_analyst', {})).status, 409);
+    await pool.query("UPDATE workspace_search_runs SET state='complete' WHERE id=$1", [empty.id]);
+    await service.configureSearch(actor, { staffOptions: {} });
+  });
+  await t.test('Экспорт дубликатов XLSX учитывает вкладку, фильтр и дату первого обнаружения', async () => {
+    const ExcelJS = require('exceljs');
+    const { WorkspaceApprovalService } = require('../src/services/workspace/workspaceApprovalService');
+    const service = new WorkspaceApprovalService(pool);
+    const actor = await User.findById(users.user_analyst.id);
+    const strData = Object.fromEntries(Object.keys(data).map(locus => [locus, ['10', '11']]));
+    async function importProfiles(numbers) {
+      const buffer = createImportWorkbook({
+        profiles: numbers.map(n => ({ objectNumber: 'SYN-EXP-' + n, year: 2026, expertiseType: 'ug', strData })),
+        loci: Object.keys(strData),
+        sourceFormat: 'DNA_IMPORT_V2'
+      });
+      const draft = await service.createDraft(actor, [{ originalname: 'SYN-export.xlsx', buffer }]);
+      return (await service.commitDraft(actor, draft.id, draft.revision, randomUUID())).ids;
+    }
+    const [reference, known] = await importProfiles([1, 2]);
+    const firstSearch = await service.fullSearch(actor, [reference], { minMatches: 15 });
+    await pool.query("UPDATE workspace_search_runs SET completed_at='2026-01-01T22:30:00Z' WHERE id=$1", [firstSearch.id]);
+    const [newMatch] = await importProfiles([3]);
+    const secondSearch = await service.fullSearch(actor, [reference], { minMatches: 15 });
+    await pool.query("UPDATE workspace_search_runs SET completed_at='2026-01-03T10:00:00Z' WHERE id=$1", [secondSearch.id]);
+
+    const endpoint = '/api/workspace/searches/' + secondSearch.id + '/duplicates-xlsx';
+    const dto = await (await call('/api/workspace/searches/' + secondSearch.id, 'user_analyst')).json();
+    const observed = dto.internal.results[0].matches;
+    assert.deepEqual(observed.find(match => match.id === known).duplicateHistory, {
+      status: 'known', firstFoundAt: '2026-01-01T22:30:00.000Z'
+    });
+    assert.deepEqual(observed.find(match => match.id === newMatch).duplicateHistory, {
+      status: 'new', firstFoundAt: '2026-01-03T10:00:00.000Z'
+    });
+
+    const knownRow = ['SYN-EXP-2', new Date('2026-01-02T00:00:00Z')];
+    const newRow = ['SYN-EXP-3', new Date('2026-01-03T00:00:00Z')];
+    for (const [body, expected] of [
+      [{ stage: 'internal', historyFilter: 'known' }, [knownRow]],
+      [{ stage: 'internal', historyFilter: 'new' }, [newRow]],
+      [{ stage: 'internal', historyFilter: 'all' }, [knownRow, newRow]],
+      [{}, [knownRow, newRow]]
+    ]) {
+      const response = await call(endpoint, 'user_analyst', body);
+      assert.equal(response.status, 200);
+      assert.match(response.headers.get('content-type'), /spreadsheetml/);
+      const book = new ExcelJS.Workbook();
+      await book.xlsx.load(Buffer.from(await response.arrayBuffer()));
+      const sheet = book.getWorksheet('Сравнения');
+      assert.equal(sheet.getCell('E1').value, 'Дата первого обнаружения');
+      assert.equal(sheet.getCell('E2').value, null);
+      const pairs = [];
+      sheet.eachRow(row => {
+        if (row.getCell(1).value !== 'Совпавший профиль') return;
+        assert.equal(row.getCell(4).value, '15');
+        assert.equal(row.getCell(5).numFmt, 'dd.mm.yyyy');
+        pairs.push([row.getCell(2).value, row.getCell(5).value]);
+      });
+      assert.deepEqual(pairs.sort(([left], [right]) => left.localeCompare(right)), expected);
+    }
+    assert.equal((await call(endpoint, 'user_analyst', { stage: 'master' })).status, 400);
+    assert.equal((await call(endpoint, 'user_analyst', { stage: 'staff' })).status, 400);
+    assert.equal((await call(endpoint, 'user_analyst', { historyFilter: 'unknown' })).status, 400);
+    assert.equal((await call(endpoint, 'foreign', { stage: 'internal', historyFilter: 'known' })).status, 404);
+
+    await pool.query("UPDATE workspace_search_runs SET duplicate_pair_keys=NULL, duplicate_history_complete=false WHERE id=$1", [firstSearch.id]);
+    const response = await call(endpoint, 'user_analyst', { stage: 'internal', historyFilter: 'all' });
+    assert.equal(response.status, 200);
+    const book = new ExcelJS.Workbook();
+    await book.xlsx.load(Buffer.from(await response.arrayBuffer()));
+    const sheet = book.getWorksheet('Сравнения');
+    for (let row = 3; row <= sheet.rowCount; row += 1) assert.equal(sheet.getCell(row, 5).value, null);
+    assert.equal((await call(endpoint, 'user_analyst', { stage: 'internal', historyFilter: 'new' })).status, 400);
+  });
+  await t.test('Прежние настройки staff сохраняются, доходят до поиска и совпадают с прямым main-анализом', async () => {
+    const { WorkspaceApprovalService } = require('../src/services/workspace/workspaceApprovalService');
+    const { staffSearchOptions } = require('../src/utils/staffSearchOptions');
+    const service = new WorkspaceApprovalService(pool), actor = await User.findById(users.user_analyst.id);
+    for (const staffOptions of [{ locusWeights: { SE33: '2' } }, { matchCoefficients: { penalty: -101 } }, { matchCoefficients: { invalid: 1 } }, { useV5Algorithm: 'false' }]) {
+      assert.equal((await call('/api/workspace/search-settings', 'user_analyst', { parameters: { staffOptions } }, 'PATCH')).status, 400);
+    }
+    const staffOptions = staffSearchOptions({ useV4Algorithm: true, useV5Algorithm: false, threshold: 0.5, locusWeights: {}, matchCoefficients: { fullMatch: 1.3, partialMatch: 0.3, penalty: -1.5 }, ignoredLoci: ['TH01'] });
+    const saved = await call('/api/workspace/search-settings', 'user_analyst', { parameters: { minMatches: 14, ignoredLoci: ['FGA'], staffOptions } }, 'PATCH');
+    assert.equal(saved.status, 200); assert.deepEqual((await saved.json()).parameters.staffOptions, staffOptions);
+    const response = await call('/api/workspace/full-search', 'user_analyst', { ids: [profile], parameters: {} });
+    assert.equal(response.status, 200); const run = await response.json();
+    assert.deepEqual(run.parameters.staffOptions, staffOptions);
+    const current = await service.list(actor); assert.deepEqual(current.workspace.analysis_parameters.staffOptions, staffOptions);
+    assert.equal(current.profiles.find(p => p.id === profile).searchState, 'CHECKED');
+    const source = (await pool.query('SELECT * FROM dna_profiles WHERE id=$1', [profile])).rows[0];
+    const staff = (await pool.query('SELECT * FROM staff_profiles WHERE organization_id=$1 AND is_active=true ORDER BY full_name,id', [org])).rows;
+    const analyzer = new (require('../src/services/contamination/staffContaminationAnalyzer'))(null, { quiet: true });
+    const expected = await analyzer.detectStaffContamination(source, staff, staffOptions);
+    const actual = run.staff[0].matches.map(({ registrationNumber, staffYear, ...match }) => match);
+    assert.deepEqual(actual, expected); assert(actual.length > 0);
+    assert(actual[0].detailedMatches.every(detail => detail.matchCoeff === 1.3));
+    assert(actual[0].detailedMatches.some(detail => detail.locus === 'FGA'));
+    assert(!actual[0].detailedMatches.some(detail => detail.locus === 'TH01'));
+    await service.configureSearch(actor, { staffOptions: { ...staffOptions, threshold: 100 } });
+    assert.equal((await service.list(actor)).profiles.find(p => p.id === profile).searchState, 'STALE');
+    const stored = await service.search(actor, run.id); assert.deepEqual(stored.parameters.staffOptions, staffOptions);
+    assert.equal(stored.outdated, false);
+    await pool.query("UPDATE workspace_search_runs SET algorithm_version='SYN-old-criteria' WHERE id=$1", [run.id]);
+    const oldResponse = await call('/api/workspace/searches/' + run.id, 'user_analyst');
+    assert.equal(oldResponse.status, 200); assert.equal((await oldResponse.json()).outdated, true);
+    const oldExport = await call('/api/workspace/searches/' + run.id + '/staff-contaminations-xlsx', 'user_analyst', {});
+    assert.equal(oldExport.status, 409); assert.equal((await oldExport.json()).code, 'SEARCH_CRITERIA_CHANGED');
+    const oldDuplicates = await call('/api/workspace/searches/' + run.id + '/duplicates-xlsx', 'user_analyst', {});
+    assert.equal(oldDuplicates.status, 409); assert.equal((await oldDuplicates.json()).code, 'SEARCH_CRITERIA_CHANGED');
+    assert.equal((await call('/api/workspace/searches/' + run.id + '/staff-contaminations-xlsx', 'foreign', {})).status, 404);
+    await pool.query('UPDATE workspace_search_runs SET algorithm_version=$1 WHERE id=$2', [require('../src/services/workspace/workspaceSearchService').ALGORITHM_VERSION, run.id]);
+    // The legacy task route falls back to threshold 5.5 when zero was saved.
+    const zero = await service.fullSearch(actor, [profile], { staffOptions: { threshold: 0, useV5Algorithm: false, useV4Algorithm: true } });
+    assert(zero.staff.every(group => group.matches.every(match => match.finalScore >= 5.5)));
+    await service.configureSearch(actor, { minMatches: 15, ignoredLoci: [], staffOptions: {} });
+  });
+  await t.test('Персональное право через admin API, заявка аналитика, чужое решение и немедленный отзыв', async()=>{
+    const created=await call('/api/auth/register-with-department','admin',{
+      username:'SYN_Reviewer_'+randomUUID().slice(0,8),display_name:'Тестовый У. У.',password:'Synthetic_2026!',
+      role:'user_analyst',organization_id:org,department_ids:[],can_approve_master:false
+    });
+    assert.equal(created.status,201);
+    const newUser=(await created.json()).data.user;
+    assert.equal(newUser.can_approve_master,false);
+    assert.equal((await call('/api/workspace/approvals','admin')).status,403);
+    assert.equal((await call('/api/users/'+newUser.id,'department_head',{can_approve_master:true},'PUT')).status,403);
+    assert.equal((await call('/api/users/'+newUser.id,'foreign',{can_approve_master:true},'PUT')).status,403);
+    assert.equal((await call('/api/users/'+newUser.id,'admin',{can_approve_master:'true'},'PUT')).status,400);
+    const granted=await call('/api/users/'+newUser.id,'admin',{can_approve_master:true},'PUT');
+    assert.equal(granted.status,200);
+    assert.equal((await granted.json()).data.user.can_approve_master,true);
+    const real=await User.findById(newUser.id),token=auth.generateToken(real);
+    await auth.createSession(newUser.id,token,'127.0.0.1','SYN approval API');users.reviewer={...real,token};
+    const comment = 'Учебный комментарий ЧС';
+    const sourceProfiles = [1, 2, 3].map(n => ({
+      objectNumber: 'SYN-APP-API-' + n,
+      year: 2026,
+      expertiseType: 'chs',
+      assignedNumber: '00005' + n,
+      comment,
+      strData: data
+    }));
+    const f = new FormData();
+    f.append('files', new Blob([createImportWorkbook({
+      profiles: sourceProfiles,
+      loci: Object.keys(data),
+      sourceFormat: 'DNA_IMPORT_V2'
+    })]), 'SYN.xlsx');
+    const draft=await (await call('/api/workspace/import-drafts','user_analyst',f)).json();
+    const imported=await call('/api/workspace/import-drafts/'+draft.id+'/commit','user_analyst',{revision:draft.revision,idempotencyKey:randomUUID()});
+    assert.equal(imported.status,200);const loaded=await imported.json();
+    const search=await call('/api/workspace/full-search','user_analyst',{ids:loaded.ids,parameters:{}});
+    assert.equal(search.status,200);const run=await search.json();
+    assert.equal((await call('/api/workspace/publish','admin',{ids:loaded.ids,searchRunId:run.id})).status,403);
+    const ids=loaded.ids.slice(0,2), preview=await call('/api/workspace/approval-preview','user_analyst',{ids});
+    assert.equal(preview.status,200);assert.equal((await preview.json()).count,2);
+    const submitted=await call('/api/workspace/approvals','user_analyst',{ids,searchRunId:run.id,idempotencyKey:randomUUID()});
+    assert.equal(submitted.status,200);const request=await submitted.json();
+    assert.equal((await call('/api/workspace/approvals/'+request.id,'foreign')).status,404);
+    assert.equal((await call('/api/workspace/approvals/'+request.id,'department_head')).status,403);
+    const list=await call('/api/workspace/approvals','reviewer');assert.equal(list.status,200);
+    assert((await list.json()).requests.some(r=>r.id===request.id&&r.profile_count===2));
+    const details=await (await call('/api/workspace/approvals/'+request.id,'reviewer')).json();
+    assert.equal(details.profiles.length,2);assert(details.analysisCompletedAt);assert.equal(details.requiresSearch,false);
+    assert.equal((await call('/api/users/'+newUser.id,'admin',{can_approve_master:false},'PUT')).status,200);
+    assert.equal((await call('/api/workspace/approvals/'+request.id+'/decision','reviewer',{decision:'approve',reviewToken:details.reviewToken})).status,403);
+    await call('/api/users/'+newUser.id,'admin',{can_approve_master:true},'PUT');
+    assert.equal((await call('/api/workspace/approvals/'+request.id+'/decision','reviewer',{decision:'approve',reviewToken:details.reviewToken})).status,200);
+    const stored = (await pool.query(
+      'SELECT master_array_id, internal_number, sample_name, comment FROM master_array_profiles WHERE source_workspace_profile_id=ANY($1::uuid[]) ORDER BY internal_number',
+      [loaded.ids]
+    )).rows;
+    const expectedFields = sourceProfiles.slice(0, 2).map(p => [p.objectNumber, p.assignedNumber, p.comment]);
+    assert.deepEqual(stored.map(p => [p.internal_number, p.sample_name, p.comment]), expectedFields);
+    const masterId = stored[0].master_array_id;
+    const optionsPath = '/api/master-arrays/export/options';
+    const options = await call(optionsPath, 'admin');
+    assert.equal(options.status, 200);
+    assert((await options.json()).arrays.some(array => array.id === masterId && array.department_id === null && array.active_profiles >= 2));
+    assert(!(await (await call(optionsPath, 'foreign')).json()).arrays.some(array => array.id === masterId));
+    const path = '/api/master-arrays/' + masterId + '/export/';
+    assert.equal((await call(path + 'preview', 'foreign', {})).status, 403);
+    assert.equal((await call(path + 'xlsx', 'reviewer', {})).status, 403);
+    const filters = { objectQuery: 'SYN-APP-API-' };
+    const checked = await call(path + 'preview', 'admin', { filters });
+    assert.equal(checked.status, 200);
+    const report = await checked.json();
+    assert.equal(report.exportable, 2);
+    assert.equal(report.needsReview, 0);
+    const response = await call(path + 'xlsx', 'admin', { filters, options: { previewFingerprint: report.fingerprint } });
+    assert.equal(response.status, 200);
+    const buffer = Buffer.from(await response.arrayBuffer());
+    const XLSX = require('xlsx');
+    const sheet = XLSX.read(buffer).Sheets['Импорт'];
+    const exportFields = XLSX.utils.sheet_to_json(sheet).map(row => [row['Объект'], row['Ростовский номер'], row['Комментарий']]).sort();
+    assert.deepEqual(exportFields, expectedFields);
+    const { parseFiles } = require('../src/services/workspace/importSourceService');
+    const roundTrip = parseFiles([{ originalname: 'SYN-master.xlsx', buffer }]).rows;
+    assert(roundTrip.every(row => row.expertiseType === 'chs' && row.sourceIssues.length === 0));
+    assert.deepEqual(roundTrip.map(row => [row.objectNumber, row.assignedNumber, row.comment]).sort(), expectedFields);
+    const reimport = new FormData();
+    reimport.append('files', new Blob([buffer]), 'SYN-master.xlsx');
+    const newDraft = await call('/api/workspace/import-drafts', 'reviewer', reimport);
+    assert.equal(newDraft.status, 200);
+    const { id: draftId, revision, rows } = await newDraft.json();
+    assert.deepEqual(rows.map(row => [row.objectNumber, row.assignedNumber, row.comment]).sort(), expectedFields);
+    const importedAgain = await call('/api/workspace/import-drafts/' + draftId + '/commit', 'reviewer', { revision, idempotencyKey: randomUUID() });
+    assert.equal(importedAgain.status, 200);
+    assert.equal((await importedAgain.json()).ids.length, 2);
+    const own=await (await call('/api/workspace','user_analyst')).json();assert.equal(own.profiles.filter(p=>ids.includes(p.id)&&p.state==='PUBLISHED').length,2);
+    const me=await call('/api/users/me/profile','user_analyst',{can_approve_master:true},'PUT');
+    assert([200,400].includes(me.status));assert.equal((await User.findById(users.user_analyst.id)).can_approve_master,false);
+  });
+
+  await t.test('Администратор задаёт поисковые настройки пользователя для ручного и ночного поиска', async () => {
+    const actor = users.user_analyst;
+    const path = '/api/workspace/users/' + actor.id + '/search-settings';
+    assert.equal((await call(path, 'user_analyst')).status, 403);
+    assert.equal((await call(path, 'department_head', { parameters: { minMatches: 18 } }, 'PATCH')).status, 403);
+    assert.equal((await call(path, 'foreign')).status, 404);
+    assert.equal((await call(path, 'foreign', { parameters: { minMatches: 18 } }, 'PATCH')).status, 404);
+    const initial = await call(path, 'admin');
+    assert.equal(initial.status, 200);
+    assert.equal(typeof (await initial.json()).parameters.minMatches, 'number');
+    assert.equal((await call(path, 'admin', { parameters: { minMatches: 0 } }, 'PATCH')).status, 400);
+    const changes = { minMatches: 18, comparisonAlgorithm: 'standard', staffOptions: { threshold: 10, minLociMatch: 9, useV4Algorithm: true, useV5Algorithm: false } };
+    const updated = await call(path, 'admin', { parameters: changes }, 'PATCH');
+    assert.equal(updated.status, 200);
+    const saved = (await updated.json()).parameters;
+    assert.equal(saved.minMatches, 18);
+    assert.equal(saved.staffOptions.threshold, 10);
+    assert.equal(saved.staffOptions.useV5Algorithm, false);
+    const { workspace } = await (await call('/api/workspace', 'user_analyst')).json();
+    assert.deepEqual(workspace.analysis_parameters, saved);
+    const ordinaryEdit = await call('/api/workspace/search-settings', 'user_analyst', {
+      useStaffFallback: true,
+      parameters: { comparisonAlgorithm: 'standard', staffOptions: { threshold: 5.5 } }
+    }, 'PATCH');
+    assert.equal((await ordinaryEdit.json()).parameters.staffOptions.threshold, 10);
+    const response = await call('/api/workspace/full-search/stream', 'user_analyst', {
+      ids: [profile],
+      parameters: { staffOptions: { threshold: 5.5 } },
+      useStaffFallback: true
+    });
+    assert.equal(response.status, 200);
+    const frames = (await response.text()).trim().split('\n').map(line => JSON.parse(line));
+    const result = frames.find(frame => frame.type === 'result')?.result;
+    assert.deepEqual(result?.parameters, saved);
+    const { WorkspaceApprovalService } = require('../src/services/workspace/workspaceApprovalService');
+    const night = await new WorkspaceApprovalService(pool).fullSearch(actor, [profile], {}, undefined, undefined, { readSavedParameters: true });
+    assert.deepEqual(night.parameters, saved);
+  });
+
+  await t.test('Общий комментарий сохраняется у всех объектов, выгружается в XLSX и доступен в подсказках владельца', async () => {
+    const XLSX = require('xlsx');
+    const names = ['SYN-COMMENT-1', 'SYN-COMMENT-2', 'SYN-COMMENT-3'];
+    const comment = 'Учебная партия 100% готова';
+    const archive = createImportWorkbook({
+      profiles: names.map(objectNumber => ({ objectNumber, year: 2026, expertiseType: 'ug', strData: data })),
+      loci: Object.keys(data),
+      sourceFormat: 'DNA_IMPORT_V2'
+    });
+    const form = new FormData();
+    form.append('files', new Blob([archive]), 'SYN-comments.xlsx');
+    const created = await call('/api/workspace/import-drafts', 'user_analyst', form);
+    assert.equal(created.status, 200);
+    const draft = await created.json();
+    const draftPath = '/api/workspace/import-drafts/' + draft.id;
+    assert.equal(draft.rows.length, names.length);
+    const patched = await call(draftPath + '/rows', 'user_analyst', {
+      revision: draft.revision,
+      rows: draft.rows.map(({ draftRowId }) => ({ draftRowId, comment }))
+    }, 'PATCH');
+    assert.equal(patched.status, 200);
+    const { revision } = await patched.json();
+    const suggestionPath = '/api/workspace/comment-suggestions';
+    const lookup = who => call(suggestionPath, who, { prefix: 'учебная партия 100%' });
+    assert.deepEqual(await (await lookup('user_analyst')).json(), { comments: [] });
+
+    const committed = await call(draftPath + '/commit', 'user_analyst', { revision, idempotencyKey: randomUUID() });
+    assert.equal(committed.status, 200);
+    const { ids } = await committed.json();
+    assert.equal(ids.length, names.length);
+    const workspace = await (await call('/api/workspace', 'user_analyst')).json();
+    const imported = workspace.profiles.filter(row => ids.includes(row.id));
+    assert.deepEqual(imported.map(row => row.objectNumber).sort(), names);
+    assert(imported.every(row => row.comment === comment));
+    const xlsx = await call('/api/workspace/profiles/export', 'user_analyst', { ids });
+    assert.equal(xlsx.status, 200);
+    const book = XLSX.read(Buffer.from(await xlsx.arrayBuffer()), { type: 'buffer' });
+    const rows = XLSX.utils.sheet_to_json(book.Sheets['Импорт']);
+    assert.deepEqual(rows.map(row => [row['Объект'], row['Комментарий']]).sort(), names.map(name => [name, comment]));
+    assert.deepEqual(await (await lookup('user_analyst')).json(), { comments: [comment] });
+    for (const who of ['admin', 'foreign']) {
+      assert.deepEqual(await (await lookup(who)).json(), { comments: [] });
+    }
+    assert.equal((await lookup('viewer')).status, 403);
+    assert.equal((await call(suggestionPath, 'user_analyst', { prefix: '' })).status, 400);
+  });
+});

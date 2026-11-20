@@ -6,12 +6,9 @@
   justify-content: space-between;
   flex-wrap: wrap;
   gap: var(--space-4);
-  padding: var(--page-header-padding);
+  padding: 0;
   margin: 0 0 var(--space-6);
-  background: var(--surface-card);
-  border: 1px solid var(--border-default);
-  border-radius: var(--radius-lg);
-  box-shadow: var(--shadow-sm);
+  background: transparent;
   flex-shrink: 0;
 }
 
@@ -38,6 +35,12 @@
   font-size: var(--font-size-md);
   line-height: 1.5;
 }
+
+.ui-icon { display: inline-block; width: 20px; height: 20px; flex: 0 0 auto; vertical-align: middle; }
+.page-title > .ui-icon { width: 24px; height: 24px; color: var(--text-secondary); }
+.page-header h1 { margin: 0; }
+.page-header p:last-child { margin-bottom: 0; }
+.page-header + .page-header { margin-top: 0; }
 
 .header-actions {
   display: flex;
@@ -137,6 +140,7 @@
   }
 
   .header-actions {
+    gap: var(--space-2);
     width: 100%;
   }
 }

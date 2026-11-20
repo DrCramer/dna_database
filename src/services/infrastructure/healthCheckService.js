@@ -205,10 +205,16 @@ class HealthCheckService {
             const totalMem = memUsage.heapTotal;
             const usedMem = memUsage.heapUsed;
             const memoryUsagePercent = (usedMem / heapLimit) * 100;
+            const {readMemory, MiB} = require('./memoryBudget');
+            const memory = readMemory();
+            const pressure = memory.hostAvailable !== null && memory.hostAvailable < 512 * MiB || memory.containerAvailable !== null && memory.containerAvailable < 256 * MiB;
 
             return {
-                status: memoryUsagePercent > 90 ? 'degraded' : 'healthy',
+                status: memoryUsagePercent > 90 || pressure ? 'degraded' : 'healthy',
                 details: {
+                    rss: `${Math.round(memory.rss / MiB)}MB`,
+                    hostAvailableMiB: memory.hostAvailable === null ? null : Math.round(memory.hostAvailable / MiB),
+                    containerAvailableMiB: memory.containerAvailable === null ? null : Math.round(memory.containerAvailable / MiB),
                     heapUsed: `${Math.round(usedMem / 1024 / 1024)}MB`,
                     heapTotal: `${Math.round(totalMem / 1024 / 1024)}MB`,
                     heapLimit: `${Math.round(heapLimit / 1024 / 1024)}MB`,

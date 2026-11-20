@@ -1,5 +1,6 @@
 const { equalSets, isAlleleSubset, setIntersection } = require("../../utils/alleleComparison");
 const { informativeAlleles } = require("../../utils/alleleTokens");
+const { prepareLocusData } = require('../../utils/exactLocusComparison');
 const DUPLICATE_IGNORED_FIELDS = new Set(['sample_name', 'id', 'gender', 'internal_number', 'created_at', 'year', 'import_number']);
 /**
  * DNA Duplicate Detection Service v5.0
@@ -13,7 +14,10 @@ const DUPLICATE_IGNORED_FIELDS = new Set(['sample_name', 'id', 'gender', 'intern
 // Утилиты для работы с множествами
 const utils = {
   // Парсинг строки "14, 15.2" -> Set(["14", "15.2"])
-  parseAlleles: value => new Set(informativeAlleles(value)),
+  parseAlleles: value => {
+    const locus = prepareLocusData(value);
+    return new Set(locus.exactComparable ? locus.parts : []);
+  },
 
   eqSet: equalSets,
   isSubset: isAlleleSubset,
@@ -132,7 +136,7 @@ const isDuplicate = (result, thresholds = {}) => {
   } = thresholds;
 
   return (
-    result.totalScore >= minScore &&
+    result.comparedLociCount > 0 && result.totalScore >= minScore &&
     parseFloat(result.matchPercentage) >= minPercentage &&
     result.comparedLociCount >= minLoci
   );
@@ -155,6 +159,7 @@ const compareLocusSets = (setA, setB) => {
 };
 
 const compareLocusArrays = (locusA, locusB) => {
+  if (!prepareLocusData(locusA).exactComparable || !prepareLocusData(locusB).exactComparable) return { score: 0, status: 'no_call' };
   locusA = informativeAlleles(locusA); locusB = informativeAlleles(locusB);
   // Проверка на no call
   if (!locusA || locusA.length === 0 || !locusB || locusB.length === 0) {
@@ -194,6 +199,7 @@ const compareLocusObjects = (locusA, locusB) => {
     allelesB = [];
   }
 
+  if (!prepareLocusData(allelesA).exactComparable || !prepareLocusData(allelesB).exactComparable) return { score: 0, status: 'no_call' };
   allelesA = informativeAlleles(allelesA); allelesB = informativeAlleles(allelesB);
   // Проверка на no call
   if (allelesA.length === 0 || allelesB.length === 0) {
@@ -252,7 +258,13 @@ const calculateDuplicateSimilarityOptimized = (profileA, profileB, options = {})
     const locusB = profileB[locus];
 
     // Проверяем что оба локуса существуют и являются массивами
-    if (!locusA || !locusB || !Array.isArray(locusA) || !Array.isArray(locusB)) {
+    const comparable = options.prepared
+      ? options.prepared.a[locus]?.size > 0 && options.prepared.b[locus]?.size > 0
+      : prepareLocusData(locusA).exactComparable && prepareLocusData(locusB).exactComparable;
+    if (!locusA || !locusB || !Array.isArray(locusA) || !Array.isArray(locusB) || !comparable) {
+      if (options.includeDetails !== false && Array.isArray(locusA) && Array.isArray(locusB) && locusA.length && locusB.length && !comparable) {
+        details[locus] = { score: 0, weightedScore: 0, status: 'no_call', valA: locusA, valB: locusB, allelesA: locusA, allelesB: locusB };
+      }
       // РАННИЙ ВЫХОД: проверяем можем ли еще достичь порога
       const remainingLoci = maxPossibleLoci - processedLociCount;
       const maxPossibleScoreRemaining = maxPossibleScore + remainingLoci; // предполагаем вес 1.0
@@ -353,7 +365,7 @@ const isDuplicateOptimized = (result, thresholds = {}) => {
   } = thresholds;
 
   // Все три минимума из настроек обязательны, как в неоптимизированном пути.
-  return result.totalScore >= minScore && parseFloat(result.matchPercentage) >= minPercentage && result.comparedLociCount >= minLoci;
+  return result.comparedLociCount > 0 && result.totalScore >= minScore && parseFloat(result.matchPercentage) >= minPercentage && result.comparedLociCount >= minLoci;
 };
 
 // Кэш живёт только в пределах одного поиска/worker. Разбор аллелей — O(N·L),
@@ -368,7 +380,7 @@ function createDuplicateSimilarityComparator(options = {}) {
     const keys = Object.keys(profile);
     const schema = JSON.stringify(keys);
     if (!schemas.has(schema)) schemas.set(schema, { id: schemas.size, keys });
-    const sets = Object.fromEntries(keys.map(locus => [locus, new Set(informativeAlleles(profile[locus]))]));
+    const sets = Object.fromEntries(keys.map(locus => [locus, utils.parseAlleles(profile[locus])]));
     const prepared = { schema: schemas.get(schema).id, keys, sets };
     profiles.set(profile, prepared);
     return prepared;
