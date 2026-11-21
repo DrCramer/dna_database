@@ -10,6 +10,12 @@ async function executeConverterJob({files,options,panels,operation},converter=ne
     const objectPreview = converter.convertObject(files, settings, panels, objectPreviewKey);
     return { bytes: new TextEncoder().encode(JSON.stringify({ objectPreview })), mime: 'application/json', auditFiles: [] };
   }
+  if (operation === 'preview-objects') {
+    const { objectPreviewKeys, ...settings } = options;
+    const patch = converter.convertObjects(files, settings, panels, objectPreviewKeys);
+    const objectsPreview = packConverterPreview(patch, SPARSE_FORMAT);
+    return { bytes: new TextEncoder().encode(JSON.stringify({ objectsPreview })), mime: 'application/json', auditFiles: [] };
+  }
   const result=converter.convert(files,options,panels); // Presence/frequency checks are intentionally disabled.
   const legacy=legacyResult(result);
   result.legacyCanImport=legacy.canImport;result.legacyCanUpload=legacy.canImport&&legacy.profiles.every(p=>p.year!=null);

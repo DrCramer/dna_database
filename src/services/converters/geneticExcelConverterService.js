@@ -124,22 +124,31 @@ class GeneticExcelConverterService {
     this.normalizationCache.set(key,value);return value;
   }
   convertObject(files, options, panels, profileKey) {
-    if (typeof profileKey !== 'string' || !profileKey || profileKey.length > 256) {
-      throw new ConversionError('Некорректный ключ объекта.');
+    const { profiles: [profile], issues, conflicts, countEmptyProfiles } = this.convertObjects(files, options, panels, [profileKey]);
+    return { profile, issues, conflicts, countEmptyProfiles };
+  }
+
+  convertObjects(files, options, panels, profileKeys) {
+    if (!Array.isArray(profileKeys) || !profileKeys.length || profileKeys.length > 50000 ||
+        profileKeys.some(key => typeof key !== 'string' || !key || key.length > 256)) {
+      throw new ConversionError('Некорректный список объектов для пересчёта.');
     }
-    const result = this.convert(files, options, panels, null, profileKey);
-    if (result.profiles.length !== 1 || result.profiles[0].key !== profileKey) {
-      throw new ConversionError('Объект не найден в выбранных файлах.', 'CONVERTER_OBJECT_PREVIEW_UNAVAILABLE', 409);
+    const keys = new Set(profileKeys);
+    const result = this.convert(files, options, panels, null, keys);
+    if (result.profiles.length !== keys.size) {
+      throw new ConversionError('Часть объектов не найдена в выбранных файлах.', 'CONVERTER_OBJECT_PREVIEW_UNAVAILABLE', 409);
     }
     return {
-      profile: result.profiles[0],
-      issues: result.issues.filter(issue => issue.profileKey === profileKey),
+      profiles: result.profiles,
+      catalogLoci: result.catalogLoci,
+      issues: result.issues.filter(issue => keys.has(issue.profileKey)),
       conflicts: result.conflicts,
+      bulkDecisions: result.bulkDecisions,
       countEmptyProfiles: options.allowEmptyExcelProfiles === true
     };
   }
 
-  convert(files, options = {}, panels = [], referenceService = null, onlyProfileKey = null) {
+  convert(files, options = {}, panels = [], referenceService = null, onlyProfileKeys = null) {
     if (!Array.isArray(files) || !files.length || files.length > 100) throw new ConversionError('Выберите от 1 до 100 файлов Excel или GeneMapper TXT.');
     if (files.some(file => !Buffer.isBuffer(file?.buffer))) throw new ConversionError('Некорректные файлы.');
     if (files.reduce((sum, file) => sum + file.buffer.length, 0) > 50 * 1024 * 1024) throw new ConversionError('Общий размер файлов превышает 50 МиБ.');
@@ -170,7 +179,7 @@ class GeneticExcelConverterService {
       let workbook, detection, ngs, geneMapper, gene;
       try {
         ({ workbook, detection, ngs, geneMapper } = this.readSource(file.buffer, { ...settings, encoding: settings.encoding || options.txtEncoding }, file.originalname, checksum));
-        if (geneMapper && !onlyProfileKey) {
+        if (geneMapper && !onlyProfileKeys) {
           gene = adaptGeneMapper(geneMapper, settings, panels, options.usePanels !== false);
           workbook = gene.workbook;
           info.geneMapper = gene.preview;
@@ -178,7 +187,7 @@ class GeneticExcelConverterService {
         }
       }
       catch (error) { throw new ConversionError(`Не удалось прочитать файл ${file.originalname}: ${error.message}`); }
-      if (onlyProfileKey && (ngs || geneMapper || workbook.Custprops?.DNAProfileSourceFormat === IMPORT_V2)) {
+      if (onlyProfileKeys && (ngs || geneMapper || workbook.Custprops?.DNAProfileSourceFormat === IMPORT_V2)) {
         throw new ConversionError('Для этого формата нужна полная проверка.', 'CONVERTER_OBJECT_PREVIEW_UNAVAILABLE', 409);
       }
       info.sourceFormat = detection.format;
@@ -286,7 +295,7 @@ class GeneticExcelConverterService {
         const objectCell = sheet[XLSX.utils.encode_cell({ r: index, c: info.objectColumn })];
         const rowId = `${fileId}:${info.sheet}:${index + 1}`;
         if (options.rows?.[rowId]?.ignore === true) {
-          if (!onlyProfileKey) issue({ ...base, sourceSheet: info.sheet, sourceRow: index + 1, id: rowId, status: 'AUTO_FIXED', code: 'IGNORED_ROW', reason: 'Строка исключена пользователем.', userDecision: { ignore: true } });
+          if (!onlyProfileKeys) issue({ ...base, sourceSheet: info.sheet, sourceRow: index + 1, id: rowId, status: 'AUTO_FIXED', code: 'IGNORED_ROW', reason: 'Строка исключена пользователем.', userDecision: { ignore: true } });
           continue;
         }
         const objectId = `${rowId}:object`;
@@ -294,7 +303,7 @@ class GeneticExcelConverterService {
         const objectNumber = normalizeObjectName(options.objects?.[objectId] ?? rawObject);
         const geneRow = gene?.rowMetadata.get(index + 1);
         if (!objectNumber || objectNumber.length > 100) {
-          if (!onlyProfileKey) issue({ ...base, sourceSheet: info.sheet, sourceRow: index + 1, objectNumber,
+          if (!onlyProfileKeys) issue({ ...base, sourceSheet: info.sheet, sourceRow: index + 1, objectNumber,
             ...(geneRow ? { geneMapperSampleName: geneRow.sample.sampleName } : {}), id: objectId, code: 'INVALID_OBJECT', status: 'ERROR', reason: 'Укажите полный номер объекта длиной до 100 символов.' });
           continue;
         }
@@ -302,7 +311,7 @@ class GeneticExcelConverterService {
         const rowYear = validYear(years[0]) && years.length === 1 ? years[0] : year;
         const identity = rowYear == null ? `legacy:${geneticObjectKey(objectNumber)}` : geneticProfileKey(rowYear, objectNumber);
         const key = gene && options.mergeGeneMapperSources !== true ? `${fileId}:${rowYear ?? 'legacy'}:${objectNumber}` : identity;
-        if (onlyProfileKey && key !== onlyProfileKey) continue;
+        if (onlyProfileKeys && !onlyProfileKeys.has(key)) continue;
         const source = { ...base, sourceSheet: info.sheet, sourceRow: index + 1, objectNumber,
           ...(geneRow ? { geneMapperSampleName: geneRow.sample.sampleName } : ngs ? {} : { profileKey: key }) };
         if (years.length > 1 || years.some(value => !validYear(value))) {

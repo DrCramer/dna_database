@@ -5,7 +5,7 @@ const {executeConverterJob}=require('../src/services/converters/converterJob');
 const {ConverterUploadCache}=require('../src/services/converters/converterUploadCache');
 const {unpackConverterPreview,packConverterPreview}=require('../src/utils/converterPreviewTransport');
 const {updateConverterYear}=require('../src/utils/converterYearMetadata');
-const {applyConverterObjectPreview}=require('../src/utils/converterObjectPreview');
+const {applyConverterObjectPreview,applyConverterObjectsPreview}=require('../src/utils/converterObjectPreview');
 function fixture(){const b=X.utils.book_new();X.utils.book_append_sheet(b,X.utils.json_to_sheet([
   {'Sample Name':'SYN-1',TH01:'9.3',TPOX:'8,8',D21S11:'30,*'},
   {'Sample Name':'SYN-1',TH01:'7,9.3',TPOX:'8,8',D21S11:'30,*'},
@@ -124,6 +124,50 @@ test('Single-object preview recalculates all sources of the chosen year and leav
   assert.equal(updated.legacyCanUpload,false);
   assert.equal(updated.profiles[1],initial.profiles[1]);
   assert(updated.issues.some(item=>item.objectNumber==='SYN-OTHER'&&item.hard));
+});
+
+test('Bulk preview recalculates only affected objects and counts each selected cell', async () => {
+  const { applyConverterIssueDecision } = require('../src/utils/converterIssueGroups');
+  const { prepareConverterBulkUndo } = require('../src/utils/converterBulkUndo');
+  const { converterDecisionFeedback } = require('../src/utils/converterDecisionFeedback');
+  const book = X.utils.book_new();
+  X.utils.book_append_sheet(book, X.utils.aoa_to_sheet([
+    ['Объект','Год','TH01','D8S1179','FGA'],
+    ['SYN-A',2026,'11.12','12,13','21,24'],
+    ['SYN-B',2026,'11.12','12,13','21,24'],
+    ['SYN-A',2025,'11.12','12,13','21,24'],
+    ['SYN-A',2026,'11.12','12,13','21,24'],
+    ['SYN-OTHER',2026,'7,9.3','YF','21,24']
+  ]), 'Data');
+  const files = [{ originalname:'SYN.xlsx', buffer:X.write(book,{type:'buffer',bookType:'xlsx'}) }];
+  const converter = new GeneticExcelConverterService(), options = { allowEmptyExcelProfiles:true };
+  const preview = async settings => JSON.parse(Buffer.from((await executeConverterJob({files,options:settings,operation:'preview'},converter)).bytes));
+  const initial = await preview(options);
+  const members = initial.issues.filter(issue => issue.ruleCode === 'AMBIGUOUS_DOT' && issue.profileKey.startsWith('2026:'));
+  const targets = [...new Set(members.map(issue=>issue.profileKey))];
+  assert.equal(members.length,3);
+  assert.equal(targets.length,2);
+  const chosen = applyConverterIssueDecision(options,members,{action:'split_dot'});
+  const { options: edited, undo } = prepareConverterBulkUndo(options,chosen,members,'SYN-bulk');
+  const normalize = converter.normalize.bind(converter);
+  let processedCells = 0;
+  converter.normalize = (...args) => { processedCells++; return normalize(...args); };
+  const response = await executeConverterJob({files,options:{...edited,objectPreviewKeys:targets},operation:'preview-objects'},converter);
+  const patch = unpackConverterPreview(JSON.parse(Buffer.from(response.bytes)).objectsPreview);
+  assert.equal(processedCells,12);
+  assert.equal(patch.profiles.length,2);
+  assert.equal(patch.bulkDecisions[undo.operationId].matched,3);
+  assert.equal(converterDecisionFeedback(patch,undo).needsReview,false);
+  const updated = applyConverterObjectsPreview(initial,patch);
+  const { bulkDecisions, ...full } = await preview(edited);
+  assert.deepEqual(patch.bulkDecisions,bulkDecisions);
+  const sort = items => [...items].sort((a,b)=>a.id.localeCompare(b.id));
+  assert.deepEqual({...updated,issues:sort(updated.issues),conflicts:sort(updated.conflicts)},{...full,issues:sort(full.issues),conflicts:sort(full.conflicts)});
+  assert.equal(updated.profiles[2],initial.profiles[2]);
+  assert.equal(updated.profiles[3],initial.profiles[3]);
+  assert.equal(updated.legacyCanImport,false);
+  await assert.rejects(executeConverterJob({files,options:{...edited,objectPreviewKeys:[...targets,'2026:unknown']},operation:'preview-objects'},converter),
+    {code:'CONVERTER_OBJECT_PREVIEW_UNAVAILABLE'});
 });
 
 test('Worker reuses parsed data, yields the event loop, cancels and recovers without occurrence checks',async t=>{

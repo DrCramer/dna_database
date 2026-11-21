@@ -50,7 +50,7 @@ function respond(req, res, error) {
   logger.error('Ошибка конвертера Excel', { code: 'CONVERSION_FAILED', requestId: req.requestId, stage:req.converterStage||'scope',errorType:error.name, errorCode:/^[A-Z0-9_]{1,64}$/.test(error.code||'')?error.code:undefined,locations });
   res.status(500).json({ code: 'CONVERSION_FAILED', message: 'Не удалось обработать Excel-файлы.' });
 }
-for (const operation of ['preview', 'preview-object', 'export']) router.post(`/${operation}`, (req, res) => {
+for (const operation of ['preview', 'preview-object', 'preview-objects', 'export']) router.post(`/${operation}`, (req, res) => {
   if (activeRequests>=2) return res.status(429).set('Retry-After','5').json({code:'CONVERTER_BUSY',message:'Конвертер занят. Повторите через несколько секунд.'});
   if(!require('../services/infrastructure/memoryBudget').backgroundAllowed())return res.status(429).set('Retry-After','5').json({code:'CONVERTER_MEMORY_BUSY',message:'Недостаточно свободной памяти. Повторите после завершения других операций.'});
   if(Number(req.headers['content-length'])>53*1024*1024)return res.status(413).json({code:'FILES_TOO_LARGE',message:'Общий размер файлов превышает 50 МиБ.'});

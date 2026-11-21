@@ -1,31 +1,47 @@
-function replaceObjectEntries(entries, key, replacement) {
-  const index = entries.findIndex(entry => entry.profileKey === key);
-  if (index < 0) return replacement.length ? [...entries, ...replacement] : entries;
-  return [
-    ...entries.slice(0, index),
-    ...replacement,
-    ...entries.slice(index).filter(entry => entry.profileKey !== key)
-  ];
+function replaceObjectEntries(entries, profiles, replacement) {
+  const pending = new Map();
+  for (const entry of replacement) {
+    if (!pending.has(entry.profileKey)) pending.set(entry.profileKey, []);
+    pending.get(entry.profileKey).push(entry);
+  }
+  const next = [];
+  for (const entry of entries) {
+    if (!profiles.has(entry.profileKey)) {
+      next.push(entry);
+      continue;
+    }
+    for (const updated of pending.get(entry.profileKey) || []) next.push(updated);
+    pending.delete(entry.profileKey);
+  }
+  for (const remaining of pending.values()) {
+    for (const entry of remaining) next.push(entry);
+  }
+  return next;
 }
 
-function applyConverterObjectPreview(result, patch) {
-  const { profile } = patch;
-  const index = result.profiles.findIndex(previous => previous.key === profile.key);
-  const previous = result.profiles[index];
-  if (!previous?.conversionCounts || !profile.conversionCounts) throw new Error('Профиль изменился. Повторите полную проверку файлов.');
+function applyConverterObjectsPreview(result, patch) {
+  const replacements = new Map(patch.profiles.map(profile => [profile.key, profile]));
+  const counts = { unchanged: result.summary.unchanged, autoFixed: result.summary.autoFixed, emptyExcelProfiles: result.summary.emptyExcelProfiles };
+  let matched = 0;
+  const profiles = result.profiles.map(previous => {
+    const updated = replacements.get(previous.key);
+    if (!updated) return previous;
+    if (!previous.conversionCounts || !updated.conversionCounts) throw new Error('Профиль изменился. Повторите полную проверку файлов.');
+    matched++;
+    counts.unchanged += updated.conversionCounts.unchanged - previous.conversionCounts.unchanged;
+    counts.autoFixed += updated.conversionCounts.autoFixed - previous.conversionCounts.autoFixed;
+    if (patch.countEmptyProfiles) counts.emptyExcelProfiles += Number(!updated.populatedLoci.length) - Number(!previous.populatedLoci.length);
+    return updated;
+  });
+  if (!matched || matched !== patch.profiles.length) throw new Error('Список объектов изменился. Повторите полную проверку файлов.');
 
-  const profiles = result.profiles.slice();
-  profiles[index] = profile;
-  const issues = replaceObjectEntries(result.issues, profile.key, patch.issues);
-  const conflicts = replaceObjectEntries(result.conflicts, profile.key, patch.conflicts);
+  const issues = replaceObjectEntries(result.issues, replacements, patch.issues);
+  const conflicts = replaceObjectEntries(result.conflicts, replacements, patch.conflicts);
   const canImport = !issues.some(issue => issue.hard);
   const canUpload = canImport && profiles.every(item => item.year != null);
   const summary = {
     ...result.summary,
-    unchanged: result.summary.unchanged - previous.conversionCounts.unchanged + profile.conversionCounts.unchanged,
-    autoFixed: result.summary.autoFixed - previous.conversionCounts.autoFixed + profile.conversionCounts.autoFixed,
-    emptyExcelProfiles: result.summary.emptyExcelProfiles +
-      (patch.countEmptyProfiles ? Number(!profile.populatedLoci.length) - Number(!previous.populatedLoci.length) : 0),
+    ...counts,
     warnings: issues.filter(issue => issue.status === 'WARNING').length,
     unresolved: issues.filter(issue => issue.hard && issue.status !== 'CONFLICT').length,
     conflicts: conflicts.filter(issue => issue.hard).length
@@ -38,4 +54,8 @@ function applyConverterObjectPreview(result, patch) {
   return next;
 }
 
-module.exports = { applyConverterObjectPreview };
+function applyConverterObjectPreview(result, { profile, ...patch }) {
+  return applyConverterObjectsPreview(result, { ...patch, profiles: [profile] });
+}
+
+module.exports = { applyConverterObjectPreview, applyConverterObjectsPreview };
