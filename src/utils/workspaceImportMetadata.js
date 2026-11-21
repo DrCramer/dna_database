@@ -1,4 +1,5 @@
 const { extractExpertiseNumber, geneticObjectKey } = require('./profileImportFormat');
+const { normalizeAmelogeninPair } = require('./alleleTokens');
 
 const key = value => String(value ?? '').trim().toLowerCase().replace(/\s+/g, ' ');
 const COMMENT_HEADERS = Object.freeze(['комментарий', 'комментарии', 'комментарий (подробное описание объекта)']);
@@ -18,6 +19,18 @@ function restoreKnownImportMetadata(row) {
   });
   return sourceIssues.length === (row.sourceIssues || []).length ? row : { ...row, sourceIssues };
 }
+function restoreImportAmelogenin(row) {
+  if (Object.hasOwn(row.provenance?.manualGenotypes || {}, 'AMEL')) return row;
+  const original = row.strData?.AMEL;
+  const alleles = normalizeAmelogeninPair(original);
+  if (!alleles || (Array.isArray(original) && alleles.length === original.length && alleles.every((value, index) => value === original[index]))) return row;
+  return {
+    ...row,
+    strData: { ...row.strData, AMEL: alleles },
+    sourceIssues: (row.sourceIssues || []).filter(issue => issue.locus !== 'AMEL' ||
+      !['ALLELE_REVIEW', 'UNKNOWN_ALLELE'].includes(issue.code))
+  };
+}
 function groupRowsWithoutYearByExpertise(rows) {
   const groups = new Map();
   for (const row of rows) {
@@ -32,4 +45,4 @@ function groupRowsWithoutYearByExpertise(rows) {
   return groups;
 }
 
-module.exports = { COMMENT_HEADERS, isRegistryMetadataHeader, restoreKnownImportMetadata, groupRowsWithoutYearByExpertise };
+module.exports = { COMMENT_HEADERS, isRegistryMetadataHeader, restoreKnownImportMetadata, restoreImportAmelogenin, groupRowsWithoutYearByExpertise };

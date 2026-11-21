@@ -22,8 +22,8 @@ const hard = status => ['ERROR', 'NEEDS_REVIEW', 'CONFLICT'].includes(status);
 const sameAlleles = (a, b) => JSON.stringify([...a].sort()) === JSON.stringify([...b].sort());
 const validYear = year => Number.isInteger(year) && year >= 1900 && year <= 2100;
 
-// Transfer workbooks already carry individual objects. Preserve their records
-// instead of normalizing alleles or merging profiles with the same number.
+// Transfer workbooks already carry individual objects, including distinct
+// profiles that may share an object number across years or expertise types.
 function appendTransferWorkbook(result, workbook, file, checksum, info, defaultYear, issue) {
   const rows = parseProfileTable(file, checksum, workbook);
   info.sheet = rows[0]?.sourceLocation.sheet || workbook.SheetNames[0];
@@ -58,6 +58,11 @@ function appendTransferWorkbook(result, workbook, file, checksum, info, defaultY
   }
   result.catalogLoci = [...new Set([...result.catalogLoci, ...info.sourceLoci])];
   return rows.length;
+}
+
+// Plain Excel profiles can be metadata-only in a personal workspace.
+function isProfileTable(sources) {
+  return sources.every(source => !source.sourceFormat);
 }
 
 class GeneticExcelConverterService {
@@ -113,6 +118,7 @@ class GeneticExcelConverterService {
     try { matchRule = createConverterRuleMatcher(options.rules || []); } catch { throw new ConversionError('Некорректные массовые правила.'); }
     if (options.objects && Object.values(options.objects).some(value => typeof value !== 'string')) throw new ConversionError('Номер объекта должен быть строкой.');
     if (options.usePanels === false) panels = [];
+    const allowEmptyExcelProfiles = options.allowEmptyExcelProfiles === true;
     const result = { version: 1, importFormat: options.importFormat || 'genetic', files: [], profiles: [], catalogLoci: this.detector.getAllSupportedLoci(), sourceLoci: [], detectedPanels: [], issues: [], conflicts: [], summary: {} };
     const objects = new Map();
     let originalRows = 0, unchanged = 0, fixed = 0;
@@ -278,7 +284,8 @@ class GeneticExcelConverterService {
           const locus = column.locus;
           const cellId = `${fileId}:${info.sheet}:${index + 1}:${column.index}`;
           const rawValue = String(row[column.index] ?? '');
-          const actualCell = sheet[XLSX.utils.encode_cell({ r: index, c: column.index })];
+          const sourceCell = XLSX.utils.encode_cell({ r: index, c: column.index });
+          const actualCell = sheet[sourceCell];
           const original = this.normalize(rawValue, locus);
           const originalCode = actualCell?.f && actualCell.v == null ? 'FORMULA_WITHOUT_RESULT' : original.events.find(event => event.hard)?.code || original.events[0]?.code || 'OK';
           const rule = options.rules?.length ? matchRule({ fileId, code: originalCode, rawValue, locusType: this.detector.detectLocusType(locus), locus, sheetName: info.sheet, column: column.index, row: index + 1 }) : undefined;
@@ -308,7 +315,12 @@ class GeneticExcelConverterService {
             if (cell.events.some(event => event.code === 'SPECIAL_ALLELE')) stats.specialWarnings++;
           }
           if (cell.status === 'OK') { unchanged++; if (ngs || geneRow?.records[column.index - 1] || cell.reference?.hasData) object.audit.push(cell); }
-          else { issue(cell); object.audit.push(cell); if (cell.events.some(event => event.status === 'AUTO_FIXED')) fixed++; }
+          else {
+            if (!gene && !ngs) cell.sourceCell = sourceCell;
+            issue(cell);
+            object.audit.push(cell);
+            if (cell.events.some(event => event.status === 'AUTO_FIXED')) fixed++;
+          }
           if (!object.variants.has(locus)) object.variants.set(locus, []);
           object.variants.get(locus).push(cell);
         }
@@ -350,7 +362,9 @@ class GeneticExcelConverterService {
         strData[locus] = selected;
       }
       const populatedLoci = result.catalogLoci.filter(locus => strData[locus].length);
-      if (!populatedLoci.length) issue({ id: `empty:${key}`, profileKey: key, objectNumber: object.objectNumber, status: 'ERROR', code: 'EMPTY_PROFILE', hard: true, reason: 'В объекте нет ни одного результата генотипирования.' });
+      if (!populatedLoci.length && !(allowEmptyExcelProfiles && isProfileTable(object.sources))) {
+        issue({ id: `empty:${key}`, profileKey: key, objectNumber: object.objectNumber, status: 'ERROR', code: 'EMPTY_PROFILE', reason: 'В объекте нет ни одного результата генотипирования.' });
+      }
       if (object.panelIds.size > 1) { const entry = { id: `panels:${key}`, objectNumber: object.objectNumber, locus: '', sourceFile: '', sourceSheet: '', sourceRow: null, rawValue: '', normalizedValue: '', status: 'WARNING', code: 'MIXED_PANELS', hard: false, reason: 'Источники относятся к разным панелям; панель не назначена. При необходимости выберите её в обычной загрузке.' }; issue(entry); object.audit.push(entry); }
       const sourceLoci = [...object.sourceLoci];
       for (const entry of object.audit.filter(entry => entry.ngs)) entry.ngs = { ...entry.ngs, selectedGenotype: entry.normalizedValue || '', finalGenotype: (strData[entry.locus] || []).join(',') };
@@ -365,6 +379,7 @@ class GeneticExcelConverterService {
     result.detectedPanels = result.files.filter(file => file.detectedPanelId).map(file => ({ fileId: file.id, panelId: file.detectedPanelId }));
     if (!result.profiles.length && !result.issues.some(item => item.hard)) issue({ id: 'empty', status: 'ERROR', code: 'EMPTY_FILE', hard: true, reason: 'Не найдено ни одного объекта.' });
     result.summary = { files: files.length, sheets: result.files.filter(file => file.sheet).length, originalRows, uniqueObjects: result.profiles.length, sourceLoci: result.sourceLoci.length, unchanged, autoFixed: fixed,
+      emptyExcelProfiles: allowEmptyExcelProfiles ? result.profiles.filter(profile => !profile.populatedLoci.length && isProfileTable(profile.sources)).length : 0,
       warnings: result.issues.filter(item => item.status === 'WARNING').length, unresolved: result.issues.filter(item => item.hard && item.status !== 'CONFLICT').length, conflicts: result.conflicts.filter(item => item.hard).length };
     result.canImport = result.profiles.length > 0 && !result.issues.some(item => item.hard);
     result.canUpload = result.canImport && result.profiles.every(profile => profile.year != null);

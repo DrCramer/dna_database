@@ -7,7 +7,7 @@ const { GenotypePanel } = require("../../models/GenotypePanel");
 const User = require("../../models/User");
 const { assertProfileUploadAllowed } = require("../security/profileUploadPolicy");
 const { readConversionMetadata, CONVERSION_META_SHEET } = require("../../utils/geneticConversionMetadata");
-const { informativeAlleles, amelogeninTokens, normalizeSpecialAllele, normalizeSrySignal, isSpecialAllele, isMissingAllele } = require("../../utils/alleleTokens");
+const { informativeAlleles, amelogeninTokens, normalizeSpecialAllele, normalizeSrySignal, isSpecialAllele, isMissingGenotypeCell } = require("../../utils/alleleTokens");
 const { resolveProfileImportFormat, normalizeObjectName, extractExpertiseNumber, geneticObjectKey, geneticProfileKey, getGeneticHeaders, validateGeneticHeaders } = require("../../utils/profileImportFormat");
 const { isAssignedNumberHeader } = require('../../utils/emergencyAssignedNumber');
 
@@ -1664,7 +1664,7 @@ class ExcelService {
     // Примеры: "12 , 13" → "12,13", "X , Y" → "X,Y", "17 ?" → "17?"
     let valueStr = cellValue.toString().replace(/\s+/g, '').trim();
 
-    if (isMissingAllele(valueStr)) return [];
+    if (isMissingGenotypeCell(valueStr)) return [];
     if (options.preserveExportAlleles) {
       // Импорт собственной выгрузки сохраняет запись и кратность исходных токенов,
       // в том числе ** и составные AMEL. Правила допустимости локуса не обходятся.
@@ -1695,11 +1695,6 @@ class ExcelService {
       return alleles;
     }
     
-    // Удаляем дефис "-" (пустое значение)
-    if (valueStr === '-') {
-      return [];
-    }
-    
     // Handle different allele formats based on locus type:
     // STR: "12,13" or "12/13" or "12-13" or "12" (homozygous)
     // SNP: "A,T" or "A/T" or "A" (homozygous)
@@ -1724,10 +1719,7 @@ class ExcelService {
       }
     }
     
-    // Удаляем дефис из cleanValue (может быть в составных значениях)
-    if (cleanValue === '-') {
-      return [];
-    }
+    if (isMissingGenotypeCell(cleanValue)) return [];
     
     if (options.genetic && isSpecialAllele(cleanValue)) {
       alleles = [normalizeSpecialAllele(cleanValue)];

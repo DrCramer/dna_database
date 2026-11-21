@@ -31,10 +31,15 @@ const err = (message, status = 400, code = 'WORKSPACE_INVALID', details) => Obje
   details
 });
 const { getAssignedNumber } = require('../../utils/emergencyAssignedNumber');
-const { restoreKnownImportMetadata } = require('../../utils/workspaceImportMetadata');
+const { normalizeAmelogeninPair } = require('../../utils/alleleTokens');
+const { restoreKnownImportMetadata, restoreImportAmelogenin } = require('../../utils/workspaceImportMetadata');
 const {
   WORKSPACE_WRITE_ROLES: WRITE_ROLES
 } = require('../../utils/objectTypes');
+function normalizeEditedAmelogenin(patch) {
+  const alleles = normalizeAmelogeninPair(patch.strData?.AMEL);
+  return alleles ? { ...patch, strData: { ...patch.strData, AMEL: alleles } } : patch;
+}
 function requireUser(user, write = false) {
   if (!user?.id || !user.organization_id || user.is_active === false || ![...WRITE_ROLES, 'viewer'].includes(user.role)) throw err('Нет организационного контекста.', 403);
   if (write && !WRITE_ROLES.includes(user.role)) throw err('Нет права изменения личного массива.', 403);
@@ -164,7 +169,7 @@ class WorkspaceService {
       const [p] = await this.ownProfiles(c, user, w, [id], true),
         row = {
           ...objectFromDB(p),
-          ...patch
+          ...normalizeEditedAmelogenin(patch)
         };
       if (row.expertiseType === 'staff') {
         if (Object.hasOwn(patch, 'objectNumber') && !Object.hasOwn(patch, 'registrationNumber')) row.registrationNumber = row.objectNumber || null;
@@ -232,7 +237,10 @@ class WorkspaceService {
     return {
       ...draft,
       ...payload,
-      rows: payload.rows.map(row => ({ ...restoreKnownImportMetadata(normalizeStoredImportFilename(row)), assignedNumber: getAssignedNumber(row) })),
+      rows: payload.rows.map(row => {
+        const normalizedRow = restoreKnownImportMetadata(normalizeStoredImportFilename(row));
+        return { ...restoreImportAmelogenin(normalizedRow), assignedNumber: getAssignedNumber(row) };
+      }),
       source_checksums: draft.source_checksums.map(source => source.filenameDecoded ? source : {
         ...source,
         filename: decodeUploadFilename(source.filename),
@@ -247,7 +255,8 @@ class WorkspaceService {
       if (d.committed_at) throw err('Черновик уже записан.', 409);
       if (d.revision !== revision) throw err('Черновик изменён в другой вкладке. Обновите данные.', 409);
       const map = new Map(d.rows.map(row => [row.draftRowId, row]));
-      for (const patch of patches) {
+      for (const input of patches) {
+        const patch = normalizeEditedAmelogenin(input);
         const row = map.get(patch.draftRowId);
         if (!row) throw err('Неизвестная строка черновика.');
         const allowed = ['draftRowId', 'included', 'objectNumber', 'year', 'expertiseType', 'fullName', 'registrationNumber', 'comment', 'strData'];

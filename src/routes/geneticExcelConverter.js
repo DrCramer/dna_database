@@ -67,7 +67,7 @@ for (const operation of ['preview', 'export']) router.post(`/${operation}`, (req
       const usePanels = !req.converterWorkspaceMode && options.usePanels !== false;
       const panels = usePanels && req.converterFormat === 'genetic' ? await GenotypePanel.list(req.converterScope) : [];
       req.converterStage='conversion';
-      const result=await converterWorker.run({files:(req.files||[]).map(f=>({originalname:f.originalname,buffer:f.buffer})),options:{...options,importFormat:req.converterFormat,usePanels},panels,operation},controller.signal);
+      const result=await converterWorker.run({files:(req.files||[]).map(f=>({originalname:f.originalname,buffer:f.buffer})),options:{...options,importFormat:req.converterFormat,usePanels,allowEmptyExcelProfiles:req.converterWorkspaceMode},panels,operation},controller.signal);
       if(controller.signal.aborted)return;
       if(result.auditFiles.length){req.converterStage='audit';await logGeneMapperConversion({userId:req.user.id,departmentId:req.converterScope.departmentId,organizationId:req.converterScope.organizationId,ipAddress:req.ip,userAgent:req.get('User-Agent'),details:{operation,files:result.auditFiles}});}
       res.set('Cache-Control','private, no-store').type(result.mime);

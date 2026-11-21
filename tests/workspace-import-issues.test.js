@@ -1,6 +1,6 @@
 const test = require('node:test'), assert = require('node:assert/strict'), XLSX = require('xlsx');
 const { parseFiles } = require('../src/services/workspace/importSourceService');
-const { restoreKnownImportMetadata } = require('../src/utils/workspaceImportMetadata');
+const { restoreKnownImportMetadata, restoreImportAmelogenin } = require('../src/utils/workspaceImportMetadata');
 const { collectWorkspaceImportIssues, getWorkspaceImportIssueContext, formatImportIssueLocation } = require('../src/utils/workspaceImportIssues');
 const { createImportWorkbook, ASSIGNED_HEADER } = require('../src/utils/importWorkbook');
 const { FORMAT, validateObject } = require('../src/utils/objectImportV2');
@@ -58,6 +58,55 @@ test('Excel сохраняет локус, исходное значение и 
   assert.equal(report.groups.find(group => group.locus === 'TH01').examples[0].cell, 'G8');
 });
 
+test('Обычная загрузка распознаёт варианты заголовка полного номера объекта', () => {
+  for (const header of ['Полный номер объекта', ' НОМЕР\nОБЪЕКТА ', '№Объекта', 'SampleName', 'Sample_Name', 'N_препарата', 'Номер образца']) {
+    const [row] = parseFiles([source(
+      [ASSIGNED_HEADER, header, 'Год', 'Тип экспертизы', 'TH01'],
+      [['00001', '0043-57x', 2026, 'ЧС', '7,9.3']]
+    )]).rows;
+    assert.equal(row.objectNumber, '0043-57x', header);
+    assert.equal(row.assignedNumber, '00001', header);
+    assert.deepEqual(row.sourceIssues, [], header);
+  }
+  const [row] = parseFiles([source(
+    ['Sample Name', 'Номер объекта', 'Год', 'Тип экспертизы', 'TH01'],
+    [['SYN-EXTRACT', 'SYN-CASE-17', 2026, 'УГ', '7,9.3']]
+  )]).rows;
+  assert.equal(row.objectNumber, 'SYN-CASE-17');
+  const [sample] = parseFiles([source(
+    ['Sample', 'Sample Name', 'Год', 'Тип экспертизы', 'TH01'],
+    [['SYN-EXTRACT', 'SYN-CASE-18', 2026, 'УГ', '7,9.3']]
+  )]).rows;
+  assert.equal(sample.objectNumber, 'SYN-CASE-18');
+});
+
+test('Обычная загрузка находит лист с профилями после обложки и сообщает о неоднозначных листах', () => {
+  const book = XLSX.utils.book_new();
+  XLSX.utils.book_append_sheet(book, XLSX.utils.aoa_to_sheet([['Сводка экспорта']]), 'Описание');
+  const sheet = XLSX.utils.aoa_to_sheet([]);
+  XLSX.utils.sheet_add_aoa(sheet, [
+    ['Полный номер объекта', 'Год', 'Тип экспертизы', 'TH01'],
+    ['SYN-1', 2026, 'УГ', '9.12']
+  ], { origin: 'B4' });
+  XLSX.utils.book_append_sheet(book, sheet, 'Профили');
+  const parse = () => parseFiles([{ originalname: 'SYN.xlsx', buffer: XLSX.write(book, { type: 'buffer', bookType: 'xlsx' }) }]);
+  const [row] = parse().rows;
+  assert.equal(row.objectNumber, 'SYN-1');
+  assert.deepEqual(row.sourceLocation, { sheet: 'Профили', row: 5 });
+  assert.equal(row.sourceIssues[0].cell, 'E5');
+  XLSX.utils.book_append_sheet(book, sheet, 'Архив профилей');
+  assert.throws(parse, { code: 'IMPORT_SHEET_AMBIGUOUS', message: /«Профили», «Архив профилей».*конвертере/ });
+});
+
+test('Ошибка не подставляет номер реестра вместо объекта и указывает строку заголовков', () => {
+  const input = source([ASSIGNED_HEADER, 'Привоз', 'TH01', 'D5S818', 'D21S11'], [['00001', '3', '7,9.3', '10,12', '29,30']]);
+  assert.throws(() => parseFiles([input]), {
+    status: 400,
+    code: 'IMPORT_OBJECT_COLUMN_REQUIRED',
+    message: /Файл «SYN\.xlsx», лист «Импорт», строка 1: не найден столбец с полным номером объекта.*«Объект»/
+  });
+});
+
 test('Старый черновик показывает сохранённую строку и значение без угадывания адреса', () => {
   const issue = { code: 'ALLELE_REVIEW', locus: 'TH01', message: 'Нужно решение' };
   const row = { ...base, sourceFilename: 'SYN.xlsx', sourceLocation: { sheet: 'Импорт', row: 314 },
@@ -72,4 +121,63 @@ test('Старый черновик показывает сохранённую 
   const distinct = collectWorkspaceImportIssues([repeated]);
   assert.equal(distinct.byRow.get(row.draftRowId).length, 2);
   assert.equal(distinct.groups[0].rowIds.size, 1);
+});
+
+test('Черновики Excel принимают обе записи AMEL с F и сохраняют исходную ячейку', () => {
+  const headers = ['Объект', 'Год', 'Тип экспертизы', ASSIGNED_HEADER, 'AMEL', 'TH01'];
+  const cases = [['F,Y', 'Y'], ['FX', 'X'], ['X,F', 'X'], ['X,Y', 'X,Y'], ['XF', 'X'],
+    ['XX', 'X,X'], ['XY', 'X,Y'], ['Y,F', 'Y'], ['YF', 'Y'], ['YY', 'Y,Y']];
+  const rows = parseFiles([source(headers, cases.map(([raw], index) => [`SYN-${index}`, 2026, 'ЧС', '00001', raw, '7,F']))]).rows;
+  assert.deepEqual(rows.map(row => row.strData.AMEL.join(',')), cases.map(([, result]) => result));
+  for (const [index, row] of rows.entries()) {
+    assert.deepEqual(row.sourceIssues, []);
+    assert.deepEqual(validateObject(row, { requireAssignedNumber: true }), []);
+    assert.deepEqual(row.strData.TH01, ['7', 'F']);
+    assert.equal(row.provenance.alleleOrigins.find(entry => entry.locus === 'AMEL').raw, cases[index][0]);
+  }
+});
+
+test('В старом черновике исправляется только AMEL с F, без отмены ручного ввода', () => {
+  const issues = [
+    { code: 'ALLELE_REVIEW', locus: 'AMEL', rawValue: 'FX' },
+    { code: 'FORMULA_WITHOUT_RESULT', locus: 'AMEL' },
+    { code: 'ALLELE_REVIEW', locus: 'TH01' }
+  ];
+  const row = { ...base, strData: { AMEL: ['FX'], TH01: ['7', 'F'] }, sourceIssues: issues };
+  const restored = restoreImportAmelogenin(row);
+  assert.deepEqual(restored.strData, { AMEL: ['X'], TH01: ['7', 'F'] });
+  assert.deepEqual(restored.sourceIssues, issues.slice(1));
+  assert.deepEqual(row.strData.AMEL, ['FX']);
+  const edited = { ...row, provenance: { manualGenotypes: { AMEL: { value: ['FX'] } } } };
+  assert.equal(restoreImportAmelogenin(edited), edited);
+});
+
+test('При переносе V2 запись AMEL из JSON и столбца сравнивается после нормализации', () => {
+  const book = XLSX.utils.book_new();
+  book.Custprops = { DNAProfileSourceFormat: FORMAT };
+  XLSX.utils.book_append_sheet(book, XLSX.utils.aoa_to_sheet([
+    ['Объект', 'Год', 'Тип экспертизы', 'AMEL', 'TH01', 'Генотип JSON'],
+    ['SYN-1', 2026, 'УГ', 'F,X', '7,F', JSON.stringify({ AMEL: ['XF'], TH01: ['7', 'F'] })],
+    ['SYN-2', 2026, 'УГ', 'X', '7,F', JSON.stringify({ AMEL: ['YF'], TH01: ['7', 'F'] })],
+    ['SYN-3', 2026, 'УГ', 'XY', '7,F', JSON.stringify({ AMEL: ['X', 'Y'], TH01: ['7', 'F'] })]
+  ]), 'Импорт');
+  const [equivalent, conflict, heterozygote] = parseFiles([{ originalname: 'SYN.xlsx', buffer: XLSX.write(book, { type: 'buffer', bookType: 'xlsx' }) }]).rows;
+  assert.deepEqual(equivalent.strData, { AMEL: ['X'], TH01: ['7', 'F'] });
+  assert.deepEqual(equivalent.sourceIssues, []);
+  assert(conflict.sourceIssues.some(issue => issue.code === 'GENOTYPE_CONFLICT' && issue.locus === 'AMEL'));
+  assert.deepEqual(heterozygote.strData.AMEL, ['X', 'Y']);
+  assert.deepEqual(heterozygote.sourceIssues, []);
+});
+
+test('Перенос V2 принимает дефисы в ячейках локусов и в структуре генотипа', () => {
+  const book = XLSX.utils.book_new();
+  book.Custprops = { DNAProfileSourceFormat: FORMAT };
+  XLSX.utils.book_append_sheet(book, XLSX.utils.aoa_to_sheet([
+    ['Объект', 'Год', 'Тип экспертизы', 'AMEL', 'TH01', 'D8S1179', 'Генотип JSON'],
+    ['SYN-1', 2026, 'УГ', '−', '-', '12,−', JSON.stringify({ AMEL: [], TH01: ['‑'], D8S1179: ['12', '?'] })]
+  ]), 'Импорт');
+  const [row] = parseFiles([{ originalname: 'SYN.xlsx', buffer: XLSX.write(book, { type: 'buffer', bookType: 'xlsx' }) }]).rows;
+  assert.deepEqual(row.strData, { AMEL: [], TH01: [], D8S1179: ['12', '?'] });
+  assert.deepEqual(row.sourceIssues, []);
+  assert.deepEqual(validateObject(row), []);
 });

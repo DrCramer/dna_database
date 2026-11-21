@@ -107,6 +107,7 @@ export default function GeneticExcelConverterPage({ onPreparedFile, initialFiles
     else { const url = URL.createObjectURL(blob), anchor = document.createElement('a'); anchor.href = url; anchor.download = filename; anchor.click(); setTimeout(() => URL.revokeObjectURL(url), 1000); }
   };
   const unresolved = result?.issues.filter(issue => issue.hard).length || 0;
+  const emptyExcelProfiles = result?.summary.emptyExcelProfiles || 0;
   const sourceNeedsAttention = Boolean(result?.issues.some(issue => issue.hard && !issue.locus));
 
   const setFileOptions = (id, patch) => {
@@ -158,7 +159,7 @@ export default function GeneticExcelConverterPage({ onPreparedFile, initialFiles
     {busy && <div className="converter-processing" role="status"><span className="workspace-loading-spinner" aria-hidden="true" />{requestOperation.current === 'export' ? 'Готовим файл для скачивания…' : result ? 'Обновляем результат проверки…' : 'Распознаём файлы и проверяем профили…'}<button className="btn btn-secondary btn-sm" onClick={() => { request.current?.abort(); setBusy(false); setError('Ожидание операции отменено. Можно повторить проверку или выбрать другие файлы.'); }}>Отменить ожидание</button></div>}
     {result && <>
       <section className="converter-card converter-files-review" aria-label="Проверка файлов">
-        <div className="converter-section-heading"><div><h2>Проверка файлов</h2><p>Объектов: <strong>{result.profiles.length}</strong> · {unresolved ? `Требуют решения: ${unresolved}` : 'Данные проверены'}</p></div><button className="btn btn-secondary" disabled={busy} onClick={() => review(unresolved ? undefined : 'genotypes')}>{unresolved ? 'Исправить замечания' : 'Посмотреть генотипы'}</button></div>
+        <div className="converter-section-heading"><div><h2>Проверка файлов</h2><p>Объектов: <strong>{result.profiles.length}</strong>{emptyExcelProfiles > 0 && ` · Без результата: ${emptyExcelProfiles}`} · {unresolved ? `Требуют решения: ${unresolved}` : 'Данные проверены'}</p></div><button className="btn btn-secondary" disabled={busy} onClick={() => review(unresolved ? undefined : 'genotypes')}>{unresolved ? 'Исправить замечания' : 'Посмотреть генотипы'}</button></div>
         {result.files.length > 1 && result.files.some(file => !file.hasYearColumn || file.missingSourceYears > 0) && <div className="converter-bulk-year"><label>Год для строк без года<input className="form-input" type="number" min="1900" max="2100" placeholder="2026" value={bulkYear} disabled={busy} onChange={event => setBulkYear(event.target.value)} /></label><button className="btn btn-secondary btn-sm" disabled={busy || !/^\d{4}$/.test(bulkYear) || +bulkYear < 1900 || +bulkYear > 2100} onClick={applyBulkYear}>Применить ко всем</button><span>Или укажите год отдельно для каждого файла ниже.</span></div>}
         <div className="converter-file-list">{result.files.map(file => {
           const { prepared, count, hard, reason } = fileSummary.get(file.id);

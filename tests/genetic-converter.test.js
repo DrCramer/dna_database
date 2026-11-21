@@ -107,6 +107,113 @@ test('Нормализация безопасных разделителей, м
   for (const missing of ['', ' ', '-', '—', '–']) assert.deepEqual(normalize(missing, 'TH01').alleles, []);
 });
 
+test('AMEL с F: компактные и раздельные пары дают одну известную аллель при конвертации и импорте', async () => {
+  const cases = [
+    ['FX', 'X'], ['F,X', 'X'], ['XF', 'X'], ['X,F', 'X'],
+    ['FY', 'Y'], ['F,Y', 'Y'], ['YF', 'Y'], ['Y,F', 'Y'],
+    [' х , f ', 'X'], ['F', 'F'], ['FF', 'F'], ['F,F', 'F']
+  ];
+  const input = file([
+    ['Объект', 'Год', ...headers.slice(1), 'AMEL'],
+    ...cases.map(([raw], index) => [`SYN-${index}`, 2026, ...values, raw])
+  ]);
+  const converted = converter.convert([input]);
+  const directlyImported = await new ExcelService().parseExcelFile(input.buffer, input.originalname, { importFormat: 'genetic' });
+  const expected = cases.map(([, allele]) => [allele]);
+  assert.equal(converted.canImport, true);
+  assert.deepEqual(converted.profiles.map(profile => profile.strData.AMEL), expected);
+  assert.deepEqual(directlyImported.map(profile => profile.strData.AMEL), expected);
+  assert.equal(normalize('XF', 'TH01').hard, true);
+  assert.equal(normalize('X,F?', 'AMEL').hard, true);
+  assert.deepEqual(normalize('X,Y,F', 'AMEL').alleles, ['X', 'Y', 'F']);
+
+  const { prepareLocusData, isExactLocusMatch } = require('../src/utils/exactLocusComparison');
+  const { compareLocusV5 } = require('../src/utils/contaminationAlgorithm');
+  assert.equal(isExactLocusMatch(prepareLocusData(expected[0]), prepareLocusData(['X', 'X'])), true);
+  assert.equal(isExactLocusMatch(prepareLocusData(expected[0]), prepareLocusData(['X', 'Y'])), false);
+  assert.equal(isExactLocusMatch(prepareLocusData(['F']), prepareLocusData(['F'])), false);
+  assert.equal(compareLocusV5(['F'], ['X'], 'AMEL').score, 0);
+});
+
+test('Конвертер объясняет запись AMEL в другом локусе и указывает адрес исходной ячейки', () => {
+  const input = file([
+    ['Объект', 'Год', 'TH01', 'D8S1179', 'AMEL'],
+    ['SYN-1', 2026, '7,9.3', 'YF', 'YF']
+  ]);
+  const result = converter.convert([input]);
+  const invalid = result.issues.find(issue => issue.hard);
+  assert.equal(result.canImport, false);
+  assert.equal(result.canUpload, false);
+  assert.throws(() => converter.export(result), { code: 'UNRESOLVED_CONVERSION' });
+  assert.equal(invalid.locus, 'D8S1179');
+  assert.equal(invalid.sourceCell, 'D2');
+  assert.equal(invalid.sourceSheet, 'Legacy');
+  const expectedReason = /Недопустимое значение «YF» в локусе D8S1179\. Это запись формата AMEL\. Ожидается числовая аллель\./;
+  assert.match(invalid.reason, expectedReason);
+  assert.deepEqual(result.profiles[0].strData.AMEL, ['Y']);
+  const { packConverterPreview, unpackConverterPreview } = require('../src/utils/converterPreviewTransport');
+  assert.equal(unpackConverterPreview(packConverterPreview(result)).issues.find(issue => issue.hard).sourceCell, 'D2');
+  const [direct] = require('../src/services/workspace/importSourceService').parseFiles([input]).rows;
+  assert.equal(direct.sourceIssues[0].cell, 'D2');
+  assert.match(direct.sourceIssues[0].message, expectedReason);
+});
+
+test('Отдельные дефисы, тире и минус хранятся и выгружаются как пустые ячейки', async () => {
+  const missing = ['-', '–', '—', '‑', '−', ' -, − '];
+  const input = file([
+    ['Объект', 'Год', 'TH01', 'D5S818', 'D21S11', 'AMEL', 'rs759551978'],
+    ...missing.map((value, index) => [`SYN-${index}`, 2026, value, '11,12', '29,30', value, value])
+  ]);
+  const converted = converter.convert([input]);
+  assert.equal(converted.canImport, true);
+  const direct = require('../src/services/workspace/importSourceService').parseFiles([input]).rows;
+  const legacy = await new ExcelService().parseExcelFile(input.buffer, input.originalname, { importFormat: 'genetic' });
+  assert.equal(new FileValidationService().validateFile(input.buffer, input.originalname, { importFormat: 'genetic' }).valid, true);
+  for (const profile of [...converted.profiles, ...direct, ...legacy]) {
+    for (const locus of ['TH01', 'AMEL', 'rs759551978']) assert.deepEqual(profile.strData[locus], []);
+    assert.deepEqual(profile.strData.D21S11, ['29', '30']);
+  }
+  const exported = XLSX.read(converter.export(converted), { type: 'buffer' });
+  for (const row of XLSX.utils.sheet_to_json(exported.Sheets[exported.SheetNames[0]], { defval: '' })) {
+    assert.equal(row.TH01, '');
+    assert.equal(row.AMEL, '');
+    assert.equal(row.rs759551978, '');
+  }
+  assert.deepEqual(normalize('12,−', 'TH01').alleles, ['12', '?']);
+});
+
+test('Для личного массива объекты без генотипа считаются отдельно и сохраняются в Excel', async () => {
+  const { executeConverterJob } = require('../src/services/converters/converterJob');
+  const { parseFiles } = require('../src/services/workspace/importSourceService');
+  const { FORMAT: previewFormat, unpackConverterPreview } = require('../src/utils/converterPreviewTransport');
+  const input = {
+    files: [file([
+      ['Объект', 'Год', 'TH01', 'D8S1179', 'FGA'],
+      ['SYN-EMPTY', 2026, '—', '-', '−'],
+      ['SYN-CALLED', 2026, '7,9.3', '12,13', '21,24']
+    ])],
+    options: { allowEmptyExcelProfiles: true, previewFormat, export: { hideEmptyLoci: true } }
+  };
+  const preview = await executeConverterJob({ ...input, operation: 'preview' });
+  const result = unpackConverterPreview(JSON.parse(Buffer.from(preview.bytes).toString('utf8')));
+  assert.equal(result.summary.emptyExcelProfiles, 1);
+  assert.equal(result.legacyCanUpload, true);
+  assert(!result.issues.some(issue => issue.hard));
+  const exported = await executeConverterJob({ ...input, operation: 'export' });
+  const rows = parseFiles([{ originalname: 'SYN-result.xlsx', buffer: Buffer.from(exported.bytes) }]).rows;
+  assert.deepEqual(rows.map(row => row.objectNumber), ['SYN-EMPTY', 'SYN-CALLED']);
+  assert(Object.values(rows[0].strData).every(alleles => !alleles.length));
+  assert.deepEqual(rows[1].strData.D8S1179, ['12', '13']);
+
+  const strict = converter.convert(input.files);
+  assert(strict.issues.some(issue => issue.code === 'EMPTY_PROFILE' && issue.hard));
+  const invalid = converter.convert([file([
+    ['Объект', 'Год', 'TH01', 'D8S1179', 'FGA'], ['SYN-ERROR', 2026, '—', 'YF', '−']
+  ])], input.options);
+  assert.equal(invalid.canImport, false);
+  assert(invalid.issues.some(issue => issue.locus === 'D8S1179' && issue.hard));
+});
+
 test('Y-InDel заголовки распознаются, одиночные значения сохраняются при импорте и экспорте', async () => {
   const markerNames = ['rs199815934', 'RS771783753', 'rs759551978'];
   const headers = ['Объект', 'TH01', 'D5S818', 'D21S11', ...markerNames];

@@ -8,7 +8,14 @@ function normalizeSpecialAllele(value) {
 }
 
 function isSpecialAllele(value) { return normalizeSpecialAllele(value) !== null; }
-function isMissingAllele(value) { return value == null || /^[\s\-—–.]*$/.test(String(value)); }
+function isMissingAllele(value) {
+  // Дефисы, тире и минус из Excel обозначают пустое значение только сами по себе.
+  return value == null || /^[\s.\u2010-\u2015\u2212\uFE63\uFF0D-]*$/.test(String(value));
+}
+function isMissingGenotypeCell(value) {
+  return isMissingAllele(value) || typeof value === 'string' &&
+    /[,;/]/.test(value) && value.split(/[,;/]/).every(isMissingAllele);
+}
 function isCertainNumericAllele(value) { return /^\d+(?:\.\d+)?$/.test(String(value ?? '').trim()); }
 
 // Сигнал SRY допустим только у одноимённого локуса, не у остальных Y-STR.
@@ -35,9 +42,22 @@ function hasUnknownAlleles(value) {
   return String(value).split(/[,;/]/).some(part => isSpecialAllele(part) || /[*?]/.test(part) || alleleTokens(part).some(isSpecialAllele));
 }
 
+const cleanAmelogenin = value => String(value ?? '').replace(/\s+/g, '').toUpperCase().replace(/Х/g, 'X').replace(/У/g, 'Y');
+
+// Пара с F сводится к одному символу; F/F остаётся неизвестным.
+function normalizeAmelogeninPair(value) {
+  const match = /^([XYF])[,;/]?([XYF])$/.exec(cleanAmelogenin(value));
+  if (!match) return null;
+  const [, first, second] = match;
+  if (first === 'F') return [second];
+  return second === 'F' ? [first] : [first, second];
+}
+
 function amelogeninTokens(value) {
-  const normalized = String(value ?? '').replace(/\s+/g, '').toUpperCase().replace(/Х/g, 'X').replace(/У/g, 'Y');
+  const pair = normalizeAmelogeninPair(value);
+  if (pair) return pair;
+  const normalized = cleanAmelogenin(value);
   return normalized.split(/[,;/]/).flatMap(token => /^[XY]{1,2}$/.test(token) ? [...token] : [normalizeSpecialAllele(token) || token]).filter(Boolean);
 }
 
-module.exports = { normalizeSpecialAllele, isSpecialAllele, isMissingAllele, isCertainNumericAllele, normalizeSrySignal, alleleTokens, informativeAlleles, hasUnknownAlleles, amelogeninTokens };
+module.exports = { normalizeSpecialAllele, isSpecialAllele, isMissingAllele, isMissingGenotypeCell, isCertainNumericAllele, normalizeSrySignal, alleleTokens, informativeAlleles, hasUnknownAlleles, amelogeninTokens, normalizeAmelogeninPair };

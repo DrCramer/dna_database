@@ -27,6 +27,10 @@ function Decision({ issue, apply, disabled, count = 1 }) {
 function IssueCells({ issue }) {
   return <><td className="converter-value">{issue.rawValue || '—'}</td><td className="converter-value">{issue.normalizedValue || '—'}</td><td><span className={`converter-status converter-status-${issue.status}`}>{names[issue.status]}</span>{issue.userDecision && <p className={`converter-status converter-status-${issue.hard ? 'NEEDS_REVIEW' : 'AUTO_FIXED'}`}>{issue.hard ? 'Решение требует исправления' : 'Решение применено'}</p>}<p>{issue.reason}</p><ReferenceEvidence reference={issue.reference} /></td></>;
 }
+function sourcePosition(issue) {
+  const position = issue.sourceCell ? `ячейка ${issue.sourceCell}` : issue.sourceRow ? `строка ${issue.sourceRow}` : '';
+  return [issue.sourceSheet, position].filter(Boolean).join(' · ');
+}
 function IssueGroup({ group, apply, disabled }) {
   const [expanded, setExpanded] = useState(false), [page, setPage] = useState(0);
   const detailId = useId(), { issue, members } = group, count = members.length;
@@ -34,7 +38,7 @@ function IssueGroup({ group, apply, disabled }) {
   const objects = [...group.objects], files = [...group.files.values()];
   return <>
     <tr className={count > 1 ? 'converter-group-row' : undefined}>
-      <td>{count > 1 && <strong className="converter-group-count">Случаев: {count}</strong>}<span>{files.length === 1 ? files[0] : `Файлов: ${files.length}`}</span>{count === 1 && <><br />{issue.sourceSheet}{issue.sourceRow ? ` · строка ${issue.sourceRow}` : ''}</>}
+      <td>{count > 1 && <strong className="converter-group-count">Случаев: {count}</strong>}<span>{files.length === 1 ? files[0] : `Файлов: ${files.length}`}</span>{count === 1 && <><br />{sourcePosition(issue)}</>}
         {count > 1 && <button className="converter-text-button" aria-expanded={expanded} aria-controls={detailId} onClick={() => setExpanded(!expanded)}>{expanded ? 'Свернуть случаи' : `Показать случаи (${count})`}</button>}
       </td>
       <td><strong>{issue.locus || 'Структура файла'}</strong><p>{objects.slice(0, 3).join(', ') || 'Без номера объекта'}{objects.length > 3 ? ` и ещё ${objects.length - 3}` : ''}</p></td>
@@ -43,7 +47,7 @@ function IssueGroup({ group, apply, disabled }) {
     </tr>
     {expanded && <tr className="converter-group-details" id={detailId}><td colSpan={6}>
       <h3>Случаи группы: {count}</h3>
-      <table className="converter-issue-table"><thead><tr>{['Источник', 'Объект / локус', 'Исходное', 'Результат', 'Статус / причина', 'Индивидуальное решение'].map(name => <th key={name}>{name}</th>)}</tr></thead><tbody>{members.slice(current * 20, current * 20 + 20).map(item => <tr key={item.id}><td>{item.sourceFile}<br />{item.sourceSheet} · строка {item.sourceRow ?? '—'}</td><td>{item.objectNumber || '—'}<br />{item.locus}</td><IssueCells issue={item} /><td><Decision issue={item} disabled={disabled} apply={decision => apply([item], decision)} /></td></tr>)}</tbody></table>
+      <table className="converter-issue-table"><thead><tr>{['Источник', 'Объект / локус', 'Исходное', 'Результат', 'Статус / причина', 'Индивидуальное решение'].map(name => <th key={name}>{name}</th>)}</tr></thead><tbody>{members.slice(current * 20, current * 20 + 20).map(item => <tr key={item.id}><td>{item.sourceFile}<br />{sourcePosition(item)}</td><td>{item.objectNumber || '—'}<br />{item.locus}</td><IssueCells issue={item} /><td><Decision issue={item} disabled={disabled} apply={decision => apply([item], decision)} /></td></tr>)}</tbody></table>
       {count > 20 && <div className="converter-actions"><button className="btn btn-secondary" disabled={!current} onClick={() => setPage(current - 1)}>Предыдущие случаи</button><span>{current * 20 + 1}–{Math.min((current + 1) * 20, count)} из {count}</span><button className="btn btn-secondary" disabled={(current + 1) * 20 >= count} onClick={() => setPage(current + 1)}>Следующие случаи</button></div>}
     </td></tr>}
   </>;

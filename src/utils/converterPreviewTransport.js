@@ -34,7 +34,7 @@ function packConverterPreview(result,format=FORMAT) {
     const context={},body={},common={};
     for(const key of Object.keys(value).sort()){
       if(['fileId','sourceFile','sourceSheet'].includes(key))context[key]=value[key];
-      else if(['id','sourceRow','column','objectNumber','profileKey','variants'].includes(key))body[key]=value[key];
+      else if(['id','sourceRow','sourceCell','column','objectNumber','profileKey','variants'].includes(key))body[key]=value[key];
       else common[key]=value[key];
     }
     return [intern(context,contexts,contextIds),intern(common,details,detailIds,8192),body];
