@@ -66,17 +66,23 @@ function isProfileTable(sources) {
 }
 
 class GeneticExcelConverterService {
-  constructor() { this.detector = new LociTypeDetector(); this.sourceCache = new Map(); this.workbookCache = new Map(); this.normalizationCache = new Map(); }
+  constructor() {
+    this.detector = new LociTypeDetector();
+    this.sourceCache = new Map();
+    this.workbookCache = new Map();
+    this.normalizationCache = new Map();
+    this.sheetRows = new WeakMap();
+  }
 
-  readSource(buffer, settings, filename) {
+  readSource(buffer, settings, filename, checksum) {
     if (/\.txt$/i.test(filename || '')) {
       const geneMapper = parseGeneMapperTxt(buffer, { filename, encoding: settings.encoding });
       return { detection: { format: sourceDetector.GENEMAPPER_FORMAT, confidence: 'HIGH' }, geneMapper };
     }
-    const cacheKey = createHash('sha256').update(buffer).digest('hex') + JSON.stringify([settings.format, settings.sheetName, settings.detailSheetName, settings.resultHeaderRow, settings.detailHeaderRow]);
+    const workbookKey = checksum ?? createHash('sha256').update(buffer).digest('hex');
+    const cacheKey = workbookKey + JSON.stringify([settings.format, settings.sheetName, settings.detailSheetName, settings.resultHeaderRow, settings.detailHeaderRow]);
     for (const [key, entry] of this.sourceCache) if (Date.now() - entry.createdAt > 300000) this.sourceCache.delete(key);
     if (this.sourceCache.has(cacheKey)) return this.sourceCache.get(cacheKey).source;
-    const workbookKey=createHash('sha256').update(buffer).digest('hex');
     for(const [key,item] of this.workbookCache)if(Date.now()-item.createdAt>300000)this.workbookCache.delete(key);
     let workbook=this.workbookCache.get(workbookKey)?.workbook;
     if(!workbook){
@@ -97,6 +103,16 @@ class GeneticExcelConverterService {
       }
     }
     return source;
+  }
+
+  readSheetRows(sheet, reusable) {
+    if (!reusable) return sourceDetector.readRows(sheet);
+    const cached = this.sheetRows.get(sheet);
+    if (cached) return cached;
+    const rows = sourceDetector.readRows(sheet);
+    // Keep only the most recently read table, tied to the source sheet lifetime.
+    this.sheetRows = new WeakMap([[sheet, rows]]);
+    return rows;
   }
 
   normalize(raw,locus,decision) {
@@ -136,7 +152,7 @@ class GeneticExcelConverterService {
       const info = { id: fileId, name: file.originalname, year, sheets: [], sheet: null, headerRow: null, objectColumn: null, objectCandidates: [], sourceLoci: [], rowCount: 0, detectedPanelId: null, panelCandidates: [], columns: [] };
       result.files.push(info);
       let workbook, detection, ngs, geneMapper, gene;
-      try { ({ workbook, detection, ngs, geneMapper } = this.readSource(file.buffer, { ...settings, encoding: settings.encoding || options.txtEncoding }, file.originalname)); if (geneMapper) { gene = adaptGeneMapper(geneMapper, settings, panels, options.usePanels !== false); workbook = gene.workbook; info.geneMapper = gene.preview; info.yearConfirmed = year != null; }; }
+      try { ({ workbook, detection, ngs, geneMapper } = this.readSource(file.buffer, { ...settings, encoding: settings.encoding || options.txtEncoding }, file.originalname, checksum)); if (geneMapper) { gene = adaptGeneMapper(geneMapper, settings, panels, options.usePanels !== false); workbook = gene.workbook; info.geneMapper = gene.preview; info.yearConfirmed = year != null; }; }
       catch (error) { throw new ConversionError(`Не удалось прочитать файл ${file.originalname}: ${error.message}`); }
       info.sourceFormat = detection.format;
       info.detection = detection;
@@ -177,7 +193,8 @@ class GeneticExcelConverterService {
       if (!info.sheet || !info.sheets.includes(info.sheet)) { issue({ ...base, id: `${fileId}:sheet`, code: 'SELECT_SHEET', status: 'NEEDS_REVIEW', reason: 'Выберите содержательный лист Excel.' }); continue; }
       const sheet = ngsSheet || workbook.Sheets[info.sheet];
       let rows;
-      try { rows = sourceDetector.readRows(sheet); } catch (error) { throw new ConversionError(error.message); }
+      try { rows = this.readSheetRows(sheet, !ngs && !gene); } catch (error) { throw new ConversionError(error.message); }
+      const summarizeMissing = options.summarizeMissingCells === true && !ngs && !gene && !referenceService;
       info.headerCandidates = sourceDetector.headerCandidates(rows);
       info.sampleRows = rows.slice(0, 30).map((row, index) => ({ row: index + 1, values: row.slice(0, 12).map(value => String(value).slice(0, 100)) }));
       const headersFound = info.headerCandidates;
@@ -207,8 +224,7 @@ class GeneticExcelConverterService {
         const choice = settings.columns?.[column.index];
         if (choice?.ignore === true || (!choice && (sourceDetector.isServiceColumn(column.header) || info.objectCandidates.some(candidate => candidate.index === column.index && dataRows.every(row => normalizeObjectName(row[column.index]) === normalizeObjectName(row[info.objectColumn])))))) { column.ignored = true; continue; }
         if (choice?.locus) column.locus = this.detector.getCanonicalLocusName(choice.locus);
-        const hasData = dataRows.some(row => String(row[column.index] ?? '').trim() !== '');
-        if (!column.locus && (!column.header.trim() && !hasData)) { column.ignored = true; continue; }
+        if (!column.locus && !column.header.trim() && !dataRows.some(row => String(row[column.index] ?? '').trim() !== '')) { column.ignored = true; continue; }
         if (gene && !column.locus && ![...gene.rowMetadata.values()].some(row => row.records[column.index - 1])) {
           column.ignored = true;
           issue({ ...base, id: `${fileId}:service-column:${column.index}`, code: 'GENEMAPPER_SERVICE_MARKER', status: 'WARNING', rawValue: column.header, reason: 'Маркер встречается только в исключённых служебных образцах; в обычные профили не включён.' });
@@ -315,6 +331,10 @@ class GeneticExcelConverterService {
             if (cell.events.some(event => event.code === 'SPECIAL_ALLELE')) stats.specialWarnings++;
           }
           if (cell.status === 'OK') { unchanged++; if (ngs || geneRow?.records[column.index - 1] || cell.reference?.hasData) object.audit.push(cell); }
+          else if (summarizeMissing && !decision && !cell.hard && cell.code === 'MISSING_VALUE') {
+            // A placeholder is already resolved. Keep totals and merge evidence.
+            fixed++;
+          }
           else {
             if (!gene && !ngs) cell.sourceCell = sourceCell;
             issue(cell);
@@ -333,13 +353,17 @@ class GeneticExcelConverterService {
       }
       const strData = Object.fromEntries(result.catalogLoci.map(locus => [locus, []]));
       for (const [locus, variants] of object.variants) {
+        const conflictId = `merge:${key}:${locus}`;
+        const decision = options.conflicts?.[conflictId];
+        if (variants.length === 1 && !decision) {
+          strData[locus] = variants[0].alleles;
+          continue;
+        }
         const rank = cell => !cell.alleles.length ? 0 : !informativeAlleles(cell.alleles).length ? 1 : cell.alleles.some(allele => !informativeAlleles([allele]).length) || cell.hard ? 2 : 3;
         const sorted = [...variants].sort((a, b) => rank(b) - rank(a));
         const best = sorted[0];
         const bestKnown = informativeAlleles(best.alleles);
         const conflicting = sorted.filter(cell => rank(cell) >= 2 && (rank(cell) === rank(best) ? !sameAlleles(cell.alleles, best.alleles) : informativeAlleles(cell.alleles).some(allele => !bestKnown.includes(allele))));
-        const conflictId = `merge:${key}:${locus}`;
-        const decision = options.conflicts?.[conflictId];
         let selected = best.alleles;
         if (conflicting.length || decision) {
           let resolved = false, manualError = '';

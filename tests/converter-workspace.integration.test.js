@@ -13,13 +13,48 @@ test('Real converter API: workspace scope, no occurrence checks, sheet selection
   const actor=await User.findById(user.id),token=auth.generateToken(actor);await auth.createSession(actor.id,token,'127.0.0.1','SYN-converter');
   await require('../src/models/AlleleReferenceSet').AlleleReferenceSet.create({name:'SYN reference',type:'OBSERVED_REFERENCE',sourceTitle:'Synthetic only',sourceUrl:'https://example.invalid/test',sourceVersion:'1',confirmed:true,format:'json',content:JSON.stringify({values:[{locus:'TH01',allele:'7'},{locus:'TH01',allele:'9.3'}]})},{organizationId:org,departmentId:null},actor.id);
   const b=X.utils.book_new();X.utils.book_append_sheet(b,X.utils.json_to_sheet(Array.from({length:300},(_,i)=>({'Sample Name':'SYN-'+i,TH01:i<10?'11.12':'7,9.3',TPOX:'8,8',D21S11:'30,31'}))),'SYN data');X.utils.book_append_sheet(b,X.utils.aoa_to_sheet([['SYN notes']]),'SYN notes');const bytes=X.write(b,{type:'buffer',bookType:'xlsx'}),base='http://127.0.0.1:'+server.address().port;
-  async function request(options={},headers={Authorization:'Bearer '+token}){const body=new FormData();body.append('files',new Blob([bytes]),'SYN.xlsx');body.append('options',JSON.stringify(options));const r=await fetch(base+'/converter/preview',{method:'POST',headers,body});return {status:r.status,body:await r.json()};}
+  const headers = { Authorization:'Bearer '+token };
+  async function request(options={}, authHeaders=headers, operation='preview', includeFiles=true) {
+    const body = new FormData();
+    if (includeFiles) body.append('files',new Blob([bytes]),'SYN.xlsx');
+    body.append('options',JSON.stringify(options));
+    const response = await fetch(base+'/converter/'+operation,{method:'POST',headers:authHeaders,body});
+    return {
+      status:response.status, uploadId:response.headers.get('X-Converter-Upload-Id'),
+      body:operation==='export' && response.ok ? Buffer.from(await response.arrayBuffer()) : await response.json()
+    };
+  }
   assert.equal((await request({},{})).status,401);
-  const first=await request();assert.equal(first.status,200);assert.equal(first.body.profiles.length,0);
+  const first=await request({rememberFiles:true});assert.equal(first.status,200);assert.equal(first.body.profiles.length,0);
+  assert.match(first.uploadId,/^[0-9a-f-]{36}$/);
   const options={files:{[first.body.files[0].id]:{sheetName:'SYN data',year:2026}}};
   const full=await request(options),compact=await request({...options,previewFormat:'compact-v1'});
   assert.equal(full.status,200);assert.equal(compact.status,200);assert.equal(full.body.profiles.length,300);assert.equal(compact.body.previewFormat,'compact-v1');
   assert.deepEqual(require('../src/utils/converterPreviewTransport').unpackConverterPreview(compact.body),full.body);
+  const reuse = await request({...options,uploadId:first.uploadId},headers,'preview',false);
+  assert.equal(reuse.status,200);
+  assert.deepEqual(reuse.body,full.body);
+  const sparse = await request({...options,uploadId:first.uploadId,previewFormat:'compact-v3'},headers,'preview',false);
+  assert.equal(sparse.status,200);
+  assert.equal(sparse.body.previewFormat,'compact-v3');
+  assert.deepEqual(require('../src/utils/converterPreviewTransport').unpackConverterPreview(sparse.body),full.body);
+  assert.equal((await request({uploadId:first.uploadId},headers)).status,400);
+  const expired = await request({uploadId:randomUUID()},headers,'preview',false);
+  assert.equal(expired.status,409);
+  assert.equal(expired.body.code,'CONVERTER_UPLOAD_EXPIRED');
+  const otherUser=(await pool.query("INSERT INTO users(username,password_hash,role,organization_id) VALUES($1,'SYN-no-login','user_analyst',$2) RETURNING id",['SYN-'+randomUUID(),org])).rows[0];
+  const otherActor=await User.findById(otherUser.id),otherToken=auth.generateToken(otherActor);
+  await auth.createSession(otherActor.id,otherToken,'127.0.0.1','SYN-other');
+  const foreign = await request({uploadId:first.uploadId},{Authorization:'Bearer '+otherToken},'preview',false);
+  assert.equal(foreign.status,409);
+  assert.equal(foreign.body.code,expired.body.code);
+  assert.equal(foreign.body.message,expired.body.message);
+  const allErrors = full.body.issues.filter(issue => issue.hard);
+  const exportOptions = require('../src/utils/converterIssueGroups').applyConverterIssueDecision(options,allErrors,{action:'split_dot'});
+  const cachedExport = await request({...exportOptions,uploadId:first.uploadId},headers,'export',false);
+  assert.equal(cachedExport.status,200);
+  const exportedBook = X.read(cachedExport.body,{type:'buffer'});
+  assert.equal(X.utils.sheet_to_json(exportedBook.Sheets['Импорт']).length,300);
   const selected=full.body.issues.filter(i=>i.hard&&i.locus==='TH01').slice(0,3);
   const grouped=require('../src/utils/converterIssueGroups').applyConverterIssueDecision(options,selected,{action:'split_dot'});
   const {prepareConverterBulkUndo,undoConverterBulkDecision}=require('../src/utils/converterBulkUndo');

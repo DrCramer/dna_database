@@ -2,6 +2,7 @@ const test=require('node:test'),assert=require('node:assert/strict'),X=require('
 const {GeneticExcelConverterService}=require('../src/services/converters/geneticExcelConverterService');
 const {ConverterWorkerExecutor}=require('../src/services/converters/converterWorkerExecutor');
 const {executeConverterJob}=require('../src/services/converters/converterJob');
+const {ConverterUploadCache}=require('../src/services/converters/converterUploadCache');
 const {unpackConverterPreview,packConverterPreview}=require('../src/utils/converterPreviewTransport');
 const {updateConverterYear}=require('../src/utils/converterYearMetadata');
 function fixture(){const b=X.utils.book_new();X.utils.book_append_sheet(b,X.utils.json_to_sheet([
@@ -32,7 +33,54 @@ test('Parsed workbook is reused across sheet and year selection; wire formats re
   const a=c.readSource(f.buffer,{},f.originalname),b=c.readSource(f.buffer,{sheetName:'Other',year:2026},f.originalname);
   assert.equal(a.workbook,b.workbook);assert.equal(c.workbookCache.size,1);
   const id=c.convert([f]).files[0].id,preview=c.convert([f],{files:{[id]:{sheetName:'Data'}}});
-  for(const format of ['compact-v1','compact-v2'])assert.deepEqual(unpackConverterPreview(packConverterPreview(preview,format)),preview);
+  for(const format of ['compact-v1','compact-v2','compact-v3'])assert.deepEqual(unpackConverterPreview(packConverterPreview(preview,format)),preview);
+  const sheet=a.workbook.Sheets.Data;
+  assert.equal(c.readSheetRows(sheet,true),c.readSheetRows(sheet,true));
+});
+
+test('Converter upload cache isolates scopes and evicts old and expired files', async t => {
+  const cache = new ConverterUploadCache({ maxBytes: 6, maxEntries: 3 });
+  t.after(() => { for (const id of cache.entries.keys()) cache.remove(id); });
+  const files = text => [{originalname: 'SYN.xlsx', buffer: Buffer.from(text)}];
+  const firstFiles = files('aaa');
+  const first = cache.put('user-1:org-1', firstFiles);
+  const second = cache.put('user-2:org-1', files('bbb'));
+  assert.equal(cache.get(first, 'user-2:org-1'), null);
+  assert.equal(cache.get(first, 'user-1:org-2'), null);
+  assert.equal(cache.get(first, 'user-1:org-1'), firstFiles);
+  const third = cache.put('user-1:org-1', files('ccc'));
+  assert(third);
+  assert.equal(cache.get(second, 'user-2:org-1'), null);
+  assert.equal(cache.put('user-1:org-1', files('too large')), null);
+  const shortLived = new ConverterUploadCache({ ttlMs: 30 });
+  const expiring = shortLived.put('user-1:org-1', firstFiles);
+  await new Promise(resolve => setTimeout(resolve, 50));
+  assert.equal(shortLived.get(expiring, 'user-1:org-1'), null);
+  assert.equal(shortLived.bytes, 0);
+});
+
+test('Excel preview summarizes placeholders without losing edits, merge evidence or real errors', () => {
+  const book = X.utils.book_new();
+  X.utils.book_append_sheet(book, X.utils.aoa_to_sheet([
+    ['Объект', 'Год', 'TH01', 'D8S1179', 'FGA'],
+    ['SYN-1', 2026, '—', 'YF', '−'],
+    ['SYN-1', 2026, '7,9.3', '—', '−'],
+    ['SYN-2', 2026, '—', '—', '—']
+  ]), 'Data');
+  const input = { originalname:'SYN.xlsx', buffer:X.write(book,{type:'buffer',bookType:'xlsx'}) };
+  const converter = new GeneticExcelConverterService(), options = { allowEmptyExcelProfiles:true };
+  const full = converter.convert([input],options);
+  const fga = full.issues.find(issue => issue.code === 'MISSING_VALUE' && issue.objectNumber === 'SYN-2' && issue.locus === 'FGA');
+  const edit = { ...options, cells:{[fga.id]:{action:'manual',value:'21,24'}} };
+  const edited = converter.convert([input],edit);
+  const compact = converter.convert([input],{...edit,summarizeMissingCells:true});
+  assert.deepEqual(compact.profiles.map(profile => profile.strData),edited.profiles.map(profile => profile.strData));
+  assert.deepEqual(compact.summary,edited.summary);
+  assert.equal(compact.canImport,false);
+  assert(!compact.issues.some(issue => issue.code === 'MISSING_VALUE' && !issue.userDecision));
+  assert(compact.issues.some(issue => issue.hard && issue.locus === 'D8S1179' && issue.sourceCell === 'D2'));
+  assert(compact.issues.some(issue => issue.id === fga.id && issue.userDecision?.value === '21,24'));
+  assert(compact.issues.some(issue => issue.code === 'MERGE' && issue.variants.some(variant => variant.rawValue === '—')));
 });
 
 test('Worker reuses parsed data, yields the event loop, cancels and recovers without occurrence checks',async t=>{

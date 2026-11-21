@@ -1,6 +1,6 @@
 // Opt-in wire format. Preserve all diagnostics while transmitting shared audit
 // entries and reference evaluations once. No genotype normalization happens here.
-const LEGACY_FORMAT = 'compact-v1', FORMAT = 'compact-v2';
+const LEGACY_FORMAT = 'compact-v1', FORMAT = 'compact-v2', SPARSE_FORMAT = 'compact-v3';
 function packLegacyPreview(result) {
   const entries = [], evaluations = [], byObject = new WeakMap(), byId = new Map(), byEvaluation = new WeakMap();
   const equal = (a,b) => {const keys=Object.keys(a);return keys.length===Object.keys(b).length&&keys.every(key=>a[key]===b[key]);};
@@ -39,16 +39,31 @@ function packConverterPreview(result,format=FORMAT) {
     }
     return [intern(context,contexts,contextIds),intern(common,details,detailIds,8192),body];
   });
-  return {...packed,previewFormat:FORMAT,entries,contexts,details};
+  if(format===SPARSE_FORMAT && Array.isArray(result.catalogLoci)) {
+    packed.data.profiles = packed.data.profiles.map(profile => {
+      if (profile.transfer || !profile.strData || Object.keys(profile.strData).length !== result.catalogLoci.length ||
+          !result.catalogLoci.every(locus => Array.isArray(profile.strData[locus]))) return profile;
+      return { ...profile, strData: Object.entries(profile.strData).filter(([, alleles]) => alleles.length) };
+    });
+  }
+  return {...packed,previewFormat:format===SPARSE_FORMAT?SPARSE_FORMAT:FORMAT,entries,contexts,details};
 }
 function unpackConverterPreview(payload) {
-  if(![FORMAT,LEGACY_FORMAT].includes(payload.previewFormat))return payload;
+  if(![SPARSE_FORMAT,FORMAT,LEGACY_FORMAT].includes(payload.previewFormat))return payload;
   const {data,entries,evaluations}=payload;
-  const restored=entries.map(value=>payload.previewFormat===FORMAT?{...payload.contexts[value[0]],...payload.details[value[1]],...value[2]}:{...value});
+  const restored=entries.map(value=>payload.previewFormat===LEGACY_FORMAT?{...value}:{...payload.contexts[value[0]],...payload.details[value[1]],...value[2]});
   restored.forEach(value=>{
     if(value.reference){const {evaluation,...extra}=value.reference;value.reference={...evaluations[evaluation],...extra};}
     if(value.variants)value.variants=value.variants.map(id=>restored[id]);
   });
-  return {...data,issues:data.issues.map(id=>restored[id]),conflicts:data.conflicts.map(id=>restored[id]),profiles:data.profiles.map(profile=>({...profile,audit:profile.audit.map(id=>restored[id])}))};
+  const emptyAlleles = Object.freeze([]);
+  const emptyStrData = payload.previewFormat === SPARSE_FORMAT
+    ? Object.fromEntries((data.catalogLoci || []).map(locus => [locus, emptyAlleles])) : null;
+  const profiles = data.profiles.map(profile => ({
+    ...profile,
+    ...(emptyStrData && Array.isArray(profile.strData) ? { strData: { ...emptyStrData, ...Object.fromEntries(profile.strData) } } : {}),
+    audit: profile.audit.map(id => restored[id])
+  }));
+  return {...data,issues:data.issues.map(id=>restored[id]),conflicts:data.conflicts.map(id=>restored[id]),profiles};
 }
-module.exports={FORMAT,LEGACY_FORMAT,packConverterPreview,unpackConverterPreview};
+module.exports={FORMAT,LEGACY_FORMAT,SPARSE_FORMAT,packConverterPreview,unpackConverterPreview};

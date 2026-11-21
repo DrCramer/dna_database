@@ -32,9 +32,17 @@ function headerCandidates(rows) {
 }
 
 function objectCandidates(headers, rows) {
-  return headers.map((header, index) => ({ index, header: String(header ?? ''), priority: objectPriority(header),
-    examples: rows.map(row => normalizeObjectName(row[index])).filter(Boolean).slice(0, 4) }))
-    .filter(column => column.priority > 0).sort((a, b) => b.priority - a.priority || a.index - b.index);
+  return headers.map((header, index) => ({ index, header: String(header ?? ''), priority: objectPriority(header) }))
+    .filter(column => column.priority > 0).sort((a, b) => b.priority - a.priority || a.index - b.index)
+    .map(column => {
+      const examples = [];
+      for (const row of rows) {
+        const value = normalizeObjectName(row[column.index]);
+        if (value) examples.push(value);
+        if (examples.length === 4) break;
+      }
+      return { ...column, examples };
+    });
 }
 
 function chooseObjectColumn(candidates, rows) {
@@ -46,7 +54,13 @@ function chooseObjectColumn(candidates, rows) {
 }
 
 function meaningfulSheets(workbook) {
-  return workbook.SheetNames.filter(name => Object.entries(workbook.Sheets[name]).some(([key, cell]) => !key.startsWith('!') && (cell.f || normalizeObjectName(cell.v))));
+  return workbook.SheetNames.filter(name => {
+    const sheet = workbook.Sheets[name];
+    for (const key in sheet) {
+      if (!key.startsWith('!') && (sheet[key].f || normalizeObjectName(sheet[key].v))) return true;
+    }
+    return false;
+  });
 }
 
 function readRows(sheet) {

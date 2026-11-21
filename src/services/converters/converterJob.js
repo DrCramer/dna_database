@@ -1,5 +1,5 @@
 const {GeneticExcelConverterService,ConversionError}=require('./geneticExcelConverterService');
-const {FORMAT,LEGACY_FORMAT,packConverterPreview}=require('../../utils/converterPreviewTransport');
+const {FORMAT,LEGACY_FORMAT,SPARSE_FORMAT,packConverterPreview}=require('../../utils/converterPreviewTransport');
 const {geneMapperExportResult}=require('./geneMapperSourceAdapter');
 const {normalizedExcelFilename}=require('../../utils/normalizedExcelLayout');
 const JSZip=require('jszip');
@@ -16,7 +16,7 @@ async function executeConverterJob({files,options,panels,operation},converter=ne
       delete profile.provenance;
       delete profile.sourceIssues;
     }
-    const preview=[FORMAT,LEGACY_FORMAT].includes(options.previewFormat)?packConverterPreview(result,options.previewFormat):result;
+    const preview=[SPARSE_FORMAT,FORMAT,LEGACY_FORMAT].includes(options.previewFormat)?packConverterPreview(result,options.previewFormat):result;
     return {bytes:new TextEncoder().encode(JSON.stringify(preview)),mime:'application/json',auditFiles};
   }
   let output,filename;

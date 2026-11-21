@@ -7,6 +7,8 @@ const { logger } = require('../utils/logger');
 const { resolveProfileImportFormat } = require('../utils/profileImportFormat');
 const { query } = require('../config/database');
 const {converterWorker}=require('../services/converters/converterWorkerExecutor');
+const { ConverterUploadCache } = require('../services/converters/converterUploadCache');
+const uploadCache = new ConverterUploadCache();
 let activeRequests=0;
 // Busboy сообщает partsLimit при достижении порога: 100 файлов + options должны проходить целиком.
 const storage = {
@@ -62,14 +64,28 @@ for (const operation of ['preview', 'export']) router.post(`/${operation}`, (req
       if(error)throw error;
       let options;try{options=JSON.parse(req.body.options||'{}');}catch{throw new ConversionError('Некорректные настройки конвертации.');}
       if(!options||typeof options!=='object'||Array.isArray(options))throw new ConversionError('Некорректные настройки конвертации.');
-      for(const file of req.files||[])file.originalname=require('../utils/uploadFilename').decodeUploadFilename(file.originalname);
-      if(req.converterFormat==='emergency'&&(req.files||[]).some(f=>!/\.txt$/i.test(f.originalname)))throw new ConversionError('В отделении ЧС конвертер принимает GeneMapper TXT.','FORMAT_NOT_AVAILABLE',403);
-      const usePanels = !req.converterWorkspaceMode && options.usePanels !== false;
+      const { uploadId, rememberFiles, ...conversionOptions } = options;
+      const scope = JSON.stringify([req.user.id, req.converterScope.organizationId, req.converterScope.departmentId, req.converterFormat]);
+      let files = (req.files || []).map(file => ({
+        originalname: require('../utils/uploadFilename').decodeUploadFilename(file.originalname),
+        buffer: file.buffer
+      }));
+      if (uploadId != null) {
+        if (typeof uploadId !== 'string' || uploadId.length !== 36 || files.length) throw new ConversionError('Некорректная ссылка на загрузку.');
+        files = uploadCache.get(uploadId, scope);
+        if (!files) throw new ConversionError('Временная копия файлов истекла. Повторите загрузку.', 'CONVERTER_UPLOAD_EXPIRED', 409);
+      }
+      if(req.converterFormat==='emergency'&&files.some(f=>!/\.txt$/i.test(f.originalname)))throw new ConversionError('В отделении ЧС конвертер принимает GeneMapper TXT.','FORMAT_NOT_AVAILABLE',403);
+      const usePanels = !req.converterWorkspaceMode && conversionOptions.usePanels !== false;
       const panels = usePanels && req.converterFormat === 'genetic' ? await GenotypePanel.list(req.converterScope) : [];
       req.converterStage='conversion';
-      const result=await converterWorker.run({files:(req.files||[]).map(f=>({originalname:f.originalname,buffer:f.buffer})),options:{...options,importFormat:req.converterFormat,usePanels,allowEmptyExcelProfiles:req.converterWorkspaceMode},panels,operation},controller.signal);
+      const result=await converterWorker.run({files,options:{...conversionOptions,importFormat:req.converterFormat,usePanels,allowEmptyExcelProfiles:req.converterWorkspaceMode},panels,operation},controller.signal);
       if(controller.signal.aborted)return;
       if(result.auditFiles.length){req.converterStage='audit';await logGeneMapperConversion({userId:req.user.id,departmentId:req.converterScope.departmentId,organizationId:req.converterScope.organizationId,ipAddress:req.ip,userAgent:req.get('User-Agent'),details:{operation,files:result.auditFiles}});}
+      if(!uploadId && rememberFiles === true && !controller.signal.aborted) {
+        const id = uploadCache.put(scope, files);
+        if (id) res.set('X-Converter-Upload-Id', id);
+      }
       res.set('Cache-Control','private, no-store').type(result.mime);
       if(result.filename){const fallback=result.filename.replace(/[^\x20-\x7e]|["\\]/g,'_'),encoded=encodeURIComponent(result.filename).replace(/[!'()*]/g,c=>`%${c.charCodeAt(0).toString(16).toUpperCase()}`);res.set('Content-Disposition',`attachment; filename="${fallback}"; filename*=UTF-8''${encoded}`);}
       res.send(result.bytes);

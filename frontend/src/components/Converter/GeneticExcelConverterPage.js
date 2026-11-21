@@ -6,7 +6,7 @@ import { normalizedExcelFilename } from '../../../../src/utils/normalizedExcelLa
 import ConverterSources from './ConverterSources';
 import SourceYear from './SourceYear';
 import SourceObjectNumber from './SourceObjectNumber';
-import { FORMAT as PREVIEW_FORMAT, unpackConverterPreview } from '../../../../src/utils/converterPreviewTransport';
+import { SPARSE_FORMAT as PREVIEW_FORMAT, unpackConverterPreview } from '../../../../src/utils/converterPreviewTransport';
 import { converterFileSummary } from '../../../../src/utils/converterPresentation';
 import ConverterIssues from './ConverterIssues';
 import ConverterGrid from './ConverterGrid';
@@ -30,14 +30,14 @@ export default function GeneticExcelConverterPage({ onPreparedFile, initialFiles
   const [output, setOutput] = useState(''), [bulkYear, setBulkYear] = useState('');
   const [dragging, setDragging] = useState(false);
   const dragDepth = useRef(0), reviewArea = useRef(null);
-  const request = useRef(null), requestOperation = useRef(null), input = useRef(null);
+  const request = useRef(null), requestOperation = useRef(null), input = useRef(null), uploadId = useRef(null);
   const importFormat = (workspaceMode ? 'genetic' : resolveProfileImportFormat(activeDepartment));
   const allowed = ['genetic', 'emergency'].includes(importFormat);
-  useEffect(() => { request.current?.abort(); setFiles([]); setOptions({}); setResult(null); setError(''); setBusy(false); setPreviewStale(false); setBulkUndo(null); setDecisionNotice(null); pendingBulkCommit.current = null; previewAttempt.current = null; if (input.current) input.current.value = ''; return () => request.current?.abort(); }, [user?.id, workspaceMode ? user?.organization_id : activeDepartmentId]);
+  useEffect(() => { request.current?.abort(); uploadId.current = null; setFiles([]); setOptions({}); setResult(null); setError(''); setBusy(false); setPreviewStale(false); setBulkUndo(null); setDecisionNotice(null); pendingBulkCommit.current = null; previewAttempt.current = null; if (input.current) input.current.value = ''; return () => request.current?.abort(); }, [user?.id, workspaceMode ? user?.organization_id : activeDepartmentId]);
   const select = incoming => {
     if (!incoming.length) return;
     if (incoming.length > 100 || incoming.some(file => !/\.(xlsx|xls|txt)$/i.test(file.name) || file.size > 10 * 1024 * 1024) || incoming.reduce((sum, file) => sum + file.size, 0) > 50 * 1024 * 1024) { setError('Выберите до 100 файлов .xlsx/.xls/.txt: до 10 МиБ каждый и 50 МиБ всего.'); return; }
-    request.current?.abort(); setBusy(false); setFiles(incoming); setOptions(previous => ({ txtEncoding: previous.txtEncoding })); setResult(null); setError(''); setReviewTab(null); setOutput(''); setDraftYears({}); setDraftObjects({}); setPreviewStale(false); setBulkUndo(null); setDecisionNotice(null); pendingBulkCommit.current = null; previewAttempt.current = null;
+    request.current?.abort(); uploadId.current = null; setBusy(false); setFiles(incoming); setOptions(previous => ({ txtEncoding: previous.txtEncoding })); setResult(null); setError(''); setReviewTab(null); setOutput(''); setDraftYears({}); setDraftObjects({}); setPreviewStale(false); setBulkUndo(null); setDecisionNotice(null); pendingBulkCommit.current = null; previewAttempt.current = null;
   };
   useEffect(() => { if (workspaceModeReady && initialFiles?.length) select(initialFiles); }, [initialFiles, workspaceModeReady]);
   useEffect(() => { if (files.length) perform('preview', { ...options, export: { hideEmptyLoci } }); }, [files]);
@@ -46,12 +46,30 @@ export default function GeneticExcelConverterPage({ onPreparedFile, initialFiles
     setBusy(true); setError('');
     if (operation === 'preview') { setDecisionNotice(null); if (pendingBulkCommit.current?.settings !== settings) pendingBulkCommit.current = null; previewAttempt.current = settings; setPreviewStale(true); }
     try {
-      const body = new FormData();
-      files.forEach(file => body.append('files', file));
-      const requestOptions = { ...settings, usePanels: false };
-      body.append('options', JSON.stringify(operation === 'preview' ? { ...requestOptions, previewFormat: PREVIEW_FORMAT, lazyFiles: true } : requestOptions));
-      const response = await fetch(`/api/genetic-excel-converter/${operation}`, { method: 'POST', body, signal: controller.signal, headers: { Authorization: `Bearer ${user?.accessToken || localStorage.getItem('token')}`, 'X-Active-Department-Id': activeDepartmentId } });
-      if (!response.ok) { const data = await response.json().catch(() => ({})); throw new Error(data.message || `Сервер не смог обработать файл (HTTP ${response.status}). Повторите проверку.`); }
+      const requestOptions = {
+        ...settings, usePanels: false, summarizeMissingCells: true,
+        ...(operation === 'preview' ? { previewFormat: PREVIEW_FORMAT, lazyFiles: true } : {})
+      };
+      const send = async cachedId => {
+        const body = new FormData();
+        if (!cachedId) files.forEach(file => body.append('files', file));
+        body.append('options', JSON.stringify({ ...requestOptions, ...(cachedId ? { uploadId: cachedId } : { rememberFiles: true }) }));
+        const response = await fetch(`/api/genetic-excel-converter/${operation}`, {
+          method: 'POST', body, signal: controller.signal,
+          headers: { Authorization: `Bearer ${user?.accessToken || localStorage.getItem('token')}`, 'X-Active-Department-Id': activeDepartmentId }
+        });
+        return { response, failure: response.ok ? null : await response.json().catch(() => ({})) };
+      };
+      const cachedId = uploadId.current;
+      let { response, failure } = await send(cachedId);
+      if (cachedId && failure?.code === 'CONVERTER_UPLOAD_EXPIRED' && !controller.signal.aborted) {
+        uploadId.current = null;
+        ({ response, failure } = await send(null));
+      }
+      if (!response.ok) throw new Error(failure?.message || `Сервер не смог обработать файл (HTTP ${response.status}). Повторите проверку.`);
+      if (controller.signal.aborted) return;
+      const storedId = response.headers.get('X-Converter-Upload-Id');
+      if (storedId) uploadId.current = storedId;
       if (operation === 'preview') {
         const next = unpackConverterPreview(await response.json());
         if (!controller.signal.aborted) {
