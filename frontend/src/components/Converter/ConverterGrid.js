@@ -35,11 +35,11 @@ export default function ConverterGrid({ result, options, update, disabled }) {
       <h2 id="converter-edit-title">{editor.year ? `${editor.year} · ` : ''}{editor.object} · {editor.locus}</h2>
       {editorProfile?.audit.filter(issue => issue.locus === editor.locus && issue.reference).map(issue => <div key={issue.id}>
         <p>Источник: {issue.sourceFile || 'Ручной результат'} · исходное: {issue.rawValue}</p><ReferenceEvidence reference={issue.reference} />
-        {issue.hard && issue.reference.suggestedDecision && <button className="btn btn-primary" disabled={disabled} onClick={() => { update({ ...options, cells: { ...options.cells, [issue.id]: issue.reference.suggestedDecision } }); setEditor(null); }}>Принять предложение: {issue.reference.suggestedValue}</button>}
+        {issue.hard && issue.reference.suggestedDecision && <button className="btn btn-primary" disabled={disabled} onClick={() => { update({ ...options, cells: { ...options.cells, [issue.id]: issue.reference.suggestedDecision } }, editorProfile.key); setEditor(null); }}>Принять предложение: {issue.reference.suggestedValue}</button>}
       </div>)}
       <p>Введите отдельные аллели через запятую. Исходное одиночное значение сохраняется как есть; при необходимости введите явную пару.</p>
       <label>Результат<input autoFocus className="form-input" maxLength={500} value={editor.value} onChange={event => setEditor({ ...editor, value: event.target.value })} /></label>
-      <div className="converter-actions"><button className="btn btn-primary" disabled={disabled} onClick={() => { update({ ...options, conflicts: { ...options.conflicts, [`merge:${identityKey(editorProfile)}:${editor.locus}`]: { action: 'manual', value: editor.value } } }); setEditor(null); }}>Проверить и сохранить</button><button className="btn btn-secondary" onClick={() => setEditor(null)}>Отмена</button></div>
+      <div className="converter-actions"><button className="btn btn-primary" disabled={disabled} onClick={() => { update({ ...options, conflicts: { ...options.conflicts, [`merge:${identityKey(editorProfile)}:${editor.locus}`]: { action: 'manual', value: editor.value } } }, editorProfile.key); setEditor(null); }}>Проверить и сохранить</button><button className="btn btn-secondary" onClick={() => setEditor(null)}>Отмена</button></div>
     </div></div>}
   </section>;
 }

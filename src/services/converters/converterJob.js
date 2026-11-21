@@ -5,6 +5,11 @@ const {normalizedExcelFilename}=require('../../utils/normalizedExcelLayout');
 const JSZip=require('jszip');
 function legacyResult(result){const ids=new Set(result.files.filter(f=>!f.geneMapper).map(f=>f.id)),profiles=result.profiles.filter(p=>p.sources.every(s=>ids.has(s.fileId)));return {...result,profiles,canImport:profiles.length>0&&!result.issues.some(i=>i.hard&&(ids.has(i.fileId)||i.profileKey&&profiles.some(p=>p.key===i.profileKey)))};}
 async function executeConverterJob({files,options,panels,operation},converter=new GeneticExcelConverterService()) {
+  if (operation === 'preview-object') {
+    const { objectPreviewKey, ...settings } = options;
+    const objectPreview = converter.convertObject(files, settings, panels, objectPreviewKey);
+    return { bytes: new TextEncoder().encode(JSON.stringify({ objectPreview })), mime: 'application/json', auditFiles: [] };
+  }
   const result=converter.convert(files,options,panels); // Presence/frequency checks are intentionally disabled.
   const legacy=legacyResult(result);
   result.legacyCanImport=legacy.canImport;result.legacyCanUpload=legacy.canImport&&legacy.profiles.every(p=>p.year!=null);

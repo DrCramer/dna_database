@@ -56,6 +56,17 @@ test('Real converter API: workspace scope, no occurrence checks, sheet selection
   const exportedBook = X.read(cachedExport.body,{type:'buffer'});
   assert.equal(X.utils.sheet_to_json(exportedBook.Sheets['Импорт']).length,300);
   const selected=full.body.issues.filter(i=>i.hard&&i.locus==='TH01').slice(0,3);
+  const single = await request({
+    ...options, uploadId:first.uploadId, objectPreviewKey:selected[0].profileKey,
+    cells:{[selected[0].id]:{action:'split_dot'}}
+  },headers,'preview-object',false);
+  assert.equal(single.status,200);
+  assert.equal(single.body.objectPreview.profile.key,selected[0].profileKey);
+  assert.deepEqual(single.body.objectPreview.profile.strData.TH01,['11','12']);
+  const merged=require('../src/utils/converterObjectPreview').applyConverterObjectPreview(full.body,single.body.objectPreview);
+  assert.equal(merged.profiles.length,300);
+  assert.equal(merged.summary.unresolved,9);
+  assert.equal(merged.legacyCanImport,false);
   const grouped=require('../src/utils/converterIssueGroups').applyConverterIssueDecision(options,selected,{action:'split_dot'});
   const {prepareConverterBulkUndo,undoConverterBulkDecision}=require('../src/utils/converterBulkUndo');
   const tracked=prepareConverterBulkUndo(options,grouped,selected,'SYN-api-undo'),groupedOptions=tracked.options;

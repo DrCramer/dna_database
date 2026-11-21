@@ -5,6 +5,7 @@ const {executeConverterJob}=require('../src/services/converters/converterJob');
 const {ConverterUploadCache}=require('../src/services/converters/converterUploadCache');
 const {unpackConverterPreview,packConverterPreview}=require('../src/utils/converterPreviewTransport');
 const {updateConverterYear}=require('../src/utils/converterYearMetadata');
+const {applyConverterObjectPreview}=require('../src/utils/converterObjectPreview');
 function fixture(){const b=X.utils.book_new();X.utils.book_append_sheet(b,X.utils.json_to_sheet([
   {'Sample Name':'SYN-1',TH01:'9.3',TPOX:'8,8',D21S11:'30,*'},
   {'Sample Name':'SYN-1',TH01:'7,9.3',TPOX:'8,8',D21S11:'30,*'},
@@ -81,6 +82,48 @@ test('Excel preview summarizes placeholders without losing edits, merge evidence
   assert(compact.issues.some(issue => issue.hard && issue.locus === 'D8S1179' && issue.sourceCell === 'D2'));
   assert(compact.issues.some(issue => issue.id === fga.id && issue.userDecision?.value === '21,24'));
   assert(compact.issues.some(issue => issue.code === 'MERGE' && issue.variants.some(variant => variant.rawValue === '—')));
+});
+
+test('Single-object preview recalculates all sources of the chosen year and leaves unrelated errors in place', async () => {
+  const excel = (name, data) => {
+    const book = X.utils.book_new();
+    X.utils.book_append_sheet(book, X.utils.aoa_to_sheet([
+      ['Объект', 'Год', 'TH01', 'D8S1179', 'FGA'], ...data
+    ]), 'Data');
+    return { originalname:name, buffer:X.write(book,{type:'buffer',bookType:'xlsx'}) };
+  };
+  const files = [
+    excel('first.xlsx',[
+      ['SYN-1',2026,'11.12','12,13','21,24'],
+      ['SYN-1',2025,'7,9.3','12,13','21,24'],
+      ['SYN-OTHER',2026,'7,9.3','YF','21,24']
+    ]),
+    excel('repeat.xlsx', [['SYN-1',2026,'11,12','12,13','21,24']])
+  ];
+  const converter = new GeneticExcelConverterService(), options = { allowEmptyExcelProfiles:true };
+  const preview = async settings => {
+    const result = await executeConverterJob({files,options:settings,operation:'preview'},converter);
+    return JSON.parse(Buffer.from(result.bytes).toString('utf8'));
+  };
+  const initial = await preview(options);
+  const issue = initial.issues.find(item=>item.ruleCode==='AMBIGUOUS_DOT');
+  const edited = { ...options, cells:{[issue.id]:{action:'split_dot'}} };
+  const normalized = converter.normalize.bind(converter);
+  let processedCells = 0;
+  converter.normalize = (...args) => { processedCells++; return normalized(...args); };
+  const response = await executeConverterJob({files,options:{...edited,objectPreviewKey:issue.profileKey},operation:'preview-object'},converter);
+  const { objectPreview: patch } = JSON.parse(Buffer.from(response.bytes));
+  assert.equal(processedCells,7);
+  assert.equal(patch.profile.sources.length,2);
+  assert.deepEqual(patch.profile.strData.TH01,['11','12']);
+  const updated = applyConverterObjectPreview(initial,patch);
+  const full = await preview(edited);
+  const sorted = items => [...items].sort((a,b)=>a.id.localeCompare(b.id));
+  assert.deepEqual({...updated,issues:sorted(updated.issues),conflicts:sorted(updated.conflicts)},{...full,issues:sorted(full.issues),conflicts:sorted(full.conflicts)});
+  assert.equal(updated.canImport,false);
+  assert.equal(updated.legacyCanUpload,false);
+  assert.equal(updated.profiles[1],initial.profiles[1]);
+  assert(updated.issues.some(item=>item.objectNumber==='SYN-OTHER'&&item.hard));
 });
 
 test('Worker reuses parsed data, yields the event loop, cancels and recovers without occurrence checks',async t=>{

@@ -7,6 +7,7 @@ import ConverterSources from './ConverterSources';
 import SourceYear from './SourceYear';
 import SourceObjectNumber from './SourceObjectNumber';
 import { SPARSE_FORMAT as PREVIEW_FORMAT, unpackConverterPreview } from '../../../../src/utils/converterPreviewTransport';
+import { applyConverterObjectPreview } from '../../../../src/utils/converterObjectPreview';
 import { converterFileSummary } from '../../../../src/utils/converterPresentation';
 import ConverterIssues from './ConverterIssues';
 import ConverterGrid from './ConverterGrid';
@@ -41,8 +42,12 @@ export default function GeneticExcelConverterPage({ onPreparedFile, initialFiles
   };
   useEffect(() => { if (workspaceModeReady && initialFiles?.length) select(initialFiles); }, [initialFiles, workspaceModeReady]);
   useEffect(() => { if (files.length) perform('preview', { ...options, export: { hideEmptyLoci } }); }, [files]);
-  const perform = async (operation, settings = options) => {
-    request.current?.abort(); const controller = new AbortController(); request.current = controller; requestOperation.current = operation;
+  const perform = async (operation, settings = options, objectKey = null) => {
+    let endpoint = operation === 'preview' && objectKey && !previewStale &&
+      result?.files.every(file => file.sourceFormat === 'LEGACY_TABLE') &&
+      result.profiles.some(profile => profile.key === objectKey && profile.conversionCounts)
+      ? 'preview-object' : operation;
+    request.current?.abort(); const controller = new AbortController(); request.current = controller; requestOperation.current = endpoint;
     setBusy(true); setError('');
     if (operation === 'preview') { setDecisionNotice(null); if (pendingBulkCommit.current?.settings !== settings) pendingBulkCommit.current = null; previewAttempt.current = settings; setPreviewStale(true); }
     try {
@@ -50,29 +55,46 @@ export default function GeneticExcelConverterPage({ onPreparedFile, initialFiles
         ...settings, usePanels: false, summarizeMissingCells: true,
         ...(operation === 'preview' ? { previewFormat: PREVIEW_FORMAT, lazyFiles: true } : {})
       };
-      const send = async cachedId => {
+      const send = async (path, cachedId) => {
         const body = new FormData();
         if (!cachedId) files.forEach(file => body.append('files', file));
-        body.append('options', JSON.stringify({ ...requestOptions, ...(cachedId ? { uploadId: cachedId } : { rememberFiles: true }) }));
-        const response = await fetch(`/api/genetic-excel-converter/${operation}`, {
+        body.append('options', JSON.stringify({
+          ...requestOptions,
+          ...(path === 'preview-object' ? { objectPreviewKey: objectKey } : {}),
+          ...(cachedId ? { uploadId: cachedId } : { rememberFiles: true })
+        }));
+        const response = await fetch(`/api/genetic-excel-converter/${path}`, {
           method: 'POST', body, signal: controller.signal,
           headers: { Authorization: `Bearer ${user?.accessToken || localStorage.getItem('token')}`, 'X-Active-Department-Id': activeDepartmentId }
         });
         return { response, failure: response.ok ? null : await response.json().catch(() => ({})) };
       };
-      const cachedId = uploadId.current;
-      let { response, failure } = await send(cachedId);
-      if (cachedId && failure?.code === 'CONVERTER_UPLOAD_EXPIRED' && !controller.signal.aborted) {
-        uploadId.current = null;
-        ({ response, failure } = await send(null));
+      const sendWithSourceRetry = async path => {
+        const cachedId = uploadId.current;
+        const response = await send(path, cachedId);
+        if (cachedId && response.failure?.code === 'CONVERTER_UPLOAD_EXPIRED' && !controller.signal.aborted) {
+          uploadId.current = null;
+          return send(path, null);
+        }
+        return response;
+      };
+      let { response, failure } = await sendWithSourceRetry(endpoint);
+      if (endpoint === 'preview-object' && !controller.signal.aborted &&
+          (response.status === 404 || failure?.code === 'CONVERTER_OBJECT_PREVIEW_UNAVAILABLE')) {
+        endpoint = operation;
+        requestOperation.current = operation;
+        ({ response, failure } = await sendWithSourceRetry(endpoint));
       }
       if (!response.ok) throw new Error(failure?.message || `Сервер не смог обработать файл (HTTP ${response.status}). Повторите проверку.`);
       if (controller.signal.aborted) return;
       const storedId = response.headers.get('X-Converter-Upload-Id');
       if (storedId) uploadId.current = storedId;
       if (operation === 'preview') {
-        const next = unpackConverterPreview(await response.json());
+        const payload = await response.json();
         if (!controller.signal.aborted) {
+          const next = endpoint === 'preview-object'
+            ? applyConverterObjectPreview(result, payload.objectPreview)
+            : unpackConverterPreview(payload);
           const pending = pendingBulkCommit.current?.settings === settings ? pendingBulkCommit.current : null;
           const feedback = pending?.undo ? converterDecisionFeedback(next, pending.undo) : null;
           setOptions(settings); setResult(next); setPreviewStale(false);
@@ -94,10 +116,14 @@ export default function GeneticExcelConverterPage({ onPreparedFile, initialFiles
     } catch (caught) { if (!controller.signal.aborted && request.current === controller) setError(caught.message); }
     finally { if (request.current === controller) setBusy(false); }
   };
-  const update = settings => perform('preview', { ...settings, export: { hideEmptyLoci } });
+  const update = (settings, objectKey) => perform('preview', { ...settings, export: { hideEmptyLoci } }, objectKey);
   const applyIssueDecision = (members, decision) => {
     const next = applyConverterIssueDecision(options, members, decision);
-    if (members.length < 2) { update(next); return; }
+    if (members.length < 2) {
+      const issue = members[0];
+      update(next, issue?.locus ? issue.profileKey : null);
+      return;
+    }
     const prepared = prepareConverterBulkUndo(options, next, members, `bulk-${++bulkSequence.current}`);
     const settings = { ...prepared.options, export: { hideEmptyLoci } };
     pendingBulkCommit.current = { settings, undo: prepared.undo };
@@ -174,7 +200,7 @@ export default function GeneticExcelConverterPage({ onPreparedFile, initialFiles
       </div>
     </section>
     {error && <div className="alert alert-danger converter-error" role="alert"><span>{error}</span>{!!files.length && <button className="btn btn-secondary" disabled={busy} onClick={() => perform('preview', previewAttempt.current || { ...options, export: { hideEmptyLoci } })}>Повторить проверку</button>}</div>}
-    {busy && <div className="converter-processing" role="status"><span className="workspace-loading-spinner" aria-hidden="true" />{requestOperation.current === 'export' ? 'Готовим файл для скачивания…' : result ? 'Обновляем результат проверки…' : 'Распознаём файлы и проверяем профили…'}<button className="btn btn-secondary btn-sm" onClick={() => { request.current?.abort(); setBusy(false); setError('Ожидание операции отменено. Можно повторить проверку или выбрать другие файлы.'); }}>Отменить ожидание</button></div>}
+    {busy && <div className="converter-processing" role="status"><span className="workspace-loading-spinner" aria-hidden="true" />{requestOperation.current === 'export' ? 'Готовим файл для скачивания…' : requestOperation.current === 'preview-object' ? 'Пересчитываем объект…' : result ? 'Обновляем результат проверки…' : 'Распознаём файлы и проверяем профили…'}<button className="btn btn-secondary btn-sm" onClick={() => { request.current?.abort(); setBusy(false); setError('Ожидание операции отменено. Можно повторить проверку или выбрать другие файлы.'); }}>Отменить ожидание</button></div>}
     {result && <>
       <section className="converter-card converter-files-review" aria-label="Проверка файлов">
         <div className="converter-section-heading"><div><h2>Проверка файлов</h2><p>Объектов: <strong>{result.profiles.length}</strong>{emptyExcelProfiles > 0 && ` · Без результата: ${emptyExcelProfiles}`} · {unresolved ? `Требуют решения: ${unresolved}` : 'Данные проверены'}</p></div><button className="btn btn-secondary" disabled={busy} onClick={() => review(unresolved ? undefined : 'genotypes')}>{unresolved ? 'Исправить замечания' : 'Посмотреть генотипы'}</button></div>
