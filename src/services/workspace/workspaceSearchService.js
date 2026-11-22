@@ -31,6 +31,8 @@ const {
 const { collectDuplicatePairs, annotateDuplicateHistory } = require('./workspaceDuplicateHistory');
 const { WORKSPACE_WRITE_ROLES } = require('../../utils/objectTypes');
 const ALGORITHM_VERSION = 'existing-task-comparison+staff-v5/workspace-3-certain-duplicates';
+const MAX_SEARCH_PROFILES = 20000;
+const searchSelectionLimitMessage = `Для одного поиска выберите не более ${MAX_SEARCH_PROFILES} объектов.`;
 function effectiveSearchParameters(stored = {}, changes = {}, initialStaffOptions) {
   const parameters = {
     minMatches: 15,
@@ -81,6 +83,12 @@ class WorkspaceSearchService extends WorkspaceService {
     const progressSink = onProgress;
     onProgress = progress => { try { progressSink?.(progress); } catch { /* Telemetry cannot invalidate a committed search. */ } };
     requireUser(user, true);
+    if (!execution.allProfiles) {
+      if (Array.isArray(ids) && ids.length > MAX_SEARCH_PROFILES) throw err(searchSelectionLimitMessage, 400, 'SEARCH_SELECTION_LIMIT');
+      if (!Array.isArray(ids) || !ids.length || new Set(ids).size !== ids.length) {
+        throw err('Выберите уникальные профили для поиска.');
+      }
+    }
     onProgress?.({ stage: 'preparing', status: 'running' });
     if (!execution.readSavedParameters) await this.configureSearch(user, parameters, execution.initialStaffOptions);
     requireUser(user, true);
@@ -95,12 +103,18 @@ class WorkspaceSearchService extends WorkspaceService {
         throw err('Сначала сохраните настройки поиска.', 409, 'SETTINGS_REQUIRED');
       }
       parameters = effectiveSearchParameters(workspace.analysis_parameters);
-      if(!execution.allProfiles)profiles = await this.ownProfiles(reader, user, w, ids);
-      working = (await reader.query('SELECT * FROM dna_profiles WHERE workspace_id=$1 AND user_id=$2 AND organization_id=$3 AND is_active=true', [w.id, user.id, user.organization_id])).rows;
-      if(execution.allProfiles) {
-        profiles=[...working].sort((a,b)=>a.id<b.id?-1:a.id>b.id?1:0);
-        if(!profiles.length)throw err('Нет активных объектов.',409,'NO_PROFILES');
-      }
+      // Reuse the comparison snapshot for the references and leave large import provenance in the DB.
+      const scope = [w.id, user.id, user.organization_id];
+      working = (await (execution.allProfiles
+        ? reader.query('SELECT * FROM dna_profiles WHERE workspace_id=$1 AND user_id=$2 AND organization_id=$3 AND is_active=true', scope)
+        : reader.query(`SELECT p.id,p.analysis_revision,p.internal_number,p.sample_name,p.import_number,p.year,
+            p.str_data,p.expertise_type,p.full_name,p.task_id,selected.id IS NOT NULL AS selected
+          FROM dna_profiles p LEFT JOIN (SELECT DISTINCT unnest($4::uuid[]) AS id) selected ON selected.id=p.id
+          WHERE p.workspace_id=$1 AND p.user_id=$2 AND p.organization_id=$3 AND p.is_active=true`, [...scope, ids]))).rows;
+      profiles = execution.allProfiles ? [...working] : working.filter(profile => profile.selected);
+      if (!execution.allProfiles && profiles.length !== ids.length) throw err('Один из профилей недоступен.', 403);
+      if (!profiles.length) throw err('Нет активных объектов.', 409, 'NO_PROFILES');
+      profiles.sort((a, b) => a.id < b.id ? -1 : a.id > b.id ? 1 : 0);
       const refs = (await reader.query('SELECT * FROM workspace_reference_versions WHERE organization_id=$1', [user.organization_id])).rows[0];
       master = (await reader.query(`SELECT p.* FROM master_array_profiles p JOIN master_arrays ma ON ma.id=p.master_array_id WHERE p.organization_id=$1 AND p.is_active=true AND ma.is_active=true`, [user.organization_id])).rows.map(row => decodeMasterRow(row));
       const legacyMasters = (await reader.query("SELECT * FROM dna_profiles WHERE organization_id=$1 AND is_active=true AND profile_type='master'", [user.organization_id])).rows.map(row => decodeMasterRow(row));
@@ -396,5 +410,7 @@ function validateMetadata(p) {
 }
 module.exports = {
   WorkspaceSearchService,
-  ALGORITHM_VERSION
+  ALGORITHM_VERSION,
+  MAX_SEARCH_PROFILES,
+  searchSelectionLimitMessage
 };

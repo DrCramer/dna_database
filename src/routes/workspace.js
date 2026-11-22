@@ -7,6 +7,7 @@ const {
 const {
   WorkspaceApprovalService
 } = require('../services/workspace/workspaceApprovalService');
+const { MAX_SEARCH_PROFILES, searchSelectionLimitMessage } = require('../services/workspace/workspaceSearchService');
 const {
   workspaceModeEnabled
 } = require('../services/workspace/workspaceMode');
@@ -20,7 +21,7 @@ function workbookDownload(res, filename) {
 }
 const ids = Joi.array().min(1).max(10000).unique().items(Joi.string().guid()).required();
 const searchSchema = Joi.object({
-  ids,
+  ids: ids.max(MAX_SEARCH_PROFILES),
   parameters: Joi.object({
     minMatches: Joi.number().integer().min(1).max(500),
     ignoredLoci: Joi.array().max(510).items(Joi.string().max(100)),
@@ -152,6 +153,12 @@ module.exports = function workspaceRouter(service = new WorkspaceApprovalService
     });
     return result.value;
   };
+  function checkSearch(schema, value) {
+    if (Array.isArray(value?.ids) && value.ids.length > MAX_SEARCH_PROFILES) {
+      throw Object.assign(new Error(searchSelectionLimitMessage), { status: 400, code: 'SEARCH_SELECTION_LIMIT' });
+    }
+    return check(schema, value);
+  }
   const uuid = value => check(Joi.string().guid().required(), value);
   const {NightSearchService}=require('../services/workspace/nightSearchService');
   const localNight=new NightSearchService(service.pool);
@@ -212,11 +219,11 @@ module.exports = function workspaceRouter(service = new WorkspaceApprovalService
     res.json({ parameters: await service.manageUserSearchSettings(req.user, uuid(req.params.id), parameters) });
   }));
   router.post('/full-search/stream', handle(async (req, res) => {
-    const value = check(searchWithStaffFallback, req.body);
+    const value = checkSearch(searchWithStaffFallback, req.body);
     await require('../services/workspace/workspaceSearchStream').streamWorkspaceSearch(req, res, service, value);
   }));
   router.post('/full-search', handle(async (req, res) => {
-    const value = check(searchSchema, req.body),
+    const value = checkSearch(searchSchema, req.body),
       controller = new AbortController();
     const cancel = () => {
       if (!res.writableEnded) controller.abort();
