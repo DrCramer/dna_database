@@ -173,6 +173,8 @@ module.exports = function workspaceRouter(service = new WorkspaceApprovalService
   router.post('/search-jobs/:id/:action',handle(async(req,res)=>{check(Joi.object({}),req.body);res.json(await night(req).control(req.user,uuid(req.params.id),req.params.action));}));
   router.get('/', handle(async (req, res) => res.json(await service.list(req.user))));
   router.get('/profiles', handle(async (req, res) => res.json(await service.list(req.user))));
+  router.get('/profile-table/first-page', handle(async (req, res) => res.json(await service.list(req.user, { table: true, firstPage: true }))));
+  router.get('/profile-table', handle(async (req, res) => res.json(await service.list(req.user, { table: true }))));
   router.post('/comment-suggestions', handle(async (req, res) => {
     const { prefix } = check(Joi.object({ prefix: Joi.string().trim().min(1).max(20000).required() }), req.body);
     res.json({ comments: await service.commentSuggestions(req.user, prefix) });

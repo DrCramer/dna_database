@@ -86,26 +86,46 @@ class WorkspaceService {
     await c.query('INSERT INTO workspace_reference_versions(organization_id) VALUES($1) ON CONFLICT DO NOTHING', [user.organization_id]);
     return w;
   }
-  async list(user) {
-    const w = await this.workspace(user);
+  async list(user, { table = false, firstPage = false } = {}) {
+    requireUser(user);
+    const currentWorkspace = await this.pool.query(`SELECT w.* FROM personal_workspaces w
+      JOIN workspace_reference_versions rv ON rv.organization_id=w.organization_id
+      WHERE w.organization_id=$1 AND w.owner_id=$2`, [user.organization_id, user.id]);
+    const w = currentWorkspace.rows[0] || await this.workspace(user);
     if(this.hasRunOrigin===undefined)this.hasRunOrigin=!!(await this.pool.query("SELECT EXISTS(SELECT 1 FROM information_schema.columns WHERE table_schema=current_schema() AND table_name='workspace_search_runs' AND column_name='origin') present")).rows[0]?.present;
     // Never to_jsonb(x) here: x contains the potentially large encrypted result.
     const nightFilter=this.hasRunOrigin?"AND (x.origin<>'night' OR x.state='complete')":'';
+    const pageSize = 50;
+    const profileScope = 'p.workspace_id=$1 AND p.user_id=$2 AND p.organization_id=$3 AND p.is_active=true';
+    const runScope = `x.workspace_id=$1 AND x.owner_id=$2 AND x.organization_id=$3 ${nightFilter}`;
+    const proofColumns = `sp.profile_id,sp.analysis_revision proof_revision,sp.state proof_state,sp.stages proof_stages,
+      x.id,x.state,x.algorithm_version,x.completed_at,x.workspace_revision,x.master_revision,x.staff_revision`;
+    const proof = firstPage ? `LATERAL (
+      SELECT ${proofColumns}
+      FROM workspace_search_runs x JOIN workspace_search_profiles sp ON sp.search_run_id=x.id AND sp.profile_id=p.id
+      WHERE ${runScope}
+      ORDER BY x.started_at DESC,x.id DESC LIMIT 1
+    ) s ON true` : `(
+      SELECT DISTINCT ON (sp.profile_id) ${proofColumns}
+      FROM workspace_search_runs x JOIN workspace_search_profiles sp ON sp.search_run_id=x.id
+      WHERE ${runScope}
+      ORDER BY sp.profile_id,x.started_at DESC,x.id DESC
+    ) s ON s.profile_id=p.id`;
+    const profiles = firstPage ? `(SELECT * FROM dna_profiles p WHERE ${profileScope}
+      ORDER BY p.upload_date,p.id LIMIT ${pageSize + 1})` : 'dna_profiles';
+    // Keep the legacy-number fallback, but avoid shipping source cell history to the table.
+    const provenance = table ? `CASE WHEN p.provenance ? 'assignedNumber'
+      THEN jsonb_build_object('assignedNumber',p.provenance->'assignedNumber') ELSE p.provenance END provenance,
+      p.provenance->>'sourceFilename' source_filename` : 'p.provenance';
     const {
       rows
-    } = await this.pool.query(`SELECT p.id,p.internal_number,p.sample_name,p.import_format,p.year,p.expertise_type,p.full_name,p.registration_number,p.comment,p.str_data,p.analysis_revision,p.provenance,pub.published_id,pub.destination,s.id search_id,s.state run_state,s.algorithm_version,CASE WHEN s.proof_revision=p.analysis_revision THEN s.proof_state END proof_state,CASE WHEN s.proof_revision=p.analysis_revision THEN s.proof_stages END proof_stages,s.completed_at search_completed_at,approval.id approval_id,approval.state approval_state,approval.decision_comment,approval.decided_at,approval.submitted_at,approval.decider_name,
+    } = await this.pool.query(`SELECT p.id,p.internal_number,p.sample_name,p.import_format,p.year,p.expertise_type,p.full_name,p.registration_number,p.comment,p.str_data,p.analysis_revision,${provenance},pub.published_id,pub.destination,s.id search_id,s.state run_state,s.algorithm_version,CASE WHEN s.proof_revision=p.analysis_revision THEN s.proof_state END proof_state,CASE WHEN s.proof_revision=p.analysis_revision THEN s.proof_stages END proof_stages,s.completed_at search_completed_at,approval.id approval_id,approval.state approval_state,approval.decision_comment,approval.decided_at,approval.submitted_at,approval.decider_name,
  s.workspace_revision run_workspace_revision,s.master_revision,s.staff_revision,rv.master_revision current_master_revision,rv.staff_revision current_staff_revision
- FROM dna_profiles p JOIN workspace_reference_versions rv ON rv.organization_id=p.organization_id
+ FROM ${profiles} p JOIN workspace_reference_versions rv ON rv.organization_id=p.organization_id
  LEFT JOIN LATERAL(SELECT * FROM workspace_publications x WHERE x.workspace_profile_id=p.id AND x.analysis_revision=p.analysis_revision AND ((x.destination='master' AND EXISTS(SELECT 1 FROM master_array_profiles target WHERE target.id=x.published_id AND target.source_workspace_profile_id=p.id AND target.is_active=true)) OR (x.destination='staff' AND EXISTS(SELECT 1 FROM staff_profiles target WHERE target.id=x.published_id AND target.source_workspace_profile_id=p.id AND target.is_active=true))) ORDER BY x.created_at DESC LIMIT 1) pub ON true
- LEFT JOIN (
-   SELECT DISTINCT ON (sp.profile_id) sp.profile_id,sp.analysis_revision proof_revision,sp.state proof_state,sp.stages proof_stages,
-     x.id,x.state,x.algorithm_version,x.completed_at,x.workspace_revision,x.master_revision,x.staff_revision
-   FROM workspace_search_runs x JOIN workspace_search_profiles sp ON sp.search_run_id=x.id
-   WHERE x.workspace_id=$1 AND x.owner_id=$2 AND x.organization_id=$3 ${nightFilter}
-   ORDER BY sp.profile_id,x.started_at DESC,x.id DESC
- ) s ON s.profile_id=p.id
+ LEFT JOIN ${proof}
  LEFT JOIN LATERAL(SELECT a.*,COALESCE(NULLIF(u.display_name,''),u.username) decider_name FROM workspace_master_approval_items i JOIN workspace_master_approvals a ON a.id=i.approval_id LEFT JOIN users u ON u.id=a.decided_by WHERE i.profile_id=p.id ORDER BY a.submitted_at DESC,a.id DESC LIMIT 1) approval ON true
- WHERE p.workspace_id=$1 AND p.user_id=$2 AND p.organization_id=$3 AND p.is_active=true ORDER BY p.upload_date,p.id`, [w.id, user.id, user.organization_id]);
+ ${firstPage ? '' : `WHERE ${profileScope}`} ORDER BY p.upload_date,p.id`, [w.id, user.id, user.organization_id]);
     const { ALGORITHM_VERSION } = require('./workspaceSearchService');
     const readiness = p => {
       if (!hasGenotype(p.str_data)) return 'NO_GENOTYPE';
@@ -126,15 +146,24 @@ class WorkspaceService {
       canSubmitMaster: WRITE_ROLES.includes(user.role),
       canApproveMaster: user.can_approve_master === true,
       canManageStaff: ['admin', 'system_administrator'].includes(user.role),
-      profiles: rows.map(p => ({
-        ...objectFromDB(p),
-        approvalId: p.approval_id, approvalState: p.approval_state, decisionComment: p.decision_comment, decidedAt: p.decided_at, submittedAt: p.submitted_at, deciderName: p.decider_name,
-        publishedId: p.published_id,
-        destination: p.destination,
-        searchRunId: p.search_id,
-        searchState: readiness(p),
-        state: p.approval_state === 'pending' ? 'PENDING_APPROVAL' : p.approval_state === 'returned' ? 'RETURNED' : p.published_id ? 'PUBLISHED' : readiness(p)
-      }))
+      ...(firstPage && { hasMore: rows.length > pageSize }),
+      profiles: (firstPage ? rows.slice(0, pageSize) : rows).map(p => {
+        const profile = objectFromDB(p);
+        if (table) {
+          delete profile.provenance;
+          profile.sourceFilename = p.source_filename;
+        }
+        const searchState = readiness(p);
+        return {
+          ...profile,
+          approvalId: p.approval_id, approvalState: p.approval_state, decisionComment: p.decision_comment, decidedAt: p.decided_at, submittedAt: p.submitted_at, deciderName: p.decider_name,
+          publishedId: p.published_id,
+          destination: p.destination,
+          searchRunId: p.search_id,
+          searchState,
+          state: p.approval_state === 'pending' ? 'PENDING_APPROVAL' : p.approval_state === 'returned' ? 'RETURNED' : p.published_id ? 'PUBLISHED' : searchState
+        };
+      })
     };
   }
   async commentSuggestions(user, prefix) {

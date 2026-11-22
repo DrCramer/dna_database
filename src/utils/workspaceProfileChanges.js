@@ -12,7 +12,9 @@ function profileChanges(row, original = {}) {
 function changedWorkingProfiles(rows, originals = []) {
   const byId = originals instanceof Map ? originals : new Map(originals.map(row => [row.id, row]));
   return rows.flatMap(row => {
-    const patch = profileChanges(row, byId.get(row.id));
+    const original = byId.get(row.id);
+    if (row === original) return [];
+    const patch = profileChanges(row, original);
     return Object.keys(patch).length ? [{ id: row.id, patch }] : [];
   });
 }

@@ -30,6 +30,7 @@ const states = {
   INSUFFICIENT_DATA: 'Недостаточно данных'
 };
 const fields = ['included', ...WORKSPACE_PROFILE_FIELDS];
+const profileCollator = new Intl.Collator('ru', { numeric: true, sensitivity: 'base' });
 function saveFile(blob, filename) {
   const url = URL.createObjectURL(blob),
     anchor = document.createElement('a');
@@ -77,12 +78,14 @@ export default function WorkspacePage({
   const importController = useRef(null), restoringDraft = useRef(null), workspaceScope = useRef(storageKey);
   workspaceScope.current = storageKey;
   const canUpload = WORKSPACE_WRITE_ROLES.includes(user.role) && (user.can_upload_with_task !== false || user.can_upload_without_task === true);
-  const canEdit = WORKSPACE_WRITE_ROLES.includes(user.role) && (!isImport || canUpload);
   const loadKey = `${mode}:${user.organization_id}:${user.id}`;
   const [loadState, setLoadState] = useState({ key: loadKey, status: 'loading' });
   const [loadAttempt, setLoadAttempt] = useState(0);
-  const loadingProfiles = !isImport && (loadState.key !== loadKey || loadState.status === 'loading');
-  const profilesReady = !isImport && loadState.key === loadKey && loadState.status === 'ready';
+  const loadStatus = loadState.key === loadKey ? loadState.status : 'loading';
+  const previewOnly = !isImport && ['preview', 'preview-error'].includes(loadStatus);
+  const loadingProfiles = !isImport && ['loading', 'preview'].includes(loadStatus);
+  const profilesReady = !isImport && loadStatus === 'ready';
+  const canEdit = WORKSPACE_WRITE_ROLES.includes(user.role) && (isImport ? canUpload : profilesReady);
   const [workspace, setWorkspace] = useState(null),
     [draft, setDraft] = useState(null),
     [rows, setRows] = useState([]),
@@ -239,10 +242,8 @@ export default function WorkspacePage({
     setIssueGroup(null);
     setPage(0);
   }
-  async function load(active = () => true, signal) {
-    const data = await api('/', undefined, 'GET', false, signal);
-    if (!active()) return;
-    setWorkspace(data);
+  function applyProfiles(data) {
+    setWorkspace({ canApproveMaster: data.canApproveMaster, canSubmitMaster: data.canSubmitMaster, canManageStaff: data.canManageStaff });
     setMinMatches(data.workspace.analysis_parameters?.minMatches ?? 15);
     setAlgorithm(data.workspace.analysis_parameters?.comparisonAlgorithm || 'standard');
     setStaffOptions(data.workspace.analysis_parameters?.staffOptions ? staffSearchOptions(data.workspace.analysis_parameters.staffOptions) : savedStaffOptions());
@@ -250,6 +251,10 @@ export default function WorkspacePage({
     initial.current = data.profiles;
     const ids = new Set(data.profiles.map(profile => profile.id));
     setSelected(old => new Set([...old].filter(id => ids.has(id))));
+  }
+  async function load(active = () => true, signal) {
+    const data = await api('/profile-table', undefined, 'GET', false, signal);
+    if (active()) applyProfiles(data);
   }
   useEffect(() => {
     let alive = true;
@@ -293,7 +298,13 @@ export default function WorkspacePage({
         setDraft(null);
         setRows([]);
       }
-    } else load(() => alive, controller.signal).then(async()=>{
+    } else api('/profile-table/first-page', undefined, 'GET', false, controller.signal).then(async firstPage => {
+      if (!alive) return;
+      applyProfiles(firstPage);
+      if (firstPage.hasMore) {
+        setLoadState({ key: loadKey, status: 'preview' });
+        await load(() => alive, controller.signal);
+      }
       if (!alive) return;
       setLoadState({ key: loadKey, status: 'ready' });
       const searchRun=new URLSearchParams(window.location.search).get('searchRun');
@@ -304,7 +315,9 @@ export default function WorkspacePage({
     }).catch(e => {
       if (alive && !controller.signal.aborted) {
         setError(e.message);
-        setLoadState(current => current.status === 'ready' ? current : { key: loadKey, status: 'error' });
+        setLoadState(current => current.status === 'ready' ? current : {
+          key: loadKey, status: current.status === 'preview' ? 'preview-error' : 'error'
+        });
       }
     });
     return () => { alive = false; controller.abort(); importController.current?.abort(); };
@@ -323,27 +336,27 @@ export default function WorkspacePage({
   }, [isImport, importIssues, error]);
   const id = row => row.draftRowId || row.id,
     visible = useMemo(() => {
-      const filtered = rows.filter(row => viewFilter === 'all' || viewFilter === 'selected' && (isImport ? row.included : selected.has(row.id)) || viewFilter === 'empty' && !Object.values(row.strData || {}).some(value => value.length) || viewFilter === 'issues' && ((row.sourceIssues || []).length || (isImport ? importIssues.byRow.get(row.draftRowId)?.length : objectMetadataIssues(row).length) || validation?.errors.some(item => item.draftRowId === row.draftRowId && item.issues.length)) || viewFilter === 'ready' && (row.searchState || row.state) === 'CHECKED' || viewFilter === 'stale' && ['STALE', 'NOT_CHECKED', 'INSUFFICIENT_DATA'].includes(row.state)).filter(row => !groupRows || groupRows.has(id(row))).filter(row => `${row.objectNumber} ${row.expertiseType === 'chs' ? row.assignedNumber || '' : ''} ${row.year ?? ''} ${types[row.expertiseType] || ''} ${row.fullName || ''} ${row.comment || ''}`.toLowerCase().includes(query.toLowerCase()));
+      let filtered = viewFilter === 'all' ? rows : rows.filter(row => viewFilter === 'selected' && (isImport ? row.included : selected.has(row.id)) || viewFilter === 'empty' && !Object.values(row.strData || {}).some(value => value.length) || viewFilter === 'issues' && ((row.sourceIssues || []).length || (isImport ? importIssues.byRow.get(row.draftRowId)?.length : objectMetadataIssues(row).length) || validation?.errors.some(item => item.draftRowId === row.draftRowId && item.issues.length)) || viewFilter === 'ready' && (row.searchState || row.state) === 'CHECKED' || viewFilter === 'stale' && ['STALE', 'NOT_CHECKED', 'INSUFFICIENT_DATA'].includes(row.state));
+      if (groupRows) filtered = filtered.filter(row => groupRows.has(id(row)));
+      const search = query.toLowerCase();
+      if (search && !previewOnly) filtered = filtered.filter(row => `${row.objectNumber} ${row.expertiseType === 'chs' ? row.assignedNumber || '' : ''} ${row.year ?? ''} ${types[row.expertiseType] || ''} ${row.fullName || ''} ${row.comment || ''}`.toLowerCase().includes(search));
       const value = row => sort.field.startsWith('locus:') ? (row.strData[sort.field.slice(6)] || []).join(',') : row[sort.field] ?? '';
-      return sort.field ? filtered.sort((a, b) => String(value(a)).localeCompare(String(value(b)), 'ru', {
-        numeric: true,
-        sensitivity: 'base'
-      }) * sort.direction) : filtered;
-    }, [rows, query, sort, viewFilter, selected, isImport, validation, importIssues, groupRows]);
+      return sort.field && !previewOnly ? [...filtered].sort((a, b) => profileCollator.compare(value(a), value(b)) * sort.direction) : filtered;
+    }, [rows, query, sort, viewFilter, selected, isImport, validation, importIssues, groupRows, previewOnly]);
   useEffect(() => {
     setPage(current => Math.min(current, Math.max(0, Math.ceil(visible.length / 50) - 1)));
   }, [visible.length]);
   const included = rows.filter(row => isImport ? row.included : selected.has(row.id)),
     countEmpty = rs => rs.filter(row => !Object.values(row.strData || {}).some(a => a.length)).length;
-  const loci = useMemo(() => orderNormalizedLoci(getAnalysisLoci(rows)), [rows]);
+  const loci = useMemo(() => isImport ? [] : orderNormalizedLoci(getAnalysisLoci(rows)), [isImport, rows]);
   function sortHeader(field, label, className) {
-    return <th className={className} aria-sort={sort.field === field ? sort.direction === 1 ? 'ascending' : 'descending' : 'none'}><button type="button" className="workspace-sort" onClick={() => {
+    return <th className={className} aria-sort={!previewOnly && sort.field === field ? sort.direction === 1 ? 'ascending' : 'descending' : 'none'}><button type="button" className="workspace-sort" disabled={previewOnly} onClick={() => {
         setSort(current => ({
           field,
           direction: current.field === field ? -current.direction : 1
         }));
         setPage(0);
-      }}>{label}{sort.field === field ? sort.direction === 1 ? ' ↑' : ' ↓' : ''}</button></th>;
+      }}>{label}{!previewOnly && sort.field === field ? sort.direction === 1 ? ' ↑' : ' ↓' : ''}</button></th>;
   }
   function change(row, key, value) {
     setRows(old => old.map(item => id(item) === id(row) ? {
@@ -706,7 +719,7 @@ export default function WorkspacePage({
   const showAssignedNumber = rows.some(row => row.expertiseType === 'chs' || !row.expertiseType && row.assignedNumber);
   const staffNameCandidates = isImport ? affected.filter(canTransferStaffName) : [];
   const readyCount = rows.filter(row => (row.searchState || row.state) === 'CHECKED' && row.approvalState !== 'pending').length;
-  const dirtyCount = !isImport && initial.current ? changedWorkingProfiles(rows, initial.current).length : 0;
+  const dirtyCount = !isImport && initial.current && rows !== initial.current ? changedWorkingProfiles(rows, initial.current).length : 0;
   const issuesFor = row => importIssues?.byRow.get(id(row)) || [];
   const errorCount = importIssues?.rowCount || 0;
   const draftPending = isImport && initial.current && rows !== initial.current && JSON.stringify(rows) !== JSON.stringify(initial.current);
@@ -728,15 +741,15 @@ export default function WorkspacePage({
   const detailIssues = details && isImport ? issuesFor(details) : details?.sourceIssues || [];
   const stateBadge = row => <div><span className="workspace-badge" data-state={row.state || 'NOT_CHECKED'}>{row.expertiseType === 'staff' && row.state === 'PUBLISHED' ? 'В эталонах сотрудников' : states[row.state] || 'Не проверен'}</span>{row.approvalId && <button className="workspace-object-link master-approval-history-link" onClick={() => setApprovalWindow({mode:'history',requestId:row.approvalId})}>Решение и история</button>}{row.decisionComment && <small className="master-approval-decision-note">{row.decisionComment}</small>}</div>;
   const objectNumber = row => row.expertiseType === 'staff' ? 'Регистрационный номер (необязательно)' : row.expertiseType === 'chs' ? 'Номер объекта ЧС' : `№ экспертизы ${extractExpertiseNumber(row.objectNumber) || '—'}`;
-  return <div className={`workspace-page ${isImport ? 'workspace-import-page' : 'workspace-profiles-page'}`} aria-label={isImport ? undefined : 'Мои генотипы'} aria-busy={busy || loadingProfiles}>
+  return <div className={`workspace-page ${isImport ? 'workspace-import-page' : 'workspace-profiles-page'}`} aria-label={isImport ? undefined : 'Мои генотипы'} aria-busy={busy || loadingProfiles && !previewOnly}>
     {isImport ? <header className="workspace-heading">
       <div><span className="workspace-eyebrow">Личная рабочая область</span><h1>Загрузка в личный массив</h1>{!rows.length && <p>Добавьте файлы, выберите объекты и подтвердите загрузку.</p>}</div>
       <a className="btn btn-secondary" href="/analysis"><WorkspaceIcon name="grid" />Мои генотипы</a>
     </header> : <div className="workspace-compact-toolbar">
       <div className="workspace-view-switch" role="group" aria-label="Представление личного массива">
-        <button className="btn btn-secondary" aria-pressed={!showingResults} onClick={() => setActiveView('profiles')}><WorkspaceIcon name="grid" />Профили<span className="workspace-count-pill">{loadingProfiles ? '…' : rows.length}</span></button>
+        <button className="btn btn-secondary" aria-pressed={!showingResults} onClick={() => setActiveView('profiles')}><WorkspaceIcon name="grid" />Профили<span className="workspace-count-pill">{profilesReady ? rows.length : '…'}</span></button>
         <button className="btn btn-secondary" ref={resultViewButton} disabled={!result} aria-pressed={showingResults} onClick={() => setActiveView('results')}><WorkspaceIcon name="search" />Результаты поиска</button>
-        <span className="workspace-ready-count">{loadingProfiles ? 'Загружаем профили…' : `Готовы к публикации: ${readyCount}`}</span>
+        <span className="workspace-ready-count">{loadingProfiles ? 'Загружаем профили…' : profilesReady ? `Готовы к публикации: ${readyCount}` : ''}</span>
       </div>
       <div className="master-approval-header-actions"><button className="btn btn-secondary" onClick={() => setApprovalWindow({mode:'own-history'})}>Мои заявки</button>{workspace?.canApproveMaster && <button className="btn btn-secondary" onClick={() => setApprovalWindow({mode:'queue'})}>На подтверждении</button>}<a className="btn btn-primary" href="/upload"><WorkspaceIcon name="upload" />Загрузить файлы</a></div>
     </div>}
@@ -779,14 +792,16 @@ export default function WorkspacePage({
     </section>}
 
     <div className="workspace-profile-panel" hidden={showingResults}>
-    {loadingProfiles && <section className="workspace-loading" role="status" aria-label="Загрузка генотипов"><div className="workspace-loading-heading"><span className="workspace-loading-spinner" aria-hidden="true" /><div><strong>Загружаем ваши генотипы</strong><p>Получаем профили и состояние последних проверок.</p></div></div><div className="workspace-skeleton-table" aria-hidden="true">{Array.from({ length: 9 }, (_, index) => <div key={index}><span /><span /><span /><span /><span /><span /></div>)}</div></section>}
-    {!!rows.length && (isImport || profilesReady) && <>
+    {loadingProfiles && !previewOnly && <section className="workspace-loading" role="status" aria-label="Загрузка генотипов"><div className="workspace-loading-heading"><span className="workspace-loading-spinner" aria-hidden="true" /><div><strong>Загружаем ваши генотипы</strong><p>Получаем профили и состояние последних проверок.</p></div></div><div className="workspace-skeleton-table" aria-hidden="true">{Array.from({ length: 9 }, (_, index) => <div key={index}><span /><span /><span /><span /><span /><span /></div>)}</div></section>}
+    {!!rows.length && (isImport || profilesReady || previewOnly) && <>
       {isImport && <div className="workspace-draft-status"><span><strong>{rows.length.toLocaleString('ru-RU')}</strong> объектов из файлов{errorCount > 0 && <span className="workspace-draft-warning"> · требуют внимания: {errorCount}</span>}</span><span><span className={`workspace-save-dot ${autoSaving || draftPending ? 'is-saving' : ''}`} /><span role="status">{autoSaving ? 'Сохраняем правки…' : draftPending ? 'Правки ожидают сохранения' : 'Черновик сохранён'}</span><small>· 24 часа</small></span></div>}
 
       {isImport && <WorkspaceImportIssues summary={importIssues} validation={validation} activeGroup={issueGroup} onShowGroup={key => { setIssueGroup(key); setViewFilter('issues'); setQuery(''); setPage(0); requestAnimationFrame(() => objectTable.current?.focus()); }} onShowAll={() => { setIssueGroup(null); setViewFilter('all'); setPage(0); }} />}
 
       <section className="workspace-data-card">
-        <div className="workspace-profile-controls">
+        {previewOnly ? <div className="workspace-data-heading" role="status">
+          <div><h2>Рабочие профили</h2><p>{loadingProfiles ? 'Загружаем остальные объекты…' : 'Показаны только первые объекты.'}</p></div>
+        </div> : <div className="workspace-profile-controls">
         <div className="workspace-data-heading"><div><h2>{isImport ? 'Объекты из файлов' : 'Рабочие профили'}</h2>{isImport && <p>Укажите год и тип. Для ЧС обязателен ростовский номер из Excel; ФИО заполняется только для сотрудников.</p>}</div>{!isImport && !!dirtyCount && <span className="workspace-badge" data-state="STALE">Есть изменения: {dirtyCount}</span>}</div>
         <div className="workspace-filter-bar">
           <label className="workspace-search"><WorkspaceIcon name="search" /><input className="form-input" aria-label="Поиск объектов" value={query} onChange={e => {
@@ -849,22 +864,22 @@ export default function WorkspacePage({
                   });
                 }}><option value="standard">Стандартный</option><option value="duplicate_v5">Дубликаты v5</option><option value="contamination">Контаминация</option></select></label><button className="btn btn-secondary" disabled={busy || !canEdit} onClick={() => setStaffSettingsOpen(true)}>Контаминация сотрудников: настройки</button><p>Сотрудники: {staffOptions.useV5Algorithm ? 'v5.0' : staffOptions.useV4Algorithm ? 'v4.0' : 'v1.5'} · порог {staffOptions.threshold}. Изменение параметров требует нового полного поиска.</p></div></details>}</div>
 
-        </div>
+        </div>}
         <div className="workspace-table-scroll" ref={objectTable} tabIndex="0" role="region" aria-label="Таблица объектов">
           <table className={`workspace-table ${isImport ? 'workspace-import-table' : ''}`}><thead><tr><th className="workspace-check-column"><input type="checkbox" aria-label="Выбрать все строки текущего фильтра" checked={allSelected} ref={el => {
                     if (el) el.indeterminate = !allSelected && selectable.some(isSelected);
-                  }} disabled={busy || !selectable.length} onChange={e => chooseAll(e.target.checked)} /></th>{sortHeader('objectNumber', 'Объект', 'workspace-object-column')}{showAssignedNumber && sortHeader('assignedNumber', <span>{ASSIGNED_HEADER}<small>ЧС · из Excel</small></span>, 'workspace-assigned-column')}{sortHeader('year', 'Год', 'workspace-year-column')}{sortHeader('expertiseType', 'Тип', 'workspace-type-column')}{showStaff && sortHeader('fullName', 'ФИО сотрудника', 'workspace-name-column')}{sortHeader('comment', 'Комментарий', 'workspace-comment-column')}<th className="workspace-state-column">{isImport ? 'Данные и проверка' : 'Состояние'}</th>{!isImport && loci.map(locus => <React.Fragment key={locus}>{sortHeader('locus:' + locus, locus, 'workspace-locus-column')}</React.Fragment>)}<th className="workspace-row-actions">Действия</th></tr></thead>
+                  }} disabled={busy || previewOnly || !selectable.length} onChange={e => chooseAll(e.target.checked)} /></th>{sortHeader('objectNumber', 'Объект', 'workspace-object-column')}{showAssignedNumber && sortHeader('assignedNumber', <span>{ASSIGNED_HEADER}<small>ЧС · из Excel</small></span>, 'workspace-assigned-column')}{sortHeader('year', 'Год', 'workspace-year-column')}{sortHeader('expertiseType', 'Тип', 'workspace-type-column')}{showStaff && sortHeader('fullName', 'ФИО сотрудника', 'workspace-name-column')}{sortHeader('comment', 'Комментарий', 'workspace-comment-column')}<th className="workspace-state-column">{isImport ? 'Данные и проверка' : 'Состояние'}</th>{!isImport && loci.map(locus => <React.Fragment key={locus}>{sortHeader('locus:' + locus, locus, 'workspace-locus-column')}</React.Fragment>)}<th className="workspace-row-actions">Действия</th></tr></thead>
             <tbody>{pageRows.map(row => {
                 const editable = isImport || editingId === row.id;
                 const issues = isImport ? issuesFor(row) : [];
                 const checked = isSelected(row);
                 return <tr key={id(row)} data-object-number={row.objectNumber} data-selected={!!checked} data-excluded={isImport && !row.included}>
-                <td className="workspace-check-column"><input type="checkbox" aria-label={`Выбрать ${row.objectNumber || row.fullName}`} checked={!!checked} disabled={busy || !!(isImport && row.provenance?.classification && !row.provenance.classification.included)} onChange={e => isImport ? change(row, 'included', e.target.checked) : setSelected(old => {
+                <td className="workspace-check-column"><input type="checkbox" aria-label={`Выбрать ${row.objectNumber || row.fullName}`} checked={!!checked} disabled={busy || previewOnly || !!(isImport && row.provenance?.classification && !row.provenance.classification.included)} onChange={e => isImport ? change(row, 'included', e.target.checked) : setSelected(old => {
                       const next = new Set(old);
                       e.target.checked ? next.add(row.id) : next.delete(row.id);
                       return next;
                     })} /></td>
-                <td className="workspace-object-column">{editable ? <input aria-label="Номер объекта" aria-invalid={issues.some(issue => ['OBJECT_NUMBER', 'REGISTRATION', 'REGISTRATION_CONFLICT'].includes(issue.code))} className="form-input" value={row.objectNumber} placeholder={row.expertiseType === 'staff' ? 'Необязательно' : ''} disabled={busy || !canEdit} onChange={e => change(row, 'objectNumber', e.target.value)} /> : <button className="workspace-object-link" title={row.objectNumber || row.fullName} onClick={() => editGenotype(row)}>{row.objectNumber || 'Без номера'}</button>}<small title={objectNumber(row)}>{objectNumber(row)}</small></td>
+                <td className="workspace-object-column">{editable ? <input aria-label="Номер объекта" aria-invalid={issues.some(issue => ['OBJECT_NUMBER', 'REGISTRATION', 'REGISTRATION_CONFLICT'].includes(issue.code))} className="form-input" value={row.objectNumber} placeholder={row.expertiseType === 'staff' ? 'Необязательно' : ''} disabled={busy || !canEdit} onChange={e => change(row, 'objectNumber', e.target.value)} /> : <button className="workspace-object-link" title={row.objectNumber || row.fullName} disabled={previewOnly} onClick={() => editGenotype(row)}>{row.objectNumber || 'Без номера'}</button>}<small title={objectNumber(row)}>{objectNumber(row)}</small></td>
                 {showAssignedNumber && <td className="workspace-assigned-column" data-invalid={issues.some(issue => String(issue.code || '').startsWith('ASSIGNED_NUMBER'))}><span title={row.expertiseType === 'chs' || !row.expertiseType ? row.assignedNumber || 'Загрузите Excel с присвоенным номером' : ''}>{row.expertiseType === 'chs' || !row.expertiseType ? row.assignedNumber || '—' : '—'}</span></td>}
                 <td className="workspace-year-column">{editable ? <input aria-label="Год объекта" aria-invalid={issues.some(issue => issue.code === 'YEAR')} className="form-input" type="number" min="1900" max="2100" value={row.year ?? ''} disabled={busy || !canEdit} onChange={e => change(row, 'year', e.target.value === '' ? null : Number(e.target.value))} /> : row.year || '—'}</td>
                 <td className="workspace-type-column">{editable ? <select aria-label="Тип объекта" aria-invalid={issues.some(issue => issue.code === 'TYPE')} className="form-select" value={row.expertiseType || ''} disabled={busy || !canEdit} onChange={e => change(row, 'expertiseType', e.target.value || null)}><option value="">Выберите тип</option>{Object.entries(types).map(([code, label]) => <option key={code} value={code}>{label}</option>)}</select> : <span className="workspace-type" data-type={row.expertiseType}>{types[row.expertiseType] || 'Не указан'}</span>}</td>
@@ -880,7 +895,7 @@ export default function WorkspacePage({
                   </div>}
                 </> : stateBadge(row)}</td>
                 {!isImport && loci.map(locus => <td className="workspace-alleles" key={locus}>{(row.strData[locus] || []).join(',') || <span className="workspace-muted">—</span>}</td>)}
-                <td className="workspace-row-actions"><div>{!isImport && canEdit && <button className="workspace-icon-button" aria-label={`Редактировать ${row.objectNumber || row.fullName}`} title="Редактировать метаданные" disabled={busy} onClick={() => setEditingId(editingId === row.id ? null : row.id)}><WorkspaceIcon name={editingId === row.id ? 'check' : 'edit'} /></button>}<button className="workspace-icon-button" aria-label={`Открыть генотип ${row.objectNumber || row.fullName}`} title="Генотип и источник" onClick={() => editGenotype(row)}><WorkspaceIcon name="open" /></button></div></td>
+                <td className="workspace-row-actions"><div>{!isImport && canEdit && <button className="workspace-icon-button" aria-label={`Редактировать ${row.objectNumber || row.fullName}`} title="Редактировать метаданные" disabled={busy} onClick={() => setEditingId(editingId === row.id ? null : row.id)}><WorkspaceIcon name={editingId === row.id ? 'check' : 'edit'} /></button>}<button className="workspace-icon-button" aria-label={`Открыть генотип ${row.objectNumber || row.fullName}`} title="Генотип и источник" disabled={previewOnly} onClick={() => editGenotype(row)}><WorkspaceIcon name="open" /></button></div></td>
               </tr>;
               })}</tbody>
           </table>
@@ -890,17 +905,17 @@ export default function WorkspacePage({
               setPage(0);
             }}>Сбросить фильтры</button></div>}
         </div>
-        <div className="workspace-pagination"><span>{visible.length ? `${page * 50 + 1}–${Math.min((page + 1) * 50, visible.length)} из ${visible.length.toLocaleString('ru-RU')}` : '0 объектов'}</span><div><button className="workspace-icon-button" aria-label="Предыдущая страница" disabled={page === 0} onClick={() => setPage(value => value - 1)}><WorkspaceIcon name="left" /></button><span>Страница {page + 1} из {totalPages}</span><button className="workspace-icon-button" aria-label="Следующая страница" disabled={page + 1 >= totalPages} onClick={() => setPage(value => value + 1)}><WorkspaceIcon name="right" /></button></div><small>По 50 объектов на странице</small></div>
+        {!previewOnly && <div className="workspace-pagination"><span>{visible.length ? `${page * 50 + 1}–${Math.min((page + 1) * 50, visible.length)} из ${visible.length.toLocaleString('ru-RU')}` : '0 объектов'}</span><div><button className="workspace-icon-button" aria-label="Предыдущая страница" disabled={page === 0} onClick={() => setPage(value => value - 1)}><WorkspaceIcon name="left" /></button><span>Страница {page + 1} из {totalPages}</span><button className="workspace-icon-button" aria-label="Следующая страница" disabled={page + 1 >= totalPages} onClick={() => setPage(value => value + 1)}><WorkspaceIcon name="right" /></button></div><small>По 50 объектов на странице</small></div>}
       </section>
 
-      <div className="workspace-command-bar">
+      {!previewOnly && <div className="workspace-command-bar">
         <div className="workspace-selection"><span className="workspace-selection-number">{included.length}</span><div><strong>объектов выбрано</strong><small>{isImport ? `Пустых: ${countEmpty(included)} · требуют внимания: ${errorCount}` : dirtyCount ? `Несохранённых изменений: ${dirtyCount}` : 'Действия применяются к выбору'}</small></div></div>
         <div className="workspace-command-actions">{isImport ? <><button className="btn btn-secondary" disabled={busy || !canEdit || !included.length} onClick={() => action('validate')}><WorkspaceIcon name="download" />Подготовить XLSX</button><button className="btn btn-primary" disabled={busy || !canEdit || !included.length} onClick={() => action('commit')}><WorkspaceIcon name="upload" />{busy ? 'Подождите…' : 'Загрузить выбранные'}</button></> : <>
           {!!dirtyCount && <button className="btn btn-secondary" disabled={busy || !canEdit} onClick={() => action('save')}><WorkspaceIcon name="check" />Сохранить изменения</button>}
           <details className="workspace-more-actions" ref={actionsMenu}><summary className="btn btn-secondary">Действия<WorkspaceIcon name="chevron" /></summary><div role="group" aria-label="Действия с выбранными профилями"><button disabled={busy || !canEdit || !included.length} onClick={() => action('export')}><WorkspaceIcon name="download" />Экспортировать выбранные</button>{workspace?.canSubmitMaster && <button disabled={busy || !included.length} onClick={() => action('send')}><WorkspaceIcon name="shield" />Отправить на подтверждение</button>}{workspace?.canManageStaff && <button disabled={busy || !included.length} onClick={() => action('publish')}><WorkspaceIcon name="shield" />Публиковать эталоны сотрудников</button>}<button disabled={busy || !readyCount} onClick={() => setSelected(new Set(rows.filter(row => (row.searchState || row.state) === 'CHECKED' && row.approvalState !== 'pending').map(row => row.id)))}><WorkspaceIcon name="check" />Выбрать только готовые</button><button className="workspace-delete-action" disabled={busy || !canEdit || !included.length} onClick={() => action('delete')}><WorkspaceIcon name="delete" />Удалить выбранные</button></div></details>
           <button className="btn btn-primary" disabled={busy || !canEdit || !included.length} onClick={() => action('search')}><WorkspaceIcon name="search" />{busy ? 'Выполняется операция…' : 'Полный поиск выбранных'}</button>
         </>}</div>
-      </div>
+      </div>}
     </>}
 
     {profilesReady && !rows.length && <section className="workspace-empty"><span className="workspace-empty-icon"><WorkspaceIcon name="grid" /></span><h2>Здесь будут ваши генотипы</h2><p>Загрузите файлы, выберите нужные объекты и начните работу с личным массивом.</p><a className="btn btn-primary" href="/upload"><WorkspaceIcon name="upload" />Загрузить первые файлы</a><div><span><WorkspaceIcon name="check" />Без назначения задачи</span><span><WorkspaceIcon name="shield" />С доступом только для вас</span></div></section>}
