@@ -1,3 +1,4 @@
+import { formatDateRu } from '../../../../src/utils/dateFormatter';
 import React, { useEffect, useState, useRef } from 'react';
 import { useAuth } from '../../contexts/AuthContext';
 import { resolveProfileImportFormat } from '../../../../src/utils/profileImportFormat';
@@ -83,7 +84,7 @@ export default function GenotypePanelsPage() {
       {error && <div className="alert alert-error" role="alert">{error}</div>}
       {message && <div className="alert alert-success" role="status">{message}</div>}
       {loading ? <p role="status">Загрузка панелей…</p> : <div className="table-container"><table className="table panels-table"><thead><tr><th>Название</th><th>Локусы</th><th>Активность</th><th>Обновлена</th><th>Действия</th></tr></thead><tbody>
-        {panels.map(panel => <tr key={panel.id}><td>{panel.name}</td><td>{panel.lociOrder.length}</td><td>{panel.isActive ? 'Активна' : 'Неактивна'}</td><td>{new Date(panel.updatedAt).toLocaleString('ru-RU')}</td><td className="panels-actions">
+        {panels.map(panel => <tr key={panel.id}><td>{panel.name}</td><td>{panel.lociOrder.length}</td><td>{panel.isActive ? 'Активна' : 'Неактивна'}</td><td>{formatDateRu(panel.updatedAt)}</td><td className="panels-actions">
           <button className="btn btn-secondary btn-sm" disabled={saving} onClick={() => { setDraft({ ...panel }); setLocusInput(''); setError(''); }}>{canEdit ? 'Редактировать' : 'Просмотреть'}</button>
           {canEdit && panel.isActive && <button className="btn btn-secondary btn-sm" disabled={saving} onClick={() => deactivate(panel)}>Деактивировать</button>}
         </td></tr>)}

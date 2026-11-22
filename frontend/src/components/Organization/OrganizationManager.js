@@ -1,3 +1,4 @@
+import { formatDateOnlyRu } from '../../../../src/utils/dateFormatter';
 import UiIcon from '../Common/UiIcon';
 import React, { useState, useEffect } from 'react';
 
@@ -303,7 +304,7 @@ const OrganizationManager = ({ hasRole, onNavigate }) => {
                 </td>
                 <td>
                   <span className="last-login">
-                    {new Date(org.created_at).toLocaleDateString('ru-RU')}
+                    {formatDateOnlyRu(org.created_at)}
                   </span>
                 </td>
                 <td>

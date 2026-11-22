@@ -1,3 +1,4 @@
+import { formatDateRu } from '../../../../src/utils/dateFormatter';
 import React,{useEffect,useRef,useState} from 'react';
 import {useAuth} from '../../contexts/AuthContext';
 
@@ -21,7 +22,7 @@ export default function NightSearchPage({onNavigate}) {
   useEffect(()=>{let active=true;const update=()=>api('/search-jobs?scope='+scope).then(d=>{if(active)setJobs(d.jobs);}).catch(e=>{if(active)setError(e.message);});update();const timer=setInterval(update,10000);return()=>{active=false;clearInterval(timer);};},[scope,user.id,user.organization_id]);
   async function action(fn){setBusy(true);setError('');setNotice('');try{await fn();await refresh();}catch(e){setError(e.message);}finally{setBusy(false);}}
   const edit=(field,value)=>{setPolicy(p=>({...p,[field]:value}));setPreview(null);setDirty(true);requestKey.current=null;};
-  const date=value=>value?new Date(value).toLocaleString('ru-RU',{timeZone:policy?.timezone||'Europe/Moscow',dateStyle:'short',timeStyle:'short'}):'—';
+  const date=value=>value?formatDateRu(value):'—';
   return <main className="night-search-page">
     <header className="page-header"><div><h1>Ночная сверка</h1><p>Автоматическая проверка личных массивов. Ручной поиск имеет приоритет.</p></div></header>
     {error&&<div className="workspace-message workspace-message-error" role="alert">{error}</div>}{notice&&<div className="workspace-message workspace-message-success" role="status">{notice}</div>}

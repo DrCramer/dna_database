@@ -1,3 +1,4 @@
+import { formatDateOnlyRu, formatDateRu } from '../../../../src/utils/dateFormatter';
 import React, { useState } from 'react';
 
 const ContaminationIndicator = ({ results }) => {
@@ -41,7 +42,7 @@ const ContaminationIndicator = ({ results }) => {
         <div className="analysis-mini-label">Анализируемый профиль</div>
         <div className="analysis-main-value">{profile.sampleName}</div>
         <div className="analysis-subtle">
-          ID: {profile.id.substring(0, 16)}... | Загружен: {new Date(profile.uploadDate).toLocaleDateString('ru-RU')}
+          ID: {profile.id.substring(0, 16)}... | Загружен: {formatDateOnlyRu(profile.uploadDate)}
         </div>
       </div>
 
@@ -133,7 +134,7 @@ const ContaminationIndicator = ({ results }) => {
         <div className="analysis-mini-label">Детали анализа</div>
         <ul className="analysis-list">
           <li><strong>Популяция:</strong> {results.populationUsed}</li>
-          <li><strong>Время анализа:</strong> {new Date(results.analysisTimestamp).toLocaleString('ru-RU')}</li>
+          <li><strong>Время анализа:</strong> {formatDateRu(results.analysisTimestamp)}</li>
           <li><strong>Достоверность детекции:</strong> {formatProbability(confidence)}</li>
         </ul>
       </div>

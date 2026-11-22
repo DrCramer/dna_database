@@ -1,3 +1,4 @@
+import { formatDateOnlyRu } from '../../src/utils/dateFormatter';
 import React, { useState, useEffect } from 'react';
 import { AuthProvider, useAuth } from './contexts/AuthContext';
 import { ThemeProvider } from './contexts/ThemeContext';
@@ -258,7 +259,7 @@ const ProfileViewer = ({ onNavigate }) => {
                     {isGenetic && <td>{profile.panel?.name || profile.panelName || 'Не указана'}</td>}
                     <td className="profile-viewer-cell-muted">
                       {profile.uploadDate || profile.upload_date || profile.created_at ?
-                        new Date(profile.uploadDate || profile.upload_date || profile.created_at).toLocaleDateString('ru-RU') :
+                        formatDateOnlyRu(profile.uploadDate || profile.upload_date || profile.created_at) :
                         'Нет данных'
                       }
                     </td>

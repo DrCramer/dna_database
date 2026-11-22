@@ -88,6 +88,44 @@ test('Единый workspace: импорт, ревизии, поиск, gate, п
     return {published,replayed:outcome.replayed};
   }
   let ids, run;
+  await t.test('Поиск сохраняет типы одноимённых объектов в личном массиве, мастер-массиве и контаминациях', async () => {
+    const { rows: [{ id: typeOrg }] } = await pool.query('INSERT INTO organizations(name) VALUES($1) RETURNING id', ['SYN-types-' + randomUUID()]);
+    const actor = await user('user_analyst', typeOrg);
+    const otherOwner = await user('user_analyst', typeOrg);
+    const { ids: [referenceId, matchId] } = await load(actor, [profile('SYN-TYPE', 'gr'), profile('SYN-TYPE', 'ug')]);
+    const { rows: [{ id: arrayId }] } = await pool.query("INSERT INTO master_arrays(name,organization_id) VALUES('SYN array',$1) RETURNING id", [typeOrg]);
+    const { rows: [{ id: masterId }] } = await pool.query(`INSERT INTO master_array_profiles(master_array_id,organization_id,year,sample_name,internal_number,str_data,created_by,expertise_type)
+      VALUES($1,$2,2026,'SYN-REG','SYN-TYPE',$3,$4,'chs') RETURNING id`, [arrayId, typeOrg, JSON.stringify(data), actor.id]);
+    await pool.query("INSERT INTO staff_profiles(staff_id,full_name,str_data,created_by,organization_id) VALUES($1,'Тестов Тест',$2,$3,$4)", ['SYN-' + randomUUID(), JSON.stringify(data), actor.id, typeOrg]);
+    const search = await service.fullSearch(actor, [referenceId]);
+    function checkTypes(result, types) {
+      const { internal: { results: [personal] }, master: { results: [master] }, staff: [staff] } = result;
+      assert.equal(personal.reference.expertise_type, types.workspace);
+      assert.equal(master.reference.expertise_type, types.workspace);
+      assert.equal(staff.reference.expertise_type, types.workspace);
+      for (const list of [personal.matches, personal.exportMatches]) {
+        assert.equal(list.find(match => match.id === matchId).expertise_type, types.candidate);
+      }
+      for (const list of [master.matches, master.exportMatches]) {
+        assert.equal(list.find(match => match.id === masterId).expertise_type, types.master);
+      }
+    }
+    const initialTypes = { workspace: 'gr', candidate: 'ug', master: 'chs' };
+    checkTypes(search, initialTypes);
+    checkTypes(await service.search(actor, search.id), initialTypes);
+    await assert.rejects(service.search(otherOwner, search.id), e => e.status === 404);
+
+    const { seal, unseal } = require('../src/services/workspace/workspaceCrypto');
+    const { rows: [{ encrypted_result: snapshot }] } = await pool.query('SELECT encrypted_result FROM workspace_search_runs WHERE id=$1', [search.id]);
+    const olderResult = JSON.parse(JSON.stringify(unseal(snapshot), (key, value) => key === 'expertise_type' ? undefined : value));
+    await pool.query('UPDATE workspace_search_runs SET encrypted_result=$2 WHERE id=$1', [search.id, seal(olderResult)]);
+    checkTypes(await service.search(actor, search.id), initialTypes);
+    await service.patch(actor, matchId, { objectNumber: 'SYN-TYPE-2' });
+    await pool.query("UPDATE master_array_profiles SET expertise_type='ug' WHERE id=$1", [masterId]);
+    checkTypes(await service.search(actor, search.id), {});
+    await pool.query('UPDATE workspace_search_runs SET encrypted_result=$2 WHERE id=$1', [search.id, snapshot]);
+    checkTypes(await service.search(actor, search.id), initialTypes);
+  });
   await t.test('История дубликатов учитывает старый поиск, первую дату, владельца и очистку истории', async () => {
     const actor = await user('user_analyst');
     const pair = await load(actor, [profile('SYN-HISTORY-1'), profile('SYN-HISTORY-2')]);

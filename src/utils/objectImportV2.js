@@ -11,12 +11,12 @@ const detector = new LociTypeDetector();
 const FORMAT = 'DNA_IMPORT_V2';
 const { ASSIGNED_HEADER, getAssignedNumber } = require('./emergencyAssignedNumber');
 const {
-  OBJECT_TYPES: TYPES
+  OBJECT_TYPES: TYPES, EXPERTISE_TYPE_HEADER
 } = require('./objectTypes');
 const FIELDS = Object.freeze({
   objectNumber: 'Объект',
   year: 'Год',
-  expertiseType: 'Тип экспертизы',
+  expertiseType: EXPERTISE_TYPE_HEADER,
   fullName: 'ФИО',
   comment: 'Комментарий',
   registrationNumber: '№ рег.',

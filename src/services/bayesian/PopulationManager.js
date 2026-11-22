@@ -1,3 +1,4 @@
+const { formatDateRu } = require('../../utils/dateFormatter');
 /**
  * Population Manager - Manages population allele frequency data and validation
  * 
@@ -375,7 +376,7 @@ class PopulationManager {
                     name: populationData.name,
                     sampleSize: populationData.sampleSize,
                     inbreedingCoefficient: populationData.inbreedingCoefficient,
-                    lastUpdated: populationData.lastUpdated,
+                    lastUpdated: formatDateRu(populationData.lastUpdated, true),
                     loci: Array.from(populationData.locusFrequencies.entries()).map(([locusName, locusData]) => ({
                         locusName,
                         frequencies: Object.fromEntries(locusData.frequencies),

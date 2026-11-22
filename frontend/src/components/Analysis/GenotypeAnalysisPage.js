@@ -1,3 +1,5 @@
+import { informativeAlleles } from '../../../../src/utils/alleleTokens';
+import { formatDateRu } from '../../../../src/utils/dateFormatter';
 import React, { useState, useEffect, useRef, useMemo } from 'react';
 import ColorPicker from './ColorPicker';
 import { legacyContaminationSettings } from '../../../../src/utils/staffSearchOptions';
@@ -9,7 +11,7 @@ import { useAuth } from '../../contexts/AuthContext';
 import { resolveProfileImportFormat } from '../../../../src/utils/profileImportFormat';
 import { ALL_LOCI } from '../../../../src/utils/lociTypeDetector';
 import { getAnalysisLoci, compareProfileNumbers } from '../../../../src/utils/analysisLoci';
-import { getLocusComparisonPresentation } from '../../../../src/utils/locusComparisonPresentation';
+import { getLocusComparisonPresentation, participatedInComparison } from '../../../../src/utils/locusComparisonPresentation';
 import DuplicateExportModal from './DuplicateExportModal';
 import { requestDuplicateXlsx } from "../../services/duplicateExportApi";
 
@@ -304,6 +306,19 @@ const GenotypeAnalysisPage = ({ onNavigate, selectedActiveTask }) => {
 
   // Вычисляем список активных локусов (не игнорируемых) с учетом порядка
   const activeLoci = lociOrder.filter(locus => !ignoredLoci[locus]);
+  const resultIgnored = lastSearchLociState || ignoredLoci;
+  const resultLoci = useMemo(() => {
+    const excluded = new Set(Object.keys(resultIgnored).filter(locus => resultIgnored[locus]));
+    return lociOrder.filter(locus => !excluded.has(locus) && searchResults.some(result =>
+      participatedInComparison(getLocusComparisonPresentation({
+        referenceData: (result.referenceProfile?.loci || referenceProfile?.loci || referenceValues.loci)[locus],
+        comparedData: result.loci?.[locus], matchedLoci: result.matchedLoci, details: result.details, locus
+      }))
+    ));
+  }, [lociOrder, searchResults, referenceProfile, referenceValues.loci, resultIgnored]);
+  const staffComparisonDetails = (contaminationDetails?.detailedMatches || []).filter(match =>
+    match.matchType !== 'empty' && informativeAlleles(match.sampleAlleles).length && informativeAlleles(match.staffAlleles).length
+  );
   const tableColumnCount = baseColumnsOrder.length + activeLoci.length + 1;
   const tableMinWidth = baseColumnsOrder.reduce((width, column) => width + PROFILE_COLUMN_WIDTHS[column.key], 0)
     + activeLoci.length * LOCUS_COLUMN_WIDTH + ACTIONS_COLUMN_WIDTH;
@@ -1649,13 +1664,7 @@ const GenotypeAnalysisPage = ({ onNavigate, selectedActiveTask }) => {
 
       let updatedCommentData = {
         expert_comment: comment,
-        comment_updated_at: new Date().toLocaleString('ru-RU', {
-          day: '2-digit',
-          month: '2-digit',
-          year: 'numeric',
-          hour: '2-digit',
-          minute: '2-digit'
-        })
+        comment_updated_at: new Date().toISOString()
       };
 
       if (getResponse.ok) {
@@ -2840,7 +2849,7 @@ const GenotypeAnalysisPage = ({ onNavigate, selectedActiveTask }) => {
                           <th>Эксперт</th>
                         </>
                       )}
-                      {activeLoci.map(locus => (
+                      {resultLoci.map(locus => (
                         <th
                           key={locus}
                           className={`drag-header-cell${dragOverLocus === locus ? ' is-drag-target' : ''}`}
@@ -2872,7 +2881,7 @@ const GenotypeAnalysisPage = ({ onNavigate, selectedActiveTask }) => {
                             <td>-</td>
                           </>
                         )}
-                        {activeLoci.map(locus => {
+                        {resultLoci.map(locus => {
                           // Проверяем есть ли этот локус в совпадениях хотя бы у одного результата
                           const isMatchedInAny = searchResults.some(result =>
                             result.matchedLoci && result.matchedLoci.includes(locus)
@@ -2905,7 +2914,7 @@ const GenotypeAnalysisPage = ({ onNavigate, selectedActiveTask }) => {
                     {/* Блок с комментарием для эталонного профиля */}
                     {referenceProfile && referenceProfile.expert_comment && (
                       <tr className="comment-row">
-                        <td colSpan={activeLoci.length + (searchResults.length > 0 && searchResults[0].searchMode === 'department_tasks' ? 7 : 5)} className="comment-cell">
+                        <td colSpan={resultLoci.length + (searchResults.length > 0 && searchResults[0].searchMode === 'department_tasks' ? 7 : 5)} className="comment-cell">
                           <div className="result-comment-block">
                             <div className="comment-icon">💬</div>
                             <div className="comment-content">
@@ -2969,9 +2978,9 @@ const GenotypeAnalysisPage = ({ onNavigate, selectedActiveTask }) => {
                                 <td>{result.task_owner || 'N/A'}</td>
                               </>
                             )}
-                            {activeLoci.map(locus => {
+                            {resultLoci.map(locus => {
                               const resultReference = result.referenceProfile || referenceProfile;
-                              const refLocusData = resultReference?.loci ? resultReference.loci[locus] : null;
+                              const refLocusData = (resultReference?.loci || referenceValues.loci)[locus];
                               const compLocusData = result.loci ? result.loci[locus] : null;
                               const presentation = getLocusComparisonPresentation({
                                 referenceData: refLocusData,
@@ -2979,7 +2988,6 @@ const GenotypeAnalysisPage = ({ onNavigate, selectedActiveTask }) => {
                                 matchedLoci: result.matchedLoci,
                                 details: result.details,
                                 locus,
-                                ignoredLoci: Object.keys(ignoredLoci).filter(name => ignoredLoci[name]),
                                 colors: contaminationSettings.colors
                               });
                               const statusClasses = {
@@ -3016,7 +3024,7 @@ const GenotypeAnalysisPage = ({ onNavigate, selectedActiveTask }) => {
                           {/* Блок с комментарием под строкой */}
                           {profileForActions && profileForActions.expert_comment && (
                             <tr className="comment-row">
-                              <td colSpan={activeLoci.length + (result.searchMode === 'department_tasks' ? 7 : 5)} className="comment-cell">
+                              <td colSpan={resultLoci.length + (result.searchMode === 'department_tasks' ? 7 : 5)} className="comment-cell">
                                 <div className="result-comment-block">
                                   <div className="comment-icon">💬</div>
                                   <div className="comment-content">
@@ -3075,12 +3083,12 @@ const GenotypeAnalysisPage = ({ onNavigate, selectedActiveTask }) => {
               <h3>📈 Результаты сравнения</h3>
               <div className="section-divider"></div>
               <p><strong>Балл совпадения:</strong> {typeof contaminationDetails.matchScore === 'number' ? contaminationDetails.matchScore.toFixed(1) : contaminationDetails.matchScore} / 30</p>
-              <p><strong>Совпавшие локусы:</strong> {contaminationDetails.matchedLoci.length} / 24</p>
+              <p><strong>Совпавшие локусы:</strong> {contaminationDetails.matchedLoci.length}</p>
 
               {/* Критические аллели с разделением по ценности */}
-              {contaminationDetails.detailedMatches && contaminationDetails.detailedMatches.length > 0 && (() => {
-                const strongCritical = contaminationDetails.detailedMatches.filter(m => m.isStrongCritical);
-                const normalCritical = contaminationDetails.detailedMatches.filter(m => m.isCritical && !m.isStrongCritical);
+              {staffComparisonDetails.length > 0 && (() => {
+                const strongCritical = staffComparisonDetails.filter(m => m.isStrongCritical);
+                const normalCritical = staffComparisonDetails.filter(m => m.isCritical && !m.isStrongCritical);
 
                 return (
                   <div className="critical-alleles-section">
@@ -3119,9 +3127,9 @@ const GenotypeAnalysisPage = ({ onNavigate, selectedActiveTask }) => {
               })()}
 
               {/* Таблица совпадающих локусов */}
-              {contaminationDetails.detailedMatches && contaminationDetails.detailedMatches.length > 0 && (
+              {staffComparisonDetails.length > 0 && (
                 <details className="detailed-matches" open>
-                  <summary>Детальное совпадение по локусам ({contaminationDetails.detailedMatches.length})</summary>
+                  <summary>Детальное совпадение по локусам ({staffComparisonDetails.length})</summary>
                   <div className="matches-table">
                     <table>
                       <thead>
@@ -3137,7 +3145,7 @@ const GenotypeAnalysisPage = ({ onNavigate, selectedActiveTask }) => {
                         </tr>
                       </thead>
                       <tbody>
-                        {[...contaminationDetails.detailedMatches].sort((a, b) => {
+                        {[...staffComparisonDetails].sort((a, b) => {
                           const indexA = displayLoci.indexOf(a.locus);
                           const indexB = displayLoci.indexOf(b.locus);
                           return indexA - indexB;
@@ -3276,14 +3284,7 @@ const GenotypeAnalysisPage = ({ onNavigate, selectedActiveTask }) => {
                                       </table>
                                     </div>
                                     <div className="timestamp">
-                                      {new Date(group.timestamp).toLocaleString('ru-RU', {
-                                        day: '2-digit',
-                                        month: '2-digit',
-                                        year: 'numeric',
-                                        hour: '2-digit',
-                                        minute: '2-digit',
-                                        second: '2-digit'
-                                      })}
+                                      {formatDateRu(group.timestamp, true)}
                                     </div>
 
                                     {/* Комментарий эксперта */}
@@ -3358,14 +3359,7 @@ const GenotypeAnalysisPage = ({ onNavigate, selectedActiveTask }) => {
                                       </table>
                                     </div>
                                     <div className="timestamp">
-                                      {new Date(group.timestamp).toLocaleString('ru-RU', {
-                                        day: '2-digit',
-                                        month: '2-digit',
-                                        year: 'numeric',
-                                        hour: '2-digit',
-                                        minute: '2-digit',
-                                        second: '2-digit'
-                                      })}
+                                      {formatDateRu(group.timestamp, true)}
                                     </div>
 
                                     {/* Комментарий эксперта */}
@@ -3457,14 +3451,7 @@ const GenotypeAnalysisPage = ({ onNavigate, selectedActiveTask }) => {
                                       <p><strong>Балл:</strong> {typeof item.matchScore === 'number' ? item.matchScore.toFixed(1) : item.matchScore} / 30</p>
                                     </div>
                                     <div className="timestamp">
-                                      {new Date(item.timestamp).toLocaleString('ru-RU', {
-                                        day: '2-digit',
-                                        month: '2-digit',
-                                        year: 'numeric',
-                                        hour: '2-digit',
-                                        minute: '2-digit',
-                                        second: '2-digit'
-                                      })}
+                                      {formatDateRu(item.timestamp, true)}
                                     </div>
 
                                     {/* Комментарий эксперта */}
@@ -3546,14 +3533,7 @@ const GenotypeAnalysisPage = ({ onNavigate, selectedActiveTask }) => {
                                       </table>
                                     </div>
                                     <div className="timestamp">
-                                      {new Date(group.timestamp).toLocaleString('ru-RU', {
-                                        day: '2-digit',
-                                        month: '2-digit',
-                                        year: 'numeric',
-                                        hour: '2-digit',
-                                        minute: '2-digit',
-                                        second: '2-digit'
-                                      })}
+                                      {formatDateRu(group.timestamp, true)}
                                     </div>
 
                                     {/* Комментарий эксперта */}
@@ -3628,14 +3608,7 @@ const GenotypeAnalysisPage = ({ onNavigate, selectedActiveTask }) => {
                                       </table>
                                     </div>
                                     <div className="timestamp">
-                                      {new Date(group.timestamp).toLocaleString('ru-RU', {
-                                        day: '2-digit',
-                                        month: '2-digit',
-                                        year: 'numeric',
-                                        hour: '2-digit',
-                                        minute: '2-digit',
-                                        second: '2-digit'
-                                      })}
+                                      {formatDateRu(group.timestamp, true)}
                                     </div>
 
                                     {/* Комментарий эксперта */}
@@ -3714,14 +3687,7 @@ const GenotypeAnalysisPage = ({ onNavigate, selectedActiveTask }) => {
                                       </table>
                                     </div>
                                     <div className="timestamp">
-                                      {new Date(group.timestamp).toLocaleString('ru-RU', {
-                                        day: '2-digit',
-                                        month: '2-digit',
-                                        year: 'numeric',
-                                        hour: '2-digit',
-                                        minute: '2-digit',
-                                        second: '2-digit'
-                                      })}
+                                      {formatDateRu(group.timestamp, true)}
                                     </div>
 
                                     {/* Комментарий эксперта */}

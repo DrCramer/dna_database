@@ -1,3 +1,4 @@
+import { formatDateOnlyRu } from '../../../../src/utils/dateFormatter';
 import React, { useState, useEffect } from 'react';
 import { useAuth } from '../../contexts/AuthContext';
 
@@ -394,7 +395,7 @@ const ExpertGroupManager = () => {
                   {group.active_tasks || 0}
                 </td>
                 <td className="organization-muted">
-                  {new Date(group.created_at).toLocaleDateString('ru-RU')}
+                  {formatDateOnlyRu(group.created_at)}
                 </td>
                 <td>
                   <span className={`organization-status-badge ${group.is_active ? 'active' : 'inactive'}`}>

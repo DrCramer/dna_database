@@ -66,12 +66,13 @@ test('Bayesian legacy: пустые и неопределённые пары н�
  }
  assert.equal(finder.compareAlleles(['12','13'],['13','12']),true);
 });
-test('XLSX сохраняет исходные звёздочки; неопределённый локус не зелёный и не входит в счётчик',async()=>{
+test('XLSX сохраняет исходные звёздочки на листе профилей и скрывает неопределённый локус из сравнений',async()=>{
  const a=profile('00000000-0000-4000-8000-000000000001',{...known,TH01:['12','*'],D6S1043:['12','12']}),b=profile('00000000-0000-4000-8000-000000000002',{...known,D6S1043:['12','12']});
  const original=structuredClone([a,b]),buffer=await new DuplicateExcelExportService().createWorkbookBuffer({comparisons:[{reference:a,matched:b,algorithm:'duplicate_v5',details:{TH01:{status:'match'}}}],metadata:{importFormat:'genetic'}});
- const book=new ExcelJS.Workbook();await book.xlsx.load(buffer);const sheet=book.getWorksheet('Сравнения'),headers=sheet.getRow(1).values,locus=headers.indexOf('TH01'),count=headers.indexOf('Совпавшие локусы');
+ const book=new ExcelJS.Workbook();await book.xlsx.load(buffer);const sheet=book.getWorksheet('Сравнения'),headers=sheet.getRow(1).values,count=headers.indexOf('Совпавшие локусы');
  assert.equal(Number(sheet.getRow(3).getCell(count).value),15);
- assert.equal(sheet.getRow(2).getCell(locus).value,'12,*');
- assert(!sheet.getRow(3).getCell(locus).fill||sheet.getRow(3).getCell(locus).fill.pattern==='none');
+ assert(!headers.includes('TH01'));
+ const profiles=book.getWorksheet('Профили'),locus=profiles.getRow(1).values.indexOf('TH01');
+ assert.equal(profiles.getRow(2).getCell(locus).value,'12,*');
  assert.deepEqual([a,b],original);
 });

@@ -2,7 +2,9 @@ import React, { useMemo, useState } from 'react';
 import { getStaffLocusPresentation, getStaffSamplePresentation, staffComparisonGroups } from '../../../../src/utils/staffComparisonPresentation';
 import { getAnalysisLoci, profileLoci } from '../../../../src/utils/analysisLoci';
 import { orderNormalizedLoci } from '../../../../src/utils/normalizedExcelLayout';
-import { getLocusComparisonPresentation, formatLocusValue, normalizeMatchColors } from '../../../../src/utils/locusComparisonPresentation';
+import { getLocusComparisonPresentation, formatLocusValue, normalizeMatchColors, participatedInComparison } from '../../../../src/utils/locusComparisonPresentation';
+import { formatDateOnlyRu } from '../../../../src/utils/dateFormatter';
+import { EXPERTISE_TYPE_HEADER, expertiseTypeLabel, OBJECT_TYPES } from '../../../../src/utils/objectTypes';
 
 const GROUP_PAGE_SIZE = 5;
 const MATCH_PAGE_SIZE = 50;
@@ -11,7 +13,6 @@ const historyFilters = [
   { value: 'new', label: 'Новые' },
   { value: 'known', label: 'Ранее найденные' }
 ];
-const historyDate = new Intl.DateTimeFormat('ru-RU', { dateStyle: 'short', timeZone: 'Europe/Moscow' });
 const labels = {
   full: 'Полное совпадение',
   partial: 'Частичное совпадение',
@@ -37,10 +38,10 @@ function objectNumber(profile) { return profile.internal_number || profile.objec
 function DuplicateHistoryMark({ history }) {
   const status = history?.status || 'unknown';
   const label = status === 'new' ? 'Новый' : status === 'known' ? 'Ранее найден' : 'История недоступна';
-  const date = history?.firstFoundAt ? new Date(history.firstFoundAt) : null;
+  const date = formatDateOnlyRu(history?.firstFoundAt);
   return <span className="workspace-duplicate-history">
     <span className="workspace-duplicate-history-badge" data-history={status}>{label}</span>
-    {date && <small>Впервые <time dateTime={history.firstFoundAt}>{historyDate.format(date)}</time></small>}
+    {date && <small>Впервые <time dateTime={history.firstFoundAt}>{date}</time></small>}
     {!date && status === 'known' && <small>Первая дата недоступна</small>}
   </span>;
 }
@@ -60,18 +61,20 @@ function ComparisonGroup({ group, ignoredLoci, colors, kind }) {
   const pageCount = Math.ceil(matches.length / MATCH_PAGE_SIZE);
   const currentPage = Math.min(page, Math.max(0, pageCount - 1));
   const shown = useMemo(() => matches.slice(currentPage * MATCH_PAGE_SIZE, (currentPage + 1) * MATCH_PAGE_SIZE), [matches, currentPage]);
-  const loci = useMemo(() => orderNormalizedLoci(getAnalysisLoci([group.reference, ...shown])), [group.reference, shown]);
-  const reference = profileLoci(group.reference);
+  const candidateLoci = useMemo(() => orderNormalizedLoci(getAnalysisLoci([group.reference, ...shown])), [group.reference, shown]);
+  const reference = useMemo(() => profileLoci(group.reference), [group.reference]);
   const comparisons = useMemo(() => shown.map(match => {
     const data = profileLoci(match);
     const evidence = new Map((match.staffEvidence?.detailedMatches || []).map(detail => [detail.locus, detail]));
-    const cells = Object.fromEntries(loci.map(locus => [locus, isStaff
+    const cells = Object.fromEntries(candidateLoci.map(locus => [locus, isStaff
       ? getStaffLocusPresentation({ sampleData: reference[locus], staffData: data[locus], detail: evidence.get(locus), locus, ignoredLoci, colors })
       : getLocusComparisonPresentation({ referenceData: reference[locus], comparedData: data[locus], locus,
         matchedLoci: match.matchedLoci, details: match.details, ignoredLoci, colors })]));
     return { match, data, cells, fullMatches: Object.values(cells).filter(cell => cell.status === 'full').length };
-  }), [shown, loci, reference, ignoredLoci, colors, isStaff]);
-  const referenceLabel = `${objectNumber(group.reference)} · ${group.reference.year ?? 'год не указан'}`;
+  }), [shown, candidateLoci, reference, ignoredLoci, colors, isStaff]);
+  const loci = candidateLoci.filter(locus => comparisons.some(row => participatedInComparison(row.cells[locus])));
+  const referenceType = expertiseTypeLabel(group.reference);
+  const referenceLabel = [objectNumber(group.reference), referenceType, group.reference.year ?? 'год не указан'].filter(Boolean).join(' · ');
   return <section className="workspace-duplicate-group" data-reference-id={group.reference.id}>
     <div className="workspace-duplicate-group-heading"><h3>{isStaff ? 'Объект' : 'Эталон'}: {referenceLabel}</h3><span>Найдено профилей: {matches.length.toLocaleString('ru-RU')}</span></div>
     {!Object.keys(reference).length && <p className="workspace-row-error">В результате нет снимка аллелей эталона. Выполните полный поиск заново для подсветки.</p>}
@@ -79,10 +82,10 @@ function ComparisonGroup({ group, ignoredLoci, colors, kind }) {
     <div className="workspace-duplicate-scroll" role="region" aria-label={`${isStaff ? 'Сравнение объекта' : 'Сравнение с эталоном'} ${referenceLabel}`} tabIndex="0">
       <table className="workspace-duplicate-table">
         <caption className="workspace-duplicate-caption">{isStaff ? 'Аллели исследуемого объекта и найденных сотрудников.' : 'Аллели эталона и найденных дубликатов.'} Совпавшие локусы — количество полных совпадений, отмеченных зелёным.</caption>
-        <thead><tr><th scope="col" data-fixed="role">Роль</th><th scope="col" data-fixed="object">{isStaff ? 'Объект / сотрудник' : 'Объект'}</th><th scope="col">Год</th>{isStaff && <th scope="col">Оценка</th>}<th scope="col" title="Количество полностью совпавших локусов (зелёные ячейки)">Совпавшие<br />локусы</th>{loci.map(locus => <th scope="col" key={locus}>{locus}</th>)}</tr></thead>
+        <thead><tr><th scope="col" data-fixed="role">Роль</th><th scope="col" data-fixed="object">{isStaff ? 'Объект / сотрудник' : 'Объект'}</th><th scope="col">{EXPERTISE_TYPE_HEADER}</th><th scope="col">Год</th>{isStaff && <th scope="col">Оценка</th>}<th scope="col" title="Количество полностью совпавших локусов (зелёные ячейки)">Совпавшие<br />локусы</th>{loci.map(locus => <th scope="col" key={locus}>{locus}</th>)}</tr></thead>
         <tbody>
           <tr className="workspace-duplicate-reference" data-profile-id={group.reference.id}>
-            <td data-fixed="role">{isStaff ? 'Объект' : 'Эталон'}</td><th scope="row" data-fixed="object" title={objectNumber(group.reference)}>{objectNumber(group.reference)}</th><td>{group.reference.year ?? '—'}</td>{isStaff && <td>—</td>}<td>—</td>
+            <td data-fixed="role">{isStaff ? 'Объект' : 'Эталон'}</td><th scope="row" data-fixed="object" title={objectNumber(group.reference)}>{objectNumber(group.reference)}</th><td>{referenceType || '—'}</td><td>{group.reference.year ?? '—'}</td>{isStaff && <td>—</td>}<td>—</td>
             {loci.map(locus => {
               if (isStaff) {
                 const p = getStaffSamplePresentation({ sampleData: reference[locus], comparisons: comparisons.map(row => row.cells[locus]), colors });
@@ -96,7 +99,7 @@ function ComparisonGroup({ group, ignoredLoci, colors, kind }) {
             })}
           </tr>
           {comparisons.map(({ match, data, cells, fullMatches }, index) => <tr key={`${match.id || index}:${match.source || ''}`} data-profile-id={match.id}>
-            <td data-fixed="role">{isStaff ? 'Сотрудник' : 'Дубликат'}</td><th scope="row" data-fixed="object" title={isStaff ? `${match.full_name}${match.internal_number ? ' · № рег. ' + match.internal_number : ' · без регистрационного номера'}` : objectNumber(match)}>{isStaff ? <><span className="workspace-staff-name">{match.full_name}</span><small className="workspace-staff-registration">{match.internal_number ? '№ рег. ' + match.internal_number : 'Без регистрационного номера'}</small></> : <>{objectNumber(match)}<DuplicateHistoryMark history={match.duplicateHistory} /></>}</th><td>{match.year ?? '—'}</td>
+            <td data-fixed="role">{isStaff ? 'Сотрудник' : 'Дубликат'}</td><th scope="row" data-fixed="object" title={isStaff ? `${match.full_name}${match.internal_number ? ' · № рег. ' + match.internal_number : ' · без регистрационного номера'}` : objectNumber(match)}>{isStaff ? <><span className="workspace-staff-name">{match.full_name}</span><small className="workspace-staff-registration">{match.internal_number ? '№ рег. ' + match.internal_number : 'Без регистрационного номера'}</small></> : <>{objectNumber(match)}<DuplicateHistoryMark history={match.duplicateHistory} /></>}</th><td>{isStaff ? OBJECT_TYPES.staff : expertiseTypeLabel(match) || '—'}</td><td>{match.year ?? '—'}</td>
             {isStaff && <td className="workspace-staff-score">{match.staffEvidence.finalScore ?? match.staffEvidence.score ?? match.staffEvidence.contaminationScore ?? '—'}</td>}<td className="workspace-duplicate-count" title="Полностью совпавшие локусы">{fullMatches}</td>
             {loci.map(locus => <td key={locus} data-locus={locus} data-status={cells[locus].status}
               title={`${locus}: ${labels[cells[locus].status]}${isStaff && cells[locus].explainedAlleles.length ? '. Учтённые аллели: ' + cells[locus].explainedAlleles.join(',') : ''}`}

@@ -5,8 +5,8 @@ const { StaffContaminationExcelExportService } = require('../src/services/audit/
 
 function fixture() {
   return {
-    id: 'SYN-search', parameters: { ignoredLoci: ['FGA'] },
-    staff: [{ profileId: 'p', reference: { id: 'p', internal_number: '=SYN()', year: 2026, str_data: {
+    id: 'SYN-search', completedAt: '2026-11-22T21:15:42Z', parameters: { ignoredLoci: ['FGA'] },
+    staff: [{ profileId: 'p', reference: { id: 'p', internal_number: '=SYN()', expertise_type: 'chs', year: 2026, str_data: {
       TH01: ['12', '12', '13', '?'], D3S1358: ['11', '12', '13'], D21S11: ['30.2', '31'], FGA: ['20'], SRY: ['SRY'], DYS391: ['10', '10'], AMEL: ['*', '**', '?']
     } }, matches: [{ staffId: 's', finalScore: 13.05, detailedMatches: [
       { locus: 'TH01', matchType: 'overInclusiveMix', isFullMatch: false, explainedAlleles: ['12'] },
@@ -39,6 +39,8 @@ test('XLSX staff сохраняет снимки, цвета, полные сч�
   assert.equal(at(sheet, 2, 'Объект / сотрудник').text, '=SYN()');
   assert.equal(at(sheet, 3, 'Объект / сотрудник').text, '=SYN employee');
   assert.equal(at(sheet, 3, '№ регистрации').text, '007-G');
+  assert.equal(at(sheet, 2, 'Тип экспертизы').text, 'ЧС');
+  assert.equal(at(sheet, 3, 'Тип экспертизы').text, 'Сотрудник');
   assert.equal(at(sheet, 3, 'Год').value, 2025);
   assert.equal(at(sheet, 3, 'Оценка').value, 13.05);
   assert.equal(at(sheet, 3, 'Совпавшие локусы').value, 1);
@@ -48,11 +50,9 @@ test('XLSX staff сохраняет снимки, цвета, полные сч�
     assert.equal(at(sheet, row, 'TH01').value.richText[0].font.color.argb, 'FF123456');
     assert.equal(at(sheet, row, 'D3S1358').fill.fgColor.argb, 'FF112233');
     assert.deepEqual(underlined(at(sheet, row, 'D3S1358')), ['11', '12']);
-    assert.equal(at(sheet, row, 'DYS391').text, '10,10');
-    assert.equal(at(sheet, row, 'SRY').text, 'SRY');
-    for (const locus of ['FGA', 'DYS391', 'SRY', 'AMEL']) assert.notEqual(at(sheet, row, locus).fill?.pattern, 'solid');
   }
-  assert.equal(at(sheet, 2, 'AMEL').text, '*,**,?');
+  for (const locus of ['FGA', 'DYS391', 'SRY', 'AMEL']) assert(!sheet.getRow(1).values.includes(locus));
+  assert(book.getWorksheet('Обозначения').getColumn(2).values.includes('23.11.2026 00:15:42'));
   assert.equal(at(sheet, 2, 'D21S11').text, '30.2,31');
   assert.equal(at(sheet, 3, 'D21S11').fill.fgColor.argb, 'FFABCDEF');
   assert.equal(at(sheet, 3, 'D3S1358').font.color.argb, 'FFFFFFFF');
@@ -89,7 +89,7 @@ test('XLSX сотрудников использует собственные и
   const result = fixture();
   result.parameters.staffOptions = { ignoredLoci: ['TH01'] };
   const sheet = (await exportBook(result)).getWorksheet('Контаминации');
-  assert.notEqual(at(sheet, 3, 'TH01').fill?.pattern, 'solid');
+  assert(!sheet.getRow(1).values.includes('TH01'));
   assert.equal(at(sheet, 3, 'FGA').fill.fgColor.argb, 'FF90EE90');
   assert.equal(at(sheet, 3, 'Совпавшие локусы').value, 2);
 });

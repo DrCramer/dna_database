@@ -1,3 +1,4 @@
+import { formatDateOnlyRu } from '../../../../src/utils/dateFormatter';
 import { preparedImportMatches } from '../../../../src/utils/preparedImportScope';
 import { canTransferStaffName, transferStaffName } from '../../../../src/utils/staffImportMapping';
 import MasterApprovalDialog from './MasterApprovalDialog';
@@ -650,7 +651,7 @@ export default function WorkspacePage({
         }
         if (name === 'export') saveFile(await api('/profiles/export', {
           ids
-        }, 'POST', true), 'Генотипы_' + new Date().toISOString().slice(0, 10) + '.xlsx');
+        }, 'POST', true), 'Генотипы_' + formatDateOnlyRu(new Date()) + '.xlsx');
         if (name === 'search') {
           await settingsWrite.current;
           const response = await fetch('/api/workspace/full-search/stream', {

@@ -1,6 +1,7 @@
+import { formatDateRu } from '../../../../src/utils/dateFormatter';
 import React, { useEffect, useRef, useState } from 'react';
 import { OBJECT_TYPES } from '../../../../src/utils/objectTypes';
-const date = value => value ? new Date(value).toLocaleString('ru-RU', { timeZone:'Europe/Moscow', dateStyle:'short',timeStyle:'short' }) : '—';
+const date = value => value ? formatDateRu(value) : '—';
 const names = {pending:'На подтверждении',approved:'В мастер-массиве',returned:'Возвращено на доработку'};
 // Web Crypto getRandomValues is available over local HTTP; randomUUID is not.
 function submissionKey() {

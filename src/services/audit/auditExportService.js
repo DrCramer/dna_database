@@ -1,3 +1,4 @@
+const { formatDateRu, formatFileTimestampRu } = require('../../utils/dateFormatter');
 const XLSX = require('xlsx');
 const PDFDocument = require('pdfkit');
 const path = require('path');
@@ -69,7 +70,7 @@ class AuditExportService {
 
             // Generate export ID and filename
             const exportId = crypto.randomUUID();
-            const timestamp = new Date().toISOString().replace(/[:.]/g, '-');
+            const timestamp = formatFileTimestampRu();
             const exportFilename = filename || `audit-${exportType}-${timestamp}.xlsx`;
             const filePath = path.join(this.exportDir, exportFilename);
 
@@ -187,7 +188,7 @@ class AuditExportService {
 
             // Generate export ID and filename
             const exportId = crypto.randomUUID();
-            const timestamp = new Date().toISOString().replace(/[:.]/g, '-');
+            const timestamp = formatFileTimestampRu();
             const exportFilename = filename || `audit-${exportType}-${timestamp}.pdf`;
             const filePath = path.join(this.exportDir, exportFilename);
 
@@ -348,7 +349,7 @@ class AuditExportService {
 
         auditLogs.forEach(log => {
             rows.push([
-                log.timestamp ? new Date(log.timestamp).toISOString() : '',
+                log.timestamp ? formatDateRu(log.timestamp, true) : '',
                 log.username || '',
                 log.email || '',
                 log.department_name || '',
@@ -416,7 +417,7 @@ class AuditExportService {
 
         dataAccessLogs.forEach(log => {
             rows.push([
-                log.timestamp ? new Date(log.timestamp).toISOString() : '',
+                log.timestamp ? formatDateRu(log.timestamp, true) : '',
                 log.username || '',
                 log.email || '',
                 log.resource_type || '',
@@ -479,7 +480,7 @@ class AuditExportService {
 
         complianceEvents.forEach(event => {
             rows.push([
-                event.timestamp ? new Date(event.timestamp).toISOString() : '',
+                event.timestamp ? formatDateRu(event.timestamp, true) : '',
                 event.event_type || '',
                 event.severity || '',
                 event.description || '',
@@ -488,7 +489,7 @@ class AuditExportService {
                 event.user_username || '',
                 event.resolved ? 'Yes' : 'No',
                 event.resolved_by_username || '',
-                event.resolved_at ? new Date(event.resolved_at).toISOString() : '',
+                event.resolved_at ? formatDateRu(event.resolved_at, true) : '',
                 event.resolution_notes || ''
             ]);
         });
@@ -541,7 +542,7 @@ class AuditExportService {
 
         operations.forEach(op => {
             rows.push([
-                op.timestamp ? new Date(op.timestamp).toISOString() : '',
+                op.timestamp ? formatDateRu(op.timestamp, true) : '',
                 op.username || '',
                 op.email || '',
                 op.department_name || '',
@@ -595,14 +596,14 @@ class AuditExportService {
             [''],
             ['Export Information'],
             ['Export Type', exportType],
-            ['Export Date', new Date().toISOString()],
+            ['Export Date', formatDateRu(new Date(), true)],
             ['Requested By User ID', requestingUserId],
             ['Department Filter', departmentId || 'All Departments'],
             ['Organization Filter', organizationId || 'All Organizations'],
             [''],
             ['Date Range'],
-            ['Start Date', dateRange?.startDate || 'No limit'],
-            ['End Date', dateRange?.endDate || 'No limit'],
+            ['Start Date', formatDateRu(dateRange?.startDate, true) || 'No limit'],
+            ['End Date', formatDateRu(dateRange?.endDate, true) || 'No limit'],
             [''],
             ['Compliance Information'],
             ['Export Retention', '7 days'],
@@ -617,7 +618,7 @@ class AuditExportService {
             ['Data Retention Policy', 'Applied'],
             [''],
             ['Export Statistics'],
-            ['Generated At', new Date().toISOString()],
+            ['Generated At', formatDateRu(new Date(), true)],
             ['File Format', 'Excel (.xlsx)'],
             ['Compression', 'Standard'],
             ['Security', 'Access-controlled download']
@@ -668,10 +669,10 @@ class AuditExportService {
         // Add metadata
         doc.fontSize(12);
         doc.text(`Export Type: ${exportType}`);
-        doc.text(`Generated: ${new Date().toISOString()}`);
+        doc.text(`Generated: ${formatDateRu(new Date(), true)}`);
         doc.text(`Requested By: ${requestingUserId}`);
         if (dateRange) {
-            doc.text(`Date Range: ${dateRange.startDate || 'No start'} to ${dateRange.endDate || 'No end'}`);
+            doc.text(`Date Range: ${formatDateRu(dateRange?.startDate, true) || 'No start'} to ${formatDateRu(dateRange?.endDate, true) || 'No end'}`);
         }
         doc.moveDown();
 
@@ -740,7 +741,7 @@ class AuditExportService {
 
         doc.fontSize(10);
         recentLogs.forEach(log => {
-            doc.text(`${new Date(log.timestamp).toISOString()} - ${log.username} - ${log.action} on ${log.table_name}`);
+            doc.text(`${formatDateRu(log.timestamp, true)} - ${log.username} - ${log.action} on ${log.table_name}`);
         });
     }
 

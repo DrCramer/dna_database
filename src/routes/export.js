@@ -1,3 +1,4 @@
+const { formatFileTimestampRu } = require('../utils/dateFormatter');
 const express = require('express');
 const { authenticate, adminOrAnalyst, adminOnly } = require('../middleware/auth');
 const { ExportService } = require("../services/audit/exportService");
@@ -134,7 +135,7 @@ router.post('/duplicates/excel', authenticate, async (req, res) => {
       options: { ...options, colors: mergedColors }
     });
 
-    const stamp = new Date().toISOString().replace(/[-:]/g, '').replace(/\.\d{3}Z$/, 'Z').slice(0, 13);
+    const stamp = formatFileTimestampRu();
     const filename = `Дубликаты_${(departmentResult.rows[0]?.name || 'отделение').replace(/[^\p{L}\p{N}_-]+/gu, '_').slice(0, 40)}_${stamp}.xlsx`;
     logger.info('Duplicate XLSX export generated', {
       userId: req.user.id,

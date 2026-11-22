@@ -1,3 +1,4 @@
+import { formatDateOnlyRu, formatDateRu } from '../../../../../src/utils/dateFormatter';
 /**
  * Quality Reports Component
  *
@@ -37,7 +38,7 @@ const QualityReports = ({ results, analysisHistory, onShowHelp }) => {
             const url = URL.createObjectURL(blob);
             const a = document.createElement('a');
             a.href = url;
-            a.download = `quality_report_${results.sampleId}_${new Date().toISOString().split('T')[0]}.pdf`;
+            a.download = `quality_report_${results.sampleId}_${formatDateOnlyRu(new Date())}.pdf`;
             document.body.appendChild(a);
             a.click();
             document.body.removeChild(a);
@@ -87,7 +88,7 @@ const QualityReports = ({ results, analysisHistory, onShowHelp }) => {
             const url = URL.createObjectURL(blob);
             const a = document.createElement('a');
             a.href = url;
-            a.download = `quality_report_${results.sampleId}_${new Date().toISOString().split('T')[0]}.xlsx`;
+            a.download = `quality_report_${results.sampleId}_${formatDateOnlyRu(new Date())}.xlsx`;
             document.body.appendChild(a);
             a.click();
             document.body.removeChild(a);
@@ -118,7 +119,7 @@ const QualityReports = ({ results, analysisHistory, onShowHelp }) => {
 
             const historyData = analysisHistory.map(analysis => ({
                 sampleId: analysis.sampleId,
-                analysisDate: analysis.analysisDate.toISOString(),
+                analysisDate: formatDateRu(analysis.analysisDate, true),
                 pci: analysis.pci.pciValue,
                 category: analysis.perspectiveCategory.category,
                 contamination: analysis.contamination.isContaminated,
@@ -134,7 +135,7 @@ const QualityReports = ({ results, analysisHistory, onShowHelp }) => {
             const url = URL.createObjectURL(blob);
             const a = document.createElement('a');
             a.href = url;
-            a.download = `quality_analysis_history_${new Date().toISOString().split('T')[0]}.csv`;
+            a.download = `quality_analysis_history_${formatDateOnlyRu(new Date())}.csv`;
             document.body.appendChild(a);
             a.click();
             document.body.removeChild(a);
@@ -214,7 +215,7 @@ const QualityReports = ({ results, analysisHistory, onShowHelp }) => {
                             <div className="info-item">
                                 <span className="info-label">Дата анализа:</span>
                                 <span className="info-value">
-                                    {results.analysisDate.toLocaleString('ru-RU')}
+                                    {formatDateRu(results.analysisDate)}
                                 </span>
                             </div>
                             <div className="info-item">

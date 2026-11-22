@@ -1,3 +1,4 @@
+const { formatDateOnlyRu } = require('../../utils/dateFormatter');
 const { createHash } = require('node:crypto');
 const { pool } = require('../../config/database');
 const AccessPolicyService = require('../security/AccessPolicyService');
@@ -201,7 +202,7 @@ class MasterArrayExcelExportService {
       const buffer = createImportWorkbook({ profiles: result.profiles, loci: result.loci, importFormat, sourceFormat: unified ? FORMAT : MASTER_EXPORT_FORMAT, hideEmptyLoci: options.hideEmptyLoci });
       if (buffer.length > 10 * 1024 * 1024) throw new MasterExportError('Размер файла превышает лимит штатного импорта 10 МиБ. Уточните фильтры.', 413, 'EXPORT_TOO_LARGE');
       const name = (array.department_name || array.name).replace(/[^\p{L}\p{N}_-]+/gu, '-').slice(0, 90);
-      return { preview, buffer, filename: `Мастер-массив_${name}_${new Intl.DateTimeFormat('en-CA', { timeZone: 'Europe/Moscow', year: 'numeric', month: '2-digit', day: '2-digit' }).format(new Date())}${options.exportValidOnly ? '_только-пригодные' : ''}.xlsx` };
+      return { preview, buffer, filename: `Мастер-массив_${name}_${formatDateOnlyRu(new Date())}${options.exportValidOnly ? '_только-пригодные' : ''}.xlsx` };
     } catch (error) { await client.query('ROLLBACK').catch(() => {}); throw error; }
     finally { client.release(); }
   }

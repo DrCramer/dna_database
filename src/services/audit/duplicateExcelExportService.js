@@ -1,24 +1,20 @@
+const { formatDateOnlyRu, formatDateRu } = require('../../utils/dateFormatter');
 const ExcelJS = require('exceljs');
 const { getAnalysisLoci, profileLoci } = require("../../utils/analysisLoci");
 const { profileKey, uniqueDuplicatePairs } = require('../../utils/duplicateExportPairs');
 const { exportAlleles, formatExportLocusValue } = require('../../utils/exportAlleles');
+const { EXPERTISE_TYPE_HEADER, expertiseTypeLabel } = require('../../utils/objectTypes');
 const {
   normalizeHexColor,
   normalizeMatchColors,
-  getLocusComparisonPresentation
+  getLocusComparisonPresentation,
+  participatedInComparison
 } = require("../../utils/locusComparisonPresentation");
 
 const XLSX_MIME = 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet';
-const discoveryDateFormat = new Intl.DateTimeFormat('en-GB', {
-  timeZone: 'Europe/Moscow', day: 'numeric', month: 'numeric', year: 'numeric'
-});
-
 function discoveryDate(firstFoundAt) {
-  if (!firstFoundAt) return null;
-  const date = new Date(firstFoundAt);
-  if (!Number.isFinite(date.getTime())) return null;
-  const parts = Object.fromEntries(discoveryDateFormat.formatToParts(date).map(({ type, value }) => [type, value]));
-  return new Date(Date.UTC(Number(parts.year), Number(parts.month) - 1, Number(parts.day)));
+  const date = formatDateOnlyRu(firstFoundAt);
+  return date ? new Date(date.split('.').reverse().join('-') + 'T00:00:00Z') : null;
 }
 
 function objectIdentifier(profile, genetic) {
@@ -174,15 +170,18 @@ class DuplicateExcelExportService {
     workbook.properties.date1904 = false;
 
     const profilesSheet = workbook.addWorksheet('Профили');
-    const geneticHeaders = ['Объект', 'Год', ...loci];
-    const emergencyHeaders = ['№ присвоенный в/ч', 'Привоз', 'Год', 'Sample Name', ...loci];
-    const profileHeaders = genetic ? geneticHeaders : emergencyHeaders;
+    const showProfileTypes = includedProfiles.some(expertiseTypeLabel);
+    const profileHeaders = [
+      ...(genetic ? ['Объект', 'Год'] : ['№ присвоенный в/ч', 'Привоз', 'Год', 'Sample Name']),
+      ...(showProfileTypes ? [EXPERTISE_TYPE_HEADER] : []), ...loci
+    ];
     profilesSheet.addRow(profileHeaders);
     for (const profile of includedProfiles) {
       const raw = profileLoci(profile);
-      const rowValues = genetic
-        ? [objectIdentifier(profile, true), profile.year ?? '', ...loci.map(locus => formatExportLocusValue(raw[locus], locus))]
-        : [profile.sample_name ?? profile.sampleName ?? '', profile.import_number ?? profile.importNumber ?? '', profile.year ?? '', profile.internal_number ?? profile.internalNumber ?? '', ...loci.map(locus => formatExportLocusValue(raw[locus], locus))];
+      const identifiers = genetic
+        ? [objectIdentifier(profile, true), profile.year ?? '']
+        : [profile.sample_name ?? profile.sampleName ?? '', profile.import_number ?? profile.importNumber ?? '', profile.year ?? '', profile.internal_number ?? profile.internalNumber ?? ''];
+      const rowValues = [...identifiers, ...(showProfileTypes ? [expertiseTypeLabel(profile)] : []), ...loci.map(locus => formatExportLocusValue(raw[locus], locus))];
       const row = profilesSheet.addRow(rowValues.map(escapeFormulaText));
       row.eachCell((cell, column) => {
         setText(cell, rowValues[column - 1]);
@@ -197,9 +196,16 @@ class DuplicateExcelExportService {
 
     if (opts.includeComparisons) {
       const comparisonsSheet = workbook.addWorksheet('Сравнения');
+      const presentationFor = (pair, locus) => getLocusComparisonPresentation({
+        referenceData: profileLoci(pair.reference)[locus], comparedData: profileLoci(pair.matched)[locus],
+        matchedLoci: pair.matchedLoci, details: pair.details, locus,
+        ignoredLoci: pair.ignoredLoci || metadata.ignoredLoci || [], colors
+      });
+      const comparisonLoci = loci.filter(locus => pairs.some(pair => participatedInComparison(presentationFor(pair, locus))));
       const fixedHeaders = ['Роль', 'Объект', 'Эталон', 'Совпавшие локусы'];
       const dateColumn = opts.includeFirstDetectionDate ? fixedHeaders.push('Дата первого обнаружения') : null;
-      comparisonsSheet.addRow([...fixedHeaders, ...loci]);
+      const typeColumn = fixedHeaders.push(EXPERTISE_TYPE_HEADER);
+      comparisonsSheet.addRow([...fixedHeaders, ...comparisonLoci]);
       const groups = new Map();
       pairs.forEach(pair => {
         const key = profileKey(pair.reference);
@@ -212,7 +218,8 @@ class DuplicateExcelExportService {
         const refRow = comparisonsSheet.addRow([
           'Эталон', refLabel, refLabel, '',
           ...(dateColumn ? [null] : []),
-          ...loci.map(locus => formatExportLocusValue(profileLoci(reference)[locus], locus))
+          expertiseTypeLabel(reference),
+          ...comparisonLoci.map(locus => formatExportLocusValue(profileLoci(reference)[locus], locus))
         ]);
         refRow.eachCell((cell, column) => {
           setText(cell, refRow.getCell(column).value);
@@ -223,20 +230,13 @@ class DuplicateExcelExportService {
 
         group.forEach(pair => {
           const matched = pair.matched;
-          const matchedPresentations = new Map(loci.map(locus => [locus, getLocusComparisonPresentation({
-            referenceData: profileLoci(reference)[locus],
-            comparedData: profileLoci(matched)[locus],
-            matchedLoci: pair.matchedLoci,
-            details: pair.details,
-            locus,
-            ignoredLoci: pair.ignoredLoci || metadata.ignoredLoci || [],
-            colors
-          })]));
+          const matchedPresentations = new Map(comparisonLoci.map(locus => [locus, presentationFor(pair, locus)]));
           const fullMatchCount = [...matchedPresentations.values()].filter(presentation => presentation.status === 'full').length;
           const matchedRow = comparisonsSheet.addRow([
             'Совпавший профиль', displayIdentifier(matched, genetic), refLabel, fullMatchCount,
             ...(dateColumn ? [discoveryDate(matched.duplicateHistory?.firstFoundAt)] : []),
-            ...loci.map(locus => formatExportLocusValue(profileLoci(matched)[locus], locus))
+            expertiseTypeLabel(matched),
+            ...comparisonLoci.map(locus => formatExportLocusValue(profileLoci(matched)[locus], locus))
           ]);
           matchedRow.eachCell((cell, column) => {
             if (column <= fixedHeaders.length) {
@@ -245,7 +245,7 @@ class DuplicateExcelExportService {
               applyBodyCellStyle(cell);
               return;
             }
-            const locus = loci[column - fixedHeaders.length - 1];
+            const locus = comparisonLoci[column - fixedHeaders.length - 1];
             const presentation = matchedPresentations.get(locus);
             setComparisonCell(matchedRow.getCell(column), profileLoci(matched)[locus], presentation, {
               locus,
@@ -255,13 +255,14 @@ class DuplicateExcelExportService {
           });
         });
       });
-      comparisonsSheet.autoFilter = { from: 'A1', to: comparisonsSheet.getRow(1).getCell(fixedHeaders.length + loci.length).address };
+      comparisonsSheet.autoFilter = { from: 'A1', to: comparisonsSheet.getRow(1).getCell(fixedHeaders.length + comparisonLoci.length).address };
       setBaseSheetStyles(comparisonsSheet, { firstColumnWidth: 12, locusStartColumn: fixedHeaders.length + 1 });
       comparisonsSheet.getColumn(1).width = 22;
       comparisonsSheet.getColumn(2).width = 24;
       comparisonsSheet.getColumn(3).width = 24;
       comparisonsSheet.getColumn(4).width = 18;
       if (dateColumn) comparisonsSheet.getColumn(dateColumn).width = 28;
+      comparisonsSheet.getColumn(typeColumn).width = 18;
       for (let column = fixedHeaders.length + 1; column <= comparisonsSheet.columnCount; column += 1) comparisonsSheet.getColumn(column).numFmt = '@';
     }
 
@@ -273,7 +274,7 @@ class DuplicateExcelExportService {
       const uniqueAlgorithms = [...new Set(pairs.map(pair => pair.algorithm).filter(Boolean))];
       const uniqueModes = [...new Set(metadata.searchModes || [metadata.searchMode].filter(Boolean))];
       const summaryRows = [
-        ['Дата анализа', metadata.searchedAt || new Date().toISOString()],
+        ['Дата анализа', formatDateRu(metadata.searchedAt || new Date(), true)],
         ['Отделение', metadata.departmentName || ''],
         ['Режим поиска', uniqueModes.join(', ')],
         ['Алгоритм', uniqueAlgorithms.join(', ')],

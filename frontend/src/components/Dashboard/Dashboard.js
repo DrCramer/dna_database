@@ -1,3 +1,4 @@
+import { formatDateRu } from '../../../../src/utils/dateFormatter';
 import React, { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { useAuth } from '../../contexts/AuthContext';
@@ -200,7 +201,7 @@ const Dashboard = () => {
               Сводка по текущей сессии и последнему входу в систему.
             </p>
             <div className="activity-details">
-              <p><strong>Последний вход</strong> {new Date().toLocaleString('ru-RU')}</p>
+              <p><strong>Последний вход</strong> {formatDateRu(new Date())}</p>
               <p><strong>Состояние сессии</strong> Активна</p>
             </div>
           </div>

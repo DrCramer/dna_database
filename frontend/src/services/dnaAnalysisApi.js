@@ -1,3 +1,4 @@
+import { formatFileTimestampRu } from '../../../src/utils/dateFormatter';
 import api from './httpClient';
 
 export const dnaAnalysisApi = {
@@ -124,11 +125,11 @@ export const dnaAnalysisApi = {
       
       switch (format) {
         case 'excel':
-          return await exportApi.exportToExcel(exportData, `search_results_${Date.now()}.xlsx`);
+          return await exportApi.exportToExcel(exportData, `search_results_${formatFileTimestampRu()}.xlsx`);
         case 'csv':
-          return await exportApi.exportToCSV(exportData, `search_results_${Date.now()}.csv`);
+          return await exportApi.exportToCSV(exportData, `search_results_${formatFileTimestampRu()}.csv`);
         case 'json':
-          return await exportApi.exportToJSON(exportData, `search_results_${Date.now()}.json`);
+          return await exportApi.exportToJSON(exportData, `search_results_${formatFileTimestampRu()}.json`);
         default:
           throw new Error(`Unsupported export format: ${format}`);
       }

@@ -1,3 +1,4 @@
+const { formatDateOnlyRu } = require('../utils/dateFormatter');
 const express = require('express');
 const multer = require('multer');
 const Joi = require('joi');
@@ -200,7 +201,7 @@ module.exports = function workspaceRouter(service = new WorkspaceApprovalService
     const value = check(Joi.object({
       ids
     }), req.body);
-    workbookDownload(res, 'Генотипы_' + new Date().toISOString().slice(0, 10) + '.xlsx').send(await service.exportProfiles(req.user, value.ids));
+    workbookDownload(res, 'Генотипы_' + formatDateOnlyRu(new Date()) + '.xlsx').send(await service.exportProfiles(req.user, value.ids));
   }));
   router.patch('/search-settings', handle(async (req, res) => {
     const value = check(searchWithStaffFallback.fork('ids', s => s.forbidden()), req.body);
@@ -270,6 +271,7 @@ module.exports = function workspaceRouter(service = new WorkspaceApprovalService
       options: { includeFirstDetectionDate: true },
       metadata: {
         importFormat: 'genetic',
+        searchedAt: result.completedAt,
         ignoredLoci: result.parameters.ignoredLoci || []
       }
     }));

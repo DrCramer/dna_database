@@ -33,6 +33,18 @@ const { WORKSPACE_WRITE_ROLES } = require('../../utils/objectTypes');
 const ALGORITHM_VERSION = 'existing-task-comparison+staff-v5/workspace-3-certain-duplicates';
 const MAX_SEARCH_PROFILES = 20000;
 const searchSelectionLimitMessage = `Для одного поиска выберите не более ${MAX_SEARCH_PROFILES} объектов.`;
+const profileUuid = /^[\da-f]{8}-(?:[\da-f]{4}-){3}[\da-f]{12}$/i;
+
+function visitResultProfiles(result, visit) {
+  for (const stage of ['internal', 'master']) for (const group of result[stage]?.results || []) {
+    if (group.reference) visit(group.reference, 'workspace');
+    const scope = stage === 'master' ? 'master' : 'workspace';
+    for (const matches of [group.matches, group.exportMatches]) {
+      for (const match of matches || []) visit(match, scope);
+    }
+  }
+  for (const group of result.staff || []) if (group.reference) visit(group.reference, 'workspace');
+}
 function effectiveSearchParameters(stored = {}, changes = {}, initialStaffOptions) {
   const parameters = {
     minMatches: 15,
@@ -212,14 +224,9 @@ class WorkspaceSearchService extends WorkspaceService {
       });
       const sourceById = new Map(profiles.map(profile => [profile.id, profile]));
       const workingById = new Map(working.map(profile => [profile.id, profile]));
+      const masterById = new Map(master.map(profile => [profile.id, profile]));
       for (const stage of [internal, shared]) for (const group of stage.results) {
         group.reference.str_data = sourceById.get(group.reference.id)?.str_data || {};
-        const source = sourceById.get(group.reference.id);
-        if (source?.expertise_type === 'staff' && !source.internal_number) group.reference.full_name = source.full_name;
-        for (const match of [...(group.matches || []), ...(group.exportMatches || [])]) {
-          const compared = workingById.get(match.id);
-          if (compared?.expertise_type === 'staff' && !compared.internal_number) match.full_name = compared.full_name;
-        }
       }
       // Preserve raw genotypes from the same scoped search snapshot, once per
       // matched staff member. Worker scores/details remain unchanged.
@@ -228,7 +235,7 @@ class WorkspaceSearchService extends WorkspaceService {
       const staffGroups = staffResult.results.map(group => {
         if (!group.matches.length) return group;
         const p = sourceById.get(group.profileId);
-        return { ...group, reference: { id: p.id, internal_number: p.internal_number, year: p.year, str_data: p.str_data, ...(!p.internal_number && p.expertise_type === 'staff' ? { full_name: p.full_name } : {}) } };
+        return { ...group, reference: { id: p.id, internal_number: p.internal_number, year: p.year, str_data: p.str_data } };
       });
       const staffProfiles = staff.filter(profile => matchedStaff.has(profile.id)).map(p => ({
         id: p.id, internal_number: p.registration_number || (p.source_workspace_profile_id ? '' : p.staff_id),
@@ -250,6 +257,11 @@ class WorkspaceSearchService extends WorkspaceService {
           workspace: working.length
         }
       };
+      visitResultProfiles(result, (profile, scope) => {
+        const source = (scope === 'master' ? masterById : workingById).get(profile.id);
+        profile.expertise_type = source?.expertise_type ?? null;
+        if (profile.expertise_type === 'staff' && !source.internal_number) profile.full_name = source.full_name;
+      });
       const pairs = collectDuplicatePairs(result);
       const historyScope = [w.id, user.id, user.organization_id, ALGORITHM_VERSION];
       onProgress?.({ stage: 'saving', status: 'running' });
@@ -286,11 +298,39 @@ class WorkspaceSearchService extends WorkspaceService {
       throw e;
     }
   }
+  async restoreResultTypes(result, run, user) {
+    const missing = { workspace: new Map(), master: new Map() };
+    visitResultProfiles(result, (profile, scope) => {
+      if (Object.hasOwn(profile, 'expertise_type') || Object.hasOwn(profile, 'expertiseType') || !profileUuid.test(profile.id)) return;
+      const targets = missing[scope];
+      if (!targets.has(profile.id)) targets.set(profile.id, []);
+      targets.get(profile.id).push(profile);
+    });
+    if (!missing.workspace.size && !missing.master.size) return;
+
+    // Older runs have no type in their encrypted snapshot. Read it only while
+    // the relevant array is at the same revision and the profile is in scope.
+    const { rows } = await this.pool.query(`SELECT 'workspace' AS scope, p.id, p.expertise_type
+      FROM dna_profiles p JOIN personal_workspaces w ON w.id=p.workspace_id
+      WHERE w.id=$1 AND w.owner_id=$2 AND w.organization_id=$3 AND w.analysis_revision=$4
+        AND p.user_id=$2 AND p.organization_id=$3 AND p.is_active=true AND p.id=ANY($6::uuid[])
+      UNION ALL
+      SELECT 'master', p.id, p.expertise_type
+      FROM master_array_profiles p JOIN master_arrays a ON a.id=p.master_array_id
+      JOIN workspace_reference_versions v ON v.organization_id=p.organization_id
+      WHERE p.organization_id=$3 AND p.is_active=true AND a.is_active=true AND v.master_revision=$5 AND p.id=ANY($7::uuid[])
+      UNION ALL
+      SELECT 'master', p.id, p.expertise_type
+      FROM dna_profiles p JOIN workspace_reference_versions v ON v.organization_id=p.organization_id
+      WHERE p.organization_id=$3 AND p.profile_type='master' AND p.is_active=true AND v.master_revision=$5 AND p.id=ANY($7::uuid[])`,
+    [run.workspace_id, user.id, user.organization_id, run.workspace_revision, run.master_revision, [...missing.workspace.keys()], [...missing.master.keys()]]);
+    for (const row of rows) for (const profile of missing[row.scope].get(row.id) || []) profile.expertise_type = row.expertise_type;
+  }
   async search(user, id, { duplicateHistory = false } = {}) {
     requireUser(user);
     const {
       rows
-    } = await this.pool.query(`SELECT id, workspace_id, state, error_code, encrypted_result, algorithm_version,
+    } = await this.pool.query(`SELECT id, workspace_id, workspace_revision, master_revision, state, error_code, encrypted_result, algorithm_version,
       completed_at::text AS completed_at FROM workspace_search_runs WHERE id=$1 AND owner_id=$2 AND organization_id=$3`, [id, user.id, user.organization_id]);
     if (!rows.length) throw err('Поиск недоступен.', 404);
     const run = rows[0];
@@ -299,8 +339,10 @@ class WorkspaceSearchService extends WorkspaceService {
       state: run.state,
       errorCode: run.error_code,
       ...(run.encrypted_result ? unseal(run.encrypted_result) : {}),
+      completedAt: run.completed_at,
       outdated: run.algorithm_version !== ALGORITHM_VERSION
     };
+    if (run.state === 'complete' && run.encrypted_result) await this.restoreResultTypes(result, run, user);
     if (duplicateHistory && !result.outdated && run.state === 'complete' && run.encrypted_result && run.completed_at) {
       await annotateDuplicateHistory(this.pool, collectDuplicatePairs(result), {
         scope: [run.workspace_id, user.id, user.organization_id, run.algorithm_version],

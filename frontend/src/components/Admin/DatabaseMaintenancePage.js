@@ -1,3 +1,4 @@
+import { formatDateRu } from '../../../../src/utils/dateFormatter';
 import React, { useEffect, useState } from 'react';
 import { useAuth } from '../../contexts/AuthContext';
 import { matchesRoles } from '../../../../src/utils/accessPolicyRules';
@@ -128,7 +129,7 @@ export default function DatabaseMaintenancePage() {
       {job.targetUser && <p>Пользователь: <strong>{job.targetUser.display_name || job.targetUser.username} ({job.targetUser.username})</strong>.</p>}
       {job.targetUser && <p>Год: <strong>{job.personalScope?.year ?? 'Все годы'}</strong>.</p>}
       {job.categoryLabels && <p>Выбранные категории: <strong>{job.categoryLabels.join(', ')}</strong>.</p>}
-      <p>{job.message || (running ? 'Оставьте эту страницу открытой или вернитесь позже: состояние операции сохранится.' : `Начало операции: ${new Date(job.startedAt).toLocaleString('ru-RU')}`)}</p>
+      <p>{job.message || (running ? 'Оставьте эту страницу открытой или вернитесь позже: состояние операции сохранится.' : `Начало операции: ${formatDateRu(job.startedAt)}`)}</p>
       {running && <ol className="maintenance-steps">{['waiting', 'backing_up', 'clearing'].map(state => <li key={state} aria-current={job.state === state ? 'step' : undefined}>{phases[state]}</li>)}</ol>}
       {job.backup && <><p>Резервная копия: {(job.backup.bytes / 1048576).toFixed(1)} МБ. Хранится на сервере в папке резервных копий проекта.</p><button className="btn btn-secondary" disabled={!!busy || running} onClick={download}>{busy === 'download' ? 'Скачивание…' : 'Скачать резервную копию'}</button></>}
     </section>}

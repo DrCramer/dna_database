@@ -1,3 +1,4 @@
+import { formatDateOnlyRu, formatDateRu } from '../../../../src/utils/dateFormatter';
 import React from 'react';
 import AnimatedCounter from '../Common/AnimatedCounter';
 
@@ -109,7 +110,7 @@ const DashboardView = ({
                       <p className="dashboard-legacy-active-meta">
                         {numberLabel}: <strong>{selectedActiveTask.internal_number_start || 'не указан'}</strong>
                         {' | '}
-                        Создана: <strong>{new Date(selectedActiveTask.created_at).toLocaleDateString('ru-RU')}</strong>
+                        Создана: <strong>{formatDateOnlyRu(selectedActiveTask.created_at)}</strong>
                       </p>
                     </div>
                     <div className="dashboard-legacy-pill-row">
@@ -304,7 +305,7 @@ const DashboardView = ({
           <p><strong>ID пользователя:</strong> {user.id}</p>
           <p><strong>Email:</strong> {user.email}</p>
           <p><strong>Роль:</strong> {user.role}</p>
-          <p><strong>Время входа:</strong> {new Date().toLocaleString()}</p>
+          <p><strong>Время входа:</strong> {formatDateRu(new Date())}</p>
         </div>
       </div>
     </div>

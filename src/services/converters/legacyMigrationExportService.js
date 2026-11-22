@@ -1,3 +1,4 @@
+const { formatDateOnlyRu } = require('../../utils/dateFormatter');
 const {
   createHash
 } = require('node:crypto');
@@ -225,7 +226,7 @@ class LegacyMigrationExportService {
     }
     const yearValues = Object.keys(stats.years).filter(x => x !== 'null').sort();
     const years = yearValues.length > 1 ? yearValues[0] + '-' + yearValues[yearValues.length - 1] : yearValues[0];
-    const filename = `Генотипы_${years || 'без-года'}_${new Date().toISOString().slice(0, 10)}`;
+    const filename = `Генотипы_${years || 'без-года'}_${formatDateOnlyRu(new Date())}`;
     if (parts.length === 1) {
       if (asStream) {
         outputStream = fs.createReadStream(parts[0]);

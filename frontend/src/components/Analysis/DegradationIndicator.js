@@ -1,3 +1,4 @@
+import { formatDateOnlyRu, formatDateRu } from '../../../../src/utils/dateFormatter';
 import React from 'react';
 
 const DegradationIndicator = ({ results }) => {
@@ -40,7 +41,7 @@ const DegradationIndicator = ({ results }) => {
         <div className="analysis-mini-label">Анализируемый профиль</div>
         <div className="analysis-main-value">{profile.sampleName}</div>
         <div className="analysis-subtle">
-          ID: {profile.id.substring(0, 16)}... | Загружен: {new Date(profile.uploadDate).toLocaleDateString('ru-RU')}
+          ID: {profile.id.substring(0, 16)}... | Загружен: {formatDateOnlyRu(profile.uploadDate)}
         </div>
       </div>
 
@@ -126,7 +127,7 @@ const DegradationIndicator = ({ results }) => {
       <div className="analysis-detail-card">
         <div className="analysis-mini-label">Детали анализа</div>
         <ul className="analysis-list">
-          <li><strong>Время анализа:</strong> {new Date(results.analysisTimestamp).toLocaleString('ru-RU')}</li>
+          <li><strong>Время анализа:</strong> {formatDateRu(results.analysisTimestamp)}</li>
           <li><strong>Метод:</strong> анализ отношения STR-гомозиготности</li>
           <li><strong>Порог деградации:</strong> 70%</li>
           {confidenceInterval && <li><strong>Статистическая достоверность:</strong> 95%</li>}

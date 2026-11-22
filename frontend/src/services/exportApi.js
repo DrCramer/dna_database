@@ -1,3 +1,4 @@
+import { exportDateFieldsRu, formatDateRu, formatFileTimestampRu } from '../../../src/utils/dateFormatter';
 import api from './httpClient';
 
 export const exportApi = {
@@ -257,7 +258,7 @@ export const exportApi = {
         includeMetadata: true,
         includeLRValues: true,
         includeOrganizationalContext: true,
-        filename: filename || `${actualAnalysisType}_export_${Date.now()}.pdf`
+        filename: filename || `${actualAnalysisType}_export_${formatFileTimestampRu()}.pdf`
       },
       searchInfo: {
         targetProfile: results.profiles?.profile1 || results.profile || results.targetProfile || { 
@@ -322,7 +323,7 @@ export const exportApi = {
   // Export analysis results to JSON format
   async exportToJSON(data, filename) {
     try {
-      const jsonContent = JSON.stringify(data, null, 2);
+      const jsonContent = JSON.stringify(data, exportDateFieldsRu, 2);
       const blob = new Blob([jsonContent], { type: 'application/json;charset=utf-8;' });
       this.downloadFile(blob, filename, 'application/json');
       return { success: true, message: 'JSON export completed successfully' };
@@ -368,8 +369,8 @@ export const exportApi = {
     // Add header information
     csvContent += 'Analysis Export Report\n';
     csvContent += `Analysis Type,${analysisType}\n`;
-    csvContent += `Export Date,${new Date().toISOString()}\n`;
-    csvContent += `Export Timestamp,${data.exportTimestamp}\n`;
+    csvContent += `Export Date,${formatDateRu(new Date(), true)}\n`;
+    csvContent += `Export Timestamp,${formatDateRu(data.exportTimestamp, true) || ''}\n`;
     csvContent += '\n';
 
     // Add analysis-specific data
@@ -399,7 +400,7 @@ export const exportApi = {
     csv += 'Profile 1,Profile 2,Overall LR,Population Used,Analysis Date\n';
     
     const { profiles, analysis, populationUsed, analysisTimestamp } = results;
-    csv += `"${profiles.profile1.sampleName}","${profiles.profile2.sampleName}",${analysis.overallLR},"${populationUsed}","${analysisTimestamp}"\n`;
+    csv += `"${profiles.profile1.sampleName}","${profiles.profile2.sampleName}",${analysis.overallLR},"${populationUsed}","${formatDateRu(analysisTimestamp, true) || ''}"\n`;
     csv += '\n';
 
     if (analysis.locusLRs && Object.keys(analysis.locusLRs).length > 0) {
@@ -427,7 +428,7 @@ export const exportApi = {
     csv += 'Profile,Contaminated,Contamination Probability,Confidence,Population Used,Analysis Date\n';
     
     const { profile, analysis, populationUsed, analysisTimestamp } = results;
-    csv += `"${profile.sampleName}",${analysis.isContaminated},${analysis.contaminationProbability},${analysis.confidence},"${populationUsed}","${analysisTimestamp}"\n`;
+    csv += `"${profile.sampleName}",${analysis.isContaminated},${analysis.contaminationProbability},${analysis.confidence},"${populationUsed}","${formatDateRu(analysisTimestamp, true) || ''}"\n`;
     csv += '\n';
 
     if (analysis.flaggedLoci && analysis.flaggedLoci.length > 0) {
@@ -447,7 +448,7 @@ export const exportApi = {
     csv += 'Profile,Degradation Index,Quality Score,Analysis Date\n';
     
     const { profile, analysis, analysisTimestamp } = results;
-    csv += `"${profile.sampleName}",${analysis.degradationIndex},${analysis.qualityScore},"${analysisTimestamp}"\n`;
+    csv += `"${profile.sampleName}",${analysis.degradationIndex},${analysis.qualityScore},"${formatDateRu(analysisTimestamp, true) || ''}"\n`;
     csv += '\n';
 
     if (analysis.confidenceInterval) {
@@ -466,7 +467,7 @@ export const exportApi = {
     csv += 'Target Profile,Search Space Size,Matches Found,Threshold,Population Used,Analysis Date\n';
     
     const { targetProfile, duplicates, searchStatistics, populationUsed, analysisTimestamp } = results;
-    csv += `"${targetProfile.sampleName}",${searchStatistics.searchSpaceSize},${searchStatistics.totalMatches},${searchStatistics.threshold},"${populationUsed}","${analysisTimestamp}"\n`;
+    csv += `"${targetProfile.sampleName}",${searchStatistics.searchSpaceSize},${searchStatistics.totalMatches},${searchStatistics.threshold},"${populationUsed}","${formatDateRu(analysisTimestamp, true) || ''}"\n`;
     csv += '\n';
 
     if (duplicates && duplicates.length > 0) {
@@ -496,7 +497,7 @@ export const exportApi = {
       });
     };
 
-    flattenObject(results);
+    flattenObject(JSON.parse(JSON.stringify(results, exportDateFieldsRu)));
     return csv;
   },
 
@@ -510,8 +511,8 @@ export const exportApi = {
     content += '='.repeat(60) + '\n\n';
 
     content += `Analysis Type: ${analysisType.toUpperCase()}\n`;
-    content += `Export Date: ${new Date(exportTimestamp).toLocaleString()}\n`;
-    content += `Analysis Date: ${results.analysisTimestamp ? new Date(results.analysisTimestamp).toLocaleString() : 'Unknown'}\n\n`;
+    content += `Export Date: ${formatDateRu(exportTimestamp)}\n`;
+    content += `Analysis Date: ${results.analysisTimestamp ? formatDateRu(results.analysisTimestamp) : 'Unknown'}\n\n`;
 
     // Add analysis-specific content
     switch (analysisType) {
@@ -528,7 +529,7 @@ export const exportApi = {
         content += this.formatDuplicatesText(results);
         break;
       default:
-        content += JSON.stringify(results, null, 2);
+        content += JSON.stringify(results, exportDateFieldsRu, 2);
     }
 
     content += '\n' + '='.repeat(60) + '\n';

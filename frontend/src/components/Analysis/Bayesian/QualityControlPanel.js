@@ -1,3 +1,4 @@
+import { formatDateRu } from '../../../../../src/utils/dateFormatter';
 /**
  * Quality Control Panel - UI for sample quality analysis
  *
@@ -345,7 +346,7 @@ const QualityControlPanel = ({
                                     <span className="history-sample">{analysis.sampleId}</span>
                                     <span className="history-category">{analysis.perspectiveCategory.category}</span>
                                     <span className="history-date">
-                                        {analysis.timestamp.toLocaleString('ru-RU')}
+                                        {formatDateRu(analysis.timestamp)}
                                     </span>
                                 </div>
                             ))}

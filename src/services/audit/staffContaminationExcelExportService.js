@@ -1,8 +1,10 @@
 const ExcelJS = require('exceljs');
 const { getAnalysisLoci, profileLoci } = require('../../utils/analysisLoci');
 const { orderNormalizedLoci } = require('../../utils/normalizedExcelLayout');
-const { formatLocusValue, normalizeMatchColors } = require('../../utils/locusComparisonPresentation');
+const { formatLocusValue, normalizeMatchColors, participatedInComparison } = require('../../utils/locusComparisonPresentation');
 const { staffComparisonGroups, getStaffLocusPresentation, getStaffSamplePresentation } = require('../../utils/staffComparisonPresentation');
+const { formatDateRu } = require('../../utils/dateFormatter');
+const { EXPERTISE_TYPE_HEADER, expertiseTypeLabel, OBJECT_TYPES } = require('../../utils/objectTypes');
 
 const argb = color => `FF${color.slice(1).toUpperCase()}`;
 const fill = color => ({ type: 'pattern', pattern: 'solid', fgColor: { argb: argb(color) } });
@@ -43,14 +45,28 @@ class StaffContaminationExcelExportService {
       throw Object.assign(new Error('Результат превышает число строк листа Excel. Выполните поиск для меньшего количества объектов.'), { status: 413 });
     }
     const palette = normalizeMatchColors(colors), ignoredLoci = new Set(result.parameters?.staffOptions?.ignoredLoci ?? result.parameters?.ignoredLoci ?? []);
-    const loci = orderNormalizedLoci(getAnalysisLoci(groups.flatMap(group => [group.reference, ...group.matches])));
-    const headers = ['Роль', 'Объект / сотрудник', '№ регистрации', 'Год', 'Оценка', 'Совпавшие локусы', ...loci];
+    const comparedLoci = new Set();
+    for (const group of groups) {
+      const sample = profileLoci(group.reference);
+      for (const match of group.matches) {
+        const staff = profileLoci(match);
+        for (const detail of match.staffEvidence.detailedMatches || []) {
+          const { locus } = detail;
+          if (!comparedLoci.has(locus) && participatedInComparison(getStaffLocusPresentation({
+            sampleData: sample[locus], staffData: staff[locus], detail, locus, ignoredLoci, colors: palette
+          }))) comparedLoci.add(locus);
+        }
+      }
+    }
+    const loci = orderNormalizedLoci(getAnalysisLoci(groups.flatMap(group => [group.reference, ...group.matches]))).filter(locus => comparedLoci.has(locus));
+    const fixedHeaders = ['Роль', 'Объект / сотрудник', '№ регистрации', EXPERTISE_TYPE_HEADER, 'Год', 'Оценка', 'Совпавшие локусы'];
+    const headers = [...fixedHeaders, ...loci];
     const workbook = new ExcelJS.Workbook();
     workbook.creator = 'DNA Database';
     const sheet = workbook.addWorksheet('Контаминации');
     sheet.views = [{ state: 'frozen', xSplit: 3, ySplit: 1 }];
     sheet.properties.defaultRowHeight = 24;
-    sheet.columns = headers.map((header, i) => ({ width: [16, 32, 22, 10, 14, 20][i] || Math.max(12, header.length + 2) }));
+    sheet.columns = headers.map((header, i) => ({ width: [16, 32, 22, 18, 10, 14, 20][i] || Math.max(12, header.length + 2) }));
     sheet.addRow(headers);
     sheet.getRow(1).height = 34;
     sheet.getRow(1).eachCell(cell => {
@@ -67,7 +83,7 @@ class StaffContaminationExcelExportService {
         cell.font = { name: 'Calibri', size: 11, bold: reference, color: { argb: 'FF142019' } };
         if (reference) cell.fill = fill('#EAF2F8');
       });
-      loci.forEach((locus, i) => locusCell(row.getCell(7 + i), raw[locus], presentations[locus]));
+      loci.forEach((locus, i) => locusCell(row.getCell(fixedHeaders.length + 1 + i), raw[locus], presentations[locus]));
       row.eachCell((cell, column) => {
         cell.alignment = { horizontal: column === 2 ? 'left' : 'center', vertical: 'middle', wrapText: column <= 3 };
         cell.border = { bottom: { style: 'hair', color: { argb: 'FFD7DEE5' } }, right: { style: 'hair', color: { argb: 'FFD7DEE5' } } };
@@ -84,10 +100,10 @@ class StaffContaminationExcelExportService {
         return { match, data, cells };
       });
       const sampleCells = Object.fromEntries(loci.map(locus => [locus, getStaffSamplePresentation({ sampleData: reference[locus], comparisons: comparisons.map(item => item.cells[locus]), colors: palette })]));
-      addRow(['Объект', group.reference.internal_number || group.reference.full_name || 'Без номера', '', group.reference.year ?? '—', '—', '—'], reference, sampleCells, true);
+      addRow(['Объект', group.reference.internal_number || group.reference.full_name || 'Без номера', '', expertiseTypeLabel(group.reference), group.reference.year ?? '—', '—', '—'], reference, sampleCells, true);
       for (const { match, data, cells } of comparisons) {
         const score = match.staffEvidence.finalScore ?? match.staffEvidence.score ?? match.staffEvidence.contaminationScore ?? '—';
-        addRow(['Сотрудник', match.full_name, match.internal_number, match.year ?? '—', score, Object.values(cells).filter(cell => cell.status === 'full').length], data, cells);
+        addRow(['Сотрудник', match.full_name, match.internal_number, OBJECT_TYPES.staff, match.year ?? '—', score, Object.values(cells).filter(cell => cell.status === 'full').length], data, cells);
       }
     }
     const legend = workbook.addWorksheet('Обозначения');
@@ -101,6 +117,7 @@ class StaffContaminationExcelExportService {
       ['Без подсветки', 'Нет данных, локус исключён или не участвовал в сравнении.'],
       ['Исключённые локусы', [...ignoredLoci].join(', ') || 'Нет'],
       ['Результат поиска', result.id || ''],
+      ...(result.completedAt ? [['Дата завершения поиска', formatDateRu(result.completedAt, true)]] : []),
       ...(groups.some(group => group.reference.normalizedEvidenceOnly || group.matches.some(match => match.normalizedEvidenceOnly))
         ? [['Старый результат', 'Показаны аллели из сохранённых деталей анализа. Для полного исходного профиля со специальными значениями выполните поиск заново.']] : [])
     ]) {

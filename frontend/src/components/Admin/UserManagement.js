@@ -1,3 +1,4 @@
+import { formatDateRu } from '../../../../src/utils/dateFormatter';
 import UiIcon from '../Common/UiIcon';
 import UserForm from './UserForm';
 import UserSearchSettingsDialog from './UserSearchSettingsDialog';
@@ -244,8 +245,8 @@ const UserManagement = ({ onBack }) => {
             <p><strong>Загрузка в задачу:</strong> {getProfileUploadPermissions(user).can_upload_with_task ? 'Разрешена' : 'Запрещена'}</p>
             <p><strong>Загрузка без задачи:</strong> {getProfileUploadPermissions(user).can_upload_without_task ? 'Разрешена' : 'Запрещена'}</p>
             <p><strong>Подтверждение мастер-массива:</strong> {user.can_approve_master ? 'Разрешено' : 'Запрещено'}</p>
-            <p><strong>Дата создания:</strong> {new Date(user.created_at).toLocaleString('ru-RU')}</p>
-            <p><strong>Последний вход:</strong> {user.last_login ? new Date(user.last_login).toLocaleString('ru-RU') : 'Никогда'}</p>
+            <p><strong>Дата создания:</strong> {formatDateRu(user.created_at)}</p>
+            <p><strong>Последний вход:</strong> {user.last_login ? formatDateRu(user.last_login) : 'Никогда'}</p>
           </div>
 
           <div className="user-details-section">
@@ -261,7 +262,7 @@ const UserManagement = ({ onBack }) => {
                       <strong>Браузер:</strong> {session.user_agent}
                     </p>
                     <p>
-                      <strong>Создана:</strong> {new Date(session.created_at).toLocaleString('ru-RU')}
+                      <strong>Создана:</strong> {formatDateRu(session.created_at)}
                     </p>
                   </div>
                 ))}
@@ -384,7 +385,7 @@ const UserManagement = ({ onBack }) => {
                 </td>
                 <td>
                   <span className="last-login">
-                    {user.last_login ? new Date(user.last_login).toLocaleString('ru-RU') : 'Никогда'}
+                    {user.last_login ? formatDateRu(user.last_login) : 'Никогда'}
                   </span>
                 </td>
                 <td>

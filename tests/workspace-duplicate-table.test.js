@@ -16,7 +16,7 @@ const profile = (id, data) => ({ id, internal_number: 'SYN-' + id, year: 2026, l
 function render(groups, props = {}) { return renderToStaticMarkup(React.createElement(Table, { groups, ...props })); }
 function cell(html, locus) { return html.match(new RegExp('<td[^>]*data-locus="' + locus + '"[^>]*>.*?</td>', 'g')).at(-1); }
 
-test('Таблица использует правила основной ветки: полный/частичный/нет данных/исключённый, сохраняя аллели и счётчик зелёных', () => {
+test('Таблица показывает совпадения и несовпадения, скрывает исключённые локусы и локусы без данных', () => {
   const reference = profile('REF', { TH01: ['7', '9.3'], D5S818: ['11', '12'], D21S11: ['29', '30'], FGA: ['20', '21'], DYS391: ['10'], AMEL: ['X', 'Y'] });
   const match = { ...profile('MATCH', { TH01: ['9.3', '7'], D5S818: ['11', '12.2'], D21S11: ['9', '10'], FGA: ['20', '21'], DYS391: ['10'], AMEL: ['*', '**', '?'] }), matchedLoci: ['TH01', 'FGA', 'DYS391'] };
   const groups = [{ reference, matches: [match] }], before = structuredClone(groups);
@@ -27,9 +27,8 @@ test('Таблица использует правила основной вет
   assert.match(cell(html, 'D5S818'), /workspace-duplicate-matching-allele[^>]*>11<\/span>/);
   assert.match(cell(html, 'D5S818'), /12\.2/);
   assert.match(cell(html, 'D21S11'), /data-status="no_match"/);
-  assert.match(cell(html, 'FGA'), /data-status="not_compared"/);
-  assert.doesNotMatch(cell(html, 'FGA'), /duplicate-cell-bg/);
-  assert.match(cell(html, 'AMEL'), /data-status="no_data"[^>]*>\*,\*\*,\?/);
+  assert.doesNotMatch(html, />FGA<|data-locus="FGA"/);
+  assert.doesNotMatch(html, />AMEL<|data-locus="AMEL"/);
   assert.match(cell(html, 'DYS391'), />10<\/td>/);
   assert.match(html, /class="workspace-duplicate-count"[^>]*>2<\/td>/);
   assert.deepEqual(groups, before, 'Display cannot normalize original genotypes');
@@ -43,8 +42,18 @@ test('V5-статусы совпадают с подсветкой XLSX; ста�
   assert.match(html, /class="workspace-duplicate-count"[^>]*>1<\/td>/);
   html = render([{ reference: { id: 'OLD', internal_number: 'SYN-OLD' }, matches: [match] }]);
   assert.match(html, /нет снимка аллелей эталона/);
-  assert.match(cell(html, 'TH01'), /data-status="no_data"/);
-  assert.doesNotMatch(cell(html, 'TH01'), /duplicate-cell-bg/);
+  assert.doesNotMatch(html, />TH01<|data-locus="TH01"/);
+});
+
+test('Одинаковые номера в таблице различаются по типу экспертизы', () => {
+  const loci = { TH01: ['7', '9'] };
+  const reference = { ...profile('REF', loci), internal_number: '258-1', expertise_type: 'gr' };
+  const match = { ...profile('MATCH', loci), internal_number: '258-1', expertise_type: 'chs' };
+  const html = render([{ reference, matches: [match] }]);
+  assert.match(html, /Тип экспертизы/);
+  assert.match(html, /258-1 · ГР · 2026/);
+  assert.match(html, /data-profile-id="REF"[^>]*>.*?<td>ГР<\/td>/);
+  assert.match(html, /data-profile-id="MATCH"[^>]*>.*?<td>ЧС<\/td>/);
 });
 
 test('Большая выдача ограничивает DOM пятью эталонами и 50 совпадениями, без вывода пустых групп', () => {
@@ -61,7 +70,7 @@ test('Большая выдача ограничивает DOM пятью эта
 
 
 test('Контаминации: исходный объект и ФИО/№ рег./год сотрудника, скор и подсветка только из деталей алгоритма', () => {
-  const sample = profile('SAMPLE', { TH01: ['12','13','14'], D5S818: ['11'], D21S11: ['30','31'], AMEL: ['*','**','?'], DYS391: ['10'] });
+  const sample = { ...profile('SAMPLE', { TH01: ['12','13','14'], D5S818: ['11'], D21S11: ['30','31'], AMEL: ['*','**','?'], DYS391: ['10'] }), expertise_type: 'ug' };
   const employee = { ...profile('STAFF', { TH01: ['12','13'], D5S818: ['11','12'], D21S11: ['9','10'], AMEL: ['X','Y'], DYS391: ['10'] }), full_name:'Тестовый С. С.', internal_number:'001-G',year:2025 };
   const evidence = { staffId:'STAFF',staffName:'Тестовый С. С.',finalScore:7.25,detailedMatches:[
     {locus:'TH01',explainedAlleles:['12','13'],isFullMatch:true},
@@ -72,12 +81,15 @@ test('Контаминации: исходный объект и ФИО/№ ре
   const before=structuredClone([groups,employee]);
   const html=renderToStaticMarkup(React.createElement(StaffTable,{groups,staffProfiles:[employee]}));
   assert.match(html,/Тестовый С. С./);assert.match(html,/№ рег. 001-G/);assert.match(html,/>2025<\/td>/);
+  assert.match(html, /data-profile-id="SAMPLE"[^>]*>.*?<td>УГ<\/td>/);
+  assert.match(html, /data-profile-id="STAFF"[^>]*>.*?<td>Сотрудник<\/td>/);
   assert.match(html,/workspace-staff-score[^>]*>7.25<\/td>/);
   assert.match(cell(html,'TH01'),/data-status="full"/); // v4 mixture containment, not diploid equality
   assert.match(cell(html,'D5S818'),/data-status="partial"/);
   assert.match(cell(html,'D5S818'),/workspace-duplicate-matching-allele[^>]*>11<\/span>/);
   assert.match(cell(html,'D21S11'),/data-status="no_match"/);
-  assert.match(cell(html,'DYS391'),/data-status="not_compared"/); // no evidence: never invent a match
+  assert.doesNotMatch(html, />DYS391<|data-locus="DYS391"/);
+  assert.doesNotMatch(html, />AMEL<|data-locus="AMEL"/);
   assert.match(html,/class="workspace-duplicate-count"[^>]*>1<\/td>/);
   assert.doesNotMatch(html,/NO-HITS|Дубликат/);
   assert.deepEqual([groups,employee],before);

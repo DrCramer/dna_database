@@ -94,10 +94,15 @@ function formatLocusValue(value) {
   return value == null ? '' : String(value);
 }
 
+function participatedInComparison({ status }) {
+  return status === 'full' || status === 'partial' || status === 'no_match';
+}
+
 module.exports = {
   DEFAULT_MATCH_COLORS,
   normalizeHexColor,
   normalizeMatchColors,
   getLocusComparisonPresentation,
+  participatedInComparison,
   formatLocusValue
 };

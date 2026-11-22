@@ -8,6 +8,11 @@ const OBJECT_TYPES = Object.freeze({
   staff: 'Сотрудник'
 });
 const WORKSPACE_WRITE_ROLES = Object.freeze(['admin','system_administrator','department_head','user_analyst','analyst']);
+const EXPERTISE_TYPE_HEADER = 'Тип экспертизы';
+function expertiseTypeLabel(profile) {
+  const type = profile?.expertise_type ?? profile?.expertiseType;
+  return Object.hasOwn(OBJECT_TYPES, type) ? OBJECT_TYPES[type] : '';
+}
 function objectMetadataIssues(row, { requireAssignedNumber = false } = {}) {
   const issues=[];const add=(code,message)=>issues.push({code,message});
   if (typeof row.objectNumber !== 'string' || row.objectNumber.length > 100 || /[\u0000-\u001f\u007f]/.test(row.objectNumber) || row.expertiseType !== 'staff' && !row.objectNumber.trim()) add('OBJECT_NUMBER', 'Укажите полный номер объекта (до 100 символов).');
@@ -26,4 +31,4 @@ function objectMetadataIssues(row, { requireAssignedNumber = false } = {}) {
   if (typeof row.comment !== 'string' || row.comment.length > 20000) add('COMMENT', 'Комментарий должен быть текстом до 20000 символов.');
   return issues;
 }
-module.exports = { OBJECT_TYPES, WORKSPACE_WRITE_ROLES, objectMetadataIssues };
+module.exports = { OBJECT_TYPES, WORKSPACE_WRITE_ROLES, EXPERTISE_TYPE_HEADER, expertiseTypeLabel, objectMetadataIssues };

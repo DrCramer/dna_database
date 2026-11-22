@@ -1,3 +1,5 @@
+import { formatDateOnlyRu, formatDateRu } from '../../../../src/utils/dateFormatter';
+import { informativeAlleles } from '../../../../src/utils/alleleTokens';
 import React, { useState } from 'react';
 import { dnaAnalysisApi } from "../../services/dnaAnalysisApi";
 import { useProfileFieldLabel } from '../../hooks/useProfileFieldLabel';
@@ -23,7 +25,7 @@ const ResultsDisplay = ({ results, searchSettings }) => {
       const url = window.URL.createObjectURL(blob);
       const link = document.createElement('a');
       link.href = url;
-      link.setAttribute('download', `dna_analysis_results_${new Date().toISOString().split('T')[0]}.xlsx`);
+      link.setAttribute('download', `dna_analysis_results_${formatDateOnlyRu(new Date())}.xlsx`);
       document.body.appendChild(link);
       link.click();
       link.remove();
@@ -109,7 +111,7 @@ const ResultsDisplay = ({ results, searchSettings }) => {
                   <td>{match.total_loci_count || 'Нет данных'}</td>
                   <td>
                     {match.profile?.upload_date
-                      ? new Date(match.profile.upload_date).toLocaleDateString('ru-RU')
+                      ? formatDateOnlyRu(match.profile.upload_date)
                       : 'Нет данных'}
                   </td>
                   <td>
@@ -152,7 +154,7 @@ const ResultsDisplay = ({ results, searchSettings }) => {
                 <div className="analysis-metric-card">
                   <div className="analysis-mini-label">Дата анализа</div>
                   <div className="analysis-main-value">
-                    {selectedMatch.analysis_date ? new Date(selectedMatch.analysis_date).toLocaleString('ru-RU') : 'Нет данных'}
+                    {selectedMatch.analysis_date ? formatDateRu(selectedMatch.analysis_date) : 'Нет данных'}
                   </div>
                 </div>
               </div>
@@ -171,7 +173,9 @@ const ResultsDisplay = ({ results, searchSettings }) => {
                   </thead>
                   <tbody>
                     {selectedMatch.locus_matches &&
-                      Object.entries(selectedMatch.locus_matches).map(([locus, locusMatch]) => (
+                      Object.entries(selectedMatch.locus_matches)
+                        .filter(([, match]) => informativeAlleles(match.profile1_alleles).length && informativeAlleles(match.profile2_alleles).length)
+                        .map(([locus, locusMatch]) => (
                         <tr key={locus} className={locusMatch.match ? 'selected' : 'highlighted'}>
                           <td className="analysis-code"><strong>{locus}</strong></td>
                           <td className="analysis-code">{locusMatch.profile1_alleles || 'Нет данных'}</td>
@@ -194,7 +198,7 @@ const ResultsDisplay = ({ results, searchSettings }) => {
                     </div>
                     <div className="analysis-metric-card">
                       <div className="analysis-mini-label">Дата загрузки</div>
-                      <div className="analysis-main-value">{new Date(selectedMatch.profile.upload_date).toLocaleString('ru-RU')}</div>
+                      <div className="analysis-main-value">{formatDateRu(selectedMatch.profile.upload_date)}</div>
                     </div>
                     <div className="analysis-metric-card">
                       <div className="analysis-mini-label">Источник файла</div>

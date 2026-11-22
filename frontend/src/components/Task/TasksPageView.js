@@ -1,3 +1,4 @@
+import { formatDateOnlyRu, formatDateRu } from '../../../../src/utils/dateFormatter';
 import UiIcon from '../Common/UiIcon';
 import React from 'react';
 import ReactDOM from 'react-dom';
@@ -141,7 +142,7 @@ const TasksPageView = ({
                       <td className="task-table-cell-accent">{task.profile_count || 0}</td>
                       <td className="task-table-cell-center"><TaskPriorityBadge priority={task.priority} /></td>
                       <td className="task-table-cell-center"><TaskStatusBadge status={task.status} /></td>
-                      <td className="task-table-cell-muted">{new Date(task.created_at).toLocaleDateString('ru-RU')}</td>
+                      <td className="task-table-cell-muted">{formatDateOnlyRu(task.created_at)}</td>
                       <td className="task-table-cell-actions">
                         <div className="task-table-actions">
                           {readOnly && <button className="btn btn-secondary btn-sm" onClick={() => openModal(task)}>Открыть историю</button>}
@@ -277,7 +278,7 @@ const TasksPageView = ({
               </div>
               <div>
                 <strong className="task-modal-strong">Дата создания:</strong>
-                <p className="task-modal-text">{new Date(selectedTask.created_at).toLocaleString('ru-RU')}</p>
+                <p className="task-modal-text">{formatDateRu(selectedTask.created_at)}</p>
               </div>
             </div>
 

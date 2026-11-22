@@ -1,3 +1,4 @@
+import { formatDateOnlyRu } from '../../../../src/utils/dateFormatter';
 import UiIcon from '../Common/UiIcon';
 import { getUserDisplayName } from '../../../../src/utils/userDisplayName';
 import React, { useState, useEffect } from 'react';
@@ -547,7 +548,7 @@ const AdminDashboard = ({ onNavigate }) => {
                                   <span className="status-badge inactive">✗ Деактивирован</span>
                                 )}
                               </td>
-                              <td>{new Date(dup.upload_date).toLocaleDateString('ru-RU')}</td>
+                              <td>{formatDateOnlyRu(dup.upload_date)}</td>
                             </tr>
                           ))}
                         </tbody>

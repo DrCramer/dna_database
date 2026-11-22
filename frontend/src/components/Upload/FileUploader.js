@@ -1,3 +1,4 @@
+import { formatDateOnlyRu } from '../../../../src/utils/dateFormatter';
 import GeneticExcelConverterPage from '../Converter/GeneticExcelConverterPage';
 import React, { useState } from 'react';
 import { useAuth } from '../../contexts/AuthContext';
@@ -765,7 +766,7 @@ const FileUploader = ({ onNavigate, onUploadSuccess, selectedActiveTask, onSelec
                                 <span className="upload-muted-label">ID:</span> {conflict.existingProfile.id}
                               </div>
                               <div>
-                                <span className="upload-muted-label">Загружен:</span> {new Date(conflict.existingProfile.uploadDate).toLocaleDateString('ru-RU')}
+                                <span className="upload-muted-label">Загружен:</span> {formatDateOnlyRu(conflict.existingProfile.uploadDate)}
                               </div>
                               {conflict.existingProfile.taskId && (
                                 <div className="upload-existing-profile-full">
@@ -831,7 +832,7 @@ const FileUploader = ({ onNavigate, onUploadSuccess, selectedActiveTask, onSelec
                             </div>
                             {dup.existingProfiles && dup.existingProfiles.length > 0 && (
                               <div className="upload-result-row-meta">
-                                Заменён деактивированный профиль от {new Date(dup.existingProfiles[0].uploadDate).toLocaleDateString('ru-RU')}
+                                Заменён деактивированный профиль от {formatDateOnlyRu(dup.existingProfiles[0].uploadDate)}
                               </div>
                             )}
                           </div>
@@ -1216,7 +1217,7 @@ const FileUploader = ({ onNavigate, onUploadSuccess, selectedActiveTask, onSelec
                         </div>
                         {profile.existingProfile && (
                           <div className="upload-result-row-meta">
-                            Заменит деактивированный профиль от {new Date(profile.existingProfile.uploadDate).toLocaleDateString()}
+                            Заменит деактивированный профиль от {formatDateOnlyRu(profile.existingProfile.uploadDate)}
                           </div>
                         )}
                       </div>
