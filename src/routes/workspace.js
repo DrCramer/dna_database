@@ -9,6 +9,7 @@ const {
   WorkspaceApprovalService
 } = require('../services/workspace/workspaceApprovalService');
 const { MAX_SEARCH_PROFILES, searchSelectionLimitMessage } = require('../services/workspace/workspaceSearchService');
+const { MAX_DELETE_PROFILES, deleteSelectionLimitMessage } = require('../services/workspace/workspaceService');
 const {
   workspaceModeEnabled
 } = require('../services/workspace/workspaceMode');
@@ -192,8 +193,11 @@ module.exports = function workspaceRouter(service = new WorkspaceApprovalService
     res.json(await service.patch(req.user, uuid(req.params.id), value));
   }));
   router.post('/profiles/delete', handle(async (req, res) => {
+    if (Array.isArray(req.body?.ids) && req.body.ids.length > MAX_DELETE_PROFILES) {
+      throw Object.assign(new Error(deleteSelectionLimitMessage), { status: 400, code: 'DELETE_SELECTION_LIMIT' });
+    }
     const value = check(Joi.object({
-      ids
+      ids: ids.max(MAX_DELETE_PROFILES)
     }), req.body);
     res.json(await service.remove(req.user, value.ids));
   }));

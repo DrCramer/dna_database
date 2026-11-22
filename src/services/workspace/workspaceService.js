@@ -36,6 +36,8 @@ const { restoreKnownImportMetadata, restoreImportAmelogenin } = require('../../u
 const {
   WORKSPACE_WRITE_ROLES: WRITE_ROLES
 } = require('../../utils/objectTypes');
+const MAX_DELETE_PROFILES = 20000;
+const deleteSelectionLimitMessage = `За одно удаление можно выбрать не более ${MAX_DELETE_PROFILES} объектов.`;
 function normalizeEditedAmelogenin(patch) {
   const alleles = normalizeAmelogeninPair(patch.strData?.AMEL);
   return alleles ? { ...patch, strData: { ...patch.strData, AMEL: alleles } } : patch;
@@ -214,13 +216,18 @@ class WorkspaceService {
   }
   async remove(user, ids) {
     requireUser(user, true);
+    if (Array.isArray(ids) && ids.length > MAX_DELETE_PROFILES) throw err(deleteSelectionLimitMessage, 400, 'DELETE_SELECTION_LIMIT');
+    if (!Array.isArray(ids) || !ids.length || new Set(ids).size !== ids.length) throw err('Выберите уникальные профили для удаления.');
     return this.transaction(async c => {
       const w = await this.workspace(user, c, true);
-      await this.ownProfiles(c, user, w, ids, true);
-      await c.query('UPDATE dna_profiles SET is_active=false,deactivated_by=$1,deactivated_at=now(),deactivation_reason=$2 WHERE id=ANY($3::uuid[])', [user.id, 'Удалено из личного массива', ids]);
-      return {
-        deleted: ids.length
-      };
+      const scope = [w.id, user.id, user.organization_id, ids];
+      const selectedProfiles = 'workspace_id=$1 AND user_id=$2 AND organization_id=$3 AND is_active=true AND id=ANY($4::uuid[])';
+      const { rows: [selection] } = await c.query(`SELECT count(*)::int AS count FROM dna_profiles WHERE ${selectedProfiles}`, scope);
+      if (selection.count !== ids.length) throw err('Один из профилей недоступен.', 403);
+      const { rowCount } = await c.query(`UPDATE dna_profiles SET is_active=false,deactivated_by=$2,deactivated_at=now(),deactivation_reason=$5
+        WHERE ${selectedProfiles}`, [...scope, 'Удалено из личного массива']);
+      if (rowCount !== ids.length) throw err('Один из профилей недоступен.', 403);
+      return { deleted: rowCount };
     });
   }
   async pruneDrafts() {
@@ -436,6 +443,8 @@ class WorkspaceService {
 }
 module.exports = {
   WorkspaceService,
+  MAX_DELETE_PROFILES,
+  deleteSelectionLimitMessage,
   requireUser,
   requireUpload,
   objectFromDB,

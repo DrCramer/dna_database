@@ -8,6 +8,9 @@ const url = process.env.WORKSPACE_TEST_DATABASE_URL;
 test('Полный поиск обрабатывает 13 000 выбранных профилей в пределах личного массива', { skip: !url }, async t => {
   assert.match(new URL(url).pathname, /^\/dna_workspace_test(?:_|$)/);
   Object.assign(process.env, { DATABASE_URL: url, NODE_ENV: 'test', UNIFIED_WORKSPACE_ENABLED: 'true', JWT_SECRET: 'synthetic-large-workspace-search' });
+  // Use the server's query budget for this large fixture.
+  process.env.DB_STATEMENT_TIMEOUT ||= '45000';
+  process.env.DB_QUERY_TIMEOUT ||= '45000';
   const interval = global.setInterval;
   global.setInterval = (...args) => interval(...args).unref();
   const { pool } = require('../src/config/database');
@@ -83,4 +86,27 @@ test('Полный поиск обрабатывает 13 000 выбранных
   assert.equal(error.code, 'SEARCH_SELECTION_LIMIT');
   assert.match(error.message, new RegExp(String(MAX_SEARCH_PROFILES)));
   assert.equal((await call('/profiles/export', ids)).status, 400);
+
+  await t.test('Массовое удаление деактивирует весь выбор атомарно и соблюдает границы владельца', async t => {
+    const { MAX_DELETE_PROFILES } = require('../src/services/workspace/workspaceService');
+    const path = '/profiles/delete';
+    const tooMany = await call(path, Array.from({ length: MAX_DELETE_PROFILES + 1 }, () => randomUUID()));
+    assert.equal(tooMany.status, 400);
+    assert.equal((await tooMany.json()).code, 'DELETE_SELECTION_LIMIT');
+    assert.equal((await call(path, [...ids.slice(0, -1), foreign.id])).status, 403);
+    const counts = async () => (await pool.query(`SELECT count(*)::int AS total,
+      count(*) FILTER(WHERE is_active)::int AS active,
+      count(*) FILTER(WHERE is_active=false AND deactivated_by=$2 AND deactivated_at IS NOT NULL)::int AS deactivated
+      FROM dna_profiles WHERE workspace_id=$1`, [own.workspace.id, own.actor.id])).rows[0];
+    assert.deepEqual(await counts(), { total: ids.length, active: ids.length, deactivated: 0 });
+    const revision = (await service.workspace(own.actor)).analysis_revision;
+    const start = performance.now();
+    const deleted = await call(path, ids);
+    assert.equal(deleted.status, 200, await deleted.clone().text());
+    assert.deepEqual(await deleted.json(), { deleted: ids.length });
+    t.diagnostic(`Деактивация ${ids.length} синтетических объектов: ${Math.round(performance.now() - start)} мс`);
+    assert.deepEqual(await counts(), { total: ids.length, active: 0, deactivated: ids.length });
+    assert(BigInt((await service.workspace(own.actor)).analysis_revision) > BigInt(revision));
+    assert.equal((await pool.query('SELECT is_active FROM dna_profiles WHERE id=$1', [foreign.id])).rows[0].is_active, true);
+  });
 });
