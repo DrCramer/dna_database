@@ -664,12 +664,18 @@ export default function WorkspacePage({
             })
           });
           const found = await readSearchStream(response, reportProgress);
-          if (controller.signal.aborted || searchController.current !== controller) return;
+          const currentSearch = () => searchController.current === controller && !controller.signal.aborted;
+          if (!currentSearch()) return;
           setResult(found);
           setActiveView('results');
-          await load(() => searchController.current === controller && !controller.signal.aborted);
-          if (controller.signal.aborted || searchController.current !== controller) return;
-          setNotice('Поиск завершён. Найденные совпадения показаны отдельно от состояния проверки.');
+          setSearchProgress(null);
+          setNotice('Поиск завершён.');
+          try {
+            await load(currentSearch, controller.signal);
+          } catch {
+            if (currentSearch()) setError('Не удалось обновить статусы профилей. Результаты поиска доступны.');
+          }
+          return;
         }
         if (name === 'send') {
           if (included.some(row => row.expertiseType === 'staff')) throw Error('В выборе есть эталоны сотрудников. Для них предназначена отдельная административная команда «Публиковать эталоны сотрудников». Для заявки выберите только ЧС, УГ и ГР.');
