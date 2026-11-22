@@ -94,6 +94,7 @@ export default function WorkspacePage({
     [query, setQuery] = useState(''),
     [page, setPage] = useState(0),
     [busy, setBusy] = useState(false),
+    [deleteProgress, setDeleteProgress] = useState(null),
     [error, setError] = useState(''),
     [notice, setNotice] = useState(''),
     [validation, setValidation] = useState(null),
@@ -595,6 +596,38 @@ export default function WorkspacePage({
       if (!signal || searchController.current?.signal === signal) initial.current = [...originals.values()];
     }
   }
+  async function deleteProfiles() {
+    if (busy || !canEdit || !selected.size) return;
+    if (actionsMenu.current) actionsMenu.current.open = false;
+    const ids = [...selected];
+    const count = ids.length.toLocaleString('ru-RU');
+    if (!window.confirm(`Удалить выбранные рабочие профили (${count})? Опубликованные записи сохранятся.`)) return;
+
+    setBusy(true);
+    setDeleteProgress({ count, refreshing: false });
+    setError('');
+    setNotice('');
+    try {
+      const { deleted } = await api('/profiles/delete', { ids });
+      setSelected(new Set());
+      setDeleteProgress({ count, refreshing: true });
+      try {
+        await load();
+      } catch {
+        const removed = new Set(ids);
+        setRows(current => current.filter(row => !removed.has(row.id)));
+        initial.current = initial.current?.filter(row => !removed.has(row.id));
+        setError('Удаление завершено, но не удалось обновить таблицу. Перезагрузите страницу.');
+        return;
+      }
+      setNotice(`Удалено объектов: ${deleted.toLocaleString('ru-RU')}.`);
+    } catch (e) {
+      setError(e.message);
+    } finally {
+      setDeleteProgress(null);
+      setBusy(false);
+    }
+  }
   async function action(name) {
     if (searchController.current) return;
     if (actionsMenu.current) actionsMenu.current.open = false;
@@ -641,14 +674,6 @@ export default function WorkspacePage({
         if (['search', 'publish', 'send', 'export'].includes(name)) await saveWorking(controller ? { signal: controller.signal, onProgress: reportProgress } : undefined);
         const ids = [...selected];
         if (!ids.length) throw Error('Выберите объекты.');
-        if (name === 'delete') {
-          if (!window.confirm(`Удалить выбранные рабочие профили (${ids.length})? Опубликованные записи сохранятся.`)) return;
-          await api('/profiles/delete', {
-            ids
-          });
-          setSelected(new Set());
-          await load();
-        }
         if (name === 'export') saveFile(await api('/profiles/export', {
           ids
         }, 'POST', true), 'Генотипы_' + formatDateOnlyRu(new Date()) + '.xlsx');
@@ -748,7 +773,7 @@ export default function WorkspacePage({
   const detailIssues = details && isImport ? issuesFor(details) : details?.sourceIssues || [];
   const stateBadge = row => <div><span className="workspace-badge" data-state={row.state || 'NOT_CHECKED'}>{row.expertiseType === 'staff' && row.state === 'PUBLISHED' ? 'В эталонах сотрудников' : states[row.state] || 'Не проверен'}</span>{row.approvalId && <button className="workspace-object-link master-approval-history-link" onClick={() => setApprovalWindow({mode:'history',requestId:row.approvalId})}>Решение и история</button>}{row.decisionComment && <small className="master-approval-decision-note">{row.decisionComment}</small>}</div>;
   const objectNumber = row => row.expertiseType === 'staff' ? 'Регистрационный номер (необязательно)' : row.expertiseType === 'chs' ? 'Номер объекта ЧС' : `№ экспертизы ${extractExpertiseNumber(row.objectNumber) || '—'}`;
-  return <div className={`workspace-page ${isImport ? 'workspace-import-page' : 'workspace-profiles-page'}`} aria-label={isImport ? undefined : 'Мои генотипы'} aria-busy={busy || loadingProfiles && !previewOnly}>
+  return <div className={`workspace-page ${isImport ? 'workspace-import-page' : 'workspace-profiles-page'}`} aria-label={isImport ? undefined : 'Мои генотипы'} aria-busy={busy && !deleteProgress || loadingProfiles && !previewOnly}>
     {isImport ? <header className="workspace-heading">
       <div><span className="workspace-eyebrow">Личная рабочая область</span><h1>Загрузка в личный массив</h1>{!rows.length && <p>Добавьте файлы, выберите объекты и подтвердите загрузку.</p>}</div>
       <a className="btn btn-secondary" href="/analysis"><WorkspaceIcon name="grid" />Мои генотипы</a>
@@ -764,6 +789,12 @@ export default function WorkspacePage({
     {isImport && !rows.length && <ol className="workspace-steps" aria-label="Этапы загрузки">{['Выбор файлов', 'Подготовка объектов', 'Загрузка в массив'].map((label, index) => <li key={label} aria-current={(rows.length ? index === 1 : index === 0) ? 'step' : undefined} data-complete={!!rows.length && index === 0}><span>{rows.length && index === 0 ? <WorkspaceIcon name="check" /> : index + 1}</span>{label}</li>)}</ol>}
     {error && <div className="workspace-message workspace-message-error" role="alert"><WorkspaceIcon name="alert" /><div>{error}</div>{!isImport && !profilesReady && <button className="btn btn-secondary btn-sm" onClick={() => setLoadAttempt(n => n + 1)}>Повторить загрузку данных</button>}{!!retryFiles.current.length && <button className="btn btn-secondary btn-sm" disabled={busy} onClick={() => upload(retryFiles.current)}>Повторить загрузку</button>}</div>}
     {notice && <div className="workspace-message workspace-message-success" role="status"><WorkspaceIcon name="check" /><span>{notice}</span>{isImport && !rows.length && <a href="/analysis">Открыть личный массив →</a>}</div>}
+    {!isImport && <div className={deleteProgress ? 'workspace-delete-status workspace-message' : 'workspace-delete-status'} role="status">
+      {deleteProgress && <><span className="workspace-loading-spinner" aria-hidden="true" /><div>
+        <strong>{deleteProgress.refreshing ? 'Обновляем таблицу…' : 'Удаляем выбранные объекты…'}</strong>
+        <span className="workspace-delete-count">Объектов: {deleteProgress.count}</span>
+      </div></>}
+    </div>}
 
     {isImport && <section className={`workspace-drop ${rows.length ? 'workspace-drop-compact' : ''} ${dragging ? 'is-dragging' : ''}`} aria-label="Загрузка файлов" onDragEnter={e => {
       e.preventDefault();
@@ -798,7 +829,7 @@ export default function WorkspacePage({
       </div>
     </section>}
 
-    <div className="workspace-profile-panel" hidden={showingResults}>
+    <div className="workspace-profile-panel" hidden={showingResults} aria-busy={deleteProgress ? true : undefined}>
     {loadingProfiles && !previewOnly && <section className="workspace-loading" role="status" aria-label="Загрузка генотипов"><div className="workspace-loading-heading"><span className="workspace-loading-spinner" aria-hidden="true" /><div><strong>Загружаем ваши генотипы</strong><p>Получаем профили и состояние последних проверок.</p></div></div><div className="workspace-skeleton-table" aria-hidden="true">{Array.from({ length: 9 }, (_, index) => <div key={index}><span /><span /><span /><span /><span /><span /></div>)}</div></section>}
     {!!rows.length && (isImport || profilesReady || previewOnly) && <>
       {isImport && <div className="workspace-draft-status"><span><strong>{rows.length.toLocaleString('ru-RU')}</strong> объектов из файлов{errorCount > 0 && <span className="workspace-draft-warning"> · требуют внимания: {errorCount}</span>}</span><span><span className={`workspace-save-dot ${autoSaving || draftPending ? 'is-saving' : ''}`} /><span role="status">{autoSaving ? 'Сохраняем правки…' : draftPending ? 'Правки ожидают сохранения' : 'Черновик сохранён'}</span><small>· 24 часа</small></span></div>}
@@ -919,7 +950,7 @@ export default function WorkspacePage({
         <div className="workspace-selection"><span className="workspace-selection-number">{included.length}</span><div><strong>объектов выбрано</strong><small>{isImport ? `Пустых: ${countEmpty(included)} · требуют внимания: ${errorCount}` : dirtyCount ? `Несохранённых изменений: ${dirtyCount}` : 'Действия применяются к выбору'}</small></div></div>
         <div className="workspace-command-actions">{isImport ? <><button className="btn btn-secondary" disabled={busy || !canEdit || !included.length} onClick={() => action('validate')}><WorkspaceIcon name="download" />Подготовить XLSX</button><button className="btn btn-primary" disabled={busy || !canEdit || !included.length} onClick={() => action('commit')}><WorkspaceIcon name="upload" />{busy ? 'Подождите…' : 'Загрузить выбранные'}</button></> : <>
           {!!dirtyCount && <button className="btn btn-secondary" disabled={busy || !canEdit} onClick={() => action('save')}><WorkspaceIcon name="check" />Сохранить изменения</button>}
-          <details className="workspace-more-actions" ref={actionsMenu}><summary className="btn btn-secondary">Действия<WorkspaceIcon name="chevron" /></summary><div role="group" aria-label="Действия с выбранными профилями"><button disabled={busy || !canEdit || !included.length} onClick={() => action('export')}><WorkspaceIcon name="download" />Экспортировать выбранные</button>{workspace?.canSubmitMaster && <button disabled={busy || !included.length} onClick={() => action('send')}><WorkspaceIcon name="shield" />Отправить на подтверждение</button>}{workspace?.canManageStaff && <button disabled={busy || !included.length} onClick={() => action('publish')}><WorkspaceIcon name="shield" />Публиковать эталоны сотрудников</button>}<button disabled={busy || !readyCount} onClick={() => setSelected(new Set(rows.filter(row => (row.searchState || row.state) === 'CHECKED' && row.approvalState !== 'pending').map(row => row.id)))}><WorkspaceIcon name="check" />Выбрать только готовые</button><button className="workspace-delete-action" disabled={busy || !canEdit || !included.length} onClick={() => action('delete')}><WorkspaceIcon name="delete" />Удалить выбранные</button></div></details>
+          <details className="workspace-more-actions" ref={actionsMenu}><summary className="btn btn-secondary">Действия<WorkspaceIcon name="chevron" /></summary><div role="group" aria-label="Действия с выбранными профилями"><button disabled={busy || !canEdit || !included.length} onClick={() => action('export')}><WorkspaceIcon name="download" />Экспортировать выбранные</button>{workspace?.canSubmitMaster && <button disabled={busy || !included.length} onClick={() => action('send')}><WorkspaceIcon name="shield" />Отправить на подтверждение</button>}{workspace?.canManageStaff && <button disabled={busy || !included.length} onClick={() => action('publish')}><WorkspaceIcon name="shield" />Публиковать эталоны сотрудников</button>}<button disabled={busy || !readyCount} onClick={() => setSelected(new Set(rows.filter(row => (row.searchState || row.state) === 'CHECKED' && row.approvalState !== 'pending').map(row => row.id)))}><WorkspaceIcon name="check" />Выбрать только готовые</button><button className="workspace-delete-action" disabled={busy || !canEdit || !included.length} onClick={deleteProfiles}><WorkspaceIcon name="delete" />Удалить выбранные</button></div></details>
           <button className="btn btn-primary" disabled={busy || !canEdit || !included.length} onClick={() => action('search')}><WorkspaceIcon name="search" />{busy ? 'Выполняется операция…' : 'Полный поиск выбранных'}</button>
         </>}</div>
       </div>}
