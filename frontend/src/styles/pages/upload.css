@@ -1619,6 +1619,14 @@
 .master-approval-evidence small, .master-approval-decision-note { display:block; color:var(--text-secondary); overflow-wrap:anywhere; }
 .master-approval-history-link { display:block; margin-top:6px; font-size:12px; }
 .master-approval-error { white-space:pre-wrap; }
+.master-approval-problems { display: grid; gap: 8px; margin-block: 12px 20px; }
+.master-approval-problem { padding: 10px 12px; border: 1px solid var(--border-default); border-radius: var(--radius-md); background: var(--surface-muted); }
+.master-approval-problem strong { color: var(--status-danger); }
+.master-approval-problem p { margin: 4px 0 6px; color: var(--text-secondary); }
+.master-approval-problem summary { cursor: pointer; color: var(--brand-primary); }
+.master-approval-problem ul { columns: 12rem; margin-block: 8px; }
+.master-approval-pagination { display: flex; align-items: center; flex-wrap: wrap; gap: 8px; color: var(--text-secondary); font-size: 13px; }
+
 .workspace-badge[data-state="PENDING_APPROVAL"] { color:var(--brand-primary); background:var(--status-info-bg); }
 .workspace-badge[data-state="RETURNED"] { color:var(--status-warning); background:var(--status-warning-bg); }
 @media(max-width:600px) { .master-approval-dialog .workspace-editor-footer { flex-wrap:wrap; } .master-approval-header-actions { width:100%; } }

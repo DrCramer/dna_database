@@ -40,11 +40,11 @@ if [[ -n "$schema_changes" ]]; then
     known_release=true
     while IFS= read -r changed_file; do
         case "$changed_file" in
-            database/schema.sql|database/migrations/031_allele_references.sql|database/migrations/032_genetic_profile_year_identity.sql|database/migrations/033_user_display_names.sql|database/migrations/034_probability_calculations.sql|database/migrations/035_session_refresh_tokens.sql|database/migrations/036_profile_identity_scope.sql|database/migrations/038_master_array_approval.sql|database/migrations/039_optional_staff_registration.sql|database/migrations/040_night_search.sql|database/migrations/041_workspace_duplicate_history.sql) ;;
+            database/schema.sql|database/migrations/031_allele_references.sql|database/migrations/032_genetic_profile_year_identity.sql|database/migrations/033_user_display_names.sql|database/migrations/034_probability_calculations.sql|database/migrations/035_session_refresh_tokens.sql|database/migrations/036_profile_identity_scope.sql|database/migrations/038_master_array_approval.sql|database/migrations/039_optional_staff_registration.sql|database/migrations/040_night_search.sql|database/migrations/041_workspace_duplicate_history.sql|database/migrations/042_master_approval_without_genotype.sql) ;;
             *) known_release=false ;;
         esac
     done <<< "$schema_changes"
-    if [[ "$schema_changes" != *database/migrations/031_allele_references.sql* && "$schema_changes" != *database/migrations/032_genetic_profile_year_identity.sql* && "$schema_changes" != *database/migrations/033_user_display_names.sql* && "$schema_changes" != *database/migrations/034_probability_calculations.sql* && "$schema_changes" != *database/migrations/035_session_refresh_tokens.sql* && "$schema_changes" != *database/migrations/036_profile_identity_scope.sql* && "$schema_changes" != *database/migrations/038_master_array_approval.sql* && "$schema_changes" != *database/migrations/039_optional_staff_registration.sql* && "$schema_changes" != *database/migrations/040_night_search.sql* && "$schema_changes" != *database/migrations/041_workspace_duplicate_history.sql* ]]; then
+    if [[ "$schema_changes" != *database/migrations/031_allele_references.sql* && "$schema_changes" != *database/migrations/032_genetic_profile_year_identity.sql* && "$schema_changes" != *database/migrations/033_user_display_names.sql* && "$schema_changes" != *database/migrations/034_probability_calculations.sql* && "$schema_changes" != *database/migrations/035_session_refresh_tokens.sql* && "$schema_changes" != *database/migrations/036_profile_identity_scope.sql* && "$schema_changes" != *database/migrations/038_master_array_approval.sql* && "$schema_changes" != *database/migrations/039_optional_staff_registration.sql* && "$schema_changes" != *database/migrations/040_night_search.sql* && "$schema_changes" != *database/migrations/041_workspace_duplicate_history.sql* && "$schema_changes" != *database/migrations/042_master_approval_without_genotype.sql* ]]; then
         known_release=false
     fi
     if [[ "$known_release" == true ]]; then
@@ -139,6 +139,13 @@ duplicate_history_missing="$(docker compose exec -T db psql -U dna_user -d dna_a
 if [[ "$duplicate_history_missing" == t ]]; then
     docker compose exec -T db psql -U dna_user -d dna_analysis -v ON_ERROR_STOP=1 -q < database/migrations/041_workspace_duplicate_history.sql
 fi
+
+# 042 keeps the approval gate and permits completed no-genotype proofs for master records.
+master_without_genotype_missing="$(docker compose exec -T db psql -U dna_user -d dna_analysis -Atq -v ON_ERROR_STOP=1 -c "SELECT to_regclass('workspace_master_approvals') IS NOT NULL AND to_regclass('workspace_master_approval_targets') IS NULL")"
+if [[ "$master_without_genotype_missing" == t ]]; then
+    docker compose exec -T db psql -U dna_user -d dna_analysis -v ON_ERROR_STOP=1 -q < database/migrations/042_master_approval_without_genotype.sql
+fi
+
 
 docker compose build web
 ./scripts/prepare-runtime.sh

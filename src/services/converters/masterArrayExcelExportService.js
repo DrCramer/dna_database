@@ -80,7 +80,7 @@ function prepareMasterExport(rows, importFormat, options = {}) {
       } catch { add('ALLELE_VALIDATION', `Аллели ${locus} не проходят штатную проверку импорта.`); }
       profile.strData[locus] = tokens;
     }
-    if (!Object.values(profile.strData).some(values => values.length)) add('EMPTY_PROFILE', 'В профиле нет генетических данных.');
+    if (!unified && !Object.values(profile.strData).some(values => values.length)) add('EMPTY_PROFILE', 'В профиле нет генетических данных.');
     if (unified) {
       for (const issue of validateObject(profile, { requireAssignedNumber: true })) {
         if (!problems.some(problem => problem.code === issue.code)) add(issue.code, issue.message);

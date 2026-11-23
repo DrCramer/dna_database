@@ -192,7 +192,7 @@ class WorkspaceSearchService extends WorkspaceService {
       onProgress?.({ stage: 'master', status: 'running', completed: 0, total: eligible.length, unit: 'objects' });
       const shared = await executeProfiles('master',{
         ...input,
-        compareProfiles: master,
+        compareProfiles: master.filter(profile => hasGenotype(profile.str_data)),
         searchMode: 'workspace_master'
       }, {
         signal, onProgress: stageProgress('master')

@@ -21,6 +21,7 @@ test('Единый workspace: импорт, ревизии, поиск, gate, п
     WorkspaceApprovalService
   } = require('../src/services/workspace/workspaceApprovalService');
   await pool.query(require('fs').readFileSync(require('path').join(__dirname, '../database/migrations/039_optional_staff_registration.sql'), 'utf8'));
+  await pool.query(require('fs').readFileSync(require('path').join(__dirname, '../database/migrations/042_master_approval_without_genotype.sql'), 'utf8'));
   const service = new WorkspaceApprovalService(pool);
   await pool.query('INSERT INTO workspace_configuration(id,enabled) VALUES(true,false) ON CONFLICT(id) DO UPDATE SET enabled=false');
   t.after(() => pool.end());
@@ -439,6 +440,58 @@ test('Единый workspace: импорт, ревизии, поиск, gate, п
     assert.deepEqual((await pool.query('SELECT str_data FROM staff_profiles WHERE id=$1',[updatedId])).rows[0].str_data.TH01,['7','9']);
 
   });
+  await t.test('Заявка сохраняет пустые генотипы и неизвестные аллели без сравнений', async () => {
+    const owner = await user('user_analyst');
+    const empty = { D3S1358: ['*'], D5S818: ['?'] };
+    const source = await load(owner, [
+      profile('SYN-APP-FULL'), profile('SYN-APP-EMPTY', 'gr', {}), profile('SYN-APP-UNKNOWN', 'ug', empty)
+    ]);
+    await assert.rejects(service.approvalPreview(owner, source.ids), error => {
+      assert.equal(error.code, 'FULL_SEARCH_REQUIRED');
+      assert.deepEqual(error.details.groups.map(g => [g.code, g.profiles.length]), [['NO_SEARCH', 3]]);
+      return true;
+    });
+    const isolated = await service.fullSearch(owner, source.ids.slice(1));
+    assert.deepEqual(isolated.profiles.map(row => row.state), ['NO_GENOTYPE', 'NO_GENOTYPE']);
+    const onlyEmpty = await service.approvalPreview(owner, source.ids.slice(1));
+    assert(onlyEmpty.profiles.every(row => row.withoutGenotype));
+    await service.fullSearch(owner, source.ids.slice(0, 1));
+    await assert.rejects(service.approvalPreview(owner, source.ids), error => {
+      assert.deepEqual(error.details.groups.map(g => [g.code, g.profiles.length]), [['SEPARATE_RUNS', 3]]);
+      return true;
+    });
+    const checked = await service.fullSearch(owner, source.ids);
+    const preview = await service.approvalPreview(owner, source.ids);
+    assert.equal(preview.searchRunId, checked.id);
+    assert.equal(preview.profiles.filter(row => row.withoutGenotype).length, 2);
+    assert.equal((await service.list(owner, { table: true })).profiles.filter(row => row.canSubmitWithoutGenotype).length, 2);
+    const request = await service.submitApproval(owner, source.ids, checked.id, {}, randomUUID());
+    await assert.rejects(service.approvalPreview(owner, source.ids), error =>
+      error.code === 'APPROVAL_BLOCKED' && error.details.groups.some(g => g.code === 'PENDING' && g.profiles.length === 3));
+    const detail = await service.approvalDetail(reviewer, request.id);
+    assert.equal(detail.requiresSearch, false);
+    assert.equal(detail.profiles.filter(row => row.withoutGenotype).length, 2);
+    assert.equal((await service.decideApproval(reviewer, request.id, 'approve', detail.reviewToken)).count, 3);
+
+    const { rows } = await pool.query('SELECT * FROM master_array_profiles WHERE source_workspace_profile_id=ANY($1::uuid[])', [source.ids]);
+    const byId = new Map(rows.map(row => [row.source_workspace_profile_id, row]));
+    assert.deepEqual(byId.get(source.ids[1]).str_data, {});
+    assert.deepEqual(byId.get(source.ids[2]).str_data, empty);
+    const { prepareMasterExport } = require('../src/services/converters/masterArrayExcelExportService');
+    assert.equal(prepareMasterExport(rows, FORMAT).summary.exportable, 3);
+
+    const next = await service.fullSearch(owner, source.ids);
+    assert(!next.master.results.some(group => [source.ids[1], source.ids[2]].includes(group.reference.id)));
+    const emptyMasterIds = new Set(source.ids.slice(1).map(id => byId.get(id).id));
+    assert(next.master.results.every(group => group.matches.every(match => !emptyMasterIds.has(match.id))));
+    await service.patch(owner, source.ids[0], { strData: {} });
+    await assert.rejects(service.approvalPreview(owner, source.ids), error =>
+      error.details.groups.some(g => g.code === 'WORKSPACE_CHANGED' && g.profiles.length === 3));
+    await service.fullSearch(owner, source.ids);
+    await assert.rejects(service.approvalPreview(owner, source.ids), error =>
+      error.details.groups.some(g => g.code === 'EMPTY_REPLACEMENT' && g.profiles[0].profileId === source.ids[0]));
+  });
+
   await t.test('Два подтверждения: выбранные 2/3, неизменная дата поиска, область заявки и история', async()=>{
     const owner=await user('user_analyst');
     const source=await load(owner,[profile('SYN-APP-1'),profile('SYN-APP-2'),profile('SYN-APP-3')]);

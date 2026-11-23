@@ -129,14 +129,14 @@ class WorkspaceService {
  LEFT JOIN LATERAL(SELECT a.*,COALESCE(NULLIF(u.display_name,''),u.username) decider_name FROM workspace_master_approval_items i JOIN workspace_master_approvals a ON a.id=i.approval_id LEFT JOIN users u ON u.id=a.decided_by WHERE i.profile_id=p.id ORDER BY a.submitted_at DESC,a.id DESC LIMIT 1) approval ON true
  ${firstPage ? '' : `WHERE ${profileScope}`} ORDER BY p.upload_date,p.id`, [w.id, user.id, user.organization_id]);
     const { ALGORITHM_VERSION } = require('./workspaceSearchService');
+    const currentSearch = p => p.run_state === 'complete' && p.search_completed_at &&
+      p.algorithm_version === ALGORITHM_VERSION && p.run_workspace_revision === w.analysis_revision &&
+      p.master_revision === p.current_master_revision && p.staff_revision === p.current_staff_revision;
     const readiness = p => {
       if (!hasGenotype(p.str_data)) return 'NO_GENOTYPE';
       if (!p.search_id) return 'NOT_CHECKED';
       if (p.run_state === 'running') return 'CHECKING';
-      const current = p.run_state === 'complete' && p.search_completed_at &&
-        p.algorithm_version === ALGORITHM_VERSION && p.run_workspace_revision === w.analysis_revision &&
-        p.master_revision === p.current_master_revision && p.staff_revision === p.current_staff_revision;
-      if (!current) return 'STALE';
+      if (!currentSearch(p)) return 'STALE';
       if (p.proof_state === 'INSUFFICIENT_DATA') return 'INSUFFICIENT_DATA';
       const stages = p.proof_stages;
       return p.proof_state === 'CHECKED' && stages?.internal && stages?.master && stages?.staff ? 'CHECKED' : 'STALE';
@@ -163,6 +163,8 @@ class WorkspaceService {
           destination: p.destination,
           searchRunId: p.search_id,
           searchState,
+          canSubmitWithoutGenotype: p.expertise_type !== 'staff' && searchState === 'NO_GENOTYPE' &&
+            p.proof_state === 'NO_GENOTYPE' && !!currentSearch(p),
           state: p.approval_state === 'pending' ? 'PENDING_APPROVAL' : p.approval_state === 'returned' ? 'RETURNED' : p.published_id ? 'PUBLISHED' : searchState
         };
       })

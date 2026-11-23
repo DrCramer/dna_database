@@ -203,7 +203,8 @@ export default function WorkspacePage({
       const more = Array.isArray(failure.details) ? failure.details.flatMap(i => i.issues || [i]).map(i => i.message).filter(Boolean).join('\n') : '';
       throw Object.assign(Error([failure.message, more].filter(Boolean).join('\n')), {
         status: response.status,
-        code: failure.code
+        code: failure.code,
+        details: failure.details
       });
     }
     return blob ? response.blob() : response.json();
@@ -750,7 +751,9 @@ export default function WorkspacePage({
   const showStaff = rows.some(row => row.expertiseType === 'staff' || row.fullName);
   const showAssignedNumber = rows.some(row => row.expertiseType === 'chs' || !row.expertiseType && row.assignedNumber);
   const staffNameCandidates = isImport ? affected.filter(canTransferStaffName) : [];
-  const readyCount = rows.filter(row => (row.searchState || row.state) === 'CHECKED' && row.approvalState !== 'pending').length;
+  const readyRows = rows.filter(row => row.approvalState !== 'pending' &&
+    ((row.searchState || row.state) === 'CHECKED' || row.canSubmitWithoutGenotype));
+  const readyCount = readyRows.length;
   const dirtyCount = !isImport && initial.current && rows !== initial.current ? changedWorkingProfiles(rows, initial.current).length : 0;
   const issuesFor = row => importIssues?.byRow.get(id(row)) || [];
   const errorCount = importIssues?.rowCount || 0;
@@ -950,7 +953,7 @@ export default function WorkspacePage({
         <div className="workspace-selection"><span className="workspace-selection-number">{included.length}</span><div><strong>объектов выбрано</strong><small>{isImport ? `Пустых: ${countEmpty(included)} · требуют внимания: ${errorCount}` : dirtyCount ? `Несохранённых изменений: ${dirtyCount}` : 'Действия применяются к выбору'}</small></div></div>
         <div className="workspace-command-actions">{isImport ? <><button className="btn btn-secondary" disabled={busy || !canEdit || !included.length} onClick={() => action('validate')}><WorkspaceIcon name="download" />Подготовить XLSX</button><button className="btn btn-primary" disabled={busy || !canEdit || !included.length} onClick={() => action('commit')}><WorkspaceIcon name="upload" />{busy ? 'Подождите…' : 'Загрузить выбранные'}</button></> : <>
           {!!dirtyCount && <button className="btn btn-secondary" disabled={busy || !canEdit} onClick={() => action('save')}><WorkspaceIcon name="check" />Сохранить изменения</button>}
-          <details className="workspace-more-actions" ref={actionsMenu}><summary className="btn btn-secondary">Действия<WorkspaceIcon name="chevron" /></summary><div role="group" aria-label="Действия с выбранными профилями"><button disabled={busy || !canEdit || !included.length} onClick={() => action('export')}><WorkspaceIcon name="download" />Экспортировать выбранные</button>{workspace?.canSubmitMaster && <button disabled={busy || !included.length} onClick={() => action('send')}><WorkspaceIcon name="shield" />Отправить на подтверждение</button>}{workspace?.canManageStaff && <button disabled={busy || !included.length} onClick={() => action('publish')}><WorkspaceIcon name="shield" />Публиковать эталоны сотрудников</button>}<button disabled={busy || !readyCount} onClick={() => setSelected(new Set(rows.filter(row => (row.searchState || row.state) === 'CHECKED' && row.approvalState !== 'pending').map(row => row.id)))}><WorkspaceIcon name="check" />Выбрать только готовые</button><button className="workspace-delete-action" disabled={busy || !canEdit || !included.length} onClick={deleteProfiles}><WorkspaceIcon name="delete" />Удалить выбранные</button></div></details>
+          <details className="workspace-more-actions" ref={actionsMenu}><summary className="btn btn-secondary">Действия<WorkspaceIcon name="chevron" /></summary><div role="group" aria-label="Действия с выбранными профилями"><button disabled={busy || !canEdit || !included.length} onClick={() => action('export')}><WorkspaceIcon name="download" />Экспортировать выбранные</button>{workspace?.canSubmitMaster && <button disabled={busy || !included.length} onClick={() => action('send')}><WorkspaceIcon name="shield" />Отправить на подтверждение</button>}{workspace?.canManageStaff && <button disabled={busy || !included.length} onClick={() => action('publish')}><WorkspaceIcon name="shield" />Публиковать эталоны сотрудников</button>}<button disabled={busy || !readyCount} onClick={() => setSelected(new Set(readyRows.map(row => row.id)))}><WorkspaceIcon name="check" />Выбрать только готовые</button><button className="workspace-delete-action" disabled={busy || !canEdit || !included.length} onClick={deleteProfiles}><WorkspaceIcon name="delete" />Удалить выбранные</button></div></details>
           <button className="btn btn-primary" disabled={busy || !canEdit || !included.length} onClick={() => action('search')}><WorkspaceIcon name="search" />{busy ? 'Выполняется операция…' : 'Полный поиск выбранных'}</button>
         </>}</div>
       </div>}
