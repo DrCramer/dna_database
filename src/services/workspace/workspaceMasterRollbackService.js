@@ -42,6 +42,15 @@ class WorkspaceMasterRollbackService extends WorkspaceApprovalService {
     return { requests: rows.slice(0, 50), hasMore: rows.length > 50 };
   }
 
+  async rollbackRequest(c, user, id, lock = false) {
+    const { rows: [approval] } = await c.query(`SELECT a.id, a.workspace_id, a.organization_id, a.state, a.decided_at, a.decided_by,
+        COALESCE(NULLIF(u.display_name,''),u.username) author_name
+      FROM workspace_master_approvals a JOIN users u ON u.id=a.author_id
+      WHERE a.id=$1 AND a.organization_id=$2 ${lock ? 'FOR UPDATE OF a' : ''}`, [id, user.organization_id]);
+    if (!approval) throw err('Заявка недоступна.', 404);
+    return approval;
+  }
+
   async readRollbackPlan(c, approval, lock = false) {
     const { rows: [receipt] } = await c.query(`SELECT undo.rolled_back_at AS "rolledBackAt", undo.reason,
         undo.removed_count AS removed, undo.restored_count AS restored,
@@ -83,8 +92,10 @@ class WorkspaceMasterRollbackService extends WorkspaceApprovalService {
       WHERE i.approval_id=$1 ORDER BY i.profile_id`, [approval.id, approval.organization_id, approval.decided_by]);
 
     let historical = new Map();
-    if (approval.encrypted_decision && rows.some(row => !row.applied_hash && !row.replace_existing)) {
-      try { historical = new Map(unseal(approval.encrypted_decision).profiles.map(profile => [profile.id, profile])); }
+    if (rows.some(row => !row.applied_hash && !row.replace_existing)) {
+      const { rows: [{ encrypted_decision: decision }] } = await c.query(
+        'SELECT encrypted_decision FROM workspace_master_approvals WHERE id=$1', [approval.id]);
+      try { if (decision) historical = new Map(unseal(decision).profiles.map(profile => [profile.id, profile])); }
       catch { /* Older records without readable evidence are reported as blocked below. */ }
     }
     const problems = [], profiles = [];
@@ -117,7 +128,7 @@ class WorkspaceMasterRollbackService extends WorkspaceApprovalService {
     return this.transaction(async c => {
       await c.query('SET TRANSACTION ISOLATION LEVEL REPEATABLE READ READ ONLY');
       await this.rollbackActor(c, user);
-      return this.readRollbackPlan(c, await this.requestRow(c, user, id));
+      return this.readRollbackPlan(c, await this.rollbackRequest(c, user, id));
     });
   }
 
@@ -125,9 +136,9 @@ class WorkspaceMasterRollbackService extends WorkspaceApprovalService {
     if (typeof reason !== 'string' || !reason.trim() || reason.trim().length > 2000) throw err('Укажите причину отката.');
     return this.transaction(async c => {
       await this.rollbackActor(c, user, true);
-      const header = await this.requestRow(c, user, id);
+      const header = await this.rollbackRequest(c, user, id);
       await c.query('SELECT id FROM personal_workspaces WHERE id=$1 FOR UPDATE', [header.workspace_id]);
-      const approval = await this.requestRow(c, user, id, true);
+      const approval = await this.rollbackRequest(c, user, id, true);
       await c.query('SELECT organization_id FROM workspace_reference_versions WHERE organization_id=$1 FOR UPDATE', [user.organization_id]);
       const plan = await this.readRollbackPlan(c, approval, true);
       if (plan.state === 'rolled_back') return { ...plan, replayed: true };
@@ -136,8 +147,11 @@ class WorkspaceMasterRollbackService extends WorkspaceApprovalService {
 
       await c.query(`INSERT INTO workspace_master_rollbacks(approval_id,rolled_back_by,reason,removed_count,restored_count)
         VALUES($1,$2,$3,$4,$5)`, [id, user.id, reason.trim(), plan.removed, plan.restored]);
+      await c.query("SELECT set_config('app.workspace_rollback_batch_id',$1,true)", [id]);
       const removed = await c.query(`UPDATE master_array_profiles m SET is_active=false
-        FROM workspace_master_approval_items i WHERE i.approval_id=$1 AND NOT i.replace_existing AND m.id=i.target_id AND m.organization_id=$2`,
+        WHERE m.organization_id=$2 AND m.id=ANY(ARRAY(
+          SELECT target_id FROM workspace_master_approval_items WHERE approval_id=$1 AND NOT replace_existing
+        ))`,
       [id, user.organization_id]);
       let restoredCount = 0;
       if (plan.restored) {

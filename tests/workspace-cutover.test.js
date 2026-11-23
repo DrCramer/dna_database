@@ -75,7 +75,7 @@ test('Переход сохраняет прежний образ до сбор�
   const result = runCutover(t, { env });
   assert.equal(result.status, 0, result.stderr);
   assert.deepEqual(result.events, ['container', 'previous', 'inspect-image', 'tag', 'build', 'backup', 'stop', 'backup',
-    ...Array(8).fill('migration'), 'enable', 'up']);
+    ...Array(9).fill('migration'), 'enable', 'up']);
   assert.match(fs.readFileSync(path.join(result.backup, 'previous-image-tag.txt'), 'utf8'), /^dna_database-web:workspace-before-/);
   assert.equal(fs.readFileSync(path.join(result.backup, 'env.before'), 'utf8'), env);
   assert.equal(result.env, '# Synthetic settings\nWEB_PORT=3001\nUNIFIED_WORKSPACE_ENABLED=true\n');
@@ -101,6 +101,6 @@ test('Ошибка первичного дампа останавливает п
 test('Стенд не обращается к предыдущему web и не останавливает его', t => {
   const result = runCutover(t, { staging: true });
   assert.equal(result.status, 0, result.stderr);
-  assert.deepEqual(result.events, ['build', 'backup', ...Array(8).fill('migration'), 'enable']);
+  assert.deepEqual(result.events, ['build', 'backup', ...Array(9).fill('migration'), 'enable']);
   assert.match(result.env, /^UNIFIED_WORKSPACE_ENABLED=false\n$/);
 });

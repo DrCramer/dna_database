@@ -398,6 +398,8 @@ async function startServer() {
             if (!partialApproval.ready) throw new Error('Примените миграцию 043_master_approval_partial_genotypes.sql для публикации частичных генотипов.');
             const { rows: [rollback] } = await pool.query("SELECT to_regclass('public.workspace_master_rollbacks') IS NOT NULL AS ready");
             if (!rollback.ready) throw new Error('Примените миграцию 044_master_approval_rollback.sql для журнала публикаций.');
+            const { rows: [rollbackBatch] } = await pool.query("SELECT to_regprocedure('public.workspace_master_update_revision()') IS NOT NULL AS ready");
+            if (!rollbackBatch.ready) throw new Error('Примените миграцию 045_master_rollback_batch_revision.sql для массового отката.');
             const workspaces = new (require('./services/workspace/workspaceService').WorkspaceService)(pool);
             setInterval(() => workspaces.pruneDrafts().catch(() => logger.error('WORKSPACE_DRAFT_RETENTION_FAILED')), 3600000).unref();
         }

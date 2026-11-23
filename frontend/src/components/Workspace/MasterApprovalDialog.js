@@ -244,6 +244,7 @@ export function MasterPublicationHistory({ api, onClose, onChanged }) {
   const [reason, setReason] = useState('');
   const [busy, setBusy] = useState(true);
   const [error, setError] = useState(null);
+  const [outcomeUnknown, setOutcomeUnknown] = useState(false);
   useEffect(() => {
     const node = dialog.current;
     node.showModal();
@@ -263,23 +264,45 @@ export function MasterPublicationHistory({ api, onClose, onChanged }) {
     setPage(next);
     setPlan(null);
     setReason('');
+    setOutcomeUnknown(false);
+  }
+  async function refreshWorkspace() {
+    try { await onChanged(); }
+    catch { setError(new Error('Откат сохранён. Обновите страницу, чтобы увидеть актуальные статусы личного массива.')); }
   }
   async function open(id) {
-    setPlan(await api('/approvals/' + id + '/rollback-preview'));
+    let updated;
+    try {
+      updated = await api('/approvals/' + id + '/rollback-preview');
+    } catch (failure) {
+      if (failure.status) throw failure;
+      throw new Error('Не удалось получить состояние публикации. Проверьте подключение и повторите обновление.');
+    }
+    setPlan(updated);
+    setOutcomeUnknown(false);
+    if (outcomeUnknown && updated.state === 'rolled_back') await refreshWorkspace();
+    return updated;
   }
   async function rollback() {
     await run(async () => {
       try {
         setPlan(await api('/approvals/' + plan.id + '/rollback', { reviewToken: plan.reviewToken, reason: reason.trim() }));
       } catch (failure) {
-        if (failure.status === 409) {
+        if (failure.status === 409 || !failure.status || failure.status === 408 || failure.status >= 500) {
           setPlan(current => ({ ...current, reviewToken: null }));
-          await open(plan.id);
+          const updated = await open(plan.id).catch(() => null);
+          if (updated?.state === 'rolled_back') {
+            await refreshWorkspace();
+            return;
+          }
+          if (failure.status !== 409 || !updated) {
+            setOutcomeUnknown(true);
+            throw new Error('Не удалось получить итог отката. Нажмите «Обновить план», чтобы проверить состояние публикации.');
+          }
         }
         throw failure;
       }
-      try { await onChanged(); }
-      catch { setError(new Error('Откат сохранён. Обновите страницу, чтобы увидеть актуальные статусы личного массива.')); }
+      await refreshWorkspace();
     });
   }
 
@@ -328,7 +351,7 @@ export function MasterPublicationHistory({ api, onClose, onChanged }) {
             <div><h3>{request.author_name}</h3><small>{names[request.state]}</small></div>
             <dl><div><dt>Объекты</dt><dd>{number(request.profile_count)}</dd></div><div><dt>Опубликована</dt><dd>{date(request.decided_at)}</dd></div></dl>
             <button type="button" className="btn btn-secondary" disabled={busy} onClick={() => run(() => open(request.id))}>
-              {request.state === 'rolled_back' ? 'Посмотреть откат' : 'Проверить откат'}
+              {request.state === 'rolled_back' ? 'Посмотреть откат' : 'Откатить изменения'}
             </button>
           </li>)}
         </ul>}
@@ -345,7 +368,7 @@ export function MasterPublicationHistory({ api, onClose, onChanged }) {
       <div className="master-approval-footer-actions">
         {!plan && <button type="button" className="btn btn-secondary" disabled={busy} onClick={() => run(() => load(page))}>Обновить список</button>}
         {plan?.state === 'approved' && <button type="button" className="btn btn-secondary" disabled={busy} onClick={() => run(() => open(plan.id))}>Обновить план</button>}
-        {plan?.state === 'approved' && <button type="button" className="btn btn-primary" disabled={busy || !plan.reviewToken || !reason.trim()} onClick={rollback}>Откатить публикацию</button>}
+        {plan?.state === 'approved' && <button type="button" className="btn btn-primary" disabled={busy || outcomeUnknown || !plan.reviewToken || !reason.trim()} onClick={rollback}>Откатить публикацию</button>}
       </div>
     </div>
   </dialog>;

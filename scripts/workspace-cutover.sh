@@ -69,6 +69,7 @@ docker compose exec -T db psql -X -U dna_user -d "$workspace_database" -v ON_ERR
 docker compose exec -T db psql -X -U dna_user -d "$workspace_database" -v ON_ERROR_STOP=1 < database/migrations/042_master_approval_without_genotype.sql
 docker compose exec -T db psql -X -U dna_user -d "$workspace_database" -v ON_ERROR_STOP=1 < database/migrations/043_master_approval_partial_genotypes.sql
 docker compose exec -T db psql -X -U dna_user -d "$workspace_database" -v ON_ERROR_STOP=1 < database/migrations/044_master_approval_rollback.sql
+docker compose exec -T db psql -X -U dna_user -d "$workspace_database" -v ON_ERROR_STOP=1 < database/migrations/045_master_rollback_batch_revision.sql
 docker compose exec -T db psql -X -U dna_user -d "$workspace_database" -v ON_ERROR_STOP=1 -c 'UPDATE workspace_configuration SET enabled=true WHERE id=true;'
 if [[ "${1:-}" == --staging ]]; then
     echo "Staging schema enabled in $workspace_database. Start the isolated web service with UNIFIED_WORKSPACE_ENABLED=true. Production web was not restarted."

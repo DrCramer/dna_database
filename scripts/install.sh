@@ -226,6 +226,16 @@ if [[ "$master_rollback_missing" == t ]]; then
     docker compose exec -T db psql -U dna_user -d dna_analysis -v ON_ERROR_STOP=1 -q < database/migrations/044_master_approval_rollback.sql
 fi
 
+# 045 updates the master reference revision once per rollback.
+rollback_batch_missing="$(db_sql -c "SELECT to_regclass('workspace_master_rollbacks') IS NOT NULL AND to_regprocedure('workspace_master_update_revision()') IS NULL")"
+if [[ "$rollback_batch_missing" == t ]]; then
+    if [[ "$master_rollback_missing" != t ]]; then
+        backup_file="runtime/backups/before_install_045_$(date -u +%Y%m%d_%H%M%S).sql"
+        docker compose exec -T db pg_dump -U dna_user -d dna_analysis > "$backup_file"
+        test -s "$backup_file"
+    fi
+    docker compose exec -T db psql -U dna_user -d dna_analysis -v ON_ERROR_STOP=1 -q < database/migrations/045_master_rollback_batch_revision.sql
+fi
 
 user_count="$(db_sql -c 'SELECT COUNT(*) FROM users')"
 if [[ "$user_count" == 0 ]]; then

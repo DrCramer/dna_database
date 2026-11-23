@@ -22,6 +22,7 @@ test('Единый workspace: импорт, ревизии, поиск, gate, п
   await pool.query(require('fs').readFileSync(require('path').join(__dirname, '../database/migrations/042_master_approval_without_genotype.sql'), 'utf8'));
   await pool.query(require('fs').readFileSync(require('path').join(__dirname, '../database/migrations/043_master_approval_partial_genotypes.sql'), 'utf8'));
   await pool.query(require('fs').readFileSync(require('path').join(__dirname, '../database/migrations/044_master_approval_rollback.sql'), 'utf8'));
+  await pool.query(require('fs').readFileSync(require('path').join(__dirname, '../database/migrations/045_master_rollback_batch_revision.sql'), 'utf8'));
   const service = new WorkspaceMasterRollbackService(pool);
   await pool.query('INSERT INTO workspace_configuration(id,enabled) VALUES(true,false) ON CONFLICT(id) DO UPDATE SET enabled=false');
   t.after(() => pool.end());
@@ -530,15 +531,20 @@ test('Единый workspace: импорт, ревизии, поиск, gate, п
     assert.deepEqual([plan.removed, plan.restored, plan.groups.length], [1, 1, 0]);
     await assert.rejects(service.rollbackMasterApproval(leader, publication.id, '0'.repeat(64), 'SYN stale'), error => error.code === 'REVIEW_STALE');
     assert.equal((await service.masterRollbackPreview(admin, publication.id)).state, 'approved');
+    const revision = async () => BigInt((await pool.query(
+      'SELECT master_revision FROM workspace_reference_versions WHERE organization_id=$1', [org])).rows[0].master_revision);
+    const beforeRollback = await revision();
     const completed = await service.rollbackMasterApproval(leader, publication.id, plan.reviewToken, 'SYN повторный анализ');
     assert.equal(completed.state, 'rolled_back');
     assert.deepEqual([completed.receipt.removed, completed.receipt.restored], [1, 1]);
+    assert.equal(await revision(), beforeRollback + 1n);
     assert.deepEqual(await record(), previous);
     assert.equal((await pool.query("SELECT is_active FROM master_array_profiles WHERE source_workspace_profile_id=$1", [update.ids[1]])).rows[0].is_active, false);
     assert.equal((await service.list(second)).profiles.filter(row => row.approvalState === 'rolled_back' && row.state === 'ROLLED_BACK').length, 2);
     assert.equal((await service.ownApprovalHistory(second)).requests[0].state, 'rolled_back');
     assert.equal((await service.approvalDetail(second, publication.id)).rollback.reason, 'SYN повторный анализ');
     assert.equal((await service.rollbackMasterApproval(leader, publication.id, plan.reviewToken, 'SYN повтор')).replayed, true);
+    assert.equal(await revision(), beforeRollback + 1n);
     assert.equal((await service.masterRollbackPreview(admin, original.id)).removed, 1);
 
     async function approve(owner, ids, run, targets = {}) {
