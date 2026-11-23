@@ -555,6 +555,53 @@ test('Единый workspace: импорт, ревизии, поиск, gate, п
     }
   });
 
+  await t.test('Тайм-аут в последнем пакете отменяет весь откат, повтор по тому же плану проходит', async () => {
+    const owner = await user('user_analyst');
+    const batchSize = 250;
+    const size = batchSize + 1;
+    const source = await load(owner, Array.from({ length: size }, (_, i) =>
+      profile('SYN-BATCH-UNDO-' + i, 'ug', { TH01: ['6', '9'] })));
+    const search = await service.fullSearch(owner, source.ids);
+    const request = await service.submitApproval(owner, source.ids, search.id, {}, randomUUID());
+    const detail = await service.approvalDetail(reviewer, request.id);
+    await service.decideApproval(reviewer, request.id, 'approve', detail.reviewToken);
+    const plan = await service.masterRollbackPreview(admin, request.id);
+    assert.equal(plan.removed, size);
+
+    const snapshot = async () => (await pool.query(`
+      SELECT (SELECT count(*)::int FROM master_array_profiles WHERE is_active AND source_workspace_profile_id=ANY($1::uuid[])) active,
+        (SELECT master_revision FROM workspace_reference_versions WHERE organization_id=$2) revision,
+        EXISTS (SELECT 1 FROM workspace_master_rollbacks WHERE approval_id=$3) recorded`,
+    [source.ids, org, request.id])).rows[0];
+    const before = await snapshot();
+    const lastProfileId = plan.profiles.at(-1).profileId;
+    const installTestTimeout = failOnLast => pool.query(`CREATE OR REPLACE FUNCTION synthetic_timeout_rollback_batch() RETURNS trigger LANGUAGE plpgsql AS $$
+      BEGIN
+        IF (SELECT count(*) FROM rollback_batch_rows) > ${batchSize} OR (
+          ${failOnLast} AND EXISTS (SELECT 1 FROM rollback_batch_rows WHERE source_workspace_profile_id='${lastProfileId}')
+        ) THEN
+          RAISE EXCEPTION 'synthetic rollback timeout' USING ERRCODE='57014';
+        END IF;
+        RETURN NULL;
+      END $$`);
+    await installTestTimeout(true);
+    await pool.query(`CREATE TRIGGER synthetic_timeout_rollback_batch AFTER UPDATE ON master_array_profiles
+      REFERENCING NEW TABLE AS rollback_batch_rows FOR EACH STATEMENT
+      EXECUTE FUNCTION synthetic_timeout_rollback_batch()`);
+    try {
+      await assert.rejects(service.rollbackMasterApproval(admin, request.id, plan.reviewToken, 'SYN first try'),
+        error => error.status === 503 && error.code === 'MASTER_ROLLBACK_TIMEOUT');
+      assert.deepEqual(await snapshot(), before);
+      await installTestTimeout(false);
+      const completed = await service.rollbackMasterApproval(admin, request.id, plan.reviewToken, 'SYN retry');
+      assert.equal(completed.receipt.removed, size);
+      assert.deepEqual(await snapshot(), { active: 0, revision: String(BigInt(before.revision) + 1n), recorded: true });
+    } finally {
+      await pool.query('DROP TRIGGER synthetic_timeout_rollback_batch ON master_array_profiles');
+      await pool.query('DROP FUNCTION synthetic_timeout_rollback_batch()');
+    }
+  });
+
   await t.test('Старый импорт без журнала можно снять с публикации после сверки, замена требует прежнюю версию', async () => {
     const owner = await user('user_analyst');
     const original = await load(owner, [profile('SYN-UNDO-LEGACY')]);

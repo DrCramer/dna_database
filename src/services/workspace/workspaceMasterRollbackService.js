@@ -5,6 +5,9 @@ const { hash } = require('../../utils/objectImportV2');
 const { groupApprovalProblems } = require('../../utils/workspaceApprovalProblems');
 const { unseal } = require('./workspaceCrypto');
 
+// Keep each write below PostgreSQL's statement timeout on large approvals.
+const ROLLBACK_BATCH_SIZE = 250;
+
 const reasons = {
   CHANGED: ['Мастер-запись изменилась после публикации или больше не активна.', 'Проверьте более поздние публикации и актуальное состояние объекта.'],
   NO_PREVIOUS_VERSION: ['Прежняя версия мастер-записи отсутствует в журнале.', 'Для восстановления этой записи понадобится исходная выгрузка или резервная копия.'],
@@ -148,15 +151,23 @@ class WorkspaceMasterRollbackService extends WorkspaceApprovalService {
       await c.query(`INSERT INTO workspace_master_rollbacks(approval_id,rolled_back_by,reason,removed_count,restored_count)
         VALUES($1,$2,$3,$4,$5)`, [id, user.id, reason.trim(), plan.removed, plan.restored]);
       await c.query("SELECT set_config('app.workspace_rollback_batch_id',$1,true)", [id]);
-      const removed = await c.query(`UPDATE master_array_profiles m SET is_active=false
+      const removals = plan.profiles.filter(profile => profile.action === 'remove').map(profile => profile.profileId);
+      const replacements = plan.profiles.filter(profile => profile.action === 'restore').map(profile => profile.profileId);
+      const applyBatches = async (profileIds, sql) => {
+        for (let offset = 0; offset < profileIds.length; offset += ROLLBACK_BATCH_SIZE) {
+          const batch = profileIds.slice(offset, offset + ROLLBACK_BATCH_SIZE);
+          const { rowCount } = await c.query(sql, [id, user.organization_id, batch]);
+          if (rowCount !== batch.length) throw err('Состав заявки изменился. Откат отменён.', 409, 'REVIEW_STALE');
+        }
+      };
+      await applyBatches(removals, `UPDATE master_array_profiles m SET is_active=false
         WHERE m.organization_id=$2 AND m.id=ANY(ARRAY(
-          SELECT target_id FROM workspace_master_approval_items WHERE approval_id=$1 AND NOT replace_existing
-        ))`,
-      [id, user.organization_id]);
-      let restoredCount = 0;
+          SELECT target_id FROM workspace_master_approval_items
+          WHERE approval_id=$1 AND NOT replace_existing AND profile_id=ANY($3::uuid[])
+        ))`);
       if (plan.restored) {
         await c.query("SELECT set_config('app.workspace_restore_approval_id',$1,true)", [id]);
-        const updated = await c.query(`UPDATE master_array_profiles m
+        await applyBatches(replacements, `UPDATE master_array_profiles m
           SET (source_workspace_profile_id,internal_number,sample_name,year,expertise_type,comment,str_data,metadata,
                str_data_encrypted,sample_name_encrypted,metadata_encrypted) =
               (saved.source_workspace_profile_id,saved.internal_number,saved.sample_name,saved.year,saved.expertise_type,
@@ -164,13 +175,20 @@ class WorkspaceMasterRollbackService extends WorkspaceApprovalService {
           FROM workspace_master_approval_items i
           JOIN workspace_master_publication_versions v ON v.publication_id=i.publication_id
           CROSS JOIN LATERAL jsonb_populate_record(NULL::master_array_profiles,v.previous_record) saved
-          WHERE i.approval_id=$1 AND i.replace_existing AND m.id=i.target_id AND m.organization_id=$2`, [id, user.organization_id]);
-        restoredCount = updated.rowCount;
+          WHERE i.approval_id=$1 AND i.replace_existing AND i.profile_id=ANY($3::uuid[])
+            AND m.id=i.target_id AND m.organization_id=$2`);
       }
-      if (removed.rowCount !== plan.removed || restoredCount !== plan.restored) throw err('Состав заявки изменился. Откат отменён.', 409, 'REVIEW_STALE');
       // Metadata-only replacements also require reanalysis after a rollback.
       await c.query('UPDATE workspace_reference_versions SET master_revision=master_revision+1 WHERE organization_id=$1', [user.organization_id]);
       return this.readRollbackPlan(c, approval);
+    }).catch(error => {
+      if (error.code === '57014') {
+        throw err('База данных прервала операцию по тайм-ауту. Откат не сохранён. Обновите план и повторите попытку.', 503, 'MASTER_ROLLBACK_TIMEOUT');
+      }
+      if (error.code === '55P03' || error.code === '40P01') {
+        throw err('Мастер-массив занят другой операцией. Обновите план и повторите попытку позже.', 503, 'MASTER_ROLLBACK_BUSY');
+      }
+      throw error;
     });
   }
 }

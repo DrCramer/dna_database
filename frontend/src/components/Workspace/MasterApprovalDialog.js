@@ -288,6 +288,14 @@ export function MasterPublicationHistory({ api, onClose, onChanged }) {
       try {
         setPlan(await api('/approvals/' + plan.id + '/rollback', { reviewToken: plan.reviewToken, reason: reason.trim() }));
       } catch (failure) {
+        if (failure.code === 'MASTER_ROLLBACK_TIMEOUT') {
+          setOutcomeUnknown(true);
+          throw new Error('База данных прервала операцию по тайм-ауту. Откат не сохранён. Обновите план и повторите попытку.');
+        }
+        if (failure.code === 'MASTER_ROLLBACK_BUSY') {
+          setOutcomeUnknown(true);
+          throw new Error('Мастер-массив занят другой операцией. Обновите план и повторите попытку позже.');
+        }
         if (failure.status === 409 || !failure.status || failure.status === 408 || failure.status >= 500) {
           setPlan(current => ({ ...current, reviewToken: null }));
           const updated = await open(plan.id).catch(() => null);
