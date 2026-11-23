@@ -1,3 +1,4 @@
+import { formatDateRu } from '../../../../../src/utils/dateFormatter';
 /**
  * Genotype Comparison Panel - UI for genotype comparison analysis
  *
@@ -563,7 +564,7 @@ const GenotypeComparisonPanel = ({
                                         {comparison.overallMatch.matchPercentage ? comparison.overallMatch.matchPercentage.toFixed(1) : '0.0'}%
                                     </span>
                                     <span className="history-date">
-                                        {comparison.timestamp.toLocaleString('ru-RU')}
+                                        {formatDateRu(comparison.timestamp)}
                                     </span>
                                 </div>
                             ))}

@@ -8,6 +8,17 @@ test('Канонический сервис сохраняет эталоны о
     const before = structuredClone([fixture.a, fixture.b, fixture.options]);
     const plain = service.calculateDuplicateSimilarity(fixture.a, fixture.b, fixture.options);
     const fast = service.calculateDuplicateSimilarityOptimized(fixture.a, fixture.b, fixture.options);
+    if (fixture.name.startsWith('unknown-')) {
+      assert.equal(plain.totalScore, 0); assert.equal(plain.comparedLociCount, 0);
+      assert.equal(fast.totalScore, 0); assert.equal(fast.comparedLociCount, 0);
+      assert.deepEqual(service.compareLocusObjects(fixture.a.TH01, fixture.b.TH01), { score: 0, status: 'no_call' });
+      for (const decision of fixture.decisions) {
+        assert.equal(service.isDuplicate(plain, decision.threshold), false);
+        assert.equal(service.isDuplicateOptimized(fast, decision.threshold), false);
+      }
+      assert.deepEqual([fixture.a, fixture.b, fixture.options], before);
+      continue; // Историческая фикстура сохраняет старую ошибку; новый критерий проверен явно.
+    }
     // Фикстуры сохраняют JSON-контракт ответа API: undefined не сериализуется.
     assert.deepEqual(JSON.parse(JSON.stringify(plain)), fixture.plain, `${fixture.name}: общий путь`);
     assert.deepEqual(JSON.parse(JSON.stringify(fast)), fixture.fast, `${fixture.name}: путь с ранним выходом`);

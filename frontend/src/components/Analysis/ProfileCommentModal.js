@@ -1,3 +1,4 @@
+import { formatDateRu } from '../../../../src/utils/dateFormatter';
 import React, { useState, useEffect } from 'react';
 import { useProfileFieldLabel } from '../../hooks/useProfileFieldLabel';
 
@@ -116,7 +117,7 @@ const ProfileCommentModal = ({ isOpen, onClose, profile, onSave }) => {
 
           {profile?.comment_updated_at && (
             <div className="profile-comment-modal__meta">
-              Последнее изменение: {new Date(profile.comment_updated_at).toLocaleString('ru-RU')}
+              Последнее изменение: {formatDateRu(profile.comment_updated_at)}
             </div>
           )}
 

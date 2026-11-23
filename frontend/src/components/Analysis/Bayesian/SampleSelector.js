@@ -1,3 +1,4 @@
+import { formatDateRu } from '../../../../../src/utils/dateFormatter';
 /**
  * Sample Selector Component
  *
@@ -9,31 +10,7 @@
 import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { useProfileFieldLabel } from '../../../hooks/useProfileFieldLabel';
 
-// Format date to user-friendly format
-const formatDate = (dateString) => {
-    if (!dateString) return 'Дата неизвестна';
-
-    try {
-        const date = new Date(dateString);
-
-        // Проверяем, что дата валидна
-        if (isNaN(date.getTime())) {
-            return 'Дата неизвестна';
-        }
-
-        // Форматируем в российском формате: ДД.ММ.ГГГГ ЧЧ:ММ
-        return date.toLocaleString('ru-RU', {
-            day: '2-digit',
-            month: '2-digit',
-            year: 'numeric',
-            hour: '2-digit',
-            minute: '2-digit'
-        });
-    } catch (error) {
-        console.warn('Error formatting date:', error);
-        return 'Дата неизвестна';
-    }
-};
+const formatDate = date => formatDateRu(date) || 'Дата неизвестна';
 
 // Calculate quality indicator from profile data
 const calculateQualityFromProfile = (profile) => {

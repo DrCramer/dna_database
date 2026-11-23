@@ -108,3 +108,41 @@ test('Административная роль проверяется отде�
   assert.deepEqual(decodeMasterRow(original, key).str_data, data);
   assert.deepEqual(original.str_data, {});
 });
+
+test('Исторические спецтокены мастер-массива сохраняются в XLSX и при обратном импорте', async () => {
+  const sourceData = { ...data, TH01: ['**', '**'], DXS6795: ['**', '**'], FGA: ['OL', '20'], AMEL: ['**', '**'], SRY: ['**'], DYS391: ['10', '10'] };
+  for (const format of ['genetic', 'emergency']) {
+    const source = row(1, { sample_name: '5678', str_data: structuredClone(sourceData) });
+    const before = structuredClone(source);
+    const prepared = prepareMasterExport([source], format);
+    assert.equal(prepared.summary.needsReview, 0, JSON.stringify(prepared.summary.reasons));
+    assert.equal(prepared.summary.canExport, true);
+    const file = workbook(prepared, format);
+    assert.equal(new FileValidationService().validateFile(file, 'master-specials.xlsx', { importFormat: format }).valid, true);
+    const sheet = XLSX.read(file).Sheets['Импорт'], values = XLSX.utils.sheet_to_json(sheet, { header: 1 });
+    assert.equal(values[1][values[0].indexOf('TH01')], '**,**');
+    assert.equal(values[1][values[0].indexOf('DXS6795')], '**,**');
+    const [restored] = await excel.parseExcelFile(file, 'master-specials.xlsx', { importFormat: format });
+    assert.deepEqual(restored.strData, { ...sourceData, DYS391: ['10'] });
+    assert.deepEqual(source, before);
+  }
+});
+
+test('Составные AMEL сохраняют исходное написание в мастер-экспорте обоих форматов', async () => {
+  for (const format of ['genetic','emergency']) for (const value of [['XY','XY'],['ХУ','ХУ']]) {
+    const source = row(1, {sample_name:'5678',str_data:{...data,AMEL:value}}), before=structuredClone(source);
+    const prepared=prepareMasterExport([source],format);
+    assert.equal(prepared.summary.needsReview,0,JSON.stringify(prepared.summary.reasons));
+    const [parsed]=await excel.parseExcelFile(workbook(prepared,format),'master-amel.xlsx',{importFormat:format});
+    assert.deepEqual(parsed.strData.AMEL,value);assert.deepEqual(source,before);
+  }
+});
+
+test('Сохранение спецтокенов не отключает валидацию и не меняет канонизацию конвертера', async () => {
+  const profiles = [{ objectNumber: '258-1', year: 2026, strData: { ...data, TH01: ['**', '**'] } }];
+  const generic = createImportWorkbook({ profiles, loci: Object.keys(data), sourceFormat: 'GENEMAPPER_TXT' });
+  assert.deepEqual((await excel.parseExcelFile(generic, 'converter.xlsx', { importFormat: 'genetic' }))[0].strData.TH01, ['*', '*']);
+  const invalid = createImportWorkbook({ profiles: [{ ...profiles[0], strData: { ...data, TH01: ['=1+1'] } }], loci: Object.keys(data), sourceFormat: MASTER_EXPORT_FORMAT });
+  await assert.rejects(excel.parseExcelFile(invalid, 'invalid-master.xlsx', { importFormat: 'genetic' }), { code: 'VALIDATION_ERRORS' });
+  assert.equal(prepareMasterExport([row(1, { str_data: { ...data, TH01: ['=1+1'] } })], 'genetic').summary.exportable, 0);
+});

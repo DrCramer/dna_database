@@ -1,3 +1,4 @@
+import { formatDateRu } from '../../../../../src/utils/dateFormatter';
 /**
  * Quality Results Component
  *
@@ -97,7 +98,7 @@ const QualityResults = ({ results, onShowHelp }) => {
                     </div>
                     <div className="analysis-metadata">
                         <span className="analysis-date">
-                            Дата анализа: {results.analysisDate.toLocaleString('ru-RU')}
+                            Дата анализа: {formatDateRu(results.analysisDate)}
                         </span>
                     </div>
                 </div>

@@ -1,3 +1,4 @@
+const { exportDateFieldsRu } = require('../../utils/dateFormatter');
 const ExcelJS = require('exceljs');
 const { ROLE_LABELS, probabilityDisplay } = require('./ProbabilityCalculationService');
 const { reportLayout } = require('./probabilityReportLayout');
@@ -85,7 +86,7 @@ async function exportXlsx(calculation) {
     wrappedTextHeight(value, Array.from({length:to-from+1},(_,i)=>sheet.getColumn(from+i).width), 10)));
   sheet.pageSetup.printArea='A1:'+sheet.getColumn(end).letter+(number-1);
   const metadata = book.addWorksheet('Параметры'); metadata.columns = [{width:30},{width:110}];
-  for (const [key, value] of Object.entries(report.metadata)) metadata.addRow([key, typeof value === 'object' ? JSON.stringify(value) : value]);
+  for (const [key, value] of Object.entries(report.metadata)) metadata.addRow([key, typeof value === 'object' ? JSON.stringify(value, exportDateFieldsRu) : exportDateFieldsRu.call(report.metadata, key, value)]);
   // Full precision static values are separate from human-facing formatted cells.
   const values = book.addWorksheet('Числовые данные'); values.addRow(['Локус','LR / 1/Q','Вариант','Частоты (полная точность)']);
   for (const row of calculation.rows.filter(r => r.enabled && r.status === 'OK')) values.addRow([row.locus,row.value,row.variant,JSON.stringify(row.frequencies)]);

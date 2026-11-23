@@ -1,13 +1,18 @@
+import { formatDateOnlyRu } from '../../src/utils/dateFormatter';
 import React, { useState, useEffect } from 'react';
 import { AuthProvider, useAuth } from './contexts/AuthContext';
 import { ThemeProvider } from './contexts/ThemeContext';
 import ThemeSwitcher from './components/Common/ThemeSwitcher';
 import GenotypePanelsPage from './components/Settings/GenotypePanelsPage';
 import AlleleReferencesPage from './components/Settings/AlleleReferencesPage';
+import WorkspaceEntry from './components/Workspace/WorkspaceEntry';
+import NightSearchPage from './components/Workspace/NightSearchPage';
 import GenotypeAnalysisPage from './components/Analysis/GenotypeAnalysisPage';
 import LoginPage from './components/Auth/LoginPage';
 import AdminDashboard from './components/Dashboard/AdminDashboard';
+import MigrationExportPage from './components/Admin/MigrationExportPage';
 import MasterArrayExportPage from './components/Admin/MasterArrayExportPage';
+import DatabaseMaintenancePage from './components/Admin/DatabaseMaintenancePage';
 import FileUploader from './components/Upload/FileUploader';
 import GeneticExcelConverterPage from './components/Converter/GeneticExcelConverterPage';
 import { useNotifications } from './hooks/useNotifications';
@@ -61,6 +66,12 @@ const LoginForm = ({ onNavigate, setShowTransition, setTransitionStatus }) => {
       clearError={clearError}
     />
   );
+};
+
+const LegacyGenotypePanels = () => {
+  const { workspaceMode, workspaceModeReady } = useAuth();
+  if (!workspaceModeReady) return null;
+  return workspaceMode ? <Navigate to="/analysis" /> : <GenotypePanelsPage />;
 };
 
 // Protected Route Component
@@ -248,7 +259,7 @@ const ProfileViewer = ({ onNavigate }) => {
                     {isGenetic && <td>{profile.panel?.name || profile.panelName || 'Не указана'}</td>}
                     <td className="profile-viewer-cell-muted">
                       {profile.uploadDate || profile.upload_date || profile.created_at ?
-                        new Date(profile.uploadDate || profile.upload_date || profile.created_at).toLocaleDateString('ru-RU') :
+                        formatDateOnlyRu(profile.uploadDate || profile.upload_date || profile.created_at) :
                         'Нет данных'
                       }
                     </td>
@@ -513,7 +524,7 @@ const Dashboard = ({ onNavigate, selectedActiveTask, setSelectedActiveTask, onNo
 };
 
 const TasksPage = ({ onNavigate, onSelectActiveTask }) => {
-  const { user, hasRole, activeDepartmentId, activeDepartment } = useAuth();
+  const { user, hasRole, activeDepartmentId, activeDepartment, workspaceMode } = useAuth();
   const [tasks, setTasks] = React.useState([]);
   const [loading, setLoading] = React.useState(true);
   const [error, setError] = React.useState('');
@@ -1023,6 +1034,7 @@ const TasksPage = ({ onNavigate, onSelectActiveTask }) => {
 
   return (
     <TasksPageView
+      readOnly={workspaceMode}
       numberLabel={getTaskNumberLabel(activeDepartment)}
       onNavigate={onNavigate}
       isManager={hasRole('department_head') || hasRole('admin')}
@@ -1227,6 +1239,11 @@ function App() {
   // Глобальный state для активной задачи (для передачи между компонентами)
   const [selectedActiveTask, setSelectedActiveTask] = useState(null);
   const [preparedImport, setPreparedImport] = useState(null);
+  useEffect(() => {
+    const clear = () => setPreparedImport(null);
+    window.addEventListener('auth:session-cleared', clear);
+    return () => window.removeEventListener('auth:session-cleared', clear);
+  }, []);
   const handleSelectActiveTask = React.useCallback((task) => {
     const savedUser = JSON.parse(localStorage.getItem('user') || 'null');
     const departmentId = task?.department_id || savedUser?.active_department_id || savedUser?.department_id;
@@ -1329,7 +1346,7 @@ function App() {
 
   const navigate = (path) => {
     window.history.pushState(null, '', path);
-    setCurrentPath(path);
+    setCurrentPath(window.location.pathname);
   };
 
   // Root route component that handles authentication-aware routing
@@ -1385,12 +1402,12 @@ function App() {
               element={
                 <ProtectedRoute onNavigate={navigate}>
                   <PageTransition fast={true}>
-                    <Dashboard
+                    <WorkspaceEntry mode="profiles" legacy={<Dashboard
                       onNavigate={navigate}
                       selectedActiveTask={selectedActiveTask}
                       setSelectedActiveTask={setSelectedActiveTask}
                       onNotification={handleNotification}
-                    />
+                    />} />
                   </PageTransition>
                 </ProtectedRoute>
               }
@@ -1400,13 +1417,13 @@ function App() {
               element={
                 <ProtectedRoute onNavigate={navigate}>
                   <PageTransition>
-                    <FileUploader
+                    <WorkspaceEntry mode="import" preparedFile={preparedImport} legacy={<FileUploader
                       onNavigate={navigate}
                       selectedActiveTask={selectedActiveTask}
                       onSelectActiveTask={handleSelectActiveTask}
                       preparedFile={preparedImport}
                       onPreparedFileConsumed={() => setPreparedImport(null)}
-                    />
+                    />} />
                   </PageTransition>
                 </ProtectedRoute>
               }
@@ -1522,22 +1539,25 @@ function App() {
               element={
                 <ProtectedRoute onNavigate={navigate} fluid>
                   <PageTransition>
-                    <GenotypeAnalysisPage
+                    <WorkspaceEntry mode="profiles" legacy={<GenotypeAnalysisPage
                       onNavigate={navigate}
                       selectedActiveTask={selectedActiveTask}
-                    />
+                    />} />
                   </PageTransition>
                 </ProtectedRoute>
               }
             />
             <Route
               path="/settings/panels"
-              element={<ProtectedRoute onNavigate={navigate}><PageTransition><GenotypePanelsPage /></PageTransition></ProtectedRoute>}
+              element={<ProtectedRoute onNavigate={navigate}><PageTransition><LegacyGenotypePanels /></PageTransition></ProtectedRoute>}
             />
             <Route
               path="/settings/allele-references"
               element={<ProtectedRoute onNavigate={navigate}><PageTransition><AlleleReferencesPage /></PageTransition></ProtectedRoute>}
             />
+            <Route path="/settings/night-search" element={<ProtectedRoute onNavigate={navigate}><PageTransition><NightSearchPage onNavigate={navigate}/></PageTransition></ProtectedRoute>}/>
+            <Route path="/admin/migration-export" element={<ProtectedRoute onNavigate={navigate} fluid><MigrationExportPage /></ProtectedRoute>} />
+            <Route path="/admin/database-maintenance" element={<ProtectedRoute onNavigate={navigate}><PageTransition><DatabaseMaintenancePage /></PageTransition></ProtectedRoute>} />
             <Route path="/admin/master-array-export" element={<ProtectedRoute onNavigate={navigate}><PageTransition><MasterArrayExportPage /></PageTransition></ProtectedRoute>} />
             <Route
               path="/admin-dashboard"

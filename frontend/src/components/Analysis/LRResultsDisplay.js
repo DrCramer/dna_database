@@ -1,3 +1,4 @@
+import { formatDateRu } from '../../../../src/utils/dateFormatter';
 import React, { useState } from 'react';
 
 const LRResultsDisplay = ({ results }) => {
@@ -116,7 +117,7 @@ const LRResultsDisplay = ({ results }) => {
           <div className="analysis-mini-label">Детали расчета</div>
           <div className="analysis-list">
             <li><strong>Популяция:</strong> {results.populationUsed}</li>
-            <li><strong>Время анализа:</strong> {new Date(results.analysisTimestamp).toLocaleString('ru-RU')}</li>
+            <li><strong>Время анализа:</strong> {formatDateRu(results.analysisTimestamp)}</li>
             {calculationMetadata.lociAnalyzed && (
               <li><strong>Проанализировано локусов:</strong> {calculationMetadata.lociAnalyzed}</li>
             )}

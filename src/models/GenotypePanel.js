@@ -41,6 +41,10 @@ class GenotypePanel {
   }
 
   static async scope(context) {
+    if (require('../services/workspace/workspaceMode').workspaceModeEnabled()) {
+      if (!uuid.test(context.organizationId || '')) throw new PanelError('Нет организации.',403);
+      return { organizationId: context.organizationId, departmentId: null };
+    }
     const departmentId = context.departmentId || context.activeDepartmentId;
     if (!uuid.test(departmentId || '')) throw new PanelError('Не выбрано активное отделение.', 403);
     const result = await query('SELECT id, name, organization_id FROM departments WHERE id = $1 AND is_active = true', [departmentId]);
@@ -51,13 +55,13 @@ class GenotypePanel {
   }
 
   static async list(scope, includeInactive = false) {
-    const result = await query(`SELECT p.*, ${referenceIds} FROM genotype_panels p WHERE organization_id = $1 AND department_id = $2 ${includeInactive ? '' : 'AND is_active = true'} ORDER BY lower(name), id`, [scope.organizationId, scope.departmentId]);
+    const result = await query(`SELECT p.*, ${referenceIds} FROM genotype_panels p WHERE organization_id = $1 AND ($2::uuid IS NULL OR department_id = $2) ${includeInactive ? '' : 'AND is_active = true'} ORDER BY lower(name), id`, [scope.organizationId, scope.departmentId]);
     return result.rows.map(this.toJSON);
   }
 
   static async find(id, scope, activeOnly = false) {
     if (!uuid.test(id || '')) throw new PanelError('Некорректный идентификатор панели.');
-    const result = await query(`SELECT p.*, ${referenceIds} FROM genotype_panels p WHERE id = $1 AND organization_id = $2 AND department_id = $3 ${activeOnly ? 'AND is_active = true' : ''}`, [id, scope.organizationId, scope.departmentId]);
+    const result = await query(`SELECT p.*, ${referenceIds} FROM genotype_panels p WHERE id = $1 AND organization_id = $2 AND ($3::uuid IS NULL OR department_id = $3) ${activeOnly ? 'AND is_active = true' : ''}`, [id, scope.organizationId, scope.departmentId]);
     if (!result.rows.length) throw new PanelError('Панель не найдена в активном отделении или недоступна.', 404, 'PANEL_NOT_FOUND');
     return this.toJSON(result.rows[0]);
   }
@@ -75,7 +79,7 @@ class GenotypePanel {
     const previous = await this.find(id, scope);
     const value = this.validate(data);
     return transaction(async client => {
-      const result = await client.query(`UPDATE genotype_panels SET name=$4, description=$5, loci_order=$6, is_active=$7, updated_by=$8, updated_at=CURRENT_TIMESTAMP WHERE id=$1 AND organization_id=$2 AND department_id=$3 RETURNING *`, [id, scope.organizationId, scope.departmentId, value.name, value.description, JSON.stringify(value.lociOrder), value.isActive, userId]);
+      const result = await client.query(`UPDATE genotype_panels SET name=$4, description=$5, loci_order=$6, is_active=$7, updated_by=$8, updated_at=CURRENT_TIMESTAMP WHERE id=$1 AND organization_id=$2 AND ($3::uuid IS NULL OR department_id=$3) RETURNING *`, [id, scope.organizationId, scope.departmentId, value.name, value.description, JSON.stringify(value.lociOrder), value.isActive, userId]);
       if (value.referenceSetIds !== undefined) await this.linkReferences(client, id, value.referenceSetIds, scope, userId);
       return this.toJSON({ ...result.rows[0], reference_set_ids: value.referenceSetIds ?? previous.referenceSetIds });
     });
@@ -83,7 +87,7 @@ class GenotypePanel {
 
   static async linkReferences(client, id, ids, scope, userId) {
     if (ids.length) {
-      const available = await client.query('SELECT id FROM allele_reference_sets WHERE id=ANY($1::uuid[]) AND organization_id=$2 AND department_id=$3 FOR SHARE', [ids, scope.organizationId, scope.departmentId]);
+      const available = await client.query('SELECT id FROM allele_reference_sets WHERE id=ANY($1::uuid[]) AND organization_id=$2 AND ($3::uuid IS NULL OR department_id=$3) FOR SHARE', [ids, scope.organizationId, scope.departmentId]);
       if (available.rows.length !== ids.length) throw new PanelError('Справочник недоступен в активном отделении.', 404, 'REFERENCE_NOT_FOUND');
     }
     await client.query('DELETE FROM genotype_panel_references WHERE panel_id=$1', [id]);
@@ -93,7 +97,7 @@ class GenotypePanel {
 
   static async deactivate(id, scope, userId) {
     const previous = await this.find(id, scope);
-    const result = await query(`UPDATE genotype_panels SET is_active=false, updated_by=$4, updated_at=CURRENT_TIMESTAMP WHERE id=$1 AND organization_id=$2 AND department_id=$3 RETURNING *`, [id, scope.organizationId, scope.departmentId, userId]);
+    const result = await query(`UPDATE genotype_panels SET is_active=false, updated_by=$4, updated_at=CURRENT_TIMESTAMP WHERE id=$1 AND organization_id=$2 AND ($3::uuid IS NULL OR department_id=$3) RETURNING *`, [id, scope.organizationId, scope.departmentId, userId]);
     return this.toJSON({ ...result.rows[0], reference_set_ids: previous.referenceSetIds });
   }
 

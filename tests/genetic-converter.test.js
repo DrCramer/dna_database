@@ -20,6 +20,76 @@ function file(rows, name = 'old.xlsx', sheets) {
 const headers = ['Объект', 'TH01', 'D5S818', 'D21S11'];
 const values = ['7,9', '11,12', '29,30'];
 const standard = [headers, ['258-11x (2)_a', ...values]];
+test('Обычный Excel: год считывается из строки и различает одинаковые номера объектов', () => {
+  const input = file([
+    ['Объект', 'Год', ...headers.slice(1)],
+    ['SYN-1', 2024, ...values],
+    ['SYN-1', '2025', ...values],
+    ['SYN-2', '', ...values]
+  ]);
+  const first = converter.convert([input]);
+  assert.equal(first.files[0].missingSourceYears, 1);
+  assert.equal(first.canUpload, false);
+  const result = converter.convert([input], { files: { [first.files[0].id]: { year: 2026 } } });
+  assert.equal(result.canUpload, true);
+  assert.deepEqual(result.profiles.map(row => row.year), [2024, 2025, 2026]);
+});
+
+test('Сокращённый DNA_IMPORT_V2: локусы без JSON и годы из файла переживают оба пути импорта', () => {
+  const { parseFiles } = require('../src/services/workspace/importSourceService');
+  const book = XLSX.utils.book_new();
+  book.Custprops = { DNAProfileSourceFormat: 'DNA_IMPORT_V2' };
+  XLSX.utils.book_append_sheet(book, XLSX.utils.aoa_to_sheet([
+    ['Объект', 'Год', 'TH01', 'D5S818', 'DYS391'],
+    ['SYN-1', '2024', '9.3', '12,F', '10,10'],
+    ['SYN-2', '', '**', '?', '']
+  ]), 'Импорт');
+  const input = { originalname: 'transfer.xlsx', buffer: XLSX.write(book, { type: 'buffer', bookType: 'xlsx' }) };
+  const parsed = parseFiles([input]).rows;
+  assert.deepEqual(parsed.map(row => row.strData), [
+    { TH01: ['9.3'], D5S818: ['12', 'F'], DYS391: ['10', '10'] },
+    { TH01: ['**'], D5S818: ['?'], DYS391: [] }
+  ]);
+  assert.deepEqual(parsed.map(row => row.year), [2024, null]);
+  const first = converter.convert([input]);
+  assert.equal(first.canImport, true);
+  const result = converter.convert([input], { files: { [first.files[0].id]: { year: 2026 } } });
+  assert.equal(result.canUpload, true);
+  assert.equal(result.files[0].missingSourceYears, 1);
+  const copied = parseFiles([{ ...input, buffer: converter.export(result) }]).rows;
+  assert.deepEqual(copied.map(row => row.year), [2024, 2026]);
+  assert.deepEqual(copied.map(row => row.strData), parsed.map(row => row.strData));
+  assert(copied.every(row => !row.sourceIssues.length));
+});
+
+test('DNA_IMPORT_V2: заполненный локус рядом с пустым объектом JSON требует проверки', () => {
+  const { parseFiles } = require('../src/services/workspace/importSourceService');
+  const book = XLSX.utils.book_new();
+  book.Custprops = { DNAProfileSourceFormat: 'DNA_IMPORT_V2' };
+  XLSX.utils.book_append_sheet(book, XLSX.utils.aoa_to_sheet([
+    ['Объект', 'Год', 'TH01', 'Генотип JSON'],
+    ['SYN-1', 2024, '9.3', '{}']
+  ]), 'Импорт');
+  const input = { originalname: 'transfer.xlsx', buffer: XLSX.write(book, { type: 'buffer', bookType: 'xlsx' }) };
+  assert(parseFiles([input]).rows[0].sourceIssues.some(issue => issue.code === 'GENOTYPE_CONFLICT' && issue.locus === 'TH01'));
+  assert.equal(converter.convert([input]).canImport, false);
+});
+
+test('Конвертер сохраняет присвоенный номер из Excel как служебную колонку; разные номера одного объекта блокируют выгрузку', () => {
+  const { ASSIGNED_HEADER } = require('../src/utils/emergencyAssignedNumber');
+  const source = file([[...headers, 'роСТОвский НОМЕР'], ['SYN-101', ...values, '000123/А']]);
+  const result = converter.convert([source], { year: 2026 });
+  assert.equal(result.canImport, true);
+  assert.equal(result.profiles[0].assignedNumber, '000123/А');
+  const exported = converter.export(result);
+  const sheet = XLSX.read(exported).Sheets['Импорт'];
+  assert(XLSX.utils.sheet_to_json(sheet, { header: 1 })[0].includes('Ростовский номер'));
+  const [parsed] = require('../src/services/workspace/importSourceService').parseFiles([{ originalname: 'SYN.xlsx', buffer: exported }]).rows;
+  assert.equal(parsed.assignedNumber, '000123/А');
+  const conflicting = converter.convert([file([[...headers,ASSIGNED_HEADER],['SYN-101',...values,'0001'],['SYN-101',...values,'0002']])], { year: 2026 });
+  assert.equal(conflicting.canImport, false);
+  assert(conflicting.issues.some(issue => issue.code === 'ASSIGNED_NUMBER_CONFLICT' && issue.hard));
+});
 function withImportYear(buffer, year = 2024) {
   const book = XLSX.read(buffer, { type: 'buffer' });
   const sheet = book.Sheets['Импорт'];
@@ -35,6 +105,113 @@ test('Нормализация безопасных разделителей, м
   for (const [raw, expected] of [['XY','X,Y'], ['XX','X,X'], ['YY','Y,Y'], ['ХХ','X,X'], ['ХY','X,Y'], ['X,Y','X,Y'], ['X,X','X,X'], ['Y,Y','Y,Y'], ['X','X'], ['Y','Y']]) assert.equal(normalize(raw, 'AMEL').normalizedValue, expected);
   for (const locus of ['DYS392', 'SRY', 'Yindel']) { const n = normalize('12', locus); assert.equal(n.normalizedValue, '12'); assert.equal(n.hard, false); }
   for (const missing of ['', ' ', '-', '—', '–']) assert.deepEqual(normalize(missing, 'TH01').alleles, []);
+});
+
+test('AMEL с F: компактные и раздельные пары дают одну известную аллель при конвертации и импорте', async () => {
+  const cases = [
+    ['FX', 'X'], ['F,X', 'X'], ['XF', 'X'], ['X,F', 'X'],
+    ['FY', 'Y'], ['F,Y', 'Y'], ['YF', 'Y'], ['Y,F', 'Y'],
+    [' х , f ', 'X'], ['F', 'F'], ['FF', 'F'], ['F,F', 'F']
+  ];
+  const input = file([
+    ['Объект', 'Год', ...headers.slice(1), 'AMEL'],
+    ...cases.map(([raw], index) => [`SYN-${index}`, 2026, ...values, raw])
+  ]);
+  const converted = converter.convert([input]);
+  const directlyImported = await new ExcelService().parseExcelFile(input.buffer, input.originalname, { importFormat: 'genetic' });
+  const expected = cases.map(([, allele]) => [allele]);
+  assert.equal(converted.canImport, true);
+  assert.deepEqual(converted.profiles.map(profile => profile.strData.AMEL), expected);
+  assert.deepEqual(directlyImported.map(profile => profile.strData.AMEL), expected);
+  assert.equal(normalize('XF', 'TH01').hard, true);
+  assert.equal(normalize('X,F?', 'AMEL').hard, true);
+  assert.deepEqual(normalize('X,Y,F', 'AMEL').alleles, ['X', 'Y', 'F']);
+
+  const { prepareLocusData, isExactLocusMatch } = require('../src/utils/exactLocusComparison');
+  const { compareLocusV5 } = require('../src/utils/contaminationAlgorithm');
+  assert.equal(isExactLocusMatch(prepareLocusData(expected[0]), prepareLocusData(['X', 'X'])), true);
+  assert.equal(isExactLocusMatch(prepareLocusData(expected[0]), prepareLocusData(['X', 'Y'])), false);
+  assert.equal(isExactLocusMatch(prepareLocusData(['F']), prepareLocusData(['F'])), false);
+  assert.equal(compareLocusV5(['F'], ['X'], 'AMEL').score, 0);
+});
+
+test('Конвертер объясняет запись AMEL в другом локусе и указывает адрес исходной ячейки', () => {
+  const input = file([
+    ['Объект', 'Год', 'TH01', 'D8S1179', 'AMEL'],
+    ['SYN-1', 2026, '7,9.3', 'YF', 'YF']
+  ]);
+  const result = converter.convert([input]);
+  const invalid = result.issues.find(issue => issue.hard);
+  assert.equal(result.canImport, false);
+  assert.equal(result.canUpload, false);
+  assert.throws(() => converter.export(result), { code: 'UNRESOLVED_CONVERSION' });
+  assert.equal(invalid.locus, 'D8S1179');
+  assert.equal(invalid.sourceCell, 'D2');
+  assert.equal(invalid.sourceSheet, 'Legacy');
+  const expectedReason = /Недопустимое значение «YF» в локусе D8S1179\. Это запись формата AMEL\. Ожидается числовая аллель\./;
+  assert.match(invalid.reason, expectedReason);
+  assert.deepEqual(result.profiles[0].strData.AMEL, ['Y']);
+  const { packConverterPreview, unpackConverterPreview } = require('../src/utils/converterPreviewTransport');
+  assert.equal(unpackConverterPreview(packConverterPreview(result)).issues.find(issue => issue.hard).sourceCell, 'D2');
+  const [direct] = require('../src/services/workspace/importSourceService').parseFiles([input]).rows;
+  assert.equal(direct.sourceIssues[0].cell, 'D2');
+  assert.match(direct.sourceIssues[0].message, expectedReason);
+});
+
+test('Отдельные дефисы, тире и минус хранятся и выгружаются как пустые ячейки', async () => {
+  const missing = ['-', '–', '—', '‑', '−', ' -, − '];
+  const input = file([
+    ['Объект', 'Год', 'TH01', 'D5S818', 'D21S11', 'AMEL', 'rs759551978'],
+    ...missing.map((value, index) => [`SYN-${index}`, 2026, value, '11,12', '29,30', value, value])
+  ]);
+  const converted = converter.convert([input]);
+  assert.equal(converted.canImport, true);
+  const direct = require('../src/services/workspace/importSourceService').parseFiles([input]).rows;
+  const legacy = await new ExcelService().parseExcelFile(input.buffer, input.originalname, { importFormat: 'genetic' });
+  assert.equal(new FileValidationService().validateFile(input.buffer, input.originalname, { importFormat: 'genetic' }).valid, true);
+  for (const profile of [...converted.profiles, ...direct, ...legacy]) {
+    for (const locus of ['TH01', 'AMEL', 'rs759551978']) assert.deepEqual(profile.strData[locus], []);
+    assert.deepEqual(profile.strData.D21S11, ['29', '30']);
+  }
+  const exported = XLSX.read(converter.export(converted), { type: 'buffer' });
+  for (const row of XLSX.utils.sheet_to_json(exported.Sheets[exported.SheetNames[0]], { defval: '' })) {
+    assert.equal(row.TH01, '');
+    assert.equal(row.AMEL, '');
+    assert.equal(row.rs759551978, '');
+  }
+  assert.deepEqual(normalize('12,−', 'TH01').alleles, ['12', '?']);
+});
+
+test('Для личного массива объекты без генотипа считаются отдельно и сохраняются в Excel', async () => {
+  const { executeConverterJob } = require('../src/services/converters/converterJob');
+  const { parseFiles } = require('../src/services/workspace/importSourceService');
+  const { FORMAT: previewFormat, unpackConverterPreview } = require('../src/utils/converterPreviewTransport');
+  const input = {
+    files: [file([
+      ['Объект', 'Год', 'TH01', 'D8S1179', 'FGA'],
+      ['SYN-EMPTY', 2026, '—', '-', '−'],
+      ['SYN-CALLED', 2026, '7,9.3', '12,13', '21,24']
+    ])],
+    options: { allowEmptyExcelProfiles: true, previewFormat, export: { hideEmptyLoci: true } }
+  };
+  const preview = await executeConverterJob({ ...input, operation: 'preview' });
+  const result = unpackConverterPreview(JSON.parse(Buffer.from(preview.bytes).toString('utf8')));
+  assert.equal(result.summary.emptyExcelProfiles, 1);
+  assert.equal(result.legacyCanUpload, true);
+  assert(!result.issues.some(issue => issue.hard));
+  const exported = await executeConverterJob({ ...input, operation: 'export' });
+  const rows = parseFiles([{ originalname: 'SYN-result.xlsx', buffer: Buffer.from(exported.bytes) }]).rows;
+  assert.deepEqual(rows.map(row => row.objectNumber), ['SYN-EMPTY', 'SYN-CALLED']);
+  assert(Object.values(rows[0].strData).every(alleles => !alleles.length));
+  assert.deepEqual(rows[1].strData.D8S1179, ['12', '13']);
+
+  const strict = converter.convert(input.files);
+  assert(strict.issues.some(issue => issue.code === 'EMPTY_PROFILE' && issue.hard));
+  const invalid = converter.convert([file([
+    ['Объект', 'Год', 'TH01', 'D8S1179', 'FGA'], ['SYN-ERROR', 2026, '—', 'YF', '−']
+  ])], input.options);
+  assert.equal(invalid.canImport, false);
+  assert(invalid.issues.some(issue => issue.locus === 'D8S1179' && issue.hard));
 });
 
 test('Y-InDel заголовки распознаются, одиночные значения сохраняются при импорте и экспорте', async () => {

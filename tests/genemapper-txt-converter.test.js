@@ -174,6 +174,9 @@ test('GeneMapper: панели по имени и точному составу,
   assert.equal(convert(unknown, { columns: { [column.index]: { locus: 'D5S818' } } }).preparedFiles[0].ready, true);
   const mixed = file([...basic(), row('TH01', ['7', '9.3'], { Panel: 'Other' })]);
   assert.equal(convert(mixed).preparedFiles[0].ready, false);
+  const withoutPanels = convert(mixed, { panelId: 'old-selection' }, { usePanels: false }, [panel]);
+  assert.equal(withoutPanels.preparedFiles[0].ready, true);
+  assert.equal(withoutPanels.profiles[0].detectedPanelId, null);
   assert.equal(convert(mixed, { samples: { '265-27': { panelId: panel.id } } }, {}, [panel]).preparedFiles[0].ready, true);
   const separatePanels = [panel, { id: 'second', name: 'Second', lociOrder: ['D5S818', 'FGA', 'D19S433'] }];
   const separate = file([...basic().map(record => ({ ...record, Panel: 'GlobalFiler_Panel_v1' })),

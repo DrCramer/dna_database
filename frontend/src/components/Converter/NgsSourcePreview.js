@@ -3,7 +3,6 @@ import React, { useState } from 'react';
 const statusNames = { OK: 'QC согласован', MISSING: 'Нет данных', WARNING: 'Предупреждение', NEEDS_REVIEW: 'Требуется проверка', ERROR: 'Ошибка', AUTO_FIXED: 'Подтверждено' };
 
 export default function NgsSourcePreview({ file, options, update, disabled }) {
-  const [objectNumber, setObjectNumber] = useState(file.ngs.objectNumber || file.ngs.suggestedObjectNumber || '');
   const [selected, setSelected] = useState(null);
   const [value, setValue] = useState('');
   const [reason, setReason] = useState('');
@@ -16,11 +15,7 @@ export default function NgsSourcePreview({ file, options, update, disabled }) {
   };
   return <div className="converter-ngs">
     <h3>NGS ASTR+ · Result / Detail</h3>
-    <form className="converter-actions" onSubmit={event => { event.preventDefault(); update({ ...options, files: { ...options.files, [file.id]: { ...options.files?.[file.id], objectNumber, objectConfirmed: true } } }); }}>
-      <label>Полный номер объекта<input className="form-input" value={objectNumber} maxLength={100} disabled={disabled} onChange={event => setObjectNumber(event.target.value)} placeholder="Например, 251-3" /></label>
-      <button className="btn btn-primary" disabled={disabled || !objectNumber.trim()} type="submit">Подтвердить номер</button>
-    </form>
-    <p>{ngs.objectConfirmed ? `Принятый номер: ${ngs.objectNumber}.` : 'Номер ещё не подтверждён.'} {ngs.suggestedObjectNumber && `Предложение из имени файла: ${ngs.suggestedObjectNumber}.`} {objectNumber !== ngs.objectNumber && 'Изменённый номер вступит в силу после подтверждения.'}</p>
+    <p>{ngs.objectConfirmed ? `Объект: ${ngs.objectNumber}.` : 'Подтвердите полный номер объекта в карточке файла выше.'}</p>
     {!ngs.detailAvailable && <p className="alert alert-warning">Detail недоступен: проверка QC ограничена, непустые генотипы требуют подтверждения.</p>}
     {ngs.locusReport && <details><summary>Каталог маркеров: {ngs.locusReport.total} исходных · {ngs.locusReport.supported.length} поддерживаются · {ngs.locusReport.aliases.length} aliases · {ngs.locusReport.unknown.length} неизвестны · {ngs.locusReport.ambiguous.length} неоднозначны</summary>
       <p>Поддерживаются: {ngs.locusReport.supported.join(', ') || '—'}</p><p>Aliases: {ngs.locusReport.aliases.map(alias => `${alias.original} → ${alias.canonical}`).join(', ') || '—'}</p><p>Неизвестны: {ngs.locusReport.unknown.join(', ') || '—'}</p><p>Неоднозначны: {ngs.locusReport.ambiguous.join(', ') || '—'}</p>

@@ -1,3 +1,4 @@
+import { formatDateOnlyRu } from '../../../../src/utils/dateFormatter';
 import React, { useState, useEffect } from 'react';
 import { useAuth } from '../../contexts/AuthContext';
 import TaskViewer from './TaskViewer';
@@ -268,12 +269,12 @@ const TaskDashboard = () => {
                 </td>
                 <td className="tasks-muted-cell">
                   {task.deadline
-                    ? new Date(task.deadline).toLocaleDateString('ru-RU')
+                    ? formatDateOnlyRu(task.deadline)
                     : '—'
                   }
                 </td>
                 <td className="tasks-muted-cell">
-                  {new Date(task.created_at).toLocaleDateString('ru-RU')}
+                  {formatDateOnlyRu(task.created_at)}
                 </td>
                 <td>
                   <div className="task-actions">

@@ -1,5 +1,5 @@
 const { LociTypeDetector, LOCI_TYPES } = require('./lociTypeDetector');
-const { normalizeSpecialAllele, isSpecialAllele, isMissingAllele, isCertainNumericAllele, normalizeSrySignal, amelogeninTokens } = require('./alleleTokens');
+const { normalizeSpecialAllele, isSpecialAllele, isMissingAllele, isMissingGenotypeCell, isCertainNumericAllele, normalizeSrySignal, amelogeninTokens, normalizeAmelogeninPair } = require('./alleleTokens');
 const detector = new LociTypeDetector();
 const hardStatuses = new Set(['ERROR', 'NEEDS_REVIEW', 'CONFLICT']);
 
@@ -28,7 +28,7 @@ function normalizeAlleleValue(rawValue, locus, decision) {
     add('USER_DECISION', 'AUTO_FIXED', 'Применено явное решение пользователя.');
   }
   if (value.length > 500) add('VALUE_TOO_LONG', 'ERROR', 'Значение аллели слишком длинное.');
-  if (isMissingAllele(value)) {
+  if (isMissingGenotypeCell(value)) {
     if (raw !== '') add('MISSING_VALUE', 'AUTO_FIXED', 'Обозначение отсутствующего результата заменено пустой ячейкой.');
     return finish([], events);
   }
@@ -36,7 +36,7 @@ function normalizeAlleleValue(rawValue, locus, decision) {
   if (/\s/.test(value) || /[/;]/.test(value)) add('SEPARATORS', 'AUTO_FIXED', 'Нормализованы пробелы и разделители аллелей.');
   value = value.replace(/\s+/g, '').replace(/[/;]/g, ',');
   let tokens = type === LOCI_TYPES.AMELOGENIN ? amelogeninTokens(value) : value.split(',');
-  if (type === LOCI_TYPES.AMELOGENIN && tokens.join(',') !== value) add('AMEL', 'AUTO_FIXED', 'AMEL приведён к отдельным аллелям X/Y.');
+  if (type === LOCI_TYPES.AMELOGENIN && tokens.join(',') !== value) add('AMEL', 'AUTO_FIXED', 'Нормализована запись AMEL.');
   tokens = tokens.map(token => {
     const sry = normalizeSrySignal(canonicalLocus, token);
     if (sry) return sry;
@@ -57,7 +57,15 @@ function normalizeAlleleValue(rawValue, locus, decision) {
     || (type === LOCI_TYPES.AMELOGENIN && /^[XY](?:\?)?$/.test(token))
     || (type === LOCI_TYPES.SNP && /^[ATCG]$/.test(token))
     || (type === LOCI_TYPES.INDEL && /^[+-]?\d+[ATCG]*$/.test(token));
-  if (tokens.some(token => !knownToken(token))) add('UNKNOWN_ALLELE', 'ERROR', 'Неизвестное значение аллели: требуется явное решение пользователя.');
+  if (tokens.some(token => !knownToken(token))) {
+    const amelPair = type !== LOCI_TYPES.AMELOGENIN && normalizeAmelogeninPair(value);
+    let reason = 'Неизвестное значение аллели: требуется явное решение пользователя.';
+    if (amelPair) {
+      const expected = type === LOCI_TYPES.STR ? ' Ожидается числовая аллель.' : '';
+      reason = `Недопустимое значение «${value}» в локусе ${canonicalLocus || locus}. Это запись формата AMEL.${expected} Проверьте ячейку по исходным данным или уточните сопоставление столбца.`;
+    }
+    add('UNKNOWN_ALLELE', 'ERROR', reason);
+  }
   const validation = detector.validateAlleles(locus, tokens);
   if (!validation.isValid) add('INVALID_ALLELE', 'ERROR', 'Значение не прошло проверку типа локуса.');
   if (tokens.length > 2) add('MULTI_ALLELIC', 'WARNING', haploid ? 'В гаплоидном локусе обнаружено несколько аллелей: возможна смесь или аномалия.' : 'Обнаружено более двух аллелей: возможная смесь, контаминация или триаллельный профиль.');

@@ -9,7 +9,7 @@
 :where(.master-object-search-page) .master-object-search-details {
   background: var(--surface-card);
   border: 1px solid var(--border-subtle);
-  border-radius: var(--radius-xl);
+  border-radius: var(--radius-lg);
   box-shadow: var(--shadow-sm);
 }
 
@@ -28,7 +28,7 @@
 
 :where(.master-object-search-page) .master-object-search-hero h1 {
   margin: 0;
-  color: var(--brand-primary);
+  color: var(--text-primary);
   font-size: var(--font-size-2xl);
   font-weight: var(--font-weight-bold);
 }
@@ -46,7 +46,7 @@
   gap: var(--space-3);
   margin-top: var(--space-5);
   padding-top: var(--space-4);
-  border-top: 2px solid var(--brand-primary);
+  border-top: 1px solid var(--border-subtle);
 }
 
 :where(.master-object-search-page) .master-object-search-input:focus {

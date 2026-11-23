@@ -1,15 +1,8 @@
+import { formatDateRu } from '../../../../src/utils/dateFormatter';
 import React, { useEffect, useState } from 'react';
 import { useProfileFieldLabel } from '../../hooks/useProfileFieldLabel';
 
-const formatDateTime = (value) => {
-  if (!value) return 'Нет данных';
-
-  try {
-    return new Date(value).toLocaleString('ru-RU');
-  } catch (error) {
-    return value;
-  }
-};
+const formatDateTime = value => formatDateRu(value) || '—';
 
 const renderValue = (value) => {
   if (value === null || value === undefined || value === '') {

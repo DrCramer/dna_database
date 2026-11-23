@@ -1,3 +1,4 @@
+import { formatDateOnlyRu, formatDateRu } from '../../../../src/utils/dateFormatter';
 /**
  * Компонент для управления профилями сотрудников
  */
@@ -270,7 +271,7 @@ const StaffProfilesManager = () => {
                                 <td>{profile.full_name}</td>
                                 <td>{profile.department || 'Не указан'}</td>
                                 <td>{profile.position || 'Не указана'}</td>
-                                <td>{new Date(profile.date_added).toLocaleDateString('ru-RU')}</td>
+                                <td>{formatDateOnlyRu(profile.date_added)}</td>
                                 <td>
                                     <span className={`status ${profile.is_active ? 'active' : 'inactive'}`}>
                                         {profile.is_active ? 'Активен' : 'Неактивен'}
@@ -384,7 +385,7 @@ const ProfileDetailsModal = ({ profile, onClose, onAnalyzeContamination }) => {
                             <strong>Должность:</strong> {profile.position || 'Не указана'}
                         </div>
                         <div className="info-row">
-                            <strong>Дата добавления:</strong> {new Date(profile.date_added).toLocaleString('ru-RU')}
+                            <strong>Дата добавления:</strong> {formatDateRu(profile.date_added)}
                         </div>
                         <div className="info-row">
                             <strong>Статус:</strong> {profile.is_active ? 'Активен' : 'Неактивен'}

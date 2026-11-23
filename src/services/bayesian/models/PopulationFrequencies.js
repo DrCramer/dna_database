@@ -1,3 +1,4 @@
+const { formatDateRu } = require('../../../utils/dateFormatter');
 /**
  * Модель популяционных частот
  * 
@@ -490,7 +491,7 @@ class PopulationFrequencies {
                 populationId: this.populationId,
                 metadata: await this.getPopulationMetadata(),
                 frequencies: result.rows,
-                exportDate: new Date().toISOString()
+                exportDate: formatDateRu(new Date(), true)
             };
             
             return data;

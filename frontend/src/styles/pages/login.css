@@ -4,8 +4,10 @@
 
 .helix-login-page {
   position: relative;
-  min-height: 100vh;
-  overflow: hidden;
+  min-height: 0;
+  height: 100dvh;
+  overflow-y: auto;
+  overflow-x: clip;
   background:
     radial-gradient(circle at top left, rgba(47, 111, 237, 0.12), transparent 35%),
     linear-gradient(180deg, var(--surface-app) 0%, var(--surface-page) 100%);
@@ -41,7 +43,7 @@
   grid-template-columns: minmax(320px, 1fr) minmax(420px, 520px);
   gap: var(--space-8);
   align-items: center;
-  min-height: 100vh;
+  min-height: 100dvh;
   max-width: 1360px;
   margin: 0 auto;
   padding: 48px var(--space-8);
@@ -73,14 +75,6 @@
   font-weight: var(--font-weight-bold);
   line-height: 1.02;
   letter-spacing: -0.03em;
-}
-
-.helix-aside-text {
-  max-width: 620px;
-  margin: 0;
-  color: var(--text-secondary);
-  font-size: var(--font-size-lg);
-  line-height: 1.7;
 }
 
 .helix-feature-list {
@@ -150,6 +144,8 @@
   opacity: 0;
   transform: translateY(-20px) scale(0.98);
 }
+
+.helix-login-help { display: flex; width: fit-content; margin: var(--space-4) auto 0; }
 
 .helix-branding {
   text-align: center;
@@ -338,6 +334,9 @@
   color: var(--text-muted);
   pointer-events: none;
 }
+
+.helix-input { padding-left: 44px; }
+.helix-input-wrapper:has(.helix-password-toggle) .helix-input { padding-right: 56px; }
 
 .helix-input:focus {
   outline: none;

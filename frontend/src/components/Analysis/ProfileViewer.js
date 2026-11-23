@@ -1,3 +1,4 @@
+import { formatDateOnlyRu, formatDateRu } from '../../../../src/utils/dateFormatter';
 import React, { useEffect, useState } from 'react';
 import { dnaAnalysisApi } from "../../services/dnaAnalysisApi";
 import { useProfileFieldLabel } from '../../hooks/useProfileFieldLabel';
@@ -149,7 +150,7 @@ const ProfileViewer = () => {
             {currentProfiles.map((profile) => (
               <tr key={profile.id}>
                 <td><strong>{profile.sample_name}</strong></td>{isGenetic && <td>{profile.panel?.name || profile.panelName || 'Не указана'}</td>}
-                <td>{new Date(profile.upload_date).toLocaleDateString('ru-RU')}</td>
+                <td>{formatDateOnlyRu(profile.upload_date)}</td>
                 <td>{profile.file_source || 'Нет данных'}</td>
                 <td>{Object.keys(profile.str_snp_data || profile.str_data || {}).length}</td>
                 <td>
@@ -200,7 +201,7 @@ const ProfileViewer = () => {
                 {selectedProfile.panel && <div className="analysis-metric-card"><div className="analysis-mini-label">Панель</div><div className="analysis-main-value">{selectedProfile.panel.name}</div></div>}
                 <div className="analysis-metric-card">
                   <div className="analysis-mini-label">Дата загрузки</div>
-                  <div className="analysis-main-value">{new Date(selectedProfile.upload_date).toLocaleString('ru-RU')}</div>
+                  <div className="analysis-main-value">{formatDateRu(selectedProfile.upload_date)}</div>
                 </div>
                 <div className="analysis-metric-card">
                   <div className="analysis-mini-label">Источник файла</div>

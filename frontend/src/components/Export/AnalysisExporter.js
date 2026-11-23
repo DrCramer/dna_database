@@ -1,3 +1,4 @@
+import { formatFileTimestampRu } from '../../../../src/utils/dateFormatter';
 import React, { useState } from 'react';
 import { exportApi } from "../../services/exportApi";
 
@@ -53,16 +54,16 @@ const AnalysisExporter = ({ results, analysisType, onClose }) => {
 
       switch (exportFormat) {
         case 'excel':
-          await exportApi.exportToExcel(exportData, `${analysisType}_analysis_${Date.now()}.xlsx`);
+          await exportApi.exportToExcel(exportData, `${analysisType}_analysis_${formatFileTimestampRu()}.xlsx`);
           break;
         case 'csv':
-          await exportApi.exportToCSV(exportData, `${analysisType}_analysis_${Date.now()}.csv`);
+          await exportApi.exportToCSV(exportData, `${analysisType}_analysis_${formatFileTimestampRu()}.csv`);
           break;
         case 'json':
-          await exportApi.exportToJSON(exportData, `${analysisType}_analysis_${Date.now()}.json`);
+          await exportApi.exportToJSON(exportData, `${analysisType}_analysis_${formatFileTimestampRu()}.json`);
           break;
         case 'pdf':
-          await exportApi.exportToPDF(exportData, `${analysisType}_analysis_${Date.now()}.pdf`);
+          await exportApi.exportToPDF(exportData, `${analysisType}_analysis_${formatFileTimestampRu()}.pdf`);
           break;
         default:
           throw new Error('Неподдерживаемый формат экспорта');

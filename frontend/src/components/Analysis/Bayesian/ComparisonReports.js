@@ -1,3 +1,4 @@
+import { formatDateOnlyRu, formatDateRu } from '../../../../../src/utils/dateFormatter';
 /**
  * Comparison Reports Component
  *
@@ -40,7 +41,7 @@ const ComparisonReports = ({ results, comparisonHistory, onShowHelp }) => {
             const url = URL.createObjectURL(blob);
             const a = document.createElement('a');
             a.href = url;
-            a.download = `comparison_report_${results.sample1Id}_vs_${results.sample2Id}_${new Date().toISOString().split('T')[0]}.pdf`;
+            a.download = `comparison_report_${results.sample1Id}_vs_${results.sample2Id}_${formatDateOnlyRu(new Date())}.pdf`;
             document.body.appendChild(a);
             a.click();
             document.body.removeChild(a);
@@ -98,7 +99,7 @@ const ComparisonReports = ({ results, comparisonHistory, onShowHelp }) => {
             const url = URL.createObjectURL(blob);
             const a = document.createElement('a');
             a.href = url;
-            a.download = `comparison_report_${results.sample1Id}_vs_${results.sample2Id}_${new Date().toISOString().split('T')[0]}.xlsx`;
+            a.download = `comparison_report_${results.sample1Id}_vs_${results.sample2Id}_${formatDateOnlyRu(new Date())}.xlsx`;
             document.body.appendChild(a);
             a.click();
             document.body.removeChild(a);
@@ -135,7 +136,7 @@ const ComparisonReports = ({ results, comparisonHistory, onShowHelp }) => {
                 likelihoodRatio: comparison.likelihoodRatio,
                 matchProbability: comparison.matchProbability,
                 significance: comparison.significance,
-                analysisDate: comparison.timestamp.toISOString()
+                analysisDate: formatDateRu(comparison.timestamp, true)
             }));
 
             const csvContent = [
@@ -147,7 +148,7 @@ const ComparisonReports = ({ results, comparisonHistory, onShowHelp }) => {
             const url = URL.createObjectURL(blob);
             const a = document.createElement('a');
             a.href = url;
-            a.download = `comparison_history_${new Date().toISOString().split('T')[0]}.csv`;
+            a.download = `comparison_history_${formatDateOnlyRu(new Date())}.csv`;
             document.body.appendChild(a);
             a.click();
             document.body.removeChild(a);
@@ -298,7 +299,7 @@ const ComparisonReports = ({ results, comparisonHistory, onShowHelp }) => {
                                     const url = URL.createObjectURL(blob);
                                     const a = document.createElement('a');
                                     a.href = url;
-                                    a.download = `database_search_results_${results.sample1Id}_${new Date().toISOString().split('T')[0]}.csv`;
+                                    a.download = `database_search_results_${results.sample1Id}_${formatDateOnlyRu(new Date())}.csv`;
                                     document.body.appendChild(a);
                                     a.click();
                                     document.body.removeChild(a);

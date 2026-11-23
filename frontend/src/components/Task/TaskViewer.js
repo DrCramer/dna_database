@@ -1,3 +1,4 @@
+import { formatDateRu } from '../../../../src/utils/dateFormatter';
 import React, { useState, useEffect } from 'react';
 import { useAuth } from '../../contexts/AuthContext';
 
@@ -234,11 +235,11 @@ const TaskViewer = ({ taskId, onClose }) => {
             </div>
             <div className="task-viewer-meta-item">
               <strong>Создана:</strong>
-              <div>{new Date(task.created_at).toLocaleString('ru-RU')}</div>
+              <div>{formatDateRu(task.created_at)}</div>
             </div>
             <div className="task-viewer-meta-item">
               <strong>Срок:</strong>
-              <div>{task.deadline ? new Date(task.deadline).toLocaleString('ru-RU') : 'Не задан'}</div>
+              <div>{task.deadline ? formatDateRu(task.deadline) : 'Не задан'}</div>
             </div>
           </div>
 
@@ -274,7 +275,7 @@ const TaskViewer = ({ taskId, onClose }) => {
                 <div key={comment.id} className={`task-viewer-list-item${index % 2 === 0 ? ' is-alt' : ''}`}>
                   <div className="task-viewer-list-item-header">
                     <strong>{comment.username || 'Пользователь'}</strong>
-                    <small className="task-viewer-muted">{new Date(comment.created_at).toLocaleString('ru-RU')}</small>
+                    <small className="task-viewer-muted">{formatDateRu(comment.created_at)}</small>
                   </div>
                   <div className="task-viewer-prewrap">{comment.comment}</div>
                 </div>
@@ -320,7 +321,7 @@ const TaskViewer = ({ taskId, onClose }) => {
                 <div key={result.id} className={`task-viewer-list-item${index % 2 === 0 ? ' is-alt' : ''}`}>
                   <div className="task-viewer-list-item-header">
                     <strong>{result.username || 'Пользователь'}</strong>
-                    <small className="task-viewer-muted">{new Date(result.created_at).toLocaleString('ru-RU')}</small>
+                    <small className="task-viewer-muted">{formatDateRu(result.created_at)}</small>
                   </div>
                   <div className="task-viewer-result-block">
                     <strong>Данные результата:</strong>

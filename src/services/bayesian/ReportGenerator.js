@@ -1,3 +1,4 @@
+const { formatDateOnlyRu, formatDateRu } = require('../../utils/dateFormatter');
 /**
  * Report Generator - Generate PDF and Excel reports for Bayesian analysis
  * 
@@ -41,7 +42,7 @@ class ReportGenerator {
                 doc.on('end', () => {
                     const content = Buffer.concat(chunks);
                     const metadata = this.createReportMetadata('quality_assessment');
-                    const filename = `quality_report_${analysis.sampleId}_${new Date().toISOString().split('T')[0]}.pdf`;
+                    const filename = `quality_report_${analysis.sampleId}_${formatDateOnlyRu(new Date())}.pdf`;
                     
                     resolve({
                         content,
@@ -83,7 +84,7 @@ class ReportGenerator {
                 doc.on('end', () => {
                     const content = Buffer.concat(chunks);
                     const metadata = this.createReportMetadata('comparison_analysis');
-                    const filename = `comparison_report_${sample1Id}_vs_${sample2Id}_${new Date().toISOString().split('T')[0]}.pdf`;
+                    const filename = `comparison_report_${sample1Id}_vs_${sample2Id}_${formatDateOnlyRu(new Date())}.pdf`;
                     
                     resolve({
                         content,
@@ -165,7 +166,7 @@ class ReportGenerator {
                 doc.on('end', () => {
                     const content = Buffer.concat(chunks);
                     const metadata = this.createReportMetadata('summary_report');
-                    const filename = `summary_report_${new Date().toISOString().split('T')[0]}.pdf`;
+                    const filename = `summary_report_${formatDateOnlyRu(new Date())}.pdf`;
                     
                     resolve({
                         content,
@@ -197,7 +198,7 @@ class ReportGenerator {
     generateQualityReportContent(doc, analysis) {
         // Header
         doc.fontSize(20).text('Отчет о качестве генетического образца', 50, 50);
-        doc.fontSize(12).text(`Дата формирования: ${new Date().toLocaleDateString('ru-RU')}`, 50, 80);
+        doc.fontSize(12).text(`Дата формирования: ${formatDateRu(new Date())}`, 50, 80);
         doc.text(`Образец: ${analysis.sampleId}`, 50, 100);
         
         let yPos = 140;
@@ -344,7 +345,7 @@ class ReportGenerator {
     generateComparisonReportContent(doc, comparison, sample1Id, sample2Id) {
         // Header
         doc.fontSize(20).text('Отчет о сравнении генетических образцов', 50, 50);
-        doc.fontSize(12).text(`Дата формирования: ${new Date().toLocaleDateString('ru-RU')}`, 50, 80);
+        doc.fontSize(12).text(`Дата формирования: ${formatDateRu(new Date())}`, 50, 80);
         doc.text(`Образец 1: ${sample1Id}`, 50, 100);
         doc.text(`Образец 2: ${sample2Id}`, 50, 120);
         doc.text(`Тип сравнения: ${comparison.comparisonType}`, 50, 140);
@@ -420,7 +421,7 @@ class ReportGenerator {
     generateSummaryReportContent(doc, results) {
         // Header
         doc.fontSize(20).text('Сводный отчет по анализу образцов', 50, 50);
-        doc.fontSize(12).text(`Дата формирования: ${new Date().toLocaleDateString('ru-RU')}`, 50, 80);
+        doc.fontSize(12).text(`Дата формирования: ${formatDateRu(new Date())}`, 50, 80);
         doc.text(`Количество образцов: ${results.length}`, 50, 100);
         
         let yPos = 140;
@@ -572,7 +573,7 @@ class ReportGenerator {
     addMetadataSheet(workbook, data) {
         const metadata = [
             ['Параметр', 'Значение'],
-            ['Дата создания', new Date().toLocaleDateString('ru-RU')],
+            ['Дата создания', formatDateRu(new Date())],
             ['Версия системы', this.systemVersion],
             ['Тип анализа', data.analysisType || 'Комплексный'],
             ['Методология', 'Байесовский анализ с популяционными частотами']

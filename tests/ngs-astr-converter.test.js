@@ -294,3 +294,13 @@ test('AMEL: Detail другого сигнала не подтверждает R
   XLSX.utils.book_append_sheet(old, XLSX.utils.aoa_to_sheet([['Объект', '#Type', 'QC Flag', 'TH01', 'D5S818', 'AMEL']]), 'Result');
   assert.equal(detectSourceFormat(old).format, 'LEGACY_TABLE');
 });
+
+test('Single-file year confirmation preserves NGS QC evidence, object decisions and genotype exactly', () => {
+  const converter = new GeneticExcelConverterService(), files = [source()];
+  const { options, result } = confirmed(converter, files, { objectNumber: 'SYN-251' });
+  const { updateConverterYear } = require('../src/utils/converterYearMetadata');
+  const local = updateConverterYear(result, options, result.files[0].id, 2027);
+  assert(local);
+  assert.deepEqual(local.result, converter.convert(files, local.options));
+  assert.equal(local.result.profiles[0].strData, result.profiles[0].strData);
+});

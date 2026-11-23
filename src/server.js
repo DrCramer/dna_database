@@ -55,7 +55,7 @@ const PORT = config.get('app.port');
 global.app = app;
 
 // Log startup configuration (safe version without secrets)
-logger.info('Starting DNA Analysis Web Application');
+logger.info('Запуск «ДНК Эксперт»');
 logger.info('Configuration loaded:', config.getSafeConfig());
 
 // Security middleware (HTTP only for internal network)
@@ -109,6 +109,10 @@ app.use(morgan('combined', { stream: { write: message => logger.info(message.tri
 // Audit middleware for API operations (temporarily disabled)
 // app.use(auditApiOperation);
 app.use(setUserContext);
+
+const { maintenanceGate } = require('./services/infrastructure/databaseMaintenanceGate');
+app.use('/api', (req,res,next) => maintenanceGate.middleware(req,res,next));
+app.use('/health', (req,res,next) => req.method === 'GET' ? maintenanceGate.allow(next) : maintenanceGate.middleware(req,res,next));
 
 // Health check endpoints
 app.get('/health', async (req, res) => {
@@ -240,17 +244,21 @@ app.post('/health/persistence/verify', authenticate, adminOnly, persistenceLimit
 // API routes
 app.use('/api/auth', authRoutes);
 app.use('/api/users', userRoutes);
+app.use('/api/workspace', require('./routes/workspace')());
+app.use('/api/profiles', require('./routes/workspaceLegacyBridge'));
 app.use('/api/profiles', profileRoutes);
 app.use('/api/analysis', analysisRoutes);
 app.use('/api/export', exportRoutes);
 app.use('/api/history', historyRoutes);
 app.use('/api/settings', settingsRoutes);
+app.use('/api/admin/database-maintenance', require('./routes/databaseMaintenance')());
 app.use('/api/notifications', notificationRoutes);
 app.use('/api/dashboard', dashboardRoutes);
 app.use('/api/audit', auditRoutes);
 app.use('/api/compliance', complianceRoutes);
 app.use('/api/organizations', organizationRoutes);
 app.use('/api/tasks', taskRoutes);
+app.use('/api/migration-export', require('./routes/legacyMigrationExport')());
 app.use('/api/master-arrays', masterArrayRoutes);
 app.use('/api/database-encryption', databaseEncryptionRoutes);
 app.use('/api/staff-profiles', staffProfileRoutes);
@@ -320,6 +328,8 @@ process.on('SIGTERM', async () => {
         }
         
         // Close database connections
+        await app.locals.nightSearch?.stop();
+        await require('./services/converters/converterWorkerExecutor').converterWorker.close();
         const { closePool } = require('./config/database');
         await closePool();
         
@@ -341,6 +351,8 @@ process.on('SIGINT', async () => {
         }
         
         // Close database connections
+        await app.locals.nightSearch?.stop();
+        await require('./services/converters/converterWorkerExecutor').converterWorker.close();
         const { closePool } = require('./config/database');
         await closePool();
         
@@ -369,6 +381,31 @@ async function startServer() {
         // Verify database connection
         const { pool } = await connectDatabase();
         app.locals.pool = pool;
+        const workspaceEnabled = require('./services/workspace/workspaceMode').workspaceModeEnabled();
+        let databaseWorkspaceEnabled = false;
+        try {
+            databaseWorkspaceEnabled = !!(await pool.query('SELECT enabled FROM workspace_configuration WHERE id=true')).rows[0]?.enabled;
+        } catch (error) {
+            if (error.code !== '42P01' || workspaceEnabled) throw error;
+        }
+        if (workspaceEnabled !== databaseWorkspaceEnabled) throw new Error('UNIFIED_WORKSPACE_ENABLED и workspace_configuration.enabled должны совпадать. Выполните согласованное переключение.');
+        if (workspaceEnabled) {
+            const { rows: [history] } = await pool.query("SELECT to_regclass('public.workspace_duplicate_history_scope') IS NOT NULL AS ready");
+            if (!history.ready) throw new Error('Примените миграцию 041_workspace_duplicate_history.sql для истории дубликатов.');
+            const { rows: [approval] } = await pool.query("SELECT to_regclass('public.workspace_master_approval_targets') IS NOT NULL AS ready");
+            if (!approval.ready) throw new Error('Примените миграцию 042_master_approval_without_genotype.sql для публикации в мастер-массив.');
+            const { rows: [partialApproval] } = await pool.query("SELECT to_regprocedure('public.workspace_partial_master_proof(text,jsonb)') IS NOT NULL AS ready");
+            if (!partialApproval.ready) throw new Error('Примените миграцию 043_master_approval_partial_genotypes.sql для публикации частичных генотипов.');
+            const workspaces = new (require('./services/workspace/workspaceService').WorkspaceService)(pool);
+            setInterval(() => workspaces.pruneDrafts().catch(() => logger.error('WORKSPACE_DRAFT_RETENTION_FAILED')), 3600000).unref();
+        }
+        if((await pool.query("SELECT to_regclass('workspace_search_cpu_lease') IS NOT NULL ready")).rows[0].ready) {
+            require('./services/profiles/searchWorkerExecutor').setSearchCoordinator(new (require('./services/profiles/searchCpuCoordinator').SearchCpuCoordinator)(pool));
+        }
+        if(workspaceEnabled) {
+            app.locals.nightSearch=new (require('./services/workspace/nightSearchService').NightSearchService)(pool);
+            if(!await app.locals.nightSearch.start())logger.warn('NIGHT_SEARCH_MIGRATION_040_REQUIRED');
+        }
         logger.info('Database connected successfully');
         
         // Initialize scheduled jobs for compliance and data retention

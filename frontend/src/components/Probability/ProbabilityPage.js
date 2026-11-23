@@ -1,3 +1,4 @@
+import { formatDateRu } from '../../../../src/utils/dateFormatter';
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { useAuth } from '../../contexts/AuthContext';
 import { resolveProfileImportFormat } from '../../../../src/utils/profileImportFormat';
@@ -126,7 +127,7 @@ function Workspace({ departmentId }) {
     <div className="probability-toolbar">
       <div className="probability-modes" role="tablist" aria-label="Режим расчёта">{Object.keys(roles).map(m=><button key={m} id={'probability-tab-'+m} role="tab" aria-controls="probability-panel" tabIndex={mode===m?0:-1} className={'probability-tab'+(mode===m?' is-active':'')} disabled={busy||readOnly} aria-selected={mode===m} onKeyDown={e=>{if(!['ArrowLeft','ArrowRight','Home','End'].includes(e.key))return;e.preventDefault();const names=Object.keys(roles),index=names.indexOf(m);const next=e.key==='Home'?names[0]:e.key==='End'?names[names.length-1]:names[(index+(e.key==='ArrowRight'?1:-1)+names.length)%names.length];setMode(next);setTargetRole(roles[next][0]);invalidate();document.getElementById('probability-tab-'+next)?.focus();}} onClick={()=>{setMode(m);setTargetRole(roles[m][0]);invalidate();}}>{m}</button>)}</div>
       <button className="btn btn-secondary" onClick={reset} disabled={busy}>Новый расчёт</button>
-      <label className="probability-saved">Сохранённые<select aria-label="Сохранённые расчёты" value={result?.id||''} disabled={busy} onChange={e=>openSaved(e.target.value)}><option value="">Открыть сохранённый…</option>{saved.map(s=><option key={s.id} value={s.id}>{s.mode} · {new Date(s.created_at).toLocaleString('ru-RU')}</option>)}</select></label>
+      <label className="probability-saved">Сохранённые<select aria-label="Сохранённые расчёты" value={result?.id||''} disabled={busy} onChange={e=>openSaved(e.target.value)}><option value="">Открыть сохранённый…</option>{saved.map(s=><option key={s.id} value={s.id}>{s.mode} · {formatDateRu(s.created_at)}</option>)}</select></label>
       <button className="btn btn-secondary" aria-label="Справка по расчёту вероятности" aria-expanded={help} onClick={()=>setHelp(v=>!v)}>Формулы</button>
     </div>
     <div className="probability-sr-only" role="status" aria-live="polite">{announcement}</div>
@@ -176,7 +177,7 @@ function Workspace({ departmentId }) {
   </section>;
 }
 export default function ProbabilityPage() {
-  const { user, activeDepartment }=useAuth();
-  if(resolveProfileImportFormat(activeDepartment)!=='genetic'||!canUse(user?.role))return <div className="alert alert-warning">Раздел доступен экспертам отделения «Генетические экспертизы».</div>;
-  return <Workspace key={activeDepartment.id} departmentId={activeDepartment.id}/>;
+  const { user, activeDepartment, workspaceMode }=useAuth();
+  if((!workspaceMode&&resolveProfileImportFormat(activeDepartment)!=='genetic')||!canUse(user?.role))return <div className="alert alert-warning">Раздел доступен экспертам отделения «Генетические экспертизы».</div>;
+  return <Workspace key={workspaceMode?user.organization_id:activeDepartment.id} departmentId={workspaceMode?'':activeDepartment.id}/>;
 }

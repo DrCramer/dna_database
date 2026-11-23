@@ -1,7 +1,9 @@
 const XLSX = require('xlsx');
 const { logger } = require("../../utils/logger");
 const { validateGeneticHeaders, normalizeObjectName, getGeneticHeaders } = require("../../utils/profileImportFormat");
+const { ASSIGNED_HEADER, isAssignedNumberHeader } = require('../../utils/emergencyAssignedNumber');
 const { LociTypeDetector, LOCI_TYPES } = require("../../utils/lociTypeDetector");
+const { isMissingGenotypeCell } = require('../../utils/alleleTokens');
 const locusTypeDetector = new LociTypeDetector();
 
 /**
@@ -38,11 +40,11 @@ const GENETIC_REQUIRED_COLUMNS = {
 const EMERGENCY_REQUIRED_COLUMNS = {
   'Sample Name': { required: true, type: 'string', description: 'Название образца' },
   'Привоз': { required: true, type: 'number', description: 'Номер привоза (только цифры)' },
-  '№ присвоенный в в/ч № 522 ЦПООП Северо-Кавказского военного округа, г. Ростов-на-Дону': { 
+  [ASSIGNED_HEADER]: {
     required: true, 
     type: 'string', 
     // УБРАЛИ ПАТТЕРН - номера могут содержать любые символы
-    description: 'Номер в/ч (любой формат)' 
+    description: 'Ростовский номер (любой формат)'
   },
   'Год': { required: false, type: 'string', description: 'Год исследования' },
 };
@@ -125,7 +127,7 @@ class FileValidationService {
     // Проверяем наличие характерных столбцов для ЧС
     const hasEmergencyColumns = columns.some(col => {
       const colName = col ? col.toString().toLowerCase() : '';
-      return colName.includes('в/ч') || 
+      return isAssignedNumberHeader(col) || colName.includes('в/ч') ||
              colName.includes('привоз') || 
              colName.includes('522') ||
              colName.includes('цпооп') ||
@@ -196,13 +198,13 @@ class FileValidationService {
           if (!normalizeObjectName(row[0])) errors.push({ type: 'data', code: 'MISSING_OBJECT', message: `Строка ${rowNumber}: не заполнено обязательное поле «Объект».`, details: { rowNumber } });
           const rawYear = normalizeObjectName(row[validation.yearIndex]);
           if (!/^\d{4}$/.test(rawYear) || Number(rawYear) < 1900 || Number(rawYear) > 2100) errors.push({ type: 'data', code: 'INVALID_YEAR', message: `Строка ${rowNumber}: укажите год целым числом от 1900 до 2100.`, details: { rowNumber } });
-          else if (!validation.columns.some(({ index: column }) => !['', '-'].includes(normalizeObjectName(row[column])))) {
+          else if (!validation.columns.some(({ index: column }) => !isMissingGenotypeCell(row[column]))) {
             errors.push({ type: 'data', code: 'EMPTY_GENETIC_PROFILE', message: `Строка ${rowNumber}, объект «${normalizeObjectName(row[0])}»: отсутствуют данные генетического профиля.`, details: { rowNumber } });
           }
           for (const { index: column, locus } of validation.columns) {
             if (locusTypeDetector.detectLocusType(locus) !== LOCI_TYPES.Y_INDEL) continue;
             const raw = normalizeObjectName(row[column]);
-            if (!raw || raw === '-') continue;
+            if (isMissingGenotypeCell(raw)) continue;
             const alleles = raw.split(/[,;/]/).map(value => value.trim()).filter(Boolean);
             const checked = locusTypeDetector.validateAlleles(locus, alleles);
             if (!checked.isValid) {
@@ -227,7 +229,7 @@ class FileValidationService {
       const validationHeaders = expertiseType === EXPERTISE_TYPES.EMERGENCY ? headers.map(header => {
         const name = String(header || '').trim().toLowerCase();
         if (name === 'наименование образца') return 'Sample Name';
-        if (name.startsWith('присвоенный в в/ч')) return '№ присвоенный в в/ч № 522 ЦПООП Северо-Кавказского военного округа, г. Ростов-на-Дону';
+        if (isAssignedNumberHeader(header)) return ASSIGNED_HEADER;
         return header;
       }) : headers;
       // Валидация заголовков

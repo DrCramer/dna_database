@@ -3,6 +3,7 @@ const { logger } = require('../../utils/logger');
 const User = require('../../models/User');
 const rules = require('../../utils/accessPolicyRules');
 const { getProfileUploadPermissions } = rules;
+const { workspaceModeEnabled } = require('../workspace/workspaceMode');
 class ProfileAccessError extends Error {
     constructor(message) {
         super(message);
@@ -428,6 +429,10 @@ class AccessPolicyService {
     }
     static async getProfileScope({ userId, activeDepartmentId, action = 'read', includeInactive = false }) {
         const user = await User.findById(userId);
+        if (workspaceModeEnabled()) {
+            if (!user?.organization_id || !['admin','system_administrator','department_head','user_analyst','analyst','viewer'].includes(user.role) || (action !== 'read' && user.role === 'viewer')) throw new ProfileAccessError('Недостаточно прав на профили организации.');
+            return { clause: `dp.organization_id=$1 AND (dp.user_id=$2${action === 'read' ? " OR dp.profile_type='master'" : ''})${includeInactive ? '' : ' AND dp.is_active=true'}`, params: [user.organization_id,user.id], organizationId: user.organization_id, departmentId: null, ownerId: user.id, accessLevel: 'organization_workspace' };
+        }
         if (!user || !activeDepartmentId) {
             throw new ProfileAccessError('Active department is required');
         }
@@ -458,7 +463,7 @@ class AccessPolicyService {
                 ? " AND (dp.user_id = $3 OR dp.profile_type = 'master')"
                 : ' AND dp.user_id = $3';
         }
-        return { clause, params, accessLevel: departmentAccess ? 'department' : 'user_and_department' };
+        return { clause, params, organizationId: department.organization_id, departmentId: department.id, ownerId: user.id, accessLevel: departmentAccess ? 'department' : 'user_and_department' };
     }
 
     static async validateProfileAccess(context) {
@@ -503,8 +508,9 @@ class AccessPolicyService {
     static isResourceAdmin(user) { return user?.role === 'admin'; }
     static bypassesLegacyBoundary(user) { return user?.role === 'system_administrator'; }
     static canInitiateCrossDepartment(user) { return ['system_administrator', 'department_head'].includes(user?.role); }
-    static organizationalContextMatches(first, second) { return first.organization_id === second.organization_id && first.department_id === second.department_id; }
+    static organizationalContextMatches(first, second) { return first.organization_id === second.organization_id && (workspaceModeEnabled() || first.department_id === second.department_id); }
     static resolveActiveDepartment(user, departments, requestedId) {
+   if (workspaceModeEnabled()) return null;
    const allowed = departments.filter(d => user.role === 'system_administrator' || d.organization_id === user.organization_id);
    if (requestedId && !allowed.some(d => d.id === requestedId)) throw new ProfileAccessError('Selected department is not available for this user');
    return requestedId || user.department_id || departments[0]?.id || null;

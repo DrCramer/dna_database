@@ -1,4 +1,4 @@
-const { isSpecialAllele, normalizeSrySignal } = require('./alleleTokens');
+const { isSpecialAllele, normalizeSrySignal, normalizeAmelogeninPair } = require('./alleleTokens');
 /**
  * Loci Type Detection Utility
  * Provides classification and validation for all 80 genetic loci types
@@ -367,10 +367,9 @@ class LociTypeDetector {
         const result = { isValid: true, errors: [], warnings: [] };
 
         for (const allele of alleles) {
-            // Allow *, **, ?, F, empty values, X, Y, XY (combined), XX, YY, and patterns like X?, Y?, ?X, ?Y
             if (!isSpecialAllele(allele) && allele !== '' &&
                 !this.isValidAmelogeninPattern(allele)) {
-                result.errors.push(`Недопустимый Amelogenin аллель: ${allele} (должен быть X, Y, XY, XX, YY, X?, Y?, ?X, ?Y, *, **, ?, F или пустым)`);
+                result.errors.push(`Недопустимый Amelogenin аллель: ${allele} (ожидаются X, Y, XY, XX, YY, парная запись с F, X?, Y?, ?X, ?Y, *, **, ?, F или пустое значение)`);
                 result.isValid = false;
             }
         }
@@ -383,12 +382,11 @@ class LociTypeDetector {
      */
     isValidAmelogeninPattern(allele) {
         // Convert Russian letters to English equivalents
-        let normalizedAllele = allele.toUpperCase()
+        const normalizedAllele = allele.toUpperCase()
             .replace(/Х/g, 'X')  // Russian Х to English X
             .replace(/У/g, 'Y'); // Russian У to English Y (if needed)
         
-        // Basic patterns
-        if (['X', 'Y', 'XY', 'XX', 'YY'].includes(normalizedAllele)) {
+        if (normalizedAllele === 'X' || normalizedAllele === 'Y' || normalizeAmelogeninPair(normalizedAllele)) {
             return true;
         }
         
@@ -417,17 +415,23 @@ class LociTypeDetector {
         return result;
     }
 
-    // Значения зарегистрированных Y-InDel — строки 1/2. Их биологическое
-    // значение (INS/DEL) здесь намеренно не назначается.
+    // Обычные значения зарегистрированных Y-InDel — строки 1/2. Служебные
+    // токены разрешены, как у остальных локусов, но не означают INS/DEL.
     validateYIndelAlleles(alleles) {
         const result = { isValid: true, errors: [], warnings: [] };
         if (alleles.length > 1) result.warnings.push('В гаплоидном Y-InDel обнаружено несколько аллелей: возможна смесь или аномалия.');
+        let specialCount = 0;
         for (const allele of alleles) {
+            if (isSpecialAllele(allele)) {
+                specialCount++;
+                continue;
+            }
             if (allele !== '1' && allele !== '2') {
-                result.errors.push(`Недопустимое значение Y-InDel аллеля: ${allele} (допускаются только 1 или 2)`);
+                result.errors.push(`Недопустимое значение Y-InDel аллеля: ${allele} (допускаются 1, 2 и служебные обозначения *, **, ?, F, OL)`);
                 result.isValid = false;
             }
         }
+        if (specialCount) result.warnings.push('Служебные значения Y-InDel сохранены; они не являются обычными аллелями 1/2.');
         return result;
     }
 

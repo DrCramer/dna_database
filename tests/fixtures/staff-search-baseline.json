@@ -1,0 +1,3660 @@
+{
+  "synthetic": true,
+  "sourceRevision": "df20890",
+  "records": [
+    {
+      "input": {
+        "referenceProfiles": [
+          {
+            "id": "sample-0",
+            "str_data": {
+              "TH01": [
+                "9",
+                "9.3"
+              ],
+              "D3S1358": [
+                "12",
+                "12"
+              ],
+              "SE33": [
+                "28.2",
+                "29"
+              ],
+              "DYS391": [
+                "10"
+              ],
+              "AMEL": [
+                "X",
+                "Y"
+              ]
+            },
+            "metadata": {
+              "panelLociOrder": [
+                "SE33",
+                "TH01"
+              ]
+            }
+          },
+          {
+            "id": "sample-1",
+            "str_data": {
+              "TH01": [
+                "9",
+                "9.3",
+                "10"
+              ],
+              "D3S1358": [
+                "12",
+                "?"
+              ],
+              "SE33": [
+                "28.2"
+              ],
+              "SRY": [
+                "SRY"
+              ],
+              "rs771783753": [
+                "1"
+              ]
+            },
+            "metadata": {
+              "panelLociOrder": [
+                "SE33",
+                "TH01"
+              ]
+            }
+          },
+          {
+            "id": "sample-2",
+            "str_data": {
+              "TH01": "9,9.3",
+              "D3S1358": [
+                "12"
+              ],
+              "SE33": [
+                "29",
+                "*"
+              ],
+              "AMEL": [
+                "X",
+                "X"
+              ]
+            },
+            "metadata": {
+              "panelLociOrder": [
+                "SE33",
+                "TH01"
+              ]
+            }
+          },
+          {
+            "id": "sample-3",
+            "str_data": {},
+            "metadata": {
+              "panelLociOrder": [
+                "SE33",
+                "TH01"
+              ]
+            }
+          }
+        ],
+        "staffProfiles": [
+          {
+            "id": "staff-0",
+            "staff_id": "SYN-0",
+            "full_name": "Synthetic 0",
+            "registration_number": "1-G",
+            "year": 2026,
+            "str_data": {
+              "TH01": [
+                "9",
+                "9.3"
+              ],
+              "D3S1358": [
+                "12",
+                "12"
+              ],
+              "SE33": [
+                "28.2",
+                "29"
+              ],
+              "DYS391": [
+                "10"
+              ],
+              "AMEL": [
+                "X",
+                "Y"
+              ]
+            }
+          },
+          {
+            "id": "staff-1",
+            "staff_id": "SYN-1",
+            "full_name": "Synthetic 1",
+            "registration_number": "2-G",
+            "year": 2026,
+            "str_data": {
+              "TH01": [
+                "9",
+                "9.3",
+                "10"
+              ],
+              "D3S1358": [
+                "12",
+                "?"
+              ],
+              "SE33": [
+                "28.2"
+              ],
+              "SRY": [
+                "SRY"
+              ],
+              "rs771783753": [
+                "1"
+              ]
+            }
+          },
+          {
+            "id": "staff-2",
+            "staff_id": "SYN-2",
+            "full_name": "Synthetic 2",
+            "registration_number": "3-G",
+            "year": 2026,
+            "str_data": {
+              "TH01": "9,9.3",
+              "D3S1358": [
+                "12"
+              ],
+              "SE33": [
+                "29",
+                "*"
+              ],
+              "AMEL": [
+                "X",
+                "X"
+              ]
+            }
+          }
+        ],
+        "options": {
+          "threshold": 0
+        },
+        "excludedStaffIds": [
+          [
+            "sample-0",
+            [
+              "staff-0"
+            ]
+          ]
+        ]
+      },
+      "expected": [
+        {
+          "profileId": "sample-0",
+          "matches": [
+            {
+              "staffId": "staff-1",
+              "staffName": "Synthetic 1",
+              "staffIdentifier": "SYN-1",
+              "finalScore": 4.24,
+              "rawScore": 4.24,
+              "markersEvaluated": 3,
+              "fullMatches": 3,
+              "partialMatches": 0,
+              "penalties": 0,
+              "riskLevel": "CLEAR",
+              "confidence": "NONE",
+              "recommendation": "ПРИНЯТЬ: контаминация не выявлена",
+              "percentage": 21.2,
+              "detailedMatches": [
+                {
+                  "locus": "SE33",
+                  "sampleAlleles": [
+                    "28.2",
+                    "29"
+                  ],
+                  "staffAlleles": [
+                    "28.2"
+                  ],
+                  "explainedAlleles": [
+                    "28.2"
+                  ],
+                  "remainingAlleles": [],
+                  "locusWeight": 2.5,
+                  "matchCoeff": 0.7,
+                  "locusScore": "2.63",
+                  "isCritical": false,
+                  "isStrongCritical": false,
+                  "isFullMatch": false,
+                  "matchWeight": 0.7,
+                  "extraCount": 0,
+                  "matchType": "overInclusiveMix",
+                  "rarityBonus": 1.5
+                },
+                {
+                  "locus": "TH01",
+                  "sampleAlleles": [
+                    "9",
+                    "9.3"
+                  ],
+                  "staffAlleles": [
+                    "9",
+                    "9.3",
+                    "10"
+                  ],
+                  "explainedAlleles": [
+                    "9",
+                    "9.3"
+                  ],
+                  "remainingAlleles": [],
+                  "locusWeight": 0.9,
+                  "matchCoeff": 0.85,
+                  "locusScore": "0.77",
+                  "isCritical": true,
+                  "isStrongCritical": false,
+                  "isFullMatch": false,
+                  "matchWeight": 0.85,
+                  "extraCount": 0,
+                  "matchType": "inclusiveDropout",
+                  "rarityBonus": 1
+                },
+                {
+                  "locus": "D3S1358",
+                  "sampleAlleles": [
+                    "12",
+                    "12"
+                  ],
+                  "staffAlleles": [
+                    "12"
+                  ],
+                  "explainedAlleles": [
+                    "12",
+                    "12"
+                  ],
+                  "remainingAlleles": [],
+                  "locusWeight": 1,
+                  "matchCoeff": 0.85,
+                  "locusScore": "0.85",
+                  "isCritical": true,
+                  "isStrongCritical": false,
+                  "isFullMatch": false,
+                  "matchWeight": 0.85,
+                  "extraCount": 0,
+                  "matchType": "inclusiveDropout",
+                  "rarityBonus": 1
+                }
+              ],
+              "matchingLoci": [
+                "SE33",
+                "TH01",
+                "D3S1358"
+              ],
+              "criticalLoci": [
+                "TH01",
+                "D3S1358"
+              ],
+              "strongCriticalLoci": [],
+              "contaminationScore": 0.42400000000000004,
+              "totalExtraAlleles": 0,
+              "extraAllelesExplained": 3,
+              "weightedMatchScore": 3,
+              "diploidAfterSubtraction": true,
+              "totalViolationsBefore": 0,
+              "totalViolationsAfter": 0,
+              "algorithm": "v5.0",
+              "level": "CLEAN",
+              "severity": "low",
+              "rareCriticalMatches": 0,
+              "rareRuleTriggered": false,
+              "registrationNumber": "2-G",
+              "staffYear": 2026
+            }
+          ]
+        },
+        {
+          "profileId": "sample-1",
+          "matches": [
+            {
+              "staffId": "staff-1",
+              "staffName": "Synthetic 1",
+              "staffIdentifier": "SYN-1",
+              "finalScore": 7.65,
+              "rawScore": 7.65,
+              "markersEvaluated": 5,
+              "fullMatches": 5,
+              "partialMatches": 0,
+              "penalties": 0,
+              "riskLevel": "HIGH",
+              "confidence": "MEDIUM",
+              "recommendation": "ПОВТОРИТЬ АНАЛИЗ: высокий риск контаминации",
+              "percentage": 38.3,
+              "detailedMatches": [
+                {
+                  "locus": "SE33",
+                  "sampleAlleles": [
+                    "28.2"
+                  ],
+                  "staffAlleles": [
+                    "28.2"
+                  ],
+                  "explainedAlleles": [
+                    "28.2"
+                  ],
+                  "remainingAlleles": [],
+                  "locusWeight": 2.5,
+                  "matchCoeff": 1,
+                  "locusScore": "3.75",
+                  "isCritical": true,
+                  "isStrongCritical": true,
+                  "isFullMatch": true,
+                  "matchWeight": 1,
+                  "extraCount": 0,
+                  "matchType": "fullMatch",
+                  "rarityBonus": 1.5
+                },
+                {
+                  "locus": "TH01",
+                  "sampleAlleles": [
+                    "9",
+                    "9.3",
+                    "10"
+                  ],
+                  "staffAlleles": [
+                    "9",
+                    "9.3",
+                    "10"
+                  ],
+                  "explainedAlleles": [
+                    "9",
+                    "9.3",
+                    "10"
+                  ],
+                  "remainingAlleles": [],
+                  "locusWeight": 0.9,
+                  "matchCoeff": 1,
+                  "locusScore": "0.90",
+                  "isCritical": true,
+                  "isStrongCritical": false,
+                  "isFullMatch": true,
+                  "matchWeight": 1,
+                  "extraCount": 0,
+                  "matchType": "fullMatch",
+                  "rarityBonus": 1
+                },
+                {
+                  "locus": "D3S1358",
+                  "sampleAlleles": [
+                    "12"
+                  ],
+                  "staffAlleles": [
+                    "12"
+                  ],
+                  "explainedAlleles": [
+                    "12"
+                  ],
+                  "remainingAlleles": [],
+                  "locusWeight": 1,
+                  "matchCoeff": 1,
+                  "locusScore": "1.00",
+                  "isCritical": true,
+                  "isStrongCritical": false,
+                  "isFullMatch": true,
+                  "matchWeight": 1,
+                  "extraCount": 0,
+                  "matchType": "fullMatch",
+                  "rarityBonus": 1
+                },
+                {
+                  "locus": "SRY",
+                  "sampleAlleles": [
+                    "SRY"
+                  ],
+                  "staffAlleles": [
+                    "SRY"
+                  ],
+                  "explainedAlleles": [
+                    "SRY"
+                  ],
+                  "remainingAlleles": [],
+                  "locusWeight": 1,
+                  "matchCoeff": 1,
+                  "locusScore": "1.00",
+                  "isCritical": true,
+                  "isStrongCritical": false,
+                  "isFullMatch": true,
+                  "matchWeight": 1,
+                  "extraCount": 0,
+                  "matchType": "fullMatch",
+                  "rarityBonus": 1
+                },
+                {
+                  "locus": "rs771783753",
+                  "sampleAlleles": [
+                    "1"
+                  ],
+                  "staffAlleles": [
+                    "1"
+                  ],
+                  "explainedAlleles": [
+                    "1"
+                  ],
+                  "remainingAlleles": [],
+                  "locusWeight": 1,
+                  "matchCoeff": 1,
+                  "locusScore": "1.00",
+                  "isCritical": true,
+                  "isStrongCritical": false,
+                  "isFullMatch": true,
+                  "matchWeight": 1,
+                  "extraCount": 0,
+                  "matchType": "fullMatch",
+                  "rarityBonus": 1
+                }
+              ],
+              "matchingLoci": [
+                "SE33",
+                "TH01",
+                "D3S1358",
+                "SRY",
+                "rs771783753"
+              ],
+              "criticalLoci": [
+                "SE33",
+                "TH01",
+                "D3S1358",
+                "SRY",
+                "rs771783753"
+              ],
+              "strongCriticalLoci": [
+                "SE33"
+              ],
+              "contaminationScore": 0.765,
+              "totalExtraAlleles": 0,
+              "extraAllelesExplained": 5,
+              "weightedMatchScore": 5,
+              "diploidAfterSubtraction": true,
+              "totalViolationsBefore": 0,
+              "totalViolationsAfter": 0,
+              "algorithm": "v5.0",
+              "level": "WARNING",
+              "severity": "medium",
+              "rareCriticalMatches": 1,
+              "rareRuleTriggered": false,
+              "registrationNumber": "2-G",
+              "staffYear": 2026
+            },
+            {
+              "staffId": "staff-0",
+              "staffName": "Synthetic 0",
+              "staffIdentifier": "SYN-0",
+              "finalScore": 4.67,
+              "rawScore": 4.67,
+              "markersEvaluated": 3,
+              "fullMatches": 3,
+              "partialMatches": 0,
+              "penalties": 0,
+              "riskLevel": "CLEAR",
+              "confidence": "NONE",
+              "recommendation": "ПРИНЯТЬ: контаминация не выявлена",
+              "percentage": 23.4,
+              "detailedMatches": [
+                {
+                  "locus": "SE33",
+                  "sampleAlleles": [
+                    "28.2"
+                  ],
+                  "staffAlleles": [
+                    "28.2",
+                    "29"
+                  ],
+                  "explainedAlleles": [
+                    "28.2"
+                  ],
+                  "remainingAlleles": [],
+                  "locusWeight": 2.5,
+                  "matchCoeff": 0.85,
+                  "locusScore": "3.19",
+                  "isCritical": true,
+                  "isStrongCritical": true,
+                  "isFullMatch": false,
+                  "matchWeight": 0.85,
+                  "extraCount": 0,
+                  "matchType": "inclusiveDropout",
+                  "rarityBonus": 1.5
+                },
+                {
+                  "locus": "TH01",
+                  "sampleAlleles": [
+                    "9",
+                    "9.3",
+                    "10"
+                  ],
+                  "staffAlleles": [
+                    "9",
+                    "9.3"
+                  ],
+                  "explainedAlleles": [
+                    "9",
+                    "9.3"
+                  ],
+                  "remainingAlleles": [],
+                  "locusWeight": 0.9,
+                  "matchCoeff": 0.7,
+                  "locusScore": "0.63",
+                  "isCritical": false,
+                  "isStrongCritical": false,
+                  "isFullMatch": false,
+                  "matchWeight": 0.7,
+                  "extraCount": 0,
+                  "matchType": "overInclusiveMix",
+                  "rarityBonus": 1
+                },
+                {
+                  "locus": "D3S1358",
+                  "sampleAlleles": [
+                    "12"
+                  ],
+                  "staffAlleles": [
+                    "12",
+                    "12"
+                  ],
+                  "explainedAlleles": [
+                    "12"
+                  ],
+                  "remainingAlleles": [],
+                  "locusWeight": 1,
+                  "matchCoeff": 0.85,
+                  "locusScore": "0.85",
+                  "isCritical": true,
+                  "isStrongCritical": false,
+                  "isFullMatch": false,
+                  "matchWeight": 0.85,
+                  "extraCount": 0,
+                  "matchType": "inclusiveDropout",
+                  "rarityBonus": 1
+                }
+              ],
+              "matchingLoci": [
+                "SE33",
+                "TH01",
+                "D3S1358"
+              ],
+              "criticalLoci": [
+                "SE33",
+                "D3S1358"
+              ],
+              "strongCriticalLoci": [
+                "SE33"
+              ],
+              "contaminationScore": 0.46699999999999997,
+              "totalExtraAlleles": 0,
+              "extraAllelesExplained": 3,
+              "weightedMatchScore": 3,
+              "diploidAfterSubtraction": true,
+              "totalViolationsBefore": 0,
+              "totalViolationsAfter": 0,
+              "algorithm": "v5.0",
+              "level": "CLEAN",
+              "severity": "low",
+              "rareCriticalMatches": 1,
+              "rareRuleTriggered": false,
+              "registrationNumber": "1-G",
+              "staffYear": 2026
+            },
+            {
+              "staffId": "staff-2",
+              "staffName": "Synthetic 2",
+              "staffIdentifier": "SYN-2",
+              "finalScore": 0.38,
+              "rawScore": 0.38,
+              "markersEvaluated": 2,
+              "fullMatches": 2,
+              "partialMatches": 0,
+              "penalties": 0,
+              "riskLevel": "CLEAR",
+              "confidence": "NONE",
+              "recommendation": "ПРИНЯТЬ: контаминация не выявлена",
+              "percentage": 1.9,
+              "detailedMatches": [
+                {
+                  "locus": "SE33",
+                  "sampleAlleles": [
+                    "28.2"
+                  ],
+                  "staffAlleles": [
+                    "29"
+                  ],
+                  "explainedAlleles": [],
+                  "remainingAlleles": [],
+                  "locusWeight": 2.5,
+                  "matchCoeff": -0.5,
+                  "locusScore": "-1.25",
+                  "isCritical": false,
+                  "isStrongCritical": false,
+                  "isFullMatch": false,
+                  "matchWeight": -0.5,
+                  "extraCount": 0,
+                  "matchType": "mismatch",
+                  "rarityBonus": 1
+                },
+                {
+                  "locus": "TH01",
+                  "sampleAlleles": [
+                    "9",
+                    "9.3",
+                    "10"
+                  ],
+                  "staffAlleles": [
+                    "9",
+                    "9.3"
+                  ],
+                  "explainedAlleles": [
+                    "9",
+                    "9.3"
+                  ],
+                  "remainingAlleles": [],
+                  "locusWeight": 0.9,
+                  "matchCoeff": 0.7,
+                  "locusScore": "0.63",
+                  "isCritical": false,
+                  "isStrongCritical": false,
+                  "isFullMatch": false,
+                  "matchWeight": 0.7,
+                  "extraCount": 0,
+                  "matchType": "overInclusiveMix",
+                  "rarityBonus": 1
+                },
+                {
+                  "locus": "D3S1358",
+                  "sampleAlleles": [
+                    "12"
+                  ],
+                  "staffAlleles": [
+                    "12"
+                  ],
+                  "explainedAlleles": [
+                    "12"
+                  ],
+                  "remainingAlleles": [],
+                  "locusWeight": 1,
+                  "matchCoeff": 1,
+                  "locusScore": "1.00",
+                  "isCritical": true,
+                  "isStrongCritical": false,
+                  "isFullMatch": true,
+                  "matchWeight": 1,
+                  "extraCount": 0,
+                  "matchType": "fullMatch",
+                  "rarityBonus": 1
+                }
+              ],
+              "matchingLoci": [
+                "TH01",
+                "D3S1358"
+              ],
+              "criticalLoci": [],
+              "strongCriticalLoci": [],
+              "contaminationScore": 0.038,
+              "totalExtraAlleles": 0,
+              "extraAllelesExplained": 2,
+              "weightedMatchScore": 2,
+              "diploidAfterSubtraction": true,
+              "totalViolationsBefore": 0,
+              "totalViolationsAfter": 0,
+              "algorithm": "v5.0",
+              "level": "CLEAN",
+              "severity": "low",
+              "rareCriticalMatches": 0,
+              "rareRuleTriggered": false,
+              "registrationNumber": "3-G",
+              "staffYear": 2026
+            }
+          ]
+        },
+        {
+          "profileId": "sample-2",
+          "matches": [
+            {
+              "staffId": "staff-2",
+              "staffName": "Synthetic 2",
+              "staffIdentifier": "SYN-2",
+              "finalScore": 4.7,
+              "rawScore": 4.7,
+              "markersEvaluated": 4,
+              "fullMatches": 4,
+              "partialMatches": 0,
+              "penalties": 0,
+              "riskLevel": "CLEAR",
+              "confidence": "NONE",
+              "recommendation": "ПРИНЯТЬ: контаминация не выявлена",
+              "percentage": 23.5,
+              "detailedMatches": [
+                {
+                  "locus": "SE33",
+                  "sampleAlleles": [
+                    "29"
+                  ],
+                  "staffAlleles": [
+                    "29"
+                  ],
+                  "explainedAlleles": [
+                    "29"
+                  ],
+                  "remainingAlleles": [],
+                  "locusWeight": 2.5,
+                  "matchCoeff": 1,
+                  "locusScore": "2.50",
+                  "isCritical": true,
+                  "isStrongCritical": true,
+                  "isFullMatch": true,
+                  "matchWeight": 1,
+                  "extraCount": 0,
+                  "matchType": "fullMatch",
+                  "rarityBonus": 1
+                },
+                {
+                  "locus": "TH01",
+                  "sampleAlleles": [
+                    "9",
+                    "9.3"
+                  ],
+                  "staffAlleles": [
+                    "9",
+                    "9.3"
+                  ],
+                  "explainedAlleles": [
+                    "9",
+                    "9.3"
+                  ],
+                  "remainingAlleles": [],
+                  "locusWeight": 0.9,
+                  "matchCoeff": 1,
+                  "locusScore": "0.90",
+                  "isCritical": true,
+                  "isStrongCritical": false,
+                  "isFullMatch": true,
+                  "matchWeight": 1,
+                  "extraCount": 0,
+                  "matchType": "fullMatch",
+                  "rarityBonus": 1
+                },
+                {
+                  "locus": "D3S1358",
+                  "sampleAlleles": [
+                    "12"
+                  ],
+                  "staffAlleles": [
+                    "12"
+                  ],
+                  "explainedAlleles": [
+                    "12"
+                  ],
+                  "remainingAlleles": [],
+                  "locusWeight": 1,
+                  "matchCoeff": 1,
+                  "locusScore": "1.00",
+                  "isCritical": true,
+                  "isStrongCritical": false,
+                  "isFullMatch": true,
+                  "matchWeight": 1,
+                  "extraCount": 0,
+                  "matchType": "fullMatch",
+                  "rarityBonus": 1
+                },
+                {
+                  "locus": "AMEL",
+                  "sampleAlleles": [
+                    "X",
+                    "X"
+                  ],
+                  "staffAlleles": [
+                    "X",
+                    "X"
+                  ],
+                  "explainedAlleles": [
+                    "X",
+                    "X"
+                  ],
+                  "remainingAlleles": [],
+                  "locusWeight": 0.3,
+                  "matchCoeff": 1,
+                  "locusScore": "0.30",
+                  "isCritical": true,
+                  "isStrongCritical": false,
+                  "isFullMatch": true,
+                  "matchWeight": 1,
+                  "extraCount": 0,
+                  "matchType": "fullMatch",
+                  "rarityBonus": 1
+                }
+              ],
+              "matchingLoci": [
+                "SE33",
+                "TH01",
+                "D3S1358",
+                "AMEL"
+              ],
+              "criticalLoci": [
+                "SE33",
+                "TH01",
+                "D3S1358",
+                "AMEL"
+              ],
+              "strongCriticalLoci": [
+                "SE33"
+              ],
+              "contaminationScore": 0.47000000000000003,
+              "totalExtraAlleles": 0,
+              "extraAllelesExplained": 4,
+              "weightedMatchScore": 4,
+              "diploidAfterSubtraction": true,
+              "totalViolationsBefore": 0,
+              "totalViolationsAfter": 0,
+              "algorithm": "v5.0",
+              "level": "CLEAN",
+              "severity": "low",
+              "rareCriticalMatches": 1,
+              "rareRuleTriggered": false,
+              "registrationNumber": "3-G",
+              "staffYear": 2026
+            },
+            {
+              "staffId": "staff-0",
+              "staffName": "Synthetic 0",
+              "staffIdentifier": "SYN-0",
+              "finalScore": 4.13,
+              "rawScore": 4.13,
+              "markersEvaluated": 4,
+              "fullMatches": 4,
+              "partialMatches": 0,
+              "penalties": 0,
+              "riskLevel": "CLEAR",
+              "confidence": "NONE",
+              "recommendation": "ПРИНЯТЬ: контаминация не выявлена",
+              "percentage": 20.6,
+              "detailedMatches": [
+                {
+                  "locus": "SE33",
+                  "sampleAlleles": [
+                    "29"
+                  ],
+                  "staffAlleles": [
+                    "28.2",
+                    "29"
+                  ],
+                  "explainedAlleles": [
+                    "29"
+                  ],
+                  "remainingAlleles": [],
+                  "locusWeight": 2.5,
+                  "matchCoeff": 0.85,
+                  "locusScore": "2.13",
+                  "isCritical": true,
+                  "isStrongCritical": true,
+                  "isFullMatch": false,
+                  "matchWeight": 0.85,
+                  "extraCount": 0,
+                  "matchType": "inclusiveDropout",
+                  "rarityBonus": 1
+                },
+                {
+                  "locus": "TH01",
+                  "sampleAlleles": [
+                    "9",
+                    "9.3"
+                  ],
+                  "staffAlleles": [
+                    "9",
+                    "9.3"
+                  ],
+                  "explainedAlleles": [
+                    "9",
+                    "9.3"
+                  ],
+                  "remainingAlleles": [],
+                  "locusWeight": 0.9,
+                  "matchCoeff": 1,
+                  "locusScore": "0.90",
+                  "isCritical": true,
+                  "isStrongCritical": false,
+                  "isFullMatch": true,
+                  "matchWeight": 1,
+                  "extraCount": 0,
+                  "matchType": "fullMatch",
+                  "rarityBonus": 1
+                },
+                {
+                  "locus": "D3S1358",
+                  "sampleAlleles": [
+                    "12"
+                  ],
+                  "staffAlleles": [
+                    "12",
+                    "12"
+                  ],
+                  "explainedAlleles": [
+                    "12"
+                  ],
+                  "remainingAlleles": [],
+                  "locusWeight": 1,
+                  "matchCoeff": 0.85,
+                  "locusScore": "0.85",
+                  "isCritical": true,
+                  "isStrongCritical": false,
+                  "isFullMatch": false,
+                  "matchWeight": 0.85,
+                  "extraCount": 0,
+                  "matchType": "inclusiveDropout",
+                  "rarityBonus": 1
+                },
+                {
+                  "locus": "AMEL",
+                  "sampleAlleles": [
+                    "X",
+                    "X"
+                  ],
+                  "staffAlleles": [
+                    "X",
+                    "Y"
+                  ],
+                  "explainedAlleles": [
+                    "X",
+                    "X"
+                  ],
+                  "remainingAlleles": [],
+                  "locusWeight": 0.3,
+                  "matchCoeff": 0.85,
+                  "locusScore": "0.26",
+                  "isCritical": true,
+                  "isStrongCritical": false,
+                  "isFullMatch": false,
+                  "matchWeight": 0.85,
+                  "extraCount": 0,
+                  "matchType": "inclusiveDropout",
+                  "rarityBonus": 1
+                }
+              ],
+              "matchingLoci": [
+                "SE33",
+                "TH01",
+                "D3S1358",
+                "AMEL"
+              ],
+              "criticalLoci": [
+                "SE33",
+                "TH01",
+                "D3S1358",
+                "AMEL"
+              ],
+              "strongCriticalLoci": [
+                "SE33"
+              ],
+              "contaminationScore": 0.413,
+              "totalExtraAlleles": 0,
+              "extraAllelesExplained": 4,
+              "weightedMatchScore": 4,
+              "diploidAfterSubtraction": true,
+              "totalViolationsBefore": 0,
+              "totalViolationsAfter": 0,
+              "algorithm": "v5.0",
+              "level": "CLEAN",
+              "severity": "low",
+              "rareCriticalMatches": 1,
+              "rareRuleTriggered": false,
+              "registrationNumber": "1-G",
+              "staffYear": 2026
+            },
+            {
+              "staffId": "staff-1",
+              "staffName": "Synthetic 1",
+              "staffIdentifier": "SYN-1",
+              "finalScore": 0.52,
+              "rawScore": 0.52,
+              "markersEvaluated": 2,
+              "fullMatches": 2,
+              "partialMatches": 0,
+              "penalties": 0,
+              "riskLevel": "CLEAR",
+              "confidence": "NONE",
+              "recommendation": "ПРИНЯТЬ: контаминация не выявлена",
+              "percentage": 2.6,
+              "detailedMatches": [
+                {
+                  "locus": "SE33",
+                  "sampleAlleles": [
+                    "29"
+                  ],
+                  "staffAlleles": [
+                    "28.2"
+                  ],
+                  "explainedAlleles": [],
+                  "remainingAlleles": [],
+                  "locusWeight": 2.5,
+                  "matchCoeff": -0.5,
+                  "locusScore": "-1.25",
+                  "isCritical": false,
+                  "isStrongCritical": false,
+                  "isFullMatch": false,
+                  "matchWeight": -0.5,
+                  "extraCount": 0,
+                  "matchType": "mismatch",
+                  "rarityBonus": 1
+                },
+                {
+                  "locus": "TH01",
+                  "sampleAlleles": [
+                    "9",
+                    "9.3"
+                  ],
+                  "staffAlleles": [
+                    "9",
+                    "9.3",
+                    "10"
+                  ],
+                  "explainedAlleles": [
+                    "9",
+                    "9.3"
+                  ],
+                  "remainingAlleles": [],
+                  "locusWeight": 0.9,
+                  "matchCoeff": 0.85,
+                  "locusScore": "0.77",
+                  "isCritical": true,
+                  "isStrongCritical": false,
+                  "isFullMatch": false,
+                  "matchWeight": 0.85,
+                  "extraCount": 0,
+                  "matchType": "inclusiveDropout",
+                  "rarityBonus": 1
+                },
+                {
+                  "locus": "D3S1358",
+                  "sampleAlleles": [
+                    "12"
+                  ],
+                  "staffAlleles": [
+                    "12"
+                  ],
+                  "explainedAlleles": [
+                    "12"
+                  ],
+                  "remainingAlleles": [],
+                  "locusWeight": 1,
+                  "matchCoeff": 1,
+                  "locusScore": "1.00",
+                  "isCritical": true,
+                  "isStrongCritical": false,
+                  "isFullMatch": true,
+                  "matchWeight": 1,
+                  "extraCount": 0,
+                  "matchType": "fullMatch",
+                  "rarityBonus": 1
+                }
+              ],
+              "matchingLoci": [
+                "TH01",
+                "D3S1358"
+              ],
+              "criticalLoci": [
+                "D3S1358"
+              ],
+              "strongCriticalLoci": [],
+              "contaminationScore": 0.052000000000000005,
+              "totalExtraAlleles": 0,
+              "extraAllelesExplained": 2,
+              "weightedMatchScore": 2,
+              "diploidAfterSubtraction": true,
+              "totalViolationsBefore": 0,
+              "totalViolationsAfter": 0,
+              "algorithm": "v5.0",
+              "level": "CLEAN",
+              "severity": "low",
+              "rareCriticalMatches": 0,
+              "rareRuleTriggered": false,
+              "registrationNumber": "2-G",
+              "staffYear": 2026
+            }
+          ]
+        },
+        {
+          "profileId": "sample-3",
+          "matches": [
+            {
+              "staffId": "staff-0",
+              "staffName": "Synthetic 0",
+              "staffIdentifier": "SYN-0",
+              "finalScore": 0,
+              "rawScore": 0,
+              "markersEvaluated": 0,
+              "fullMatches": 0,
+              "partialMatches": 0,
+              "penalties": 0,
+              "riskLevel": "CLEAR",
+              "confidence": "NONE",
+              "recommendation": "ПРИНЯТЬ: контаминация не выявлена",
+              "percentage": 0,
+              "detailedMatches": [],
+              "matchingLoci": [],
+              "criticalLoci": [],
+              "strongCriticalLoci": [],
+              "contaminationScore": 0,
+              "totalExtraAlleles": 0,
+              "extraAllelesExplained": 0,
+              "weightedMatchScore": 0,
+              "diploidAfterSubtraction": true,
+              "totalViolationsBefore": 0,
+              "totalViolationsAfter": 0,
+              "algorithm": "v5.0",
+              "level": "CLEAN",
+              "severity": "low",
+              "rareCriticalMatches": 0,
+              "rareRuleTriggered": false,
+              "registrationNumber": "1-G",
+              "staffYear": 2026
+            },
+            {
+              "staffId": "staff-1",
+              "staffName": "Synthetic 1",
+              "staffIdentifier": "SYN-1",
+              "finalScore": 0,
+              "rawScore": 0,
+              "markersEvaluated": 0,
+              "fullMatches": 0,
+              "partialMatches": 0,
+              "penalties": 0,
+              "riskLevel": "CLEAR",
+              "confidence": "NONE",
+              "recommendation": "ПРИНЯТЬ: контаминация не выявлена",
+              "percentage": 0,
+              "detailedMatches": [],
+              "matchingLoci": [],
+              "criticalLoci": [],
+              "strongCriticalLoci": [],
+              "contaminationScore": 0,
+              "totalExtraAlleles": 0,
+              "extraAllelesExplained": 0,
+              "weightedMatchScore": 0,
+              "diploidAfterSubtraction": true,
+              "totalViolationsBefore": 0,
+              "totalViolationsAfter": 0,
+              "algorithm": "v5.0",
+              "level": "CLEAN",
+              "severity": "low",
+              "rareCriticalMatches": 0,
+              "rareRuleTriggered": false,
+              "registrationNumber": "2-G",
+              "staffYear": 2026
+            },
+            {
+              "staffId": "staff-2",
+              "staffName": "Synthetic 2",
+              "staffIdentifier": "SYN-2",
+              "finalScore": 0,
+              "rawScore": 0,
+              "markersEvaluated": 0,
+              "fullMatches": 0,
+              "partialMatches": 0,
+              "penalties": 0,
+              "riskLevel": "CLEAR",
+              "confidence": "NONE",
+              "recommendation": "ПРИНЯТЬ: контаминация не выявлена",
+              "percentage": 0,
+              "detailedMatches": [],
+              "matchingLoci": [],
+              "criticalLoci": [],
+              "strongCriticalLoci": [],
+              "contaminationScore": 0,
+              "totalExtraAlleles": 0,
+              "extraAllelesExplained": 0,
+              "weightedMatchScore": 0,
+              "diploidAfterSubtraction": true,
+              "totalViolationsBefore": 0,
+              "totalViolationsAfter": 0,
+              "algorithm": "v5.0",
+              "level": "CLEAN",
+              "severity": "low",
+              "rareCriticalMatches": 0,
+              "rareRuleTriggered": false,
+              "registrationNumber": "3-G",
+              "staffYear": 2026
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "input": {
+        "referenceProfiles": [
+          {
+            "id": "sample-0",
+            "str_data": {
+              "TH01": [
+                "9",
+                "9.3"
+              ],
+              "D3S1358": [
+                "12",
+                "12"
+              ],
+              "SE33": [
+                "28.2",
+                "29"
+              ],
+              "DYS391": [
+                "10"
+              ],
+              "AMEL": [
+                "X",
+                "Y"
+              ]
+            },
+            "metadata": {
+              "panelLociOrder": [
+                "SE33",
+                "TH01"
+              ]
+            }
+          },
+          {
+            "id": "sample-1",
+            "str_data": {
+              "TH01": [
+                "9",
+                "9.3",
+                "10"
+              ],
+              "D3S1358": [
+                "12",
+                "?"
+              ],
+              "SE33": [
+                "28.2"
+              ],
+              "SRY": [
+                "SRY"
+              ],
+              "rs771783753": [
+                "1"
+              ]
+            },
+            "metadata": {
+              "panelLociOrder": [
+                "SE33",
+                "TH01"
+              ]
+            }
+          },
+          {
+            "id": "sample-2",
+            "str_data": {
+              "TH01": "9,9.3",
+              "D3S1358": [
+                "12"
+              ],
+              "SE33": [
+                "29",
+                "*"
+              ],
+              "AMEL": [
+                "X",
+                "X"
+              ]
+            },
+            "metadata": {
+              "panelLociOrder": [
+                "SE33",
+                "TH01"
+              ]
+            }
+          },
+          {
+            "id": "sample-3",
+            "str_data": {},
+            "metadata": {
+              "panelLociOrder": [
+                "SE33",
+                "TH01"
+              ]
+            }
+          }
+        ],
+        "staffProfiles": [
+          {
+            "id": "staff-0",
+            "staff_id": "SYN-0",
+            "full_name": "Synthetic 0",
+            "registration_number": "1-G",
+            "year": 2026,
+            "str_data": {
+              "TH01": [
+                "9",
+                "9.3"
+              ],
+              "D3S1358": [
+                "12",
+                "12"
+              ],
+              "SE33": [
+                "28.2",
+                "29"
+              ],
+              "DYS391": [
+                "10"
+              ],
+              "AMEL": [
+                "X",
+                "Y"
+              ]
+            }
+          },
+          {
+            "id": "staff-1",
+            "staff_id": "SYN-1",
+            "full_name": "Synthetic 1",
+            "registration_number": "2-G",
+            "year": 2026,
+            "str_data": {
+              "TH01": [
+                "9",
+                "9.3",
+                "10"
+              ],
+              "D3S1358": [
+                "12",
+                "?"
+              ],
+              "SE33": [
+                "28.2"
+              ],
+              "SRY": [
+                "SRY"
+              ],
+              "rs771783753": [
+                "1"
+              ]
+            }
+          },
+          {
+            "id": "staff-2",
+            "staff_id": "SYN-2",
+            "full_name": "Synthetic 2",
+            "registration_number": "3-G",
+            "year": 2026,
+            "str_data": {
+              "TH01": "9,9.3",
+              "D3S1358": [
+                "12"
+              ],
+              "SE33": [
+                "29",
+                "*"
+              ],
+              "AMEL": [
+                "X",
+                "X"
+              ]
+            }
+          }
+        ],
+        "options": {
+          "threshold": 0,
+          "useV5Algorithm": false,
+          "useV4Algorithm": true
+        },
+        "excludedStaffIds": [
+          [
+            "sample-0",
+            [
+              "staff-0"
+            ]
+          ]
+        ]
+      },
+      "expected": [
+        {
+          "profileId": "sample-0",
+          "matches": [
+            {
+              "staffId": "staff-1",
+              "staffName": "Synthetic 1",
+              "staffIdentifier": "SYN-1",
+              "finalScore": 13,
+              "rawScore": 3.9,
+              "markersEvaluated": 3,
+              "fullMatches": 2,
+              "partialMatches": 1,
+              "penalties": 0,
+              "riskLevel": "CRITICAL",
+              "confidence": "CRITICAL",
+              "recommendation": "ОТБРАКОВАТЬ: критическая контаминация",
+              "percentage": 130,
+              "detailedMatches": [
+                {
+                  "locus": "SE33",
+                  "sampleAlleles": [
+                    "28.2",
+                    "29"
+                  ],
+                  "staffAlleles": [
+                    "28.2"
+                  ],
+                  "explainedAlleles": [
+                    "28.2"
+                  ],
+                  "remainingAlleles": [],
+                  "locusWeight": 2.5,
+                  "matchCoeff": 1,
+                  "locusScore": "2.50",
+                  "isCritical": true,
+                  "isStrongCritical": true,
+                  "isFullMatch": true,
+                  "matchWeight": 1,
+                  "extraCount": 0
+                },
+                {
+                  "locus": "TH01",
+                  "sampleAlleles": [
+                    "9",
+                    "9.3"
+                  ],
+                  "staffAlleles": [
+                    "9",
+                    "9.3",
+                    "10"
+                  ],
+                  "explainedAlleles": [
+                    "9",
+                    "9.3"
+                  ],
+                  "remainingAlleles": [],
+                  "locusWeight": 1,
+                  "matchCoeff": 0.4,
+                  "locusScore": "0.40",
+                  "isCritical": false,
+                  "isStrongCritical": false,
+                  "isFullMatch": false,
+                  "matchWeight": 0.4,
+                  "extraCount": 0
+                },
+                {
+                  "locus": "D3S1358",
+                  "sampleAlleles": [
+                    "12",
+                    "12"
+                  ],
+                  "staffAlleles": [
+                    "12"
+                  ],
+                  "explainedAlleles": [
+                    "12"
+                  ],
+                  "remainingAlleles": [],
+                  "locusWeight": 1,
+                  "matchCoeff": 1,
+                  "locusScore": "1.00",
+                  "isCritical": true,
+                  "isStrongCritical": true,
+                  "isFullMatch": true,
+                  "matchWeight": 1,
+                  "extraCount": 0
+                }
+              ],
+              "matchingLoci": [
+                "SE33",
+                "TH01",
+                "D3S1358"
+              ],
+              "criticalLoci": [
+                "SE33",
+                "D3S1358"
+              ],
+              "strongCriticalLoci": [
+                "SE33",
+                "D3S1358"
+              ],
+              "contaminationScore": 1.3,
+              "totalExtraAlleles": 0,
+              "extraAllelesExplained": 3,
+              "weightedMatchScore": 2.5,
+              "diploidAfterSubtraction": true,
+              "totalViolationsBefore": 0,
+              "totalViolationsAfter": 0,
+              "registrationNumber": "2-G",
+              "staffYear": 2026
+            }
+          ]
+        },
+        {
+          "profileId": "sample-1",
+          "matches": [
+            {
+              "staffId": "staff-1",
+              "staffName": "Synthetic 1",
+              "staffIdentifier": "SYN-1",
+              "finalScore": 13,
+              "rawScore": 6.5,
+              "markersEvaluated": 5,
+              "fullMatches": 5,
+              "partialMatches": 0,
+              "penalties": 0,
+              "riskLevel": "CRITICAL",
+              "confidence": "CRITICAL",
+              "recommendation": "ОТБРАКОВАТЬ: критическая контаминация",
+              "percentage": 130,
+              "detailedMatches": [
+                {
+                  "locus": "SE33",
+                  "sampleAlleles": [
+                    "28.2"
+                  ],
+                  "staffAlleles": [
+                    "28.2"
+                  ],
+                  "explainedAlleles": [
+                    "28.2"
+                  ],
+                  "remainingAlleles": [],
+                  "locusWeight": 2.5,
+                  "matchCoeff": 1,
+                  "locusScore": "2.50",
+                  "isCritical": true,
+                  "isStrongCritical": true,
+                  "isFullMatch": true,
+                  "matchWeight": 1,
+                  "extraCount": 0
+                },
+                {
+                  "locus": "TH01",
+                  "sampleAlleles": [
+                    "9",
+                    "9.3",
+                    "10"
+                  ],
+                  "staffAlleles": [
+                    "9",
+                    "9.3",
+                    "10"
+                  ],
+                  "explainedAlleles": [
+                    "9",
+                    "9.3",
+                    "10"
+                  ],
+                  "remainingAlleles": [],
+                  "locusWeight": 1,
+                  "matchCoeff": 1,
+                  "locusScore": "1.00",
+                  "isCritical": true,
+                  "isStrongCritical": true,
+                  "isFullMatch": true,
+                  "matchWeight": 1,
+                  "extraCount": 0
+                },
+                {
+                  "locus": "D3S1358",
+                  "sampleAlleles": [
+                    "12"
+                  ],
+                  "staffAlleles": [
+                    "12"
+                  ],
+                  "explainedAlleles": [
+                    "12"
+                  ],
+                  "remainingAlleles": [],
+                  "locusWeight": 1,
+                  "matchCoeff": 1,
+                  "locusScore": "1.00",
+                  "isCritical": true,
+                  "isStrongCritical": true,
+                  "isFullMatch": true,
+                  "matchWeight": 1,
+                  "extraCount": 0
+                },
+                {
+                  "locus": "SRY",
+                  "sampleAlleles": [
+                    "SRY"
+                  ],
+                  "staffAlleles": [
+                    "SRY"
+                  ],
+                  "explainedAlleles": [
+                    "SRY"
+                  ],
+                  "remainingAlleles": [],
+                  "locusWeight": 1,
+                  "matchCoeff": 1,
+                  "locusScore": "1.00",
+                  "isCritical": true,
+                  "isStrongCritical": true,
+                  "isFullMatch": true,
+                  "matchWeight": 1,
+                  "extraCount": 0
+                },
+                {
+                  "locus": "rs771783753",
+                  "sampleAlleles": [
+                    "1"
+                  ],
+                  "staffAlleles": [
+                    "1"
+                  ],
+                  "explainedAlleles": [
+                    "1"
+                  ],
+                  "remainingAlleles": [],
+                  "locusWeight": 1,
+                  "matchCoeff": 1,
+                  "locusScore": "1.00",
+                  "isCritical": true,
+                  "isStrongCritical": true,
+                  "isFullMatch": true,
+                  "matchWeight": 1,
+                  "extraCount": 0
+                }
+              ],
+              "matchingLoci": [
+                "SE33",
+                "TH01",
+                "D3S1358",
+                "SRY",
+                "rs771783753"
+              ],
+              "criticalLoci": [
+                "SE33",
+                "TH01",
+                "D3S1358",
+                "SRY",
+                "rs771783753"
+              ],
+              "strongCriticalLoci": [
+                "SE33",
+                "TH01",
+                "D3S1358",
+                "SRY",
+                "rs771783753"
+              ],
+              "contaminationScore": 1.3,
+              "totalExtraAlleles": 0,
+              "extraAllelesExplained": 5,
+              "weightedMatchScore": 5,
+              "diploidAfterSubtraction": true,
+              "totalViolationsBefore": 0,
+              "totalViolationsAfter": 0,
+              "registrationNumber": "2-G",
+              "staffYear": 2026
+            },
+            {
+              "staffId": "staff-0",
+              "staffName": "Synthetic 0",
+              "staffIdentifier": "SYN-0",
+              "finalScore": 8,
+              "rawScore": 2.4,
+              "markersEvaluated": 3,
+              "fullMatches": 1,
+              "partialMatches": 2,
+              "penalties": 0,
+              "riskLevel": "CRITICAL",
+              "confidence": "CRITICAL",
+              "recommendation": "ОТБРАКОВАТЬ: критическая контаминация",
+              "percentage": 80,
+              "detailedMatches": [
+                {
+                  "locus": "SE33",
+                  "sampleAlleles": [
+                    "28.2"
+                  ],
+                  "staffAlleles": [
+                    "28.2",
+                    "29"
+                  ],
+                  "explainedAlleles": [
+                    "28.2"
+                  ],
+                  "remainingAlleles": [],
+                  "locusWeight": 2.5,
+                  "matchCoeff": 0.4,
+                  "locusScore": "1.00",
+                  "isCritical": false,
+                  "isStrongCritical": false,
+                  "isFullMatch": false,
+                  "matchWeight": 0.4,
+                  "extraCount": 0
+                },
+                {
+                  "locus": "TH01",
+                  "sampleAlleles": [
+                    "9",
+                    "9.3",
+                    "10"
+                  ],
+                  "staffAlleles": [
+                    "9",
+                    "9.3"
+                  ],
+                  "explainedAlleles": [
+                    "9",
+                    "9.3"
+                  ],
+                  "remainingAlleles": [],
+                  "locusWeight": 1,
+                  "matchCoeff": 1,
+                  "locusScore": "1.00",
+                  "isCritical": true,
+                  "isStrongCritical": true,
+                  "isFullMatch": true,
+                  "matchWeight": 1,
+                  "extraCount": 0
+                },
+                {
+                  "locus": "D3S1358",
+                  "sampleAlleles": [
+                    "12"
+                  ],
+                  "staffAlleles": [
+                    "12",
+                    "12"
+                  ],
+                  "explainedAlleles": [
+                    "12"
+                  ],
+                  "remainingAlleles": [],
+                  "locusWeight": 1,
+                  "matchCoeff": 0.4,
+                  "locusScore": "0.40",
+                  "isCritical": false,
+                  "isStrongCritical": false,
+                  "isFullMatch": false,
+                  "matchWeight": 0.4,
+                  "extraCount": 0
+                }
+              ],
+              "matchingLoci": [
+                "SE33",
+                "TH01",
+                "D3S1358"
+              ],
+              "criticalLoci": [
+                "TH01"
+              ],
+              "strongCriticalLoci": [
+                "TH01"
+              ],
+              "contaminationScore": 0.7999999999999999,
+              "totalExtraAlleles": 0,
+              "extraAllelesExplained": 3,
+              "weightedMatchScore": 2,
+              "diploidAfterSubtraction": true,
+              "totalViolationsBefore": 0,
+              "totalViolationsAfter": 0,
+              "registrationNumber": "1-G",
+              "staffYear": 2026
+            }
+          ]
+        },
+        {
+          "profileId": "sample-2",
+          "matches": [
+            {
+              "staffId": "staff-2",
+              "staffName": "Synthetic 2",
+              "staffIdentifier": "SYN-2",
+              "finalScore": 13.25,
+              "rawScore": 5.3,
+              "markersEvaluated": 4,
+              "fullMatches": 4,
+              "partialMatches": 0,
+              "penalties": 0,
+              "riskLevel": "CRITICAL",
+              "confidence": "CRITICAL",
+              "recommendation": "ОТБРАКОВАТЬ: критическая контаминация",
+              "percentage": 132.5,
+              "detailedMatches": [
+                {
+                  "locus": "SE33",
+                  "sampleAlleles": [
+                    "29"
+                  ],
+                  "staffAlleles": [
+                    "29"
+                  ],
+                  "explainedAlleles": [
+                    "29"
+                  ],
+                  "remainingAlleles": [],
+                  "locusWeight": 2.5,
+                  "matchCoeff": 1,
+                  "locusScore": "2.50",
+                  "isCritical": true,
+                  "isStrongCritical": true,
+                  "isFullMatch": true,
+                  "matchWeight": 1,
+                  "extraCount": 0
+                },
+                {
+                  "locus": "TH01",
+                  "sampleAlleles": [
+                    "9",
+                    "9.3"
+                  ],
+                  "staffAlleles": [
+                    "9",
+                    "9.3"
+                  ],
+                  "explainedAlleles": [
+                    "9",
+                    "9.3"
+                  ],
+                  "remainingAlleles": [],
+                  "locusWeight": 1,
+                  "matchCoeff": 1,
+                  "locusScore": "1.00",
+                  "isCritical": true,
+                  "isStrongCritical": true,
+                  "isFullMatch": true,
+                  "matchWeight": 1,
+                  "extraCount": 0
+                },
+                {
+                  "locus": "D3S1358",
+                  "sampleAlleles": [
+                    "12"
+                  ],
+                  "staffAlleles": [
+                    "12"
+                  ],
+                  "explainedAlleles": [
+                    "12"
+                  ],
+                  "remainingAlleles": [],
+                  "locusWeight": 1,
+                  "matchCoeff": 1,
+                  "locusScore": "1.00",
+                  "isCritical": true,
+                  "isStrongCritical": true,
+                  "isFullMatch": true,
+                  "matchWeight": 1,
+                  "extraCount": 0
+                },
+                {
+                  "locus": "AMEL",
+                  "sampleAlleles": [
+                    "X",
+                    "X"
+                  ],
+                  "staffAlleles": [
+                    "X",
+                    "X"
+                  ],
+                  "explainedAlleles": [
+                    "X",
+                    "X"
+                  ],
+                  "remainingAlleles": [],
+                  "locusWeight": 0.8,
+                  "matchCoeff": 1,
+                  "locusScore": "0.80",
+                  "isCritical": true,
+                  "isStrongCritical": true,
+                  "isFullMatch": true,
+                  "matchWeight": 1,
+                  "extraCount": 0
+                }
+              ],
+              "matchingLoci": [
+                "SE33",
+                "TH01",
+                "D3S1358",
+                "AMEL"
+              ],
+              "criticalLoci": [
+                "SE33",
+                "TH01",
+                "D3S1358",
+                "AMEL"
+              ],
+              "strongCriticalLoci": [
+                "SE33",
+                "TH01",
+                "D3S1358",
+                "AMEL"
+              ],
+              "contaminationScore": 1.325,
+              "totalExtraAlleles": 0,
+              "extraAllelesExplained": 4,
+              "weightedMatchScore": 4,
+              "diploidAfterSubtraction": true,
+              "totalViolationsBefore": 0,
+              "totalViolationsAfter": 0,
+              "registrationNumber": "3-G",
+              "staffYear": 2026
+            },
+            {
+              "staffId": "staff-0",
+              "staffName": "Synthetic 0",
+              "staffIdentifier": "SYN-0",
+              "finalScore": 6.8,
+              "rawScore": 2.72,
+              "markersEvaluated": 4,
+              "fullMatches": 1,
+              "partialMatches": 3,
+              "penalties": 0,
+              "riskLevel": "CRITICAL",
+              "confidence": "CRITICAL",
+              "recommendation": "ОТБРАКОВАТЬ: критическая контаминация",
+              "percentage": 68,
+              "detailedMatches": [
+                {
+                  "locus": "SE33",
+                  "sampleAlleles": [
+                    "29"
+                  ],
+                  "staffAlleles": [
+                    "28.2",
+                    "29"
+                  ],
+                  "explainedAlleles": [
+                    "29"
+                  ],
+                  "remainingAlleles": [],
+                  "locusWeight": 2.5,
+                  "matchCoeff": 0.4,
+                  "locusScore": "1.00",
+                  "isCritical": false,
+                  "isStrongCritical": false,
+                  "isFullMatch": false,
+                  "matchWeight": 0.4,
+                  "extraCount": 0
+                },
+                {
+                  "locus": "TH01",
+                  "sampleAlleles": [
+                    "9",
+                    "9.3"
+                  ],
+                  "staffAlleles": [
+                    "9",
+                    "9.3"
+                  ],
+                  "explainedAlleles": [
+                    "9",
+                    "9.3"
+                  ],
+                  "remainingAlleles": [],
+                  "locusWeight": 1,
+                  "matchCoeff": 1,
+                  "locusScore": "1.00",
+                  "isCritical": true,
+                  "isStrongCritical": true,
+                  "isFullMatch": true,
+                  "matchWeight": 1,
+                  "extraCount": 0
+                },
+                {
+                  "locus": "D3S1358",
+                  "sampleAlleles": [
+                    "12"
+                  ],
+                  "staffAlleles": [
+                    "12",
+                    "12"
+                  ],
+                  "explainedAlleles": [
+                    "12"
+                  ],
+                  "remainingAlleles": [],
+                  "locusWeight": 1,
+                  "matchCoeff": 0.4,
+                  "locusScore": "0.40",
+                  "isCritical": false,
+                  "isStrongCritical": false,
+                  "isFullMatch": false,
+                  "matchWeight": 0.4,
+                  "extraCount": 0
+                },
+                {
+                  "locus": "AMEL",
+                  "sampleAlleles": [
+                    "X",
+                    "X"
+                  ],
+                  "staffAlleles": [
+                    "X",
+                    "Y"
+                  ],
+                  "explainedAlleles": [
+                    "X"
+                  ],
+                  "remainingAlleles": [],
+                  "locusWeight": 0.8,
+                  "matchCoeff": 0.4,
+                  "locusScore": "0.32",
+                  "isCritical": false,
+                  "isStrongCritical": false,
+                  "isFullMatch": false,
+                  "matchWeight": 0.4,
+                  "extraCount": 0
+                }
+              ],
+              "matchingLoci": [
+                "SE33",
+                "TH01",
+                "D3S1358",
+                "AMEL"
+              ],
+              "criticalLoci": [
+                "TH01"
+              ],
+              "strongCriticalLoci": [
+                "TH01"
+              ],
+              "contaminationScore": 0.6799999999999999,
+              "totalExtraAlleles": 0,
+              "extraAllelesExplained": 4,
+              "weightedMatchScore": 2.5,
+              "diploidAfterSubtraction": true,
+              "totalViolationsBefore": 0,
+              "totalViolationsAfter": 0,
+              "registrationNumber": "1-G",
+              "staffYear": 2026
+            }
+          ]
+        },
+        {
+          "profileId": "sample-3",
+          "matches": [
+            {
+              "staffId": "staff-0",
+              "staffName": "Synthetic 0",
+              "staffIdentifier": "SYN-0",
+              "finalScore": 0,
+              "rawScore": 0,
+              "markersEvaluated": 0,
+              "fullMatches": 0,
+              "partialMatches": 0,
+              "penalties": 0,
+              "riskLevel": "CLEAR",
+              "confidence": "NONE",
+              "recommendation": "ПРИНЯТЬ: контаминация не выявлена",
+              "percentage": 0,
+              "detailedMatches": [],
+              "matchingLoci": [],
+              "criticalLoci": [],
+              "strongCriticalLoci": [],
+              "contaminationScore": 0,
+              "totalExtraAlleles": 0,
+              "extraAllelesExplained": 0,
+              "weightedMatchScore": 0,
+              "diploidAfterSubtraction": true,
+              "totalViolationsBefore": 0,
+              "totalViolationsAfter": 0,
+              "registrationNumber": "1-G",
+              "staffYear": 2026
+            },
+            {
+              "staffId": "staff-1",
+              "staffName": "Synthetic 1",
+              "staffIdentifier": "SYN-1",
+              "finalScore": 0,
+              "rawScore": 0,
+              "markersEvaluated": 0,
+              "fullMatches": 0,
+              "partialMatches": 0,
+              "penalties": 0,
+              "riskLevel": "CLEAR",
+              "confidence": "NONE",
+              "recommendation": "ПРИНЯТЬ: контаминация не выявлена",
+              "percentage": 0,
+              "detailedMatches": [],
+              "matchingLoci": [],
+              "criticalLoci": [],
+              "strongCriticalLoci": [],
+              "contaminationScore": 0,
+              "totalExtraAlleles": 0,
+              "extraAllelesExplained": 0,
+              "weightedMatchScore": 0,
+              "diploidAfterSubtraction": true,
+              "totalViolationsBefore": 0,
+              "totalViolationsAfter": 0,
+              "registrationNumber": "2-G",
+              "staffYear": 2026
+            },
+            {
+              "staffId": "staff-2",
+              "staffName": "Synthetic 2",
+              "staffIdentifier": "SYN-2",
+              "finalScore": 0,
+              "rawScore": 0,
+              "markersEvaluated": 0,
+              "fullMatches": 0,
+              "partialMatches": 0,
+              "penalties": 0,
+              "riskLevel": "CLEAR",
+              "confidence": "NONE",
+              "recommendation": "ПРИНЯТЬ: контаминация не выявлена",
+              "percentage": 0,
+              "detailedMatches": [],
+              "matchingLoci": [],
+              "criticalLoci": [],
+              "strongCriticalLoci": [],
+              "contaminationScore": 0,
+              "totalExtraAlleles": 0,
+              "extraAllelesExplained": 0,
+              "weightedMatchScore": 0,
+              "diploidAfterSubtraction": true,
+              "totalViolationsBefore": 0,
+              "totalViolationsAfter": 0,
+              "registrationNumber": "3-G",
+              "staffYear": 2026
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "input": {
+        "referenceProfiles": [
+          {
+            "id": "sample-0",
+            "str_data": {
+              "TH01": [
+                "9",
+                "9.3"
+              ],
+              "D3S1358": [
+                "12",
+                "12"
+              ],
+              "SE33": [
+                "28.2",
+                "29"
+              ],
+              "DYS391": [
+                "10"
+              ],
+              "AMEL": [
+                "X",
+                "Y"
+              ]
+            },
+            "metadata": {
+              "panelLociOrder": [
+                "SE33",
+                "TH01"
+              ]
+            }
+          },
+          {
+            "id": "sample-1",
+            "str_data": {
+              "TH01": [
+                "9",
+                "9.3",
+                "10"
+              ],
+              "D3S1358": [
+                "12",
+                "?"
+              ],
+              "SE33": [
+                "28.2"
+              ],
+              "SRY": [
+                "SRY"
+              ],
+              "rs771783753": [
+                "1"
+              ]
+            },
+            "metadata": {
+              "panelLociOrder": [
+                "SE33",
+                "TH01"
+              ]
+            }
+          },
+          {
+            "id": "sample-2",
+            "str_data": {
+              "TH01": "9,9.3",
+              "D3S1358": [
+                "12"
+              ],
+              "SE33": [
+                "29",
+                "*"
+              ],
+              "AMEL": [
+                "X",
+                "X"
+              ]
+            },
+            "metadata": {
+              "panelLociOrder": [
+                "SE33",
+                "TH01"
+              ]
+            }
+          },
+          {
+            "id": "sample-3",
+            "str_data": {},
+            "metadata": {
+              "panelLociOrder": [
+                "SE33",
+                "TH01"
+              ]
+            }
+          }
+        ],
+        "staffProfiles": [
+          {
+            "id": "staff-0",
+            "staff_id": "SYN-0",
+            "full_name": "Synthetic 0",
+            "registration_number": "1-G",
+            "year": 2026,
+            "str_data": {
+              "TH01": [
+                "9",
+                "9.3"
+              ],
+              "D3S1358": [
+                "12",
+                "12"
+              ],
+              "SE33": [
+                "28.2",
+                "29"
+              ],
+              "DYS391": [
+                "10"
+              ],
+              "AMEL": [
+                "X",
+                "Y"
+              ]
+            }
+          },
+          {
+            "id": "staff-1",
+            "staff_id": "SYN-1",
+            "full_name": "Synthetic 1",
+            "registration_number": "2-G",
+            "year": 2026,
+            "str_data": {
+              "TH01": [
+                "9",
+                "9.3",
+                "10"
+              ],
+              "D3S1358": [
+                "12",
+                "?"
+              ],
+              "SE33": [
+                "28.2"
+              ],
+              "SRY": [
+                "SRY"
+              ],
+              "rs771783753": [
+                "1"
+              ]
+            }
+          },
+          {
+            "id": "staff-2",
+            "staff_id": "SYN-2",
+            "full_name": "Synthetic 2",
+            "registration_number": "3-G",
+            "year": 2026,
+            "str_data": {
+              "TH01": "9,9.3",
+              "D3S1358": [
+                "12"
+              ],
+              "SE33": [
+                "29",
+                "*"
+              ],
+              "AMEL": [
+                "X",
+                "X"
+              ]
+            }
+          }
+        ],
+        "options": {
+          "threshold": 0,
+          "useV5Algorithm": false,
+          "useV4Algorithm": false
+        },
+        "excludedStaffIds": [
+          [
+            "sample-0",
+            [
+              "staff-0"
+            ]
+          ]
+        ]
+      },
+      "expected": [
+        {
+          "profileId": "sample-0",
+          "matches": [
+            {
+              "staffId": "staff-1",
+              "staffName": "Synthetic 1",
+              "staffIdentifier": "SYN-1",
+              "matchingLoci": [
+                "SE33",
+                "TH01",
+                "D3S1358"
+              ],
+              "criticalLoci": [
+                "TH01"
+              ],
+              "strongCriticalLoci": [
+                "TH01"
+              ],
+              "totalViolationsBefore": 0,
+              "totalViolationsAfter": 0,
+              "totalExtraAlleles": 0,
+              "extraAllelesExplained": 4,
+              "weightedMatchScore": 2,
+              "diploidAfterSubtraction": true,
+              "detailedMatches": [
+                {
+                  "locus": "SE33",
+                  "sampleAlleles": [
+                    "28.2",
+                    "29"
+                  ],
+                  "staffAlleles": [
+                    "28.2"
+                  ],
+                  "remainingAlleles": [
+                    "29"
+                  ],
+                  "explainedAlleles": [
+                    "28.2"
+                  ],
+                  "extraCount": 0,
+                  "isCritical": false,
+                  "isStrongCritical": false,
+                  "isFullMatch": false,
+                  "matchWeight": 0.5
+                },
+                {
+                  "locus": "TH01",
+                  "sampleAlleles": [
+                    "9",
+                    "9.3"
+                  ],
+                  "staffAlleles": [
+                    "9",
+                    "9.3",
+                    "10"
+                  ],
+                  "remainingAlleles": [
+                    "9",
+                    "9.3"
+                  ],
+                  "explainedAlleles": [
+                    "9",
+                    "9.3"
+                  ],
+                  "extraCount": 0,
+                  "isCritical": true,
+                  "isStrongCritical": true,
+                  "isFullMatch": true,
+                  "matchWeight": 1
+                },
+                {
+                  "locus": "D3S1358",
+                  "sampleAlleles": [
+                    "12",
+                    "12"
+                  ],
+                  "staffAlleles": [
+                    "12"
+                  ],
+                  "remainingAlleles": [
+                    "12"
+                  ],
+                  "explainedAlleles": [
+                    "12"
+                  ],
+                  "extraCount": 0,
+                  "isCritical": false,
+                  "isStrongCritical": false,
+                  "isFullMatch": false,
+                  "matchWeight": 0.5
+                },
+                {
+                  "locus": "DYS391",
+                  "sampleAlleles": [
+                    "10"
+                  ],
+                  "staffAlleles": [],
+                  "remainingAlleles": [
+                    "10"
+                  ],
+                  "explainedAlleles": [],
+                  "extraCount": 0,
+                  "isCritical": false,
+                  "isStrongCritical": false,
+                  "isFullMatch": false,
+                  "matchWeight": 0
+                },
+                {
+                  "locus": "AMEL",
+                  "sampleAlleles": [
+                    "X",
+                    "Y"
+                  ],
+                  "staffAlleles": [],
+                  "remainingAlleles": [
+                    "X",
+                    "Y"
+                  ],
+                  "explainedAlleles": [],
+                  "extraCount": 0,
+                  "isCritical": false,
+                  "isStrongCritical": false,
+                  "isFullMatch": false,
+                  "matchWeight": 0
+                }
+              ],
+              "reconstructedProfile": {
+                "SE33": [
+                  "29"
+                ],
+                "TH01": [
+                  "9",
+                  "9.3"
+                ],
+                "D3S1358": [
+                  "12"
+                ],
+                "DYS391": [
+                  "10"
+                ],
+                "AMEL": [
+                  "X",
+                  "Y"
+                ]
+              },
+              "contaminationScore": 0,
+              "confidence": "NONE",
+              "recommendation": "ПРИНЯТЬ: контаминация не выявлена",
+              "percentage": 0,
+              "finalScore": 0,
+              "riskLevel": "NONE",
+              "registrationNumber": "2-G",
+              "staffYear": 2026
+            }
+          ]
+        },
+        {
+          "profileId": "sample-1",
+          "matches": [
+            {
+              "staffId": "staff-0",
+              "staffName": "Synthetic 0",
+              "staffIdentifier": "SYN-0",
+              "matchingLoci": [
+                "SE33",
+                "TH01",
+                "D3S1358"
+              ],
+              "criticalLoci": [
+                "SE33",
+                "TH01",
+                "D3S1358"
+              ],
+              "strongCriticalLoci": [
+                "TH01"
+              ],
+              "totalViolationsBefore": 1,
+              "totalViolationsAfter": 0,
+              "totalExtraAlleles": 1,
+              "extraAllelesExplained": 4,
+              "weightedMatchScore": 2,
+              "diploidAfterSubtraction": true,
+              "detailedMatches": [
+                {
+                  "locus": "SE33",
+                  "sampleAlleles": [
+                    "28.2"
+                  ],
+                  "staffAlleles": [
+                    "28.2",
+                    "29"
+                  ],
+                  "remainingAlleles": [
+                    "28.2"
+                  ],
+                  "explainedAlleles": [
+                    "28.2"
+                  ],
+                  "extraCount": 0,
+                  "isCritical": true,
+                  "isStrongCritical": false,
+                  "isFullMatch": true,
+                  "matchWeight": 0.5
+                },
+                {
+                  "locus": "TH01",
+                  "sampleAlleles": [
+                    "9",
+                    "9.3",
+                    "10"
+                  ],
+                  "staffAlleles": [
+                    "9",
+                    "9.3"
+                  ],
+                  "remainingAlleles": [
+                    "10"
+                  ],
+                  "explainedAlleles": [
+                    "9",
+                    "9.3"
+                  ],
+                  "extraCount": 1,
+                  "isCritical": true,
+                  "isStrongCritical": true,
+                  "isFullMatch": false,
+                  "matchWeight": 1
+                },
+                {
+                  "locus": "D3S1358",
+                  "sampleAlleles": [
+                    "12"
+                  ],
+                  "staffAlleles": [
+                    "12",
+                    "12"
+                  ],
+                  "remainingAlleles": [
+                    "12"
+                  ],
+                  "explainedAlleles": [
+                    "12"
+                  ],
+                  "extraCount": 0,
+                  "isCritical": true,
+                  "isStrongCritical": false,
+                  "isFullMatch": true,
+                  "matchWeight": 0.5
+                },
+                {
+                  "locus": "SRY",
+                  "sampleAlleles": [
+                    "SRY"
+                  ],
+                  "staffAlleles": [],
+                  "remainingAlleles": [
+                    "SRY"
+                  ],
+                  "explainedAlleles": [],
+                  "extraCount": 0,
+                  "isCritical": false,
+                  "isStrongCritical": false,
+                  "isFullMatch": false,
+                  "matchWeight": 0
+                },
+                {
+                  "locus": "rs771783753",
+                  "sampleAlleles": [
+                    "1"
+                  ],
+                  "staffAlleles": [],
+                  "remainingAlleles": [
+                    "1"
+                  ],
+                  "explainedAlleles": [],
+                  "extraCount": 0,
+                  "isCritical": false,
+                  "isStrongCritical": false,
+                  "isFullMatch": false,
+                  "matchWeight": 0
+                }
+              ],
+              "reconstructedProfile": {
+                "SE33": [
+                  "28.2"
+                ],
+                "TH01": [
+                  "10"
+                ],
+                "D3S1358": [
+                  "12"
+                ],
+                "SRY": [
+                  "SRY"
+                ],
+                "rs771783753": [
+                  "1"
+                ]
+              },
+              "contaminationScore": 0,
+              "confidence": "NONE",
+              "recommendation": "ПРИНЯТЬ: контаминация не выявлена",
+              "percentage": 0,
+              "finalScore": 0,
+              "riskLevel": "NONE",
+              "registrationNumber": "1-G",
+              "staffYear": 2026
+            },
+            {
+              "staffId": "staff-1",
+              "staffName": "Synthetic 1",
+              "staffIdentifier": "SYN-1",
+              "matchingLoci": [
+                "SE33",
+                "TH01",
+                "D3S1358",
+                "SRY",
+                "rs771783753"
+              ],
+              "criticalLoci": [
+                "SE33",
+                "TH01",
+                "D3S1358",
+                "SRY",
+                "rs771783753"
+              ],
+              "strongCriticalLoci": [
+                "TH01"
+              ],
+              "totalViolationsBefore": 1,
+              "totalViolationsAfter": 0,
+              "totalExtraAlleles": 1,
+              "extraAllelesExplained": 7,
+              "weightedMatchScore": 3,
+              "diploidAfterSubtraction": true,
+              "detailedMatches": [
+                {
+                  "locus": "SE33",
+                  "sampleAlleles": [
+                    "28.2"
+                  ],
+                  "staffAlleles": [
+                    "28.2"
+                  ],
+                  "remainingAlleles": [
+                    "28.2"
+                  ],
+                  "explainedAlleles": [
+                    "28.2"
+                  ],
+                  "extraCount": 0,
+                  "isCritical": true,
+                  "isStrongCritical": false,
+                  "isFullMatch": true,
+                  "matchWeight": 0.5
+                },
+                {
+                  "locus": "TH01",
+                  "sampleAlleles": [
+                    "9",
+                    "9.3",
+                    "10"
+                  ],
+                  "staffAlleles": [
+                    "9",
+                    "9.3",
+                    "10"
+                  ],
+                  "remainingAlleles": [
+                    "9"
+                  ],
+                  "explainedAlleles": [
+                    "9",
+                    "9.3",
+                    "10"
+                  ],
+                  "extraCount": 1,
+                  "isCritical": true,
+                  "isStrongCritical": true,
+                  "isFullMatch": true,
+                  "matchWeight": 1
+                },
+                {
+                  "locus": "D3S1358",
+                  "sampleAlleles": [
+                    "12"
+                  ],
+                  "staffAlleles": [
+                    "12"
+                  ],
+                  "remainingAlleles": [
+                    "12"
+                  ],
+                  "explainedAlleles": [
+                    "12"
+                  ],
+                  "extraCount": 0,
+                  "isCritical": true,
+                  "isStrongCritical": false,
+                  "isFullMatch": true,
+                  "matchWeight": 0.5
+                },
+                {
+                  "locus": "SRY",
+                  "sampleAlleles": [
+                    "SRY"
+                  ],
+                  "staffAlleles": [
+                    "SRY"
+                  ],
+                  "remainingAlleles": [
+                    "SRY"
+                  ],
+                  "explainedAlleles": [
+                    "SRY"
+                  ],
+                  "extraCount": 0,
+                  "isCritical": true,
+                  "isStrongCritical": false,
+                  "isFullMatch": true,
+                  "matchWeight": 0.5
+                },
+                {
+                  "locus": "rs771783753",
+                  "sampleAlleles": [
+                    "1"
+                  ],
+                  "staffAlleles": [
+                    "1"
+                  ],
+                  "remainingAlleles": [
+                    "1"
+                  ],
+                  "explainedAlleles": [
+                    "1"
+                  ],
+                  "extraCount": 0,
+                  "isCritical": true,
+                  "isStrongCritical": false,
+                  "isFullMatch": true,
+                  "matchWeight": 0.5
+                }
+              ],
+              "reconstructedProfile": {
+                "SE33": [
+                  "28.2"
+                ],
+                "TH01": [
+                  "9"
+                ],
+                "D3S1358": [
+                  "12"
+                ],
+                "SRY": [
+                  "SRY"
+                ],
+                "rs771783753": [
+                  "1"
+                ]
+              },
+              "contaminationScore": 0,
+              "confidence": "NONE",
+              "recommendation": "ПРИНЯТЬ: контаминация не выявлена",
+              "percentage": 0,
+              "finalScore": 0,
+              "riskLevel": "NONE",
+              "registrationNumber": "2-G",
+              "staffYear": 2026
+            },
+            {
+              "staffId": "staff-2",
+              "staffName": "Synthetic 2",
+              "staffIdentifier": "SYN-2",
+              "matchingLoci": [
+                "TH01",
+                "D3S1358"
+              ],
+              "criticalLoci": [
+                "TH01",
+                "D3S1358"
+              ],
+              "strongCriticalLoci": [
+                "TH01"
+              ],
+              "totalViolationsBefore": 1,
+              "totalViolationsAfter": 0,
+              "totalExtraAlleles": 1,
+              "extraAllelesExplained": 3,
+              "weightedMatchScore": 1.5,
+              "diploidAfterSubtraction": true,
+              "detailedMatches": [
+                {
+                  "locus": "SE33",
+                  "sampleAlleles": [
+                    "28.2"
+                  ],
+                  "staffAlleles": [
+                    "29"
+                  ],
+                  "remainingAlleles": [
+                    "28.2"
+                  ],
+                  "explainedAlleles": [],
+                  "extraCount": 0,
+                  "isCritical": false,
+                  "isStrongCritical": false,
+                  "isFullMatch": false,
+                  "matchWeight": 0
+                },
+                {
+                  "locus": "TH01",
+                  "sampleAlleles": [
+                    "9",
+                    "9.3",
+                    "10"
+                  ],
+                  "staffAlleles": [
+                    "9",
+                    "9.3"
+                  ],
+                  "remainingAlleles": [
+                    "10"
+                  ],
+                  "explainedAlleles": [
+                    "9",
+                    "9.3"
+                  ],
+                  "extraCount": 1,
+                  "isCritical": true,
+                  "isStrongCritical": true,
+                  "isFullMatch": false,
+                  "matchWeight": 1
+                },
+                {
+                  "locus": "D3S1358",
+                  "sampleAlleles": [
+                    "12"
+                  ],
+                  "staffAlleles": [
+                    "12"
+                  ],
+                  "remainingAlleles": [
+                    "12"
+                  ],
+                  "explainedAlleles": [
+                    "12"
+                  ],
+                  "extraCount": 0,
+                  "isCritical": true,
+                  "isStrongCritical": false,
+                  "isFullMatch": true,
+                  "matchWeight": 0.5
+                },
+                {
+                  "locus": "SRY",
+                  "sampleAlleles": [
+                    "SRY"
+                  ],
+                  "staffAlleles": [],
+                  "remainingAlleles": [
+                    "SRY"
+                  ],
+                  "explainedAlleles": [],
+                  "extraCount": 0,
+                  "isCritical": false,
+                  "isStrongCritical": false,
+                  "isFullMatch": false,
+                  "matchWeight": 0
+                },
+                {
+                  "locus": "rs771783753",
+                  "sampleAlleles": [
+                    "1"
+                  ],
+                  "staffAlleles": [],
+                  "remainingAlleles": [
+                    "1"
+                  ],
+                  "explainedAlleles": [],
+                  "extraCount": 0,
+                  "isCritical": false,
+                  "isStrongCritical": false,
+                  "isFullMatch": false,
+                  "matchWeight": 0
+                }
+              ],
+              "reconstructedProfile": {
+                "SE33": [
+                  "28.2"
+                ],
+                "TH01": [
+                  "10"
+                ],
+                "D3S1358": [
+                  "12"
+                ],
+                "SRY": [
+                  "SRY"
+                ],
+                "rs771783753": [
+                  "1"
+                ]
+              },
+              "contaminationScore": 0,
+              "confidence": "NONE",
+              "recommendation": "ПРИНЯТЬ: контаминация не выявлена",
+              "percentage": 0,
+              "finalScore": 0,
+              "riskLevel": "NONE",
+              "registrationNumber": "3-G",
+              "staffYear": 2026
+            }
+          ]
+        },
+        {
+          "profileId": "sample-2",
+          "matches": [
+            {
+              "staffId": "staff-0",
+              "staffName": "Synthetic 0",
+              "staffIdentifier": "SYN-0",
+              "matchingLoci": [
+                "SE33",
+                "TH01",
+                "D3S1358",
+                "AMEL"
+              ],
+              "criticalLoci": [
+                "SE33",
+                "TH01",
+                "D3S1358"
+              ],
+              "strongCriticalLoci": [
+                "TH01"
+              ],
+              "totalViolationsBefore": 0,
+              "totalViolationsAfter": 0,
+              "totalExtraAlleles": 0,
+              "extraAllelesExplained": 5,
+              "weightedMatchScore": 2.5,
+              "diploidAfterSubtraction": true,
+              "detailedMatches": [
+                {
+                  "locus": "SE33",
+                  "sampleAlleles": [
+                    "29"
+                  ],
+                  "staffAlleles": [
+                    "28.2",
+                    "29"
+                  ],
+                  "remainingAlleles": [
+                    "29"
+                  ],
+                  "explainedAlleles": [
+                    "29"
+                  ],
+                  "extraCount": 0,
+                  "isCritical": true,
+                  "isStrongCritical": false,
+                  "isFullMatch": true,
+                  "matchWeight": 0.5
+                },
+                {
+                  "locus": "TH01",
+                  "sampleAlleles": [
+                    "9",
+                    "9.3"
+                  ],
+                  "staffAlleles": [
+                    "9",
+                    "9.3"
+                  ],
+                  "remainingAlleles": [
+                    "9",
+                    "9.3"
+                  ],
+                  "explainedAlleles": [
+                    "9",
+                    "9.3"
+                  ],
+                  "extraCount": 0,
+                  "isCritical": true,
+                  "isStrongCritical": true,
+                  "isFullMatch": true,
+                  "matchWeight": 1
+                },
+                {
+                  "locus": "D3S1358",
+                  "sampleAlleles": [
+                    "12"
+                  ],
+                  "staffAlleles": [
+                    "12",
+                    "12"
+                  ],
+                  "remainingAlleles": [
+                    "12"
+                  ],
+                  "explainedAlleles": [
+                    "12"
+                  ],
+                  "extraCount": 0,
+                  "isCritical": true,
+                  "isStrongCritical": false,
+                  "isFullMatch": true,
+                  "matchWeight": 0.5
+                },
+                {
+                  "locus": "AMEL",
+                  "sampleAlleles": [
+                    "X",
+                    "X"
+                  ],
+                  "staffAlleles": [
+                    "X",
+                    "Y"
+                  ],
+                  "remainingAlleles": [
+                    "X"
+                  ],
+                  "explainedAlleles": [
+                    "X"
+                  ],
+                  "extraCount": 0,
+                  "isCritical": false,
+                  "isStrongCritical": false,
+                  "isFullMatch": false,
+                  "matchWeight": 0.5
+                }
+              ],
+              "reconstructedProfile": {
+                "SE33": [
+                  "29"
+                ],
+                "TH01": [
+                  "9",
+                  "9.3"
+                ],
+                "D3S1358": [
+                  "12"
+                ],
+                "AMEL": [
+                  "X"
+                ]
+              },
+              "contaminationScore": 0,
+              "confidence": "NONE",
+              "recommendation": "ПРИНЯТЬ: контаминация не выявлена",
+              "percentage": 0,
+              "finalScore": 0,
+              "riskLevel": "NONE",
+              "registrationNumber": "1-G",
+              "staffYear": 2026
+            },
+            {
+              "staffId": "staff-1",
+              "staffName": "Synthetic 1",
+              "staffIdentifier": "SYN-1",
+              "matchingLoci": [
+                "TH01",
+                "D3S1358"
+              ],
+              "criticalLoci": [
+                "TH01",
+                "D3S1358"
+              ],
+              "strongCriticalLoci": [
+                "TH01"
+              ],
+              "totalViolationsBefore": 0,
+              "totalViolationsAfter": 0,
+              "totalExtraAlleles": 0,
+              "extraAllelesExplained": 3,
+              "weightedMatchScore": 1.5,
+              "diploidAfterSubtraction": true,
+              "detailedMatches": [
+                {
+                  "locus": "SE33",
+                  "sampleAlleles": [
+                    "29"
+                  ],
+                  "staffAlleles": [
+                    "28.2"
+                  ],
+                  "remainingAlleles": [
+                    "29"
+                  ],
+                  "explainedAlleles": [],
+                  "extraCount": 0,
+                  "isCritical": false,
+                  "isStrongCritical": false,
+                  "isFullMatch": false,
+                  "matchWeight": 0
+                },
+                {
+                  "locus": "TH01",
+                  "sampleAlleles": [
+                    "9",
+                    "9.3"
+                  ],
+                  "staffAlleles": [
+                    "9",
+                    "9.3",
+                    "10"
+                  ],
+                  "remainingAlleles": [
+                    "9",
+                    "9.3"
+                  ],
+                  "explainedAlleles": [
+                    "9",
+                    "9.3"
+                  ],
+                  "extraCount": 0,
+                  "isCritical": true,
+                  "isStrongCritical": true,
+                  "isFullMatch": true,
+                  "matchWeight": 1
+                },
+                {
+                  "locus": "D3S1358",
+                  "sampleAlleles": [
+                    "12"
+                  ],
+                  "staffAlleles": [
+                    "12"
+                  ],
+                  "remainingAlleles": [
+                    "12"
+                  ],
+                  "explainedAlleles": [
+                    "12"
+                  ],
+                  "extraCount": 0,
+                  "isCritical": true,
+                  "isStrongCritical": false,
+                  "isFullMatch": true,
+                  "matchWeight": 0.5
+                },
+                {
+                  "locus": "AMEL",
+                  "sampleAlleles": [
+                    "X",
+                    "X"
+                  ],
+                  "staffAlleles": [],
+                  "remainingAlleles": [
+                    "X",
+                    "X"
+                  ],
+                  "explainedAlleles": [],
+                  "extraCount": 0,
+                  "isCritical": false,
+                  "isStrongCritical": false,
+                  "isFullMatch": false,
+                  "matchWeight": 0
+                }
+              ],
+              "reconstructedProfile": {
+                "SE33": [
+                  "29"
+                ],
+                "TH01": [
+                  "9",
+                  "9.3"
+                ],
+                "D3S1358": [
+                  "12"
+                ],
+                "AMEL": [
+                  "X",
+                  "X"
+                ]
+              },
+              "contaminationScore": 0,
+              "confidence": "NONE",
+              "recommendation": "ПРИНЯТЬ: контаминация не выявлена",
+              "percentage": 0,
+              "finalScore": 0,
+              "riskLevel": "NONE",
+              "registrationNumber": "2-G",
+              "staffYear": 2026
+            },
+            {
+              "staffId": "staff-2",
+              "staffName": "Synthetic 2",
+              "staffIdentifier": "SYN-2",
+              "matchingLoci": [
+                "SE33",
+                "TH01",
+                "D3S1358",
+                "AMEL"
+              ],
+              "criticalLoci": [
+                "SE33",
+                "TH01",
+                "D3S1358",
+                "AMEL"
+              ],
+              "strongCriticalLoci": [
+                "TH01",
+                "AMEL"
+              ],
+              "totalViolationsBefore": 0,
+              "totalViolationsAfter": 0,
+              "totalExtraAlleles": 0,
+              "extraAllelesExplained": 6,
+              "weightedMatchScore": 3,
+              "diploidAfterSubtraction": true,
+              "detailedMatches": [
+                {
+                  "locus": "SE33",
+                  "sampleAlleles": [
+                    "29"
+                  ],
+                  "staffAlleles": [
+                    "29"
+                  ],
+                  "remainingAlleles": [
+                    "29"
+                  ],
+                  "explainedAlleles": [
+                    "29"
+                  ],
+                  "extraCount": 0,
+                  "isCritical": true,
+                  "isStrongCritical": false,
+                  "isFullMatch": true,
+                  "matchWeight": 0.5
+                },
+                {
+                  "locus": "TH01",
+                  "sampleAlleles": [
+                    "9",
+                    "9.3"
+                  ],
+                  "staffAlleles": [
+                    "9",
+                    "9.3"
+                  ],
+                  "remainingAlleles": [
+                    "9",
+                    "9.3"
+                  ],
+                  "explainedAlleles": [
+                    "9",
+                    "9.3"
+                  ],
+                  "extraCount": 0,
+                  "isCritical": true,
+                  "isStrongCritical": true,
+                  "isFullMatch": true,
+                  "matchWeight": 1
+                },
+                {
+                  "locus": "D3S1358",
+                  "sampleAlleles": [
+                    "12"
+                  ],
+                  "staffAlleles": [
+                    "12"
+                  ],
+                  "remainingAlleles": [
+                    "12"
+                  ],
+                  "explainedAlleles": [
+                    "12"
+                  ],
+                  "extraCount": 0,
+                  "isCritical": true,
+                  "isStrongCritical": false,
+                  "isFullMatch": true,
+                  "matchWeight": 0.5
+                },
+                {
+                  "locus": "AMEL",
+                  "sampleAlleles": [
+                    "X",
+                    "X"
+                  ],
+                  "staffAlleles": [
+                    "X",
+                    "X"
+                  ],
+                  "remainingAlleles": [
+                    "X"
+                  ],
+                  "explainedAlleles": [
+                    "X",
+                    "X"
+                  ],
+                  "extraCount": 0,
+                  "isCritical": true,
+                  "isStrongCritical": true,
+                  "isFullMatch": true,
+                  "matchWeight": 1
+                }
+              ],
+              "reconstructedProfile": {
+                "SE33": [
+                  "29"
+                ],
+                "TH01": [
+                  "9",
+                  "9.3"
+                ],
+                "D3S1358": [
+                  "12"
+                ],
+                "AMEL": [
+                  "X"
+                ]
+              },
+              "contaminationScore": 0,
+              "confidence": "NONE",
+              "recommendation": "ПРИНЯТЬ: контаминация не выявлена",
+              "percentage": 0,
+              "finalScore": 0,
+              "riskLevel": "NONE",
+              "registrationNumber": "3-G",
+              "staffYear": 2026
+            }
+          ]
+        },
+        {
+          "profileId": "sample-3",
+          "matches": [
+            {
+              "staffId": "staff-0",
+              "staffName": "Synthetic 0",
+              "staffIdentifier": "SYN-0",
+              "matchingLoci": [],
+              "criticalLoci": [],
+              "strongCriticalLoci": [],
+              "totalViolationsBefore": 0,
+              "totalViolationsAfter": 0,
+              "totalExtraAlleles": 0,
+              "extraAllelesExplained": 0,
+              "weightedMatchScore": 0,
+              "diploidAfterSubtraction": true,
+              "detailedMatches": [],
+              "reconstructedProfile": {},
+              "contaminationScore": 0,
+              "confidence": "NONE",
+              "recommendation": "ПРИНЯТЬ: контаминация не выявлена",
+              "percentage": 0,
+              "finalScore": 0,
+              "riskLevel": "NONE",
+              "registrationNumber": "1-G",
+              "staffYear": 2026
+            },
+            {
+              "staffId": "staff-1",
+              "staffName": "Synthetic 1",
+              "staffIdentifier": "SYN-1",
+              "matchingLoci": [],
+              "criticalLoci": [],
+              "strongCriticalLoci": [],
+              "totalViolationsBefore": 0,
+              "totalViolationsAfter": 0,
+              "totalExtraAlleles": 0,
+              "extraAllelesExplained": 0,
+              "weightedMatchScore": 0,
+              "diploidAfterSubtraction": true,
+              "detailedMatches": [],
+              "reconstructedProfile": {},
+              "contaminationScore": 0,
+              "confidence": "NONE",
+              "recommendation": "ПРИНЯТЬ: контаминация не выявлена",
+              "percentage": 0,
+              "finalScore": 0,
+              "riskLevel": "NONE",
+              "registrationNumber": "2-G",
+              "staffYear": 2026
+            },
+            {
+              "staffId": "staff-2",
+              "staffName": "Synthetic 2",
+              "staffIdentifier": "SYN-2",
+              "matchingLoci": [],
+              "criticalLoci": [],
+              "strongCriticalLoci": [],
+              "totalViolationsBefore": 0,
+              "totalViolationsAfter": 0,
+              "totalExtraAlleles": 0,
+              "extraAllelesExplained": 0,
+              "weightedMatchScore": 0,
+              "diploidAfterSubtraction": true,
+              "detailedMatches": [],
+              "reconstructedProfile": {},
+              "contaminationScore": 0,
+              "confidence": "NONE",
+              "recommendation": "ПРИНЯТЬ: контаминация не выявлена",
+              "percentage": 0,
+              "finalScore": 0,
+              "riskLevel": "NONE",
+              "registrationNumber": "3-G",
+              "staffYear": 2026
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "input": {
+        "referenceProfiles": [
+          {
+            "id": "sample-0",
+            "str_data": {
+              "TH01": [
+                "9",
+                "9.3"
+              ],
+              "D3S1358": [
+                "12",
+                "12"
+              ],
+              "SE33": [
+                "28.2",
+                "29"
+              ],
+              "DYS391": [
+                "10"
+              ],
+              "AMEL": [
+                "X",
+                "Y"
+              ]
+            },
+            "metadata": {
+              "panelLociOrder": [
+                "SE33",
+                "TH01"
+              ]
+            }
+          },
+          {
+            "id": "sample-1",
+            "str_data": {
+              "TH01": [
+                "9",
+                "9.3",
+                "10"
+              ],
+              "D3S1358": [
+                "12",
+                "?"
+              ],
+              "SE33": [
+                "28.2"
+              ],
+              "SRY": [
+                "SRY"
+              ],
+              "rs771783753": [
+                "1"
+              ]
+            },
+            "metadata": {
+              "panelLociOrder": [
+                "SE33",
+                "TH01"
+              ]
+            }
+          },
+          {
+            "id": "sample-2",
+            "str_data": {
+              "TH01": "9,9.3",
+              "D3S1358": [
+                "12"
+              ],
+              "SE33": [
+                "29",
+                "*"
+              ],
+              "AMEL": [
+                "X",
+                "X"
+              ]
+            },
+            "metadata": {
+              "panelLociOrder": [
+                "SE33",
+                "TH01"
+              ]
+            }
+          },
+          {
+            "id": "sample-3",
+            "str_data": {},
+            "metadata": {
+              "panelLociOrder": [
+                "SE33",
+                "TH01"
+              ]
+            }
+          }
+        ],
+        "staffProfiles": [
+          {
+            "id": "staff-0",
+            "staff_id": "SYN-0",
+            "full_name": "Synthetic 0",
+            "registration_number": "1-G",
+            "year": 2026,
+            "str_data": {
+              "TH01": [
+                "9",
+                "9.3"
+              ],
+              "D3S1358": [
+                "12",
+                "12"
+              ],
+              "SE33": [
+                "28.2",
+                "29"
+              ],
+              "DYS391": [
+                "10"
+              ],
+              "AMEL": [
+                "X",
+                "Y"
+              ]
+            }
+          },
+          {
+            "id": "staff-1",
+            "staff_id": "SYN-1",
+            "full_name": "Synthetic 1",
+            "registration_number": "2-G",
+            "year": 2026,
+            "str_data": {
+              "TH01": [
+                "9",
+                "9.3",
+                "10"
+              ],
+              "D3S1358": [
+                "12",
+                "?"
+              ],
+              "SE33": [
+                "28.2"
+              ],
+              "SRY": [
+                "SRY"
+              ],
+              "rs771783753": [
+                "1"
+              ]
+            }
+          },
+          {
+            "id": "staff-2",
+            "staff_id": "SYN-2",
+            "full_name": "Synthetic 2",
+            "registration_number": "3-G",
+            "year": 2026,
+            "str_data": {
+              "TH01": "9,9.3",
+              "D3S1358": [
+                "12"
+              ],
+              "SE33": [
+                "29",
+                "*"
+              ],
+              "AMEL": [
+                "X",
+                "X"
+              ]
+            }
+          }
+        ],
+        "options": {
+          "threshold": 5.5,
+          "ignoredLoci": [
+            "SE33",
+            "AMEL",
+            "DYS391"
+          ]
+        },
+        "excludedStaffIds": [
+          [
+            "sample-0",
+            [
+              "staff-0"
+            ]
+          ]
+        ]
+      },
+      "expected": [
+        {
+          "profileId": "sample-0",
+          "matches": []
+        },
+        {
+          "profileId": "sample-1",
+          "matches": []
+        },
+        {
+          "profileId": "sample-2",
+          "matches": []
+        },
+        {
+          "profileId": "sample-3",
+          "matches": []
+        }
+      ]
+    }
+  ]
+}

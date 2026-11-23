@@ -1,3 +1,4 @@
+const { formatDateRu } = require('../utils/dateFormatter');
 const express = require('express');
 const router = express.Router();
 const scheduledJobService = require("../services/infrastructure/scheduledJobService");
@@ -209,10 +210,10 @@ router.get('/report',
                 const csv = [
                     'Type,Timestamp,User,Action,Details',
                     ...auditLogs.slice(0, 100).map(log => 
-                        `Audit,${log.timestamp},${log.username || 'System'},${log.action},"${log.table_name}"`
+                        `Audit,${formatDateRu(log.timestamp, true) || ''},${log.username || 'System'},${log.action},"${log.table_name}"`
                     ),
                     ...accessLogs.slice(0, 100).map(log => 
-                        `Access,${log.timestamp},${log.username || 'Anonymous'},${log.access_type},"${log.resource_type}"`
+                        `Access,${formatDateRu(log.timestamp, true) || ''},${log.username || 'Anonymous'},${log.access_type},"${log.resource_type}"`
                     )
                 ].join('\n');
                 

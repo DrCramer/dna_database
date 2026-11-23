@@ -1,3 +1,4 @@
+const { formatDateOnlyRu } = require('../../utils/dateFormatter');
 /**
  * Result Formatting Service
  * Formats match results for export and display
@@ -31,7 +32,7 @@ class ResultFormattingService {
         // Format basic result data
         const row = [
           result.matchedProfile?.sampleName || 'Unknown',
-          result.matchedProfile?.uploadDate ? new Date(result.matchedProfile.uploadDate).toLocaleDateString('ru-RU') : 'N/A',
+          result.matchedProfile?.uploadDate ? formatDateOnlyRu(result.matchedProfile.uploadDate) : 'N/A',
           `${result.overallMatch || 0}%`,
           result.numericMatchCount || 0,
           result.totalComparisons || 0,

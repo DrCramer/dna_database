@@ -36,11 +36,9 @@ test('Worker: гомозигота требует совпадающую гом�
   assert(!result.results.some(group => group.reference.id === 'b'));
 });
 
-test('Worker: частичная аллель включается в смесь, направление сравнения имеет значение', async t => {
+test('Worker: отдельная аллель не превращает гетерозиготу или смесь в точный дубликат', async t => {
   const result = await run(t, [profile('partial', { TH01: ['12'] }), profile('mixture', { TH01: ['12', '13', '14'] })]);
-  assert.equal(result.results.length, 1);
-  assert.equal(result.results[0].reference.id, 'partial');
-  assert.equal(result.results[0].matches[0].id, 'mixture');
+  assert.deepEqual(result.results, []);
 });
 
 test('Worker: диапазон и минимальное число совпадений; исключённые локусы не учитываются', async t => {

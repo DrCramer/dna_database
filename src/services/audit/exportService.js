@@ -1,3 +1,4 @@
+const { exportDateFieldsRu, formatDateRu } = require('../../utils/dateFormatter');
 const XLSX = require('xlsx');
 const path = require('path');
 const fs = require('fs').promises;
@@ -63,7 +64,6 @@ class ExportService {
 
       // Generate unique export ID and filename
       const exportId = uuidv4();
-      const timestamp = new Date().toISOString().replace(/[:.]/g, '-');
       const scopePrefix = exportScope.replace('_', '-');
       const exportFilename = `${path.parse(path.basename(filename || scopePrefix + '-export')).name}-${exportId}.xlsx`;
       const filePath = path.join(this.exportDir, exportFilename);
@@ -115,7 +115,7 @@ class ExportService {
 
       // Get file stats
       const stats = await fs.stat(filePath);
-      await this.registry.register(exportId, exportFilename, { userId, departmentId: scope.params[0], organizationId: scope.params[1] });
+      await this.registry.register(exportId, exportFilename, { userId, departmentId: scope.departmentId, organizationId: scope.organizationId });
 
       const exportResult = {
         exportId,
@@ -776,7 +776,7 @@ class ExportService {
       [`DNA Analysis Export Summary - ${exportScope.replace('_', ' ').toUpperCase()}`],
       [''],
       ['Export Information'],
-      ['Export Date', exportData.searchInfo?.searchDate || new Date().toISOString()],
+      ['Export Date', formatDateRu(exportData.searchInfo?.searchDate || new Date(), true)],
       ['Exported By', user.username],
       ['User Role', user.role],
       ['Department', exportData.searchInfo?.userDepartment || 'No Department'],
@@ -882,8 +882,8 @@ class ExportService {
       ['User ID', user.id],
       ['User Role', user.role],
       ['Department ID', user.department_id || 'N/A'],
-      ['Export Timestamp', new Date().toISOString()],
-      ['Export Options', JSON.stringify(exportOptions, null, 2)],
+      ['Export Timestamp', formatDateRu(new Date(), true)],
+      ['Export Options', JSON.stringify(exportOptions, exportDateFieldsRu, 2)],
       [''],
       ['Compliance Notes'],
       ['Data Access Level', this.getAccessLevelDescription(user.role)],
@@ -1153,7 +1153,7 @@ class ExportService {
       ['DNA Analysis Export Summary'],
       [''],
       ['Export Information'],
-      ['Export Date', exportData.searchInfo.searchDate],
+      ['Export Date', formatDateRu(exportData.searchInfo.searchDate, true)],
       ['Total Results', exportData.searchInfo.totalResults],
       ['Target Profile', exportData.searchInfo.targetProfile?.sampleName || 'N/A'],
       [''],
@@ -1331,7 +1331,6 @@ class ExportService {
 
       // Generate unique export ID and filename
       const exportId = uuidv4();
-      const timestamp = new Date().toISOString().replace(/[:.]/g, '-');
       const scopePrefix = exportScope.replace('_', '-');
       // Always include exportId in filename for proper file lookup
       const exportFilename = filename ?
@@ -1370,7 +1369,7 @@ class ExportService {
 
       // Get file stats
       const stats = await fs.stat(filePath);
-      await this.registry.register(exportId, exportFilename, { userId, departmentId: scope.params[0], organizationId: scope.params[1] });
+      await this.registry.register(exportId, exportFilename, { userId, departmentId: scope.departmentId, organizationId: scope.organizationId });
 
       const exportResult = {
         exportId,
@@ -1502,7 +1501,7 @@ class ExportService {
       doc.moveDown(0.5);
 
       doc.fontSize(10).font('Helvetica');
-      doc.text('Export Date: ' + new Date().toLocaleDateString('en-US'));
+      doc.text('Export Date: ' + formatDateRu(new Date()));
       doc.text('Exported By: ' + (user.username || 'Unknown'));
       doc.text('User Role: ' + (user.role || 'Unknown'));
       doc.text('Department: ' + (exportData.searchInfo?.userDepartment || 'No Department'));
@@ -1611,7 +1610,7 @@ class ExportService {
       doc.moveDown(2);
 
       doc.fontSize(12).font('Helvetica');
-      doc.text('Export Date: ' + new Date().toLocaleDateString('en-US'));
+      doc.text('Export Date: ' + formatDateRu(new Date()));
       doc.text('Total Results: ' + matchResults.length);
       doc.text('Export completed with ' + matchResults.length + ' records.');
       doc.moveDown(2);

@@ -7,8 +7,9 @@ const { GenotypePanel } = require("../../models/GenotypePanel");
 const User = require("../../models/User");
 const { assertProfileUploadAllowed } = require("../security/profileUploadPolicy");
 const { readConversionMetadata, CONVERSION_META_SHEET } = require("../../utils/geneticConversionMetadata");
-const { informativeAlleles, amelogeninTokens, normalizeSpecialAllele, normalizeSrySignal, isSpecialAllele, isMissingAllele } = require("../../utils/alleleTokens");
+const { informativeAlleles, amelogeninTokens, normalizeSpecialAllele, normalizeSrySignal, isSpecialAllele, isMissingGenotypeCell } = require("../../utils/alleleTokens");
 const { resolveProfileImportFormat, normalizeObjectName, extractExpertiseNumber, geneticObjectKey, geneticProfileKey, getGeneticHeaders, validateGeneticHeaders } = require("../../utils/profileImportFormat");
+const { isAssignedNumberHeader } = require('../../utils/emergencyAssignedNumber');
 
 // Импортируем конвертер латинских символов
 const { LatinToCyrillicConverter } = require('./latinToCyrillicConverter');
@@ -804,7 +805,7 @@ class ExcelService {
       }
 
       // Validate and extract profiles with enhanced 40 STR/SNP support
-      const profiles = this.extractProfiles(jsonData, filename, { ...options, converted: (isGenetic && !!workbook.Sheets[CONVERSION_META_SHEET]) || ['GENEMAPPER_TXT', 'MASTER_ARRAY_EXPORT'].includes(workbook.Custprops?.DNAProfileSourceFormat) });
+      const profiles = this.extractProfiles(jsonData, filename, { ...options, converted: (isGenetic && !!workbook.Sheets[CONVERSION_META_SHEET]) || ['GENEMAPPER_TXT', 'MASTER_ARRAY_EXPORT'].includes(workbook.Custprops?.DNAProfileSourceFormat), preserveExportAlleles: workbook.Custprops?.DNAProfileSourceFormat === 'MASTER_ARRAY_EXPORT' });
       if (isGenetic) {
         const columns = validateGeneticHeaders(jsonData[0]).columns.map(column => column.locus);
         const metadata = readConversionMetadata(workbook, profiles, columns);
@@ -1311,7 +1312,7 @@ class ExcelService {
     const thirdColumnHeader = headers[2];
     
     // Проверяем, что это файл с правильной структурой (check_7-107_edit.xlsx)
-    const isNewStructure = firstColumnHeader && firstColumnHeader.toString().toLowerCase().includes('присвоенный');
+    const isNewStructure = isAssignedNumberHeader(firstColumnHeader) || firstColumnHeader && firstColumnHeader.toString().toLowerCase().includes('присвоенный');
     
     let internalNumber = ''; // Основной номер (уникальный в году)
     let sampleName = '';     // Второстепенный номер (может повторяться)
@@ -1392,7 +1393,8 @@ class ExcelService {
       internalNumber = internalNumberResult.normalized; // Основной номер
       
       // Найти столбец с присвоенными номерами
-      const assignedNumberIndex = headers.findIndex(header => 
+      const namedAssignedIndex = headers.findIndex(isAssignedNumberHeader);
+      const assignedNumberIndex = namedAssignedIndex >= 0 ? namedAssignedIndex : headers.findIndex(header =>
         header && (
           header.toString().toLowerCase().includes('присвоенный') ||
           header.toString().toLowerCase().includes('в/ч') ||
@@ -1526,7 +1528,7 @@ class ExcelService {
       }
 
       // Парсим значения аллелей
-      const alleles = this.parseAlleleValue(cellValue, locusName, locusType, rowNumber, filename, { preserveAlleleCount: options.converted });
+      const alleles = this.parseAlleleValue(cellValue, locusName, locusType, rowNumber, filename, { preserveAlleleCount: options.converted, preserveExportAlleles: options.preserveExportAlleles });
       lociData[locusName] = alleles;
     }
 
@@ -1620,7 +1622,7 @@ class ExcelService {
     const priorityMarkers = {};
     for (const { index, locus } of validationResult.columns) {
       const type = this.lociTypeDetector.detectLocusType(locus);
-      strData[locus] = this.parseAlleleValue(row[index], locus, type, rowNumber, filename, { genetic: true, preserveAlleleCount: options.converted });
+      strData[locus] = this.parseAlleleValue(row[index], locus, type, rowNumber, filename, { genetic: true, preserveAlleleCount: options.converted, preserveExportAlleles: options.preserveExportAlleles });
       lociTypes[locus] = type;
       if (EXTENDED_40_STR_SNP_MARKERS.includes(locus)) priorityMarkers[locus] = true;
     }
@@ -1662,7 +1664,16 @@ class ExcelService {
     // Примеры: "12 , 13" → "12,13", "X , Y" → "X,Y", "17 ?" → "17?"
     let valueStr = cellValue.toString().replace(/\s+/g, '').trim();
 
-    if (isMissingAllele(valueStr)) return [];
+    if (isMissingGenotypeCell(valueStr)) return [];
+    if (options.preserveExportAlleles) {
+      // Импорт собственной выгрузки сохраняет запись и кратность исходных токенов,
+      // в том числе ** и составные AMEL. Правила допустимости локуса не обходятся.
+      const alleles = valueStr.split(/[,;/]/);
+      const validation = this.lociTypeDetector.validateAlleles(locusName, alleles);
+      if (!validation.isValid) throw new ExcelParsingError(`Недопустимые значения аллелей для ${locusName}.`, EXCEL_ERROR_CODES.INVALID_ALLELE_VALUE, {filename,rowNumber,locusName});
+      return alleles;
+    }
+
     if (this.lociTypeDetector.getCanonicalLocusName(locusName) === 'SRY') {
       const alleles = valueStr.split(/[,;/]/).map(token => normalizeSrySignal(locusName, token) || normalizeSpecialAllele(token) || token);
       const validation = this.lociTypeDetector.validateAlleles(locusName, alleles);
@@ -1682,11 +1693,6 @@ class ExcelService {
       const validation = this.lociTypeDetector.validateAlleles(locusName, alleles);
       if (!validation.isValid) throw new ExcelParsingError(`Недопустимые значения аллелей для ${locusName}.`, EXCEL_ERROR_CODES.INVALID_ALLELE_VALUE, { filename, rowNumber, locusName });
       return alleles;
-    }
-    
-    // Удаляем дефис "-" (пустое значение)
-    if (valueStr === '-') {
-      return [];
     }
     
     // Handle different allele formats based on locus type:
@@ -1713,10 +1719,7 @@ class ExcelService {
       }
     }
     
-    // Удаляем дефис из cleanValue (может быть в составных значениях)
-    if (cleanValue === '-') {
-      return [];
-    }
+    if (isMissingGenotypeCell(cleanValue)) return [];
     
     if (options.genetic && isSpecialAllele(cleanValue)) {
       alleles = [normalizeSpecialAllele(cleanValue)];

@@ -1,3 +1,4 @@
+import { formatDateOnlyRu, formatDateRu, formatTimeRu } from '../../../../src/utils/dateFormatter';
 import React, { useState, useEffect } from 'react';
 
 /**
@@ -27,25 +28,8 @@ const ToastNotification = ({ notification, onClose }) => {
 
   if (!notification || !isVisible) return null;
 
-  // Форматировать время
-  const formatTime = (timestamp) => {
-    if (!timestamp) return '';
-    const date = new Date(timestamp);
-    const now = new Date();
-
-    const hours = date.getHours().toString().padStart(2, '0');
-    const minutes = date.getMinutes().toString().padStart(2, '0');
-
-    // Если сегодня - показываем только время
-    if (date.toDateString() === now.toDateString()) {
-      return `${hours}:${minutes}`;
-    }
-
-    // Если другой день - показываем дату и время
-    const day = date.getDate().toString().padStart(2, '0');
-    const month = (date.getMonth() + 1).toString().padStart(2, '0');
-    return `${day}.${month} ${hours}:${minutes}`;
-  };
+  const formatTime = timestamp => formatDateOnlyRu(timestamp) === formatDateOnlyRu(new Date())
+    ? formatTimeRu(timestamp) : formatDateRu(timestamp);
 
   // Определить иконку и цвет по типу уведомления
   const getNotificationStyle = (type) => {

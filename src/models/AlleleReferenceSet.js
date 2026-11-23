@@ -17,13 +17,13 @@ class AlleleReferenceSet {
     const result = await query(`SELECT s.*, count(v.id)::int AS value_count,
       COALESCE(array_agg(DISTINCT v.locus_name ORDER BY v.locus_name) FILTER (WHERE v.id IS NOT NULL), '{}') AS loci
       FROM allele_reference_sets s LEFT JOIN allele_reference_values v ON v.reference_set_id=s.id
-      WHERE s.organization_id=$1 AND s.department_id=$2 ${includeInactive ? '' : 'AND s.is_active=true'}
+      WHERE s.organization_id=$1 AND ($2::uuid IS NULL OR s.department_id=$2) ${includeInactive ? '' : 'AND s.is_active=true'}
       GROUP BY s.id ORDER BY s.name, s.imported_at DESC`, [scope.organizationId, scope.departmentId]);
     return result.rows.map(this.toJSON);
   }
   static async find(id, scope) {
     if (!uuid.test(id || '')) throw new ReferenceError('Некорректный идентификатор справочника.');
-    const row = (await query('SELECT * FROM allele_reference_sets WHERE id=$1 AND organization_id=$2 AND department_id=$3', [id, scope.organizationId, scope.departmentId])).rows[0];
+    const row = (await query('SELECT * FROM allele_reference_sets WHERE id=$1 AND organization_id=$2 AND ($3::uuid IS NULL OR department_id=$3)', [id, scope.organizationId, scope.departmentId])).rows[0];
     if (!row) throw new ReferenceError('Справочник недоступен в активном отделении.', 404, 'REFERENCE_NOT_FOUND');
     return this.toJSON(row);
   }
@@ -66,7 +66,7 @@ class AlleleReferenceSet {
   static async setActive(id, active, scope) {
     await this.find(id, scope);
     if (typeof active !== 'boolean') throw new ReferenceError('Активность должна быть логическим значением.');
-    const row = (await query('UPDATE allele_reference_sets SET is_active=$4 WHERE id=$1 AND organization_id=$2 AND department_id=$3 RETURNING *', [id, scope.organizationId, scope.departmentId, active])).rows[0];
+    const row = (await query('UPDATE allele_reference_sets SET is_active=$4 WHERE id=$1 AND organization_id=$2 AND ($3::uuid IS NULL OR department_id=$3) RETURNING *', [id, scope.organizationId, scope.departmentId, active])).rows[0];
     this.invalidateCache(id);
     return this.toJSON(row);
   }

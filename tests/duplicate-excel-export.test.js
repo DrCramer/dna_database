@@ -38,7 +38,7 @@ test('duplicate XLSX round-trip keeps compact comparison columns, full-match cou
       { reference: secondReference, matched: match, algorithm: 'standard', matchCount: 1 },
       { reference, matched: secondMatch, algorithm: 'standard', matchCount: 2 }
     ],
-    metadata: { importFormat: 'genetic', departmentName: 'Генетические экспертизы', minMatches: 1 },
+    metadata: { importFormat: 'genetic', departmentName: 'Генетические экспертизы', minMatches: 1, searchedAt: '2026-11-22T21:15:42Z' },
     options: { colors: customColors }
   });
 
@@ -76,11 +76,12 @@ test('duplicate XLSX round-trip keeps compact comparison columns, full-match cou
   assert.equal(richText.richText[0].font.color.argb, 'FF1133EE');
   assert.equal(richText.richText[2].font.color.argb, 'FF000000');
   assert.equal(locusCell('D21S11').fill.fgColor.argb, 'FFEE8899', 'nonmatching alleles use the selected fill');
-  assert.equal(locusCell('AMEL').fill.pattern, 'none', 'missing data remains neutral');
+  assert(!comparisonHeaders.includes('AMEL'), 'uncompared loci remain on the import sheet only');
   assert.match(comparisons.autoFilter, /^A1:/);
 
   const summary = workbook.getWorksheet('Сводка');
   assert.equal(summary.getCell('A2').value, 'Дата анализа');
+  assert.equal(summary.getCell('B2').value, '23.11.2026 00:15:42');
 });
 
 test('duplicate XLSX handles 1000 distinct profiles without dropping rows', async () => {
@@ -100,6 +101,28 @@ test('duplicate XLSX handles 1000 distinct profiles without dropping rows', asyn
   assert.equal(workbook.getWorksheet('Профили').rowCount, 1001);
   assert.equal(workbook.getWorksheet('Сравнения').rowCount, 1001);
   assert.equal(workbook.getWorksheet('Профили').getCell('A1001').value, 'EXP-1000');
+});
+
+test('duplicate XLSX identifies the expertise of each profile, even when numbers repeat', async () => {
+  const loci = { TH01: ['7', '9'], D5S818: ['11', '12'], D21S11: ['29', '30'] };
+  const reference = { ...profile('reference', '258-1', loci), expertise_type: 'gr' };
+  const emergency = { ...profile('emergency', '258-1', loci), expertise_type: 'chs' };
+  const candidate = { ...profile('candidate', '258-1', loci), expertiseType: 'ug' };
+  const buffer = await service.createWorkbookBuffer({
+    comparisons: [{ reference, matched: emergency }, { reference, matched: candidate }],
+    options: { includeFirstDetectionDate: true }, metadata: { importFormat: 'genetic' }
+  });
+  const workbook = new ExcelJS.Workbook();
+  await workbook.xlsx.load(buffer);
+  for (const name of ['Сравнения', 'Профили']) {
+    const sheet = workbook.getWorksheet(name);
+    const column = sheet.getRow(1).values.indexOf('Тип экспертизы');
+    assert(column > 0);
+    assert.deepEqual([2, 3, 4].map(row => sheet.getCell(row, column).value), ['ГР', 'ЧС', 'УГ']);
+  }
+  const { parseFiles } = require('../src/services/workspace/importSourceService');
+  const { rows } = parseFiles([{ originalname: 'SYN-types.xlsx', buffer: Buffer.from(buffer) }]);
+  assert.deepEqual(rows.map(row => [row.objectNumber, row.expertiseType]), [['258-1', 'gr'], ['258-1', 'chs'], ['258-1', 'ug']]);
 });
 
 test('duplicate XLSX removes repeated and reversed pairs while retaining different matches and years', async () => {

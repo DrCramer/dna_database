@@ -1,3 +1,4 @@
+import { formatDateRu } from '../../../../../src/utils/dateFormatter';
 /**
  * Comparison Results Component
  *
@@ -115,7 +116,7 @@ const ComparisonResults = ({ results, onShowHelp }) => {
                     </span>
                     <span className="analysis-date">
                         {results.calculationMetadata?.timestamp
-                            ? new Date(results.calculationMetadata.timestamp).toLocaleString('ru-RU')
+                            ? formatDateRu(results.calculationMetadata.timestamp)
                             : 'N/A'}
                     </span>
                 </div>

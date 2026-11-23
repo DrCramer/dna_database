@@ -9,3 +9,9 @@
 :where(.references-page) .references-links { display: flex; flex-wrap: wrap; gap: 16px; margin: 16px 0; }
 :where(.references-page) .references-confirm { display: flex; gap: 12px; align-items: center; margin-top: 16px; }
 :where(.references-page) .references-hash { overflow-wrap: anywhere; font-family: monospace; }
+
+:where(.references-page) > .page-header { margin-bottom: 0; }
+:where(.references-page) .references-fields label { min-width: 0; }
+:where(.references-page) .references-fields { grid-template-columns: repeat(auto-fit, minmax(min(240px, 100%), 1fr)); }
+:where(.references-page) .references-card textarea.form-input { height: auto; }
+:where(.references-page) .table td:last-child > .btn { margin: 4px; }

@@ -9,6 +9,9 @@ test('Мастер-экспорт: PostgreSQL, authenticate, администр�
   process.env.DATABASE_URL = databaseUrl; process.env.NODE_ENV = 'test';
   process.env.JWT_SECRET = 'isolated-master-export-fixture-jwt-not-for-production';
   const { query, pool } = require('../src/config/database');
+  if ((await query("SELECT to_regclass('workspace_configuration') IS NOT NULL present")).rows[0].present) {
+    await query('INSERT INTO workspace_configuration(id,enabled) VALUES(true,false) ON CONFLICT(id) DO UPDATE SET enabled=false');
+  }
   const User = require('../src/models/User');
   const previousInterval = global.setInterval;
   global.setInterval = (...args) => previousInterval(...args).unref();
@@ -28,7 +31,10 @@ test('Мастер-экспорт: PostgreSQL, authenticate, администр�
   }
   const genetic = await department('Генетические экспертизы'), emergency = await department('ЧС');
   const other = await department('Генетические экспертизы', foreignOrg), notAssigned = await department('ЧС', foreignOrg);
-  const master = async id => (await query('SELECT id FROM master_arrays WHERE department_id=$1', [id])).rows[0].id;
+  const master = async id => {
+    const existing=(await query('SELECT id FROM master_arrays WHERE department_id=$1',[id])).rows[0];
+    return existing?.id || (await query("INSERT INTO master_arrays(department_id,organization_id,name) SELECT id,organization_id,'SYN export master' FROM departments WHERE id=$1 RETURNING id",[id])).rows[0].id;
+  };
   const geneticMaster = await master(genetic), emergencyMaster = await master(emergency), foreignMaster = await master(other), notAssignedMaster = await master(notAssigned);
   const bcrypt = require('bcryptjs');
   const passwordHash = await bcrypt.hash('FixtureMasterExport123', 4);
@@ -44,11 +50,12 @@ test('Мастер-экспорт: PostgreSQL, authenticate, администр�
     users[role] = { id, token, username };
   }
   const data = { TH01: ['7', '9'], D5S818: ['8', '8'], D21S11: ['29', '30'], SRY: ['SRY'], AMEL: ['X', 'Y'] };
+  const emergencyData = { ...data, TH01: ['**', '**'], DXS6795: ['**', '**'], AMEL: ['XY', 'ХУ'] };
   const ids = [];
   for (let index = 1; index <= 620; index++) ids.push((await query(`INSERT INTO master_array_profiles(master_array_id,year,sample_name,internal_number,import_number,str_data,metadata,created_by)
     VALUES ($1,$2,'258',$3,'12',$4,'{"importFormat":"genetic"}',$5) RETURNING id`, [geneticMaster, index % 2 ? 2025 : 2026, `258-${index}`, JSON.stringify(data), users.admin.id])).rows[0].id);
   await query(`INSERT INTO master_array_profiles(master_array_id,year,sample_name,internal_number,import_number,str_data,created_by)
-    VALUES ($1,2026,'5678','258-1','12',$2,$3)`, [emergencyMaster, JSON.stringify(data), users.admin.id]);
+    VALUES ($1,2026,'5678','258-1','12',$2,$3)`, [emergencyMaster, JSON.stringify(emergencyData), users.admin.id]);
   await query(`INSERT INTO master_array_profiles(master_array_id,year,sample_name,internal_number,str_data,metadata,created_by,is_active)
     VALUES ($1,2026,'258','INACTIVE',$2,'{"importFormat":"genetic"}',$3,false)`, [geneticMaster, JSON.stringify(data), users.admin.id]);
 
@@ -127,6 +134,7 @@ test('Мастер-экспорт: PostgreSQL, authenticate, администр�
     const buffer = Buffer.from(await response.arrayBuffer());
     const [parsed] = await new (require('../src/services/converters/excelService').ExcelService)().parseExcelFile(buffer, 'chs.xlsx', { importFormat: 'emergency' });
     assert.equal(parsed.sampleName, '5678'); assert.equal(parsed.importNumber, '12'); assert.equal(parsed.internalNumber, '258-1');
+    assert.deepEqual(parsed.strData, emergencyData);
     const badId = (await query(`INSERT INTO master_array_profiles(master_array_id,year,sample_name,internal_number,str_data,metadata,created_by)
       VALUES ($1,NULL,'258','258-legacy',$2,'{"importFormat":"genetic"}',$3) RETURNING id`, [geneticMaster, JSON.stringify(data), users.admin.id])).rows[0].id;
     const report = await preview(); assert.equal(report.needsReview, 1); assert.equal(report.totalMatched, 621);

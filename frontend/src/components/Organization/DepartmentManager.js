@@ -1,3 +1,5 @@
+import { formatDateOnlyRu } from '../../../../src/utils/dateFormatter';
+import UiIcon from '../Common/UiIcon';
 import React, { useState, useEffect } from 'react';
 
 const DepartmentManager = ({ hasRole = () => false, onNavigate }) => {
@@ -188,7 +190,7 @@ const DepartmentManager = ({ hasRole = () => false, onNavigate }) => {
       <div className="page-header">
         <div className="page-title-section">
           <h1 className="page-title">
-            <span>🏛️</span>
+            <UiIcon name="building" />
             <span>Управление отделами</span>
           </h1>
           <p className="page-subtitle">Эта страница позволит вам управлять отделами внутри организаций.</p>
@@ -200,7 +202,7 @@ const DepartmentManager = ({ hasRole = () => false, onNavigate }) => {
               onClick={() => setShowCreateForm(!showCreateForm)}
               className="create-department-btn btn btn-primary"
             >
-              <span>➕</span>
+              <UiIcon name="plus" />
               <span>{showCreateForm ? 'Отмена' : 'Добавить новый отдел'}</span>
             </button>
           )}
@@ -209,7 +211,7 @@ const DepartmentManager = ({ hasRole = () => false, onNavigate }) => {
               onClick={() => onNavigate('/dashboard')}
               className="nav-button btn btn-secondary"
             >
-              Назад к дашборду
+              На главную
             </button>
           )}
         </div>
@@ -374,7 +376,7 @@ const DepartmentManager = ({ hasRole = () => false, onNavigate }) => {
                 </td>
                 <td>
                   <span className="last-login">
-                    {new Date(dept.created_at).toLocaleDateString('ru-RU')}
+                    {formatDateOnlyRu(dept.created_at)}
                   </span>
                 </td>
                 <td>
@@ -389,7 +391,7 @@ const DepartmentManager = ({ hasRole = () => false, onNavigate }) => {
                       title="Просмотр"
                       onClick={() => alert('Функция просмотра деталей отдела будет реализована позже')}
                     >
-                      👁️
+                      <UiIcon name="eye" />
                     </button>
                     {hasRole('system_administrator') && (
                       <>
@@ -398,14 +400,14 @@ const DepartmentManager = ({ hasRole = () => false, onNavigate }) => {
                           className="department-action-btn department-action-edit btn btn-secondary btn-icon btn-sm"
                           title="Редактировать"
                         >
-                          ✏️
+                          <UiIcon name="edit" />
                         </button>
                         <button
                           className="department-action-btn department-action-settings btn btn-secondary btn-icon btn-sm"
                           title="Настройки"
                           onClick={() => alert('Функция настроек отдела будет реализована позже')}
                         >
-                          ⚙️
+                          <UiIcon name="settings" />
                         </button>
                         {dept.is_active && (
                           <button
@@ -413,7 +415,7 @@ const DepartmentManager = ({ hasRole = () => false, onNavigate }) => {
                             className="department-action-btn department-action-delete btn btn-secondary btn-icon btn-sm btn-outline-danger"
                             title="Удалить"
                           >
-                            🗑️
+                            <UiIcon name="delete" />
                           </button>
                         )}
                       </>

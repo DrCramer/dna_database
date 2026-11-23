@@ -17,3 +17,23 @@
 .master-export-card li { overflow-wrap: anywhere; margin: 6px 0; }
 .master-export-card .btn { justify-self: start; }
 @media (max-width: 760px) { .master-export-fields { grid-template-columns: 1fr; } .master-export-summary { grid-template-columns: repeat(2, minmax(0, 1fr)); } .master-export-card { padding: 16px; } }
+
+.database-maintenance-page .maintenance-counts { overflow-x: auto; }
+.database-maintenance-page .maintenance-counts table { width: 100%; }
+.database-maintenance-page .maintenance-counts th, .database-maintenance-page .maintenance-counts td { padding: 8px 12px; text-align: left; }
+.database-maintenance-page .maintenance-counts th:last-child, .database-maintenance-page .maintenance-counts td:last-child { text-align: right; font-variant-numeric: tabular-nums; }
+.database-maintenance-page .maintenance-ack { display: flex; align-items: flex-start; gap: 10px; }
+.database-maintenance-page .maintenance-phrase { display: grid; gap: 8px; max-width: 460px; }
+.database-maintenance-page .maintenance-steps { display: flex; flex-wrap: wrap; gap: 12px 32px; padding-left: 24px; color: var(--text-secondary); }
+.database-maintenance-page .maintenance-steps [aria-current="step"] { color: var(--text-primary); font-weight: 700; }
+
+.database-maintenance-page .maintenance-categories { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; border: 0; margin: 0; padding: 0; }
+.database-maintenance-page .maintenance-categories label { display: flex; align-items: flex-start; gap: 10px; border: 1px solid var(--border-default); border-radius: 10px; padding: 16px; cursor: pointer; }
+.database-maintenance-page .maintenance-categories label:has(input:checked) { border-color: var(--color-primary); background: var(--surface-muted); }
+.database-maintenance-page .maintenance-categories small { display: block; margin-top: 6px; color: var(--text-secondary); line-height: 1.5; }
+@media (max-width: 650px) { .database-maintenance-page .maintenance-categories { grid-template-columns: 1fr; } }
+
+.database-maintenance-page .maintenance-personal-scope { display: grid; gap: 14px; padding: 16px; border: 1px solid var(--border-default); border-radius: 10px; min-width: 0; }
+.database-maintenance-page .maintenance-scope-options { display: flex; flex-wrap: wrap; gap: 12px 24px; }
+.database-maintenance-page .maintenance-scope-options label { display: flex; align-items: center; gap: 8px; }
+.database-maintenance-page .maintenance-personal-scope > label { display: grid; gap: 8px; min-width: 0; }
