@@ -40,11 +40,11 @@ if [[ -n "$schema_changes" ]]; then
     known_release=true
     while IFS= read -r changed_file; do
         case "$changed_file" in
-            database/schema.sql|database/migrations/031_allele_references.sql|database/migrations/032_genetic_profile_year_identity.sql|database/migrations/033_user_display_names.sql|database/migrations/034_probability_calculations.sql|database/migrations/035_session_refresh_tokens.sql|database/migrations/036_profile_identity_scope.sql|database/migrations/038_master_array_approval.sql|database/migrations/039_optional_staff_registration.sql|database/migrations/040_night_search.sql|database/migrations/041_workspace_duplicate_history.sql|database/migrations/042_master_approval_without_genotype.sql|database/migrations/043_master_approval_partial_genotypes.sql) ;;
+            database/schema.sql|database/migrations/031_allele_references.sql|database/migrations/032_genetic_profile_year_identity.sql|database/migrations/033_user_display_names.sql|database/migrations/034_probability_calculations.sql|database/migrations/035_session_refresh_tokens.sql|database/migrations/036_profile_identity_scope.sql|database/migrations/038_master_array_approval.sql|database/migrations/039_optional_staff_registration.sql|database/migrations/040_night_search.sql|database/migrations/041_workspace_duplicate_history.sql|database/migrations/042_master_approval_without_genotype.sql|database/migrations/043_master_approval_partial_genotypes.sql|database/migrations/044_master_approval_rollback.sql) ;;
             *) known_release=false ;;
         esac
     done <<< "$schema_changes"
-    if [[ "$schema_changes" != *database/migrations/031_allele_references.sql* && "$schema_changes" != *database/migrations/032_genetic_profile_year_identity.sql* && "$schema_changes" != *database/migrations/033_user_display_names.sql* && "$schema_changes" != *database/migrations/034_probability_calculations.sql* && "$schema_changes" != *database/migrations/035_session_refresh_tokens.sql* && "$schema_changes" != *database/migrations/036_profile_identity_scope.sql* && "$schema_changes" != *database/migrations/038_master_array_approval.sql* && "$schema_changes" != *database/migrations/039_optional_staff_registration.sql* && "$schema_changes" != *database/migrations/040_night_search.sql* && "$schema_changes" != *database/migrations/041_workspace_duplicate_history.sql* && "$schema_changes" != *database/migrations/042_master_approval_without_genotype.sql* && "$schema_changes" != *database/migrations/043_master_approval_partial_genotypes.sql* ]]; then
+    if [[ "$schema_changes" != *database/migrations/031_allele_references.sql* && "$schema_changes" != *database/migrations/032_genetic_profile_year_identity.sql* && "$schema_changes" != *database/migrations/033_user_display_names.sql* && "$schema_changes" != *database/migrations/034_probability_calculations.sql* && "$schema_changes" != *database/migrations/035_session_refresh_tokens.sql* && "$schema_changes" != *database/migrations/036_profile_identity_scope.sql* && "$schema_changes" != *database/migrations/038_master_array_approval.sql* && "$schema_changes" != *database/migrations/039_optional_staff_registration.sql* && "$schema_changes" != *database/migrations/040_night_search.sql* && "$schema_changes" != *database/migrations/041_workspace_duplicate_history.sql* && "$schema_changes" != *database/migrations/042_master_approval_without_genotype.sql* && "$schema_changes" != *database/migrations/043_master_approval_partial_genotypes.sql* && "$schema_changes" != *database/migrations/044_master_approval_rollback.sql* ]]; then
         known_release=false
     fi
     if [[ "$known_release" == true ]]; then
@@ -150,6 +150,12 @@ fi
 master_partial_proof_missing="$(docker compose exec -T db psql -U dna_user -d dna_analysis -Atq -v ON_ERROR_STOP=1 -c "SELECT to_regclass('workspace_master_approval_targets') IS NOT NULL AND to_regprocedure('workspace_partial_master_proof(text,jsonb)') IS NULL")"
 if [[ "$master_partial_proof_missing" == t ]]; then
     docker compose exec -T db psql -U dna_user -d dna_analysis -v ON_ERROR_STOP=1 -q < database/migrations/043_master_approval_partial_genotypes.sql
+fi
+
+# 044 keeps the history needed to revert master publications.
+master_rollback_missing="$(docker compose exec -T db psql -U dna_user -d dna_analysis -Atq -v ON_ERROR_STOP=1 -c "SELECT to_regprocedure('workspace_partial_master_proof(text,jsonb)') IS NOT NULL AND to_regclass('workspace_master_rollbacks') IS NULL")"
+if [[ "$master_rollback_missing" == t ]]; then
+    docker compose exec -T db psql -U dna_user -d dna_analysis -v ON_ERROR_STOP=1 -q < database/migrations/044_master_approval_rollback.sql
 fi
 
 

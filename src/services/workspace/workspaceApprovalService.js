@@ -221,11 +221,11 @@ class WorkspaceApprovalService extends WorkspaceSearchService {
   }
   async ownApprovalHistory(user) {
     requireUser(user);
-    return {requests:(await this.pool.query(`SELECT a.id,a.state,a.submitted_at,a.decided_at,a.decision_comment,
+    return {requests:(await this.pool.query(`SELECT a.id,CASE WHEN undo.approval_id IS NOT NULL THEN 'rolled_back' ELSE a.state END state,a.submitted_at,a.decided_at,a.decision_comment,
       COALESCE(NULLIF(d.display_name,''),d.username) decider_name,CASE WHEN r.state='complete' AND r.completed_at IS NOT NULL THEN r.completed_at END analysis_completed_at,count(i.profile_id)::int profile_count
       FROM workspace_master_approvals a JOIN workspace_search_runs r ON r.id=a.search_run_id
-      LEFT JOIN users d ON d.id=a.decided_by JOIN workspace_master_approval_items i ON i.approval_id=a.id
-      WHERE a.author_id=$1 AND a.organization_id=$2 GROUP BY a.id,d.id,r.id ORDER BY a.submitted_at DESC,a.id LIMIT 200`,[user.id,user.organization_id])).rows};
+      LEFT JOIN users d ON d.id=a.decided_by LEFT JOIN workspace_master_rollbacks undo ON undo.approval_id=a.id JOIN workspace_master_approval_items i ON i.approval_id=a.id
+      WHERE a.author_id=$1 AND a.organization_id=$2 GROUP BY a.id,d.id,r.id,undo.approval_id ORDER BY a.submitted_at DESC,a.id LIMIT 200`,[user.id,user.organization_id])).rows};
   }
   async requestRow(c,user,id,lock=false) {
     const a=(await c.query(`SELECT a.*,COALESCE(NULLIF(u.display_name,''),u.username) author_name,COALESCE(NULLIF(d.display_name,''),d.username) decider_name,CASE WHEN r.state='complete' AND r.completed_at IS NOT NULL THEN r.completed_at END analysis_completed_at
@@ -283,7 +283,13 @@ class WorkspaceApprovalService extends WorkspaceSearchService {
     return this.transaction(async c=>{
       await c.query('SET TRANSACTION ISOLATION LEVEL REPEATABLE READ');
       const current=await this.requestRow(c,user,id);
-      if(current.state!=='pending' && current.encrypted_decision) return {...unseal(current.encrypted_decision),state:current.state,deciderName:current.decider_name,decidedAt:current.decided_at,decisionComment:current.decision_comment};
+      if (current.state !== 'pending' && current.encrypted_decision) {
+        const { rows: [rollback] } = await c.query(`SELECT undo.reason,undo.rolled_back_at AS "rolledBackAt",
+            COALESCE(NULLIF(u.display_name,''),u.username) AS "rolledBackBy"
+          FROM workspace_master_rollbacks undo JOIN users u ON u.id=undo.rolled_back_by WHERE undo.approval_id=$1`, [id]);
+        return { ...unseal(current.encrypted_decision), state: rollback ? 'rolled_back' : current.state,
+          deciderName: current.decider_name, decidedAt: current.decided_at, decisionComment: current.decision_comment, rollback };
+      }
       const detail=await this.approvalSnapshot(c,user,current);
       return this.publicSnapshot(detail);
     });
@@ -317,6 +323,11 @@ class WorkspaceApprovalService extends WorkspaceSearchService {
         await c.query(`UPDATE workspace_master_approval_items i SET publication_id=pub.id
           FROM workspace_publications pub WHERE i.approval_id=$1 AND pub.master_approval_id=i.approval_id
             AND pub.workspace_profile_id=i.profile_id`, [id]);
+        await c.query(`INSERT INTO workspace_master_publication_versions(publication_id,previous_record)
+          SELECT i.publication_id,to_jsonb(m)
+          FROM workspace_master_approval_items i LEFT JOIN master_array_profiles m
+            ON i.replace_existing AND m.id=i.target_id AND m.organization_id=$2
+          WHERE i.approval_id=$1`, [id, user.organization_id]);
         await c.query("SELECT set_config('app.workspace_master_approval_id',$1,true)", [id]);
         const updated = await c.query(`UPDATE master_array_profiles target SET source_workspace_profile_id=p.id,
             internal_number=p.internal_number,sample_name=p.sample_name,year=p.year,expertise_type=p.expertise_type,
@@ -331,6 +342,9 @@ class WorkspaceApprovalService extends WorkspaceSearchService {
           FROM workspace_master_approval_items i JOIN dna_profiles p ON p.id=i.profile_id
           WHERE i.approval_id=$1 AND NOT i.replace_existing
           ORDER BY i.profile_id`, [id, array.id, user.id, user.organization_id]);
+        await c.query(`UPDATE workspace_master_publication_versions v SET applied_hash=workspace_master_row_hash(to_jsonb(m))
+          FROM workspace_master_approval_items i JOIN master_array_profiles m ON m.id=i.target_id
+          WHERE i.approval_id=$1 AND m.organization_id=$2 AND v.publication_id=i.publication_id`, [id, user.organization_id]);
       }
       await c.query('DELETE FROM workspace_master_approval_pending WHERE approval_id=$1',[id]);
       return {id,state,count:detail.profiles.length};

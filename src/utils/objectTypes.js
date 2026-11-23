@@ -31,4 +31,8 @@ function objectMetadataIssues(row, { requireAssignedNumber = false } = {}) {
   if (typeof row.comment !== 'string' || row.comment.length > 20000) add('COMMENT', 'Комментарий должен быть текстом до 20000 символов.');
   return issues;
 }
-module.exports = { OBJECT_TYPES, WORKSPACE_WRITE_ROLES, EXPERTISE_TYPE_HEADER, expertiseTypeLabel, objectMetadataIssues };
+function canRollbackMasterApproval(user) {
+  return ['admin', 'system_administrator'].includes(user.role) ||
+    user.role === 'department_head' && user.can_approve_master === true;
+}
+module.exports = { OBJECT_TYPES, WORKSPACE_WRITE_ROLES, EXPERTISE_TYPE_HEADER, expertiseTypeLabel, objectMetadataIssues, canRollbackMasterApproval };

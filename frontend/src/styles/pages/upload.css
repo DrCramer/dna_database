@@ -1645,7 +1645,7 @@
 .master-approval-pagination { display: flex; align-items: center; flex-wrap: wrap; gap: 8px; color: var(--text-secondary); font-size: 13px; }
 
 .workspace-badge[data-state="PENDING_APPROVAL"] { color:var(--brand-primary); background:var(--status-info-bg); }
-.workspace-badge[data-state="RETURNED"] { color:var(--status-warning); background:var(--status-warning-bg); }
+.workspace-badge[data-state="RETURNED"], .workspace-badge[data-state="ROLLED_BACK"] { color:var(--status-warning); background:var(--status-warning-bg); }
 @media(max-width:600px) { .master-approval-dialog .workspace-editor-footer { flex-wrap:wrap; } .master-approval-header-actions { width:100%; } }
 @media(max-width:680px) {
   .master-approval-request { grid-template-columns:minmax(0,1fr); gap:8px; }

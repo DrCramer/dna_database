@@ -17,13 +17,12 @@ test('Единый workspace: импорт, ревизии, поиск, gate, п
   const {
     pool
   } = require('../src/config/database');
-  const {
-    WorkspaceApprovalService
-  } = require('../src/services/workspace/workspaceApprovalService');
+  const { WorkspaceMasterRollbackService } = require('../src/services/workspace/workspaceMasterRollbackService');
   await pool.query(require('fs').readFileSync(require('path').join(__dirname, '../database/migrations/039_optional_staff_registration.sql'), 'utf8'));
   await pool.query(require('fs').readFileSync(require('path').join(__dirname, '../database/migrations/042_master_approval_without_genotype.sql'), 'utf8'));
   await pool.query(require('fs').readFileSync(require('path').join(__dirname, '../database/migrations/043_master_approval_partial_genotypes.sql'), 'utf8'));
-  const service = new WorkspaceApprovalService(pool);
+  await pool.query(require('fs').readFileSync(require('path').join(__dirname, '../database/migrations/044_master_approval_rollback.sql'), 'utf8'));
+  const service = new WorkspaceMasterRollbackService(pool);
   await pool.query('INSERT INTO workspace_configuration(id,enabled) VALUES(true,false) ON CONFLICT(id) DO UPDATE SET enabled=false');
   t.after(() => pool.end());
   const org = (await pool.query("INSERT INTO organizations(name) VALUES($1) RETURNING id", ['SYN-workspace-' + randomUUID()])).rows[0].id;
@@ -504,6 +503,71 @@ test('Единый workspace: импорт, ревизии, поиск, gate, п
     const staffRun = await service.fullSearch(admin, staff.ids);
     assert.equal(staffRun.profiles[0].state, 'INSUFFICIENT_DATA');
     await assert.rejects(service.publish(admin, staff.ids, staffRun.id), error => error.code === 'FULL_SEARCH_REQUIRED');
+  });
+
+  await t.test('Откат заявки атомарно снимает новые записи и восстанавливает прежние версии', async () => {
+    const first = await user('user_analyst'), second = await user('user_analyst'), leader = await user('department_head');
+    const base = await load(first, [profile('SYN-UNDO-EXISTING')]);
+    const baseRun = await service.fullSearch(first, base.ids);
+    const original = await approve(first, base.ids, baseRun.id);
+    const masterId = (await pool.query('SELECT target_id FROM workspace_master_approval_items WHERE approval_id=$1', [original.id])).rows[0].target_id;
+    const record = async () => (await pool.query('SELECT to_jsonb(p) AS value FROM master_array_profiles p WHERE id=$1', [masterId])).rows[0].value;
+    const previous = await record();
+    const update = await load(second, [profile('SYN-UNDO-EXISTING', 'ug', { ...data, TH01: ['7', '9'] }), profile('SYN-UNDO-NEW')]);
+    const updateRun = await service.fullSearch(second, update.ids);
+    const publication = await approve(second, update.ids, updateRun.id, { [update.ids[0]]: masterId });
+    assert.notDeepEqual(await record(), previous);
+
+    const earlier = await service.masterRollbackPreview(admin, original.id);
+    assert.deepEqual(earlier.groups.map(group => group.code), ['CHANGED']);
+    await assert.rejects(service.masterRollbackPreview(second, publication.id), error => error.status === 403);
+    await assert.rejects(service.masterRollbackPreview(reviewer, publication.id), error => error.status === 403);
+    await assert.rejects(service.masterRollbackPreview(leader, publication.id), error => error.status === 403);
+    await assert.rejects(service.masterRollbackPreview(foreign, publication.id), error => error.status === 404);
+    await pool.query('UPDATE users SET can_approve_master=true WHERE id=$1', [leader.id]);
+    assert((await service.masterPublicationList(leader, 1)).requests.some(row => row.id === publication.id));
+    const plan = await service.masterRollbackPreview(leader, publication.id);
+    assert.deepEqual([plan.removed, plan.restored, plan.groups.length], [1, 1, 0]);
+    await assert.rejects(service.rollbackMasterApproval(leader, publication.id, '0'.repeat(64), 'SYN stale'), error => error.code === 'REVIEW_STALE');
+    assert.equal((await service.masterRollbackPreview(admin, publication.id)).state, 'approved');
+    const completed = await service.rollbackMasterApproval(leader, publication.id, plan.reviewToken, 'SYN повторный анализ');
+    assert.equal(completed.state, 'rolled_back');
+    assert.deepEqual([completed.receipt.removed, completed.receipt.restored], [1, 1]);
+    assert.deepEqual(await record(), previous);
+    assert.equal((await pool.query("SELECT is_active FROM master_array_profiles WHERE source_workspace_profile_id=$1", [update.ids[1]])).rows[0].is_active, false);
+    assert.equal((await service.list(second)).profiles.filter(row => row.approvalState === 'rolled_back' && row.state === 'ROLLED_BACK').length, 2);
+    assert.equal((await service.ownApprovalHistory(second)).requests[0].state, 'rolled_back');
+    assert.equal((await service.approvalDetail(second, publication.id)).rollback.reason, 'SYN повторный анализ');
+    assert.equal((await service.rollbackMasterApproval(leader, publication.id, plan.reviewToken, 'SYN повтор')).replayed, true);
+    assert.equal((await service.masterRollbackPreview(admin, original.id)).removed, 1);
+
+    async function approve(owner, ids, run, targets = {}) {
+      const request = await service.submitApproval(owner, ids, run, targets, randomUUID());
+      const detail = await service.approvalDetail(reviewer, request.id);
+      await service.decideApproval(reviewer, request.id, 'approve', detail.reviewToken);
+      return request;
+    }
+  });
+
+  await t.test('Старый импорт без журнала можно снять с публикации после сверки, замена требует прежнюю версию', async () => {
+    const owner = await user('user_analyst');
+    const original = await load(owner, [profile('SYN-UNDO-LEGACY')]);
+    async function publishWithoutJournal() {
+      const run = await service.fullSearch(owner, original.ids);
+      const request = await service.submitApproval(owner, original.ids, run.id, {}, randomUUID());
+      const detail = await service.approvalDetail(reviewer, request.id);
+      await service.decideApproval(reviewer, request.id, 'approve', detail.reviewToken);
+      await pool.query(`DELETE FROM workspace_master_publication_versions v USING workspace_master_approval_items i
+        WHERE i.approval_id=$1 AND i.publication_id=v.publication_id`, [request.id]);
+      return request.id;
+    }
+    const originalId = await publishWithoutJournal();
+    assert.equal((await service.masterRollbackPreview(admin, originalId)).removed, 1);
+    const next = await publishWithoutJournal();
+    const plan = await service.masterRollbackPreview(admin, next);
+    assert.deepEqual(plan.groups.map(group => group.code), ['NO_PREVIOUS_VERSION']);
+    await assert.rejects(service.rollbackMasterApproval(admin, next, '0'.repeat(64), 'SYN'), error => error.code === 'APPROVAL_ROLLBACK_BLOCKED');
+    assert.equal((await service.masterRollbackPreview(admin, originalId)).groups[0].code, 'CHANGED');
   });
 
   await t.test('Два подтверждения: выбранные 2/3, неизменная дата поиска, область заявки и история', async()=>{

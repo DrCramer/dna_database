@@ -6,8 +6,8 @@ const {
   authenticate
 } = require('../middleware/auth');
 const {
-  WorkspaceApprovalService
-} = require('../services/workspace/workspaceApprovalService');
+  WorkspaceMasterRollbackService
+} = require('../services/workspace/workspaceMasterRollbackService');
 const { MAX_SEARCH_PROFILES, searchSelectionLimitMessage } = require('../services/workspace/workspaceSearchService');
 const { MAX_DELETE_PROFILES, deleteSelectionLimitMessage } = require('../services/workspace/workspaceService');
 const {
@@ -66,7 +66,7 @@ const patch = Joi.object({
   comment: Joi.string().max(20000).allow(''),
   strData: Joi.object().max(510).pattern(/^.{1,100}$/, Joi.array().max(100).items(Joi.string().max(500)))
 });
-module.exports = function workspaceRouter(service = new WorkspaceApprovalService()) {
+module.exports = function workspaceRouter(service = new WorkspaceMasterRollbackService()) {
   const router = express.Router(),
     upload = multer({
       storage: require('../services/infrastructure/boundedUploadStorage').boundedUploadStorage(),
@@ -300,6 +300,16 @@ module.exports = function workspaceRouter(service = new WorkspaceApprovalService
   }));
   router.get('/approval-history', handle(async (req,res) => res.json(await service.ownApprovalHistory(req.user))));
   router.get('/approvals', handle(async (req,res) => res.json(await service.approvalList(req.user))));
+  router.get('/master-publications', handle(async (req, res) => {
+    const { page } = check(Joi.object({ page: Joi.string().pattern(/^[1-9]\d{0,4}$/).default('1') }), req.query);
+    res.json(await service.masterPublicationList(req.user, Number(page)));
+  }));
+  router.get('/approvals/:id/rollback-preview', handle(async (req, res) =>
+    res.json(await service.masterRollbackPreview(req.user, uuid(req.params.id)))));
+  router.post('/approvals/:id/rollback', handle(async (req, res) => {
+    const v = check(Joi.object({ reviewToken: Joi.string().hex().length(64).required(), reason: Joi.string().trim().min(1).max(2000).required() }), req.body);
+    res.json(await service.rollbackMasterApproval(req.user, uuid(req.params.id), v.reviewToken, v.reason));
+  }));
   router.get('/approvals/:id', handle(async (req,res) => res.json(await service.approvalDetail(req.user,uuid(req.params.id)))));
   router.post('/approvals/:id/decision', handle(async (req,res) => {
     const v=check(Joi.object({decision:Joi.string().valid('approve','return').required(),reviewToken:Joi.string().hex().length(64).required(),comment:Joi.string().max(20000).allow('').default('')}),req.body);

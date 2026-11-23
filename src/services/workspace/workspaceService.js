@@ -127,12 +127,16 @@ class WorkspaceService {
       p.provenance->>'sourceFilename' source_filename` : 'p.provenance';
     const {
       rows
-    } = await this.pool.query(`SELECT p.id,p.internal_number,p.sample_name,p.import_format,p.year,p.expertise_type,p.full_name,p.registration_number,p.comment,p.str_data,p.analysis_revision,${provenance},pub.published_id,pub.destination,s.id search_id,s.state run_state,s.algorithm_version,CASE WHEN s.proof_revision=p.analysis_revision THEN s.proof_state END proof_state,CASE WHEN s.proof_revision=p.analysis_revision THEN s.proof_stages END proof_stages,s.completed_at search_completed_at,approval.id approval_id,approval.state approval_state,approval.decision_comment,approval.decided_at,approval.submitted_at,approval.decider_name,
+    } = await this.pool.query(`SELECT p.id,p.internal_number,p.sample_name,p.import_format,p.year,p.expertise_type,p.full_name,p.registration_number,p.comment,p.str_data,p.analysis_revision,${provenance},pub.published_id,pub.destination,s.id search_id,s.state run_state,s.algorithm_version,CASE WHEN s.proof_revision=p.analysis_revision THEN s.proof_state END proof_state,CASE WHEN s.proof_revision=p.analysis_revision THEN s.proof_stages END proof_stages,s.completed_at search_completed_at,approval.id approval_id,approval.effective_state approval_state,approval.effective_comment decision_comment,approval.effective_decided_at decided_at,approval.submitted_at,approval.decider_name,
  s.workspace_revision run_workspace_revision,s.master_revision,s.staff_revision,rv.master_revision current_master_revision,rv.staff_revision current_staff_revision
  FROM ${profiles} p JOIN workspace_reference_versions rv ON rv.organization_id=p.organization_id
  LEFT JOIN LATERAL(SELECT * FROM workspace_publications x WHERE x.workspace_profile_id=p.id AND x.analysis_revision=p.analysis_revision AND ((x.destination='master' AND EXISTS(SELECT 1 FROM master_array_profiles target WHERE target.id=x.published_id AND target.source_workspace_profile_id=p.id AND target.is_active=true)) OR (x.destination='staff' AND EXISTS(SELECT 1 FROM staff_profiles target WHERE target.id=x.published_id AND target.source_workspace_profile_id=p.id AND target.is_active=true))) ORDER BY x.created_at DESC LIMIT 1) pub ON true
  LEFT JOIN ${proof}
- LEFT JOIN LATERAL(SELECT a.*,COALESCE(NULLIF(u.display_name,''),u.username) decider_name FROM workspace_master_approval_items i JOIN workspace_master_approvals a ON a.id=i.approval_id LEFT JOIN users u ON u.id=a.decided_by WHERE i.profile_id=p.id ORDER BY a.submitted_at DESC,a.id DESC LIMIT 1) approval ON true
+ LEFT JOIN LATERAL(SELECT a.id,a.submitted_at,CASE WHEN undo.approval_id IS NULL THEN a.state ELSE 'rolled_back' END effective_state,
+   COALESCE(undo.reason,a.decision_comment) effective_comment,COALESCE(undo.rolled_back_at,a.decided_at) effective_decided_at,
+   COALESCE(NULLIF(u.display_name,''),u.username) decider_name
+   FROM workspace_master_approval_items i JOIN workspace_master_approvals a ON a.id=i.approval_id
+   LEFT JOIN workspace_master_rollbacks undo ON undo.approval_id=a.id LEFT JOIN users u ON u.id=COALESCE(undo.rolled_back_by,a.decided_by) WHERE i.profile_id=p.id ORDER BY a.submitted_at DESC,a.id DESC LIMIT 1) approval ON true
  ${firstPage ? '' : `WHERE ${profileScope}`} ORDER BY p.upload_date,p.id`, [w.id, user.id, user.organization_id]);
     const { ALGORITHM_VERSION } = require('./workspaceSearchService');
     const currentSearch = p => p.run_state === 'complete' && p.search_completed_at &&
@@ -171,7 +175,7 @@ class WorkspaceService {
           searchState,
           readyForMasterApproval: p.expertise_type !== 'staff' && !!currentSearch(p) &&
             isMasterApprovalProof(p.proof_state, p.proof_stages, searchState !== 'NO_GENOTYPE'),
-          state: p.approval_state === 'pending' ? 'PENDING_APPROVAL' : p.approval_state === 'returned' ? 'RETURNED' : p.published_id ? 'PUBLISHED' : searchState
+          state: p.approval_state === 'pending' ? 'PENDING_APPROVAL' : p.approval_state === 'returned' ? 'RETURNED' : p.approval_state === 'rolled_back' ? 'ROLLED_BACK' : p.published_id ? 'PUBLISHED' : searchState
         };
       })
     };

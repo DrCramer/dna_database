@@ -1,7 +1,7 @@
 import { formatDateOnlyRu } from '../../../../src/utils/dateFormatter';
 import { preparedImportMatches } from '../../../../src/utils/preparedImportScope';
 import { canTransferStaffName, transferStaffName } from '../../../../src/utils/staffImportMapping';
-import MasterApprovalDialog from './MasterApprovalDialog';
+import MasterApprovalDialog, { MasterPublicationHistory } from './MasterApprovalDialog';
 import WorkspaceStaffSettings from './WorkspaceStaffSettings';
 import WorkspaceSearchProgress from './WorkspaceSearchProgress';
 import WorkspaceImportIssues, { WorkspaceImportIssue } from './WorkspaceImportIssues';
@@ -15,7 +15,7 @@ import React, { useEffect, useId, useMemo, useRef, useState } from 'react';
 import { useAuth } from '../../contexts/AuthContext';
 import { getAnalysisLoci } from '../../../../src/utils/analysisLoci';
 import { orderNormalizedLoci } from '../../../../src/utils/normalizedExcelLayout';
-import { OBJECT_TYPES as types, WORKSPACE_WRITE_ROLES, objectMetadataIssues } from '../../../../src/utils/objectTypes';
+import { OBJECT_TYPES as types, WORKSPACE_WRITE_ROLES, objectMetadataIssues, canRollbackMasterApproval } from '../../../../src/utils/objectTypes';
 import { ASSIGNED_HEADER } from '../../../../src/utils/emergencyAssignedNumber';
 import { extractExpertiseNumber, geneticObjectKey } from '../../../../src/utils/profileImportFormat';
 import { groupRowsWithoutYearByExpertise } from '../../../../src/utils/workspaceImportMetadata';
@@ -28,6 +28,7 @@ const states = {
   PUBLISHED: 'В мастер-массиве',
   PENDING_APPROVAL: 'На подтверждении',
   RETURNED: 'На доработке',
+  ROLLED_BACK: 'Публикация отозвана',
   INSUFFICIENT_DATA: 'Ниже порога поиска'
 };
 const isReadyForPublication = row => row.approvalState !== 'pending' &&
@@ -341,7 +342,7 @@ export default function WorkspacePage({
   }, [isImport, importIssues, error]);
   const id = row => row.draftRowId || row.id,
     visible = useMemo(() => {
-      let filtered = viewFilter === 'all' ? rows : rows.filter(row => viewFilter === 'selected' && (isImport ? row.included : selected.has(row.id)) || viewFilter === 'empty' && !Object.values(row.strData || {}).some(value => value.length) || viewFilter === 'issues' && ((row.sourceIssues || []).length || (isImport ? importIssues.byRow.get(row.draftRowId)?.length : objectMetadataIssues(row).length) || validation?.errors.some(item => item.draftRowId === row.draftRowId && item.issues.length)) || viewFilter === 'ready' && isReadyForPublication(row) || viewFilter === 'stale' && !isReadyForPublication(row) && ['STALE', 'NOT_CHECKED', 'INSUFFICIENT_DATA'].includes(row.state));
+      let filtered = viewFilter === 'all' ? rows : rows.filter(row => viewFilter === 'selected' && (isImport ? row.included : selected.has(row.id)) || viewFilter === 'empty' && !Object.values(row.strData || {}).some(value => value.length) || viewFilter === 'issues' && ((row.sourceIssues || []).length || (isImport ? importIssues.byRow.get(row.draftRowId)?.length : objectMetadataIssues(row).length) || validation?.errors.some(item => item.draftRowId === row.draftRowId && item.issues.length)) || viewFilter === 'ready' && isReadyForPublication(row) || viewFilter === 'stale' && !isReadyForPublication(row) && ['STALE', 'NOT_CHECKED', 'INSUFFICIENT_DATA', 'ROLLED_BACK'].includes(row.state));
       if (groupRows) filtered = filtered.filter(row => groupRows.has(id(row)));
       const search = query.toLowerCase();
       if (search && !previewOnly) filtered = filtered.filter(row => `${row.objectNumber} ${row.expertiseType === 'chs' ? row.assignedNumber || '' : ''} ${row.year ?? ''} ${types[row.expertiseType] || ''} ${row.fullName || ''} ${row.comment || ''}`.toLowerCase().includes(search));
@@ -788,7 +789,7 @@ export default function WorkspacePage({
         <button className="btn btn-secondary" ref={resultViewButton} disabled={!result} aria-pressed={showingResults} onClick={() => setActiveView('results')}><WorkspaceIcon name="search" />Результаты поиска</button>
         <span className="workspace-ready-count">{loadingProfiles ? 'Загружаем профили…' : profilesReady ? `Готовы к публикации: ${readyCount}` : ''}</span>
       </div>
-      <div className="master-approval-header-actions"><button className="btn btn-secondary" onClick={() => setApprovalWindow({mode:'own-history'})}>Мои заявки</button>{workspace?.canApproveMaster && <button className="btn btn-secondary" onClick={() => setApprovalWindow({mode:'queue'})}>На подтверждении</button>}<a className="btn btn-primary" href="/upload"><WorkspaceIcon name="upload" />Загрузить файлы</a></div>
+      <div className="master-approval-header-actions"><button className="btn btn-secondary" onClick={() => setApprovalWindow({mode:'own-history'})}>Мои заявки</button>{workspace?.canApproveMaster && <button className="btn btn-secondary" onClick={() => setApprovalWindow({mode:'queue'})}>На подтверждении</button>}{canRollbackMasterApproval(user) && <button type="button" className="btn btn-secondary" onClick={() => setApprovalWindow({ mode: 'publications' })}>Публикации мастер-массива</button>}<a className="btn btn-primary" href="/upload"><WorkspaceIcon name="upload" />Загрузить файлы</a></div>
     </div>}
 
     {isImport && !rows.length && <ol className="workspace-steps" aria-label="Этапы загрузки">{['Выбор файлов', 'Подготовка объектов', 'Загрузка в массив'].map((label, index) => <li key={label} aria-current={(rows.length ? index === 1 : index === 0) ? 'step' : undefined} data-complete={!!rows.length && index === 0}><span>{rows.length && index === 0 ? <WorkspaceIcon name="check" /> : index + 1}</span>{label}</li>)}</ol>}
@@ -994,7 +995,8 @@ export default function WorkspacePage({
       searchController.current?.abort();
     }} />}
     {staffSettingsOpen && <WorkspaceStaffSettings options={staffOptions} onClose={() => setStaffSettingsOpen(false)} onSave={saveStaffSettings} />}
-    {approvalWindow && <MasterApprovalDialog {...approvalWindow} api={api} userId={user.id} onClose={() => setApprovalWindow(null)} onChanged={load} />}
+    {approvalWindow?.mode === 'publications' ? <MasterPublicationHistory api={api} onClose={() => setApprovalWindow(null)} onChanged={load} /> :
+      approvalWindow && <MasterApprovalDialog {...approvalWindow} api={api} userId={user.id} onClose={() => setApprovalWindow(null)} onChanged={load} />}
     {details && <dialog className="workspace-editor-dialog" ref={editorDialog} aria-label="Генотип и источник объекта" onCancel={() => setDetails(null)} onClick={e => {
       if (e.target === e.currentTarget) setDetails(null);
     }}>
