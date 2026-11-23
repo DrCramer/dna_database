@@ -1,5 +1,5 @@
 import { formatDateRu } from '../../../../src/utils/dateFormatter';
-import React, { useEffect, useMemo, useRef, useState } from 'react';
+import React, { useEffect, useId, useMemo, useRef, useState } from 'react';
 import { OBJECT_TYPES } from '../../../../src/utils/objectTypes';
 import { groupApprovalProblems } from '../../../../src/utils/workspaceApprovalProblems';
 
@@ -39,6 +39,25 @@ function ApprovalProblemGroups({ groups }) {
 
 const date = value => value ? formatDateRu(value) : '—';
 const names = {pending:'На подтверждении',approved:'В мастер-массиве',returned:'Возвращено на доработку'};
+
+function ApprovalRequestList({ requests, history, busy, onOpen }) {
+  return <ApprovalPage rows={requests}>{rows => <ul className="master-approval-request-list" aria-label={history ? 'Мои заявки' : 'Заявки на подтверждение'}>
+    {rows.map(request => <li key={request.id} className="master-approval-request">
+      <div>
+        <h3>{history ? names[request.state] : request.author_name}</h3>
+        {history && request.decider_name && <small>Решение принял {request.decider_name}</small>}
+      </div>
+      <dl>
+        <div><dt>Объекты</dt><dd>{number(request.profile_count)}</dd></div>
+        <div><dt>Отправлена</dt><dd>{date(request.submitted_at)}</dd></div>
+      </dl>
+      <button type="button" className="btn btn-secondary" disabled={busy} onClick={() => onOpen(request.id)}>
+        {history ? 'Открыть заявку' : 'Рассмотреть заявку'}
+      </button>
+    </li>)}
+  </ul>}</ApprovalPage>;
+}
+
 // Web Crypto getRandomValues is available over local HTTP; randomUUID is not.
 function submissionKey() {
   const bytes = crypto.getRandomValues(new Uint8Array(16));
@@ -48,12 +67,33 @@ function submissionKey() {
 }
 export default function MasterApprovalDialog({api,mode,selectedRows=[],requestId,onClose,onChanged,userId}) {
   const dialog=useRef(), key=useRef(submissionKey());
+  const heading = useRef(null), body = useRef(null);
+  const titleId = useId();
+  const submitting = mode === 'submit', history = mode === 'own-history';
   const [queue,setQueue]=useState([]),[detail,setDetail]=useState(null),[preview,setPreview]=useState(null),[conflicts,setConflicts]=useState([]),[targets,setTargets]=useState({});
-  const [busy,setBusy]=useState(false),[error,setError]=useState(null),[comment,setComment]=useState(''),[done,setDone]=useState('');
+  const [busy,setBusy]=useState('Загрузка…'),[error,setError]=useState(null),[comment,setComment]=useState(''),[done,setDone]=useState('');
+  const [mustRefresh, setMustRefresh] = useState(false);
   useEffect(()=>{const d=dialog.current;d.showModal();return()=>{if(d.open)d.close();};},[]);
-  async function run(fn) {setBusy(true);setError(null);try{await fn();}catch(e){setError(e);}finally{setBusy(false);}}
-  async function open(id) {setDetail(await api('/approvals/'+id));setComment('');setDone('');}
-  async function refreshQueue() {setQueue((await api(mode==='own-history'?'/approval-history':'/approvals')).requests);}
+  useEffect(() => {
+    body.current.scrollTop = 0;
+    heading.current.focus({ preventScroll: true });
+  }, [detail?.id]);
+
+  async function run(fn, message = 'Загрузка…') {
+    setBusy(message);
+    setError(null);
+    try { await fn(); }
+    catch (e) { setError(e); }
+    finally { setBusy(''); }
+  }
+  const readRequest = id => api('/approvals/' + id);
+  async function open(id) {
+    setDetail(await readRequest(id));
+    setMustRefresh(false);
+    setComment('');
+    setDone('');
+  }
+  async function refreshQueue() {setQueue((await api(history?'/approval-history':'/approvals')).requests);}
   async function prepare(existingTargets=targets) {
     setPreview(null);
     const result = await api('/approval-preview', { ids: selectedRows.map(r => r.id), existingTargets });
@@ -61,17 +101,31 @@ export default function MasterApprovalDialog({api,mode,selectedRows=[],requestId
     else { setConflicts([]); setPreview(result); }
   }
   useEffect(()=>{run(async()=>{
-    if (mode === 'submit') await prepare({});
+    if (submitting) await prepare({});
     else if(requestId) await open(requestId);
     else await refreshQueue();
   });},[]);
   async function decide(decision) {
-    await run(async()=>{
-      const result=await api('/approvals/'+detail.id+'/decision',{decision,reviewToken:detail.reviewToken,comment});
-      setDone(result.state==='approved'?'Профили загружены в общий мастер-массив.':'Заявка возвращена на доработку.');
-      await open(detail.id);setDone(names[result.state]);await onChanged();
-    });
+    const approving = decision === 'approve';
+    await run(async () => {
+      const { id, state } = await api('/approvals/' + detail.id + '/decision', { decision, reviewToken: detail.reviewToken, comment }).catch(e => {
+        if (e.code === 'REVIEW_STALE') setMustRefresh(true);
+        throw e;
+      });
+      setDetail(previous => ({ ...previous, state, decisionComment: comment }));
+      setDone(state === 'approved' ? 'Профили загружены в общий мастер-массив.' : 'Заявка возвращена на доработку.');
+      try {
+        setDetail(await readRequest(id));
+        await onChanged();
+      } catch {
+        setError(new Error('Решение сохранено. Обновите данные, чтобы увидеть актуальные сведения.'));
+      }
+    }, approving ? 'Загружаем профили в мастер-массив…' : 'Возвращаем заявку на доработку…');
   }
+  const canDecide = detail?.state === 'pending' && detail.authorId !== userId;
+  const blockedReason = mustRefresh ? 'Данные заявки изменились. Нажмите «Обновить данные» и проверьте заявку ещё раз.'
+    : detail?.requiresSearch || error?.details?.groups?.length ? 'Для подтверждения нужно устранить причины, указанные ниже.' : '';
+  const title = submitting ? 'Отправить на подтверждение' : detail ? 'Рассмотрение заявки' : history ? 'Мои заявки' : 'На подтверждении';
   const list=preview?.profiles||selectedRows;
   const emptyCount = list.filter(noGenotype).length;
   const partialCount = list.filter(belowSearchThreshold).length;
@@ -93,19 +147,19 @@ export default function MasterApprovalDialog({api,mode,selectedRows=[],requestId
     return byProfile;
   }, [detail]);
   const evidenceProfiles = detail?.profiles.filter(p => evidence.has(p.id)) || [];
-  return <dialog ref={dialog} className="workspace-editor-dialog master-approval-dialog" aria-label={mode==='submit'?'Отправить на подтверждение':'На подтверждении'} onCancel={e=>{if(busy)e.preventDefault();else onClose();}}>
-    <div className="workspace-editor-header"><div><span className="workspace-eyebrow">Общий мастер-массив</span><h2>{mode==='submit'?'Отправить на подтверждение':detail?'Рассмотрение заявки':mode==='own-history'?'Мои заявки':'На подтверждении'}</h2></div><button className="btn btn-ghost" aria-label="Закрыть подтверждение" disabled={busy} onClick={onClose}>×</button></div>
-    <div className="workspace-editor-body">
-      {error && <><p className="workspace-row-error master-approval-error" role="alert">{error.message}</p>
-        <ApprovalProblemGroups groups={error.details?.groups || []} />
-      </>}{done&&<p role="status">{done}</p>}
-      {busy&&<p role="status">Загрузка…</p>}
-      {mode==='submit'?<>
+  return <dialog ref={dialog} className="workspace-editor-dialog master-approval-dialog" aria-labelledby={titleId} onCancel={e=>{if(busy)e.preventDefault();else onClose();}}>
+    <div className="workspace-editor-header"><div><span className="workspace-eyebrow">Общий мастер-массив</span><h2 id={titleId} ref={heading} tabIndex={-1}>{title}</h2></div><button className="btn btn-ghost" aria-label="Закрыть окно" disabled={!!busy} onClick={onClose}>×</button></div>
+    <div className="workspace-editor-body" ref={body}>
+      {error && <p className="workspace-row-error master-approval-error" role="alert">{error.message}</p>}
+      {done && <p className="workspace-message workspace-message-success" role="status"><span>{done}</span></p>}
+      {busy && <p className="master-approval-busy" role="status"><span className="workspace-loading-spinner" aria-hidden="true" />{busy}</p>}
+      {submitting ? <>
+        <ApprovalProblemGroups groups={error?.details?.groups || []} />
         <p>Выбрано объектов: <strong>{number(list.length)}</strong>. Записи появятся в мастер-массиве после подтверждения другим сотрудником.</p>
         {!!emptyCount && <p>Без генотипа: <strong>{number(emptyCount)}</strong>. Эти объекты сохраняются как учётные записи и не сравниваются по аллелям.</p>}
         {!!partialCount && <p>Ниже порога поиска: <strong>{number(partialCount)}</strong>. Эти объекты можно опубликовать с имеющимися аллелями.</p>}
         <ApprovalPage rows={list}>{rows => <div className="master-approval-scroll"><table className="master-approval-table"><thead><tr><th>Объект</th><th>Год</th><th>Тип</th><th>Назначение</th></tr></thead><tbody>{rows.map(row=><tr key={row.id}><td>{row.objectNumber}</td><td>{row.year}</td><td>{OBJECT_TYPES[row.expertiseType]}</td><td>{row.replaceExisting ? 'Обновление мастер-записи' : 'Мастер-массив'}{noGenotype(row) && <small>Без генотипа</small>}{belowSearchThreshold(row) && <small>Ниже порога поиска</small>}</td></tr>)}</tbody></table></div>}</ApprovalPage>
-        {!!conflicts.length && <fieldset disabled={busy}><legend>Нужны решения по существующим записям ({number(conflicts.length)})</legend>
+        {!!conflicts.length && <fieldset disabled={!!busy}><legend>Нужны решения по существующим записям ({number(conflicts.length)})</legend>
           <p>Отметьте записи мастер-массива, которые нужно обновить.</p>
           <ApprovalPage rows={conflicts}>{rows => rows.map(c => <label className="master-approval-target" key={c.profileId + ':' + c.publishedId}><input type="checkbox" checked={targets[c.profileId] === c.publishedId} onChange={e => {
             const checked = e.target.checked;
@@ -120,11 +174,21 @@ export default function MasterApprovalDialog({api,mode,selectedRows=[],requestId
           <button type="button" className="btn btn-secondary" onClick={()=>run(()=>prepare())}>Проверить сопоставление</button>
         </fieldset>}
         {preview&&<p>Дата окончания анализа генотипов: <strong>{date(preview.analysisCompletedAt)}</strong> (Москва).</p>}
-      </>:detail?<>
-        <dl className="master-approval-summary"><div><dt>Сотрудник</dt><dd>{detail.authorName}</dd></div><div><dt>Дата окончания анализа генотипов</dt><dd>{date(detail.analysisCompletedAt)} (Москва)</dd></div><div><dt>Отправлено</dt><dd>{date(detail.submittedAt)}</dd></div><div><dt>Состояние</dt><dd>{names[detail.state]}</dd></div>{detail.decidedAt&&<div><dt>Решение</dt><dd>{detail.deciderName} · {date(detail.decidedAt)}</dd></div>}</dl>
-        {detail.state === 'pending' && !error?.details?.groups && <ApprovalProblemGroups groups={detailGroups} />}
-        <ApprovalPage key={detail.id} rows={detail.profiles}>{rows => <div className="master-approval-scroll"><table className="master-approval-table"><thead><tr><th>Объект</th><th>Год</th><th>Тип</th><th>Комментарий</th><th>Проверка</th></tr></thead><tbody>{rows.map(row=><tr key={row.id}><td>{row.objectNumber}{row.replaceExisting&&<small>Обновление существующей записи</small>}</td><td>{row.year}</td><td>{OBJECT_TYPES[row.expertiseType]}</td><td className="master-approval-comment">{row.comment||'—'}</td><td>{detailProblemIds.has(row.id) && detail.state === 'pending' ? 'Требует внимания' : row.withoutGenotype ? 'Без генотипа' : row.belowSearchThreshold ? 'Ниже порога поиска' : detail.state !== 'pending' ? 'Решение сохранено' : 'Все три этапа пройдены'}</td></tr>)}</tbody></table></div>}</ApprovalPage>
-        <details className="master-approval-evidence"><summary>Совпадения и предупреждения выбранных профилей</summary>
+      </> : detail ? <>
+        <dl className="master-approval-summary">
+          <div><dt>Автор заявки</dt><dd>{detail.authorName}</dd></div>
+          <div><dt>Объекты</dt><dd>{number(detail.profiles.length)}</dd></div>
+          <div><dt>Поиск завершён</dt><dd>{date(detail.analysisCompletedAt)}</dd></div>
+          <div><dt>Заявка отправлена</dt><dd>{date(detail.submittedAt)}</dd></div>
+          {!canDecide && <div><dt>Состояние</dt><dd>{names[detail.state]}</dd></div>}
+          {detail.decidedAt && <div><dt>Решение</dt><dd>{detail.deciderName} · {date(detail.decidedAt)}</dd></div>}
+        </dl>
+        {canDecide && <section className="master-approval-review-status" data-blocked={!!blockedReason} id={titleId + '-status'}>
+          <strong>{blockedReason ? 'Подтверждение пока недоступно' : 'Заявка готова к подтверждению'}</strong>
+          <p>{blockedReason || 'Подтверждение сразу опубликует все объекты из заявки в общем мастер-массиве.'}</p>
+        </section>}
+        {detail.state === 'pending' && <ApprovalProblemGroups groups={error?.details?.groups || detailGroups} />}
+        <details className="master-approval-evidence"><summary>Совпадения и предупреждения</summary>
           {!evidenceProfiles.length && <p>По выбранным объектам в результате поиска нет дубликатов и контаминаций сотрудниками.</p>}
           <ApprovalPage rows={evidenceProfiles}>{rows => rows.map(p => <section key={p.id}><h3>{p.objectNumber} · {p.year}</h3>
             {Object.entries(evidence.get(p.id)).map(([stage, matches]) => <div key={stage}><strong>{{internal:'Личный массив',master:'Мастер-массив',staff:'Контаминация сотрудников'}[stage]}: {number(matches.length)}</strong>
@@ -132,16 +196,37 @@ export default function MasterApprovalDialog({api,mode,selectedRows=[],requestId
             </div>)}
           </section>)}</ApprovalPage>
         </details>
+        <h3 className="master-approval-detail-title">Объекты заявки</h3>
+        <ApprovalPage key={detail.id} rows={detail.profiles}>{rows => <div className="master-approval-scroll"><table className="master-approval-table"><thead><tr><th>Объект</th><th>Год</th><th>Тип</th><th>Комментарий</th><th>Проверка</th></tr></thead><tbody>{rows.map(row=><tr key={row.id}><td>{row.objectNumber}{row.replaceExisting&&<small>Обновление существующей записи</small>}</td><td>{row.year}</td><td>{OBJECT_TYPES[row.expertiseType]}</td><td className="master-approval-comment">{row.comment||'—'}</td><td>{detailProblemIds.has(row.id) && detail.state === 'pending' ? 'Требует внимания' : row.withoutGenotype ? 'Без генотипа' : row.belowSearchThreshold ? 'Ниже порога поиска' : detail.state !== 'pending' ? 'Решение сохранено' : 'Все три этапа пройдены'}</td></tr>)}</tbody></table></div>}</ApprovalPage>
         {!!detail.decisionComment&&<p><strong>Комментарий решения:</strong> {detail.decisionComment}</p>}
-        {detail.state==='pending'&&detail.authorId!==userId&&<label className="master-approval-comment-label">Комментарий к решению<textarea className="form-input" value={comment} maxLength="20000" onChange={e=>setComment(e.target.value)} disabled={busy}/></label>}
-      </>:<><p>{mode==='own-history'?'Ваши последние 200 заявок и решения по ним.':'Ожидающие заявки вашей организации. Собственные заявки здесь не показываются.'}</p><div className="master-approval-scroll"><table className="master-approval-table"><thead><tr><th>{mode==='own-history'?'Состояние / решение':'Сотрудник'}</th><th>Дата окончания анализа генотипов</th><th>Отправлено</th><th>Профили</th></tr></thead><tbody>{queue.map(row=><tr key={row.id}><td><button className="workspace-object-link" onClick={()=>run(()=>open(row.id))}>{mode==='own-history'?names[row.state]:row.author_name}</button>{row.decider_name&&<small>{row.decider_name}</small>}</td><td>{date(row.analysis_completed_at)}</td><td>{date(row.submitted_at)}</td><td>{row.profile_count}</td></tr>)}</tbody></table></div>{!queue.length&&!busy&&<p>Заявок на подтверждение нет.</p>}</>}
+        {canDecide && <label className="master-approval-comment-label">Комментарий к решению<textarea className="form-input" value={comment} maxLength="20000" placeholder="Необязательно" onChange={e => setComment(e.target.value)} disabled={!!busy} /></label>}
+      </> : <>
+        {!!queue.length && <>
+          <p className="master-approval-queue-intro">{history ? 'Ваши заявки' : 'Ожидают рассмотрения'} <strong>{number(queue.length)}</strong></p>
+          <ApprovalRequestList requests={queue} history={history} busy={!!busy} onOpen={id => run(() => open(id), 'Открываем заявку…')} />
+        </>}
+        {!queue.length && !busy && !error && !requestId && <p>{history ? 'У вас пока нет заявок.' : 'Заявок на подтверждение нет.'}</p>}
+      </>}
     </div>
-    <div className="workspace-editor-footer">
-      <button className="btn btn-secondary" disabled={busy} onClick={onClose}>Закрыть</button>
-      {mode==='submit'&&<button className="btn btn-primary" disabled={busy||!preview} onClick={()=>run(async()=>{await api('/approvals',{ids:selectedRows.map(r=>r.id),searchRunId:preview.searchRunId,existingTargets:targets,idempotencyKey:key.current});await onChanged();onClose();})}>Отправить на подтверждение</button>}
-      {mode!=='submit'&&detail&&<button className="btn btn-secondary" disabled={busy} onClick={()=>run(()=>open(detail.id))}>Обновить данные</button>}
-      {mode!=='submit'&&detail?.state==='pending'&&detail.authorId!==userId&&<><button className="btn btn-secondary" disabled={busy} onClick={()=>decide('return')}>Вернуть на доработку</button><button className="btn btn-primary" disabled={busy||detail.requiresSearch} onClick={()=>decide('approve')}>Подтвердить и загрузить</button></>}
-      {mode!=='submit'&&detail&&!requestId&&<button className="btn btn-secondary" disabled={busy} onClick={()=>run(async()=>{setDetail(null);await refreshQueue();})}>К списку заявок</button>}
+    <div className="workspace-editor-footer master-approval-footer">
+      {detail && !requestId ? <button className="btn btn-secondary" disabled={!!busy} onClick={() => run(async () => {
+        await refreshQueue();
+        setDetail(null);
+        setDone('');
+      })}>К списку заявок</button> : <button className="btn btn-secondary" disabled={!!busy} onClick={onClose}>Закрыть</button>}
+      <div className="master-approval-footer-actions">
+        {submitting && <button className="btn btn-primary" disabled={!!busy || !preview} onClick={() => run(async () => {
+          await api('/approvals', { ids: selectedRows.map(r => r.id), searchRunId: preview.searchRunId, existingTargets: targets, idempotencyKey: key.current });
+          await onChanged();
+          onClose();
+        }, 'Отправляем заявку…')}>Отправить на подтверждение</button>}
+        {!submitting && !detail && !requestId && <button className="btn btn-secondary" disabled={!!busy} onClick={() => run(refreshQueue)}>Обновить список</button>}
+        {!submitting && (detail || requestId) && <button className="btn btn-ghost" disabled={!!busy} onClick={() => run(() => open(detail?.id || requestId))}>Обновить данные</button>}
+        {canDecide && <>
+          <button className="btn btn-secondary" disabled={!!busy || mustRefresh} onClick={() => decide('return')}>Вернуть на доработку</button>
+          <button className="btn btn-primary" disabled={!!busy || !!blockedReason} aria-describedby={titleId + '-status'} onClick={() => decide('approve')}>Подтвердить и загрузить</button>
+        </>}
+      </div>
     </div>
   </dialog>;
 }
