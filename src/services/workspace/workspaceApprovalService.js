@@ -1,11 +1,9 @@
 const { randomUUID } = require('node:crypto');
 const { WorkspaceSearchService, ALGORITHM_VERSION } = require('./workspaceSearchService');
-const { requireUser, objectFromDB, err } = require('./workspaceService');
+const { requireUser, objectFromDB, isMasterApprovalProof, err } = require('./workspaceService');
 const { analysisHash, hash, validateObject, hasGenotype } = require('../../utils/objectImportV2');
 const { seal, unseal } = require('./workspaceCrypto');
 const { groupApprovalProblems } = require('../../utils/workspaceApprovalProblems');
-const stagesOK = stages => stages?.internal === true && stages?.master === true && stages?.staff === true;
-const stagesSkipped = stages => stages?.internal === false && stages?.master === false && stages?.staff === false;
 const searchInstruction = 'Закройте окно и нажмите «Полный поиск выбранных» для всей заявки.';
 const problemReasons = {
   REMOVED: ['Объект удалён из личного массива.', 'Уберите объект из заявки.'],
@@ -18,7 +16,6 @@ const problemReasons = {
   WORKSPACE_CHANGED: ['После поиска изменились объекты или настройки личного массива.', searchInstruction],
   PROFILE_CHANGED: ['После поиска изменилась версия объекта.', searchInstruction],
   SEPARATE_RUNS: ['Для выбранных объектов нет одного общего актуального поиска.', searchInstruction],
-  INSUFFICIENT_DATA: ['В генотипе недостаточно пригодных локусов для полной проверки.', 'Проверьте значения аллелей или уберите эти объекты из заявки.'],
   PENDING: ['Объекты уже на подтверждении.', 'Дождитесь решения по предыдущей заявке или уберите эти объекты из выбора.'],
   REQUEST_CHANGED: ['Объекты изменились после отправки заявки.', 'Верните заявку. Автор сможет выполнить поиск и отправить её заново.'],
   TARGET_CHANGED: ['Связанные записи в мастер-массиве изменились.', 'Верните заявку для повторного сопоставления.'],
@@ -86,16 +83,12 @@ class WorkspaceApprovalService extends WorkspaceSearchService {
       if (proof.analysis_revision !== p.analysis_revision || proof.analysis_hash !== analysisHash(row)) {
         problems.push(problem(p, 'PROFILE_CHANGED')); continue;
       }
-      const empty = !hasGenotype(p.str_data);
-      if (!empty && proof.state === 'INSUFFICIENT_DATA') {
-        problems.push(problem(p, 'INSUFFICIENT_DATA')); continue;
-      }
-      if (empty ? proof.state !== 'NO_GENOTYPE' || !stagesSkipped(proof.stages) : proof.state !== 'CHECKED' || !stagesOK(proof.stages)) {
+      if (!isMasterApprovalProof(proof.state, proof.stages, hasGenotype(p.str_data))) {
         problems.push(problem(p, 'SEARCH_INCOMPLETE')); continue;
       }
       if (!run) problems.push(problem(p, 'SEPARATE_RUNS'));
     }
-    return problems;
+    return { problems, proofByProfile };
   }
 
   async matchingRun(c, w, profiles, refs, searchRunId) {
@@ -159,12 +152,12 @@ class WorkspaceApprovalService extends WorkspaceSearchService {
       const w = await this.workspace(user, c, true), profiles = await this.ownProfiles(c, user, w, ids, true);
       const refs = (await c.query('SELECT * FROM workspace_reference_versions WHERE organization_id=$1 FOR SHARE', [user.organization_id])).rows[0];
       const run = await this.matchingRun(c, w, profiles, refs);
-      const problems = await this.checkReadiness(c, w, profiles, run, refs, { explainMissingRun: true });
+      const { problems, proofByProfile } = await this.checkReadiness(c, w, profiles, run, refs, { explainMissingRun: true });
       problems.push(...await this.pendingProblems(c, profiles));
       const targets = await this.resolveTargets(c, user, profiles, existingTargets);
       problems.push(...targets.problems);
       if (problems.length) {
-        const needsSearch = problems.some(p => p.instruction === searchInstruction || p.code === 'INSUFFICIENT_DATA');
+        const needsSearch = problems.some(p => p.instruction === searchInstruction);
         throw approvalError('Часть выбранных объектов пока нельзя отправить.', needsSearch ? 'FULL_SEARCH_REQUIRED' : 'APPROVAL_BLOCKED', problems);
       }
       if (targets.conflicts.length) return { conflicts: targets.conflicts };
@@ -173,7 +166,8 @@ class WorkspaceApprovalService extends WorkspaceSearchService {
         analysisCompletedAt: run.completed_at,
         profiles: targets.resolved.map(({ profile: p, targetId, replaceExisting }) => ({
           id: p.id, objectNumber: p.internal_number, year: p.year, expertiseType: p.expertise_type,
-          withoutGenotype: !hasGenotype(p.str_data), targetId, replaceExisting
+          withoutGenotype: !hasGenotype(p.str_data), belowSearchThreshold: proofByProfile.get(p.id)?.state === 'INSUFFICIENT_DATA',
+          targetId, replaceExisting
         })),
         count: profiles.length
       };
@@ -192,7 +186,8 @@ class WorkspaceApprovalService extends WorkspaceSearchService {
       }
       const profiles=await this.ownProfiles(c,user,w,ids,true);
       const refs=(await c.query('SELECT * FROM workspace_reference_versions WHERE organization_id=$1 FOR SHARE',[user.organization_id])).rows[0];
-      const run=await this.matchingRun(c,w,profiles,refs,searchRunId), problems=await this.checkReadiness(c,w,profiles,run,refs);
+      const run = await this.matchingRun(c, w, profiles, refs, searchRunId);
+      const { problems } = await this.checkReadiness(c, w, profiles, run, refs);
       if (problems.length) throw approvalError('Для заявки нужен актуальный полный поиск по выбранным объектам.', 'FULL_SEARCH_REQUIRED', problems);
       const occupied = await this.pendingProblems(c, profiles);
       if (occupied.length) throw approvalError('Часть объектов уже на подтверждении.', 'APPROVAL_PENDING', occupied);
@@ -246,7 +241,7 @@ class WorkspaceApprovalService extends WorkspaceSearchService {
     const profiles=(await c.query(`SELECT * FROM dna_profiles WHERE id=ANY($1::uuid[]) AND workspace_id=$2 AND user_id=$3 AND organization_id=$4 ORDER BY id ${lock?'FOR UPDATE':''}`,[items.map(i=>i.profile_id),a.workspace_id,a.author_id,user.organization_id])).rows;
     const refs=(await c.query(`SELECT * FROM workspace_reference_versions WHERE organization_id=$1 ${lock?'FOR UPDATE':''}`,[user.organization_id])).rows[0];
     const run=(await c.query('SELECT * FROM workspace_search_runs WHERE id=$1',[a.search_run_id])).rows[0];
-    const problems=await this.checkReadiness(c,w,profiles,run,refs);
+    const { problems, proofByProfile } = await this.checkReadiness(c, w, profiles, run, refs);
     for (const issue of problems) {
       if (issue.instruction === searchInstruction) issue.instruction = 'После возврата заявки автору нужно выполнить новый полный поиск и отправить заявку повторно.';
     }
@@ -273,7 +268,11 @@ class WorkspaceApprovalService extends WorkspaceSearchService {
       searchRunId:a.search_run_id,analysisCompletedAt:a.analysis_completed_at,reviewToken:token,requiresSearch:problems.length>0,problems,
       profiles: profiles.map(p => {
         const item = itemsByProfile.get(p.id);
-        return { ...objectFromDB(p), isActive: p.is_active, withoutGenotype: !hasGenotype(p.str_data), targetId: item.target_id, replaceExisting: item.replace_existing };
+        return {
+          ...objectFromDB(p), isActive: p.is_active, withoutGenotype: !hasGenotype(p.str_data),
+          belowSearchThreshold: proofByProfile.get(p.id)?.state === 'INSUFFICIENT_DATA',
+          targetId: item.target_id, replaceExisting: item.replace_existing
+        };
       }), matches,
       _items: items, _profiles: profiles};
   }

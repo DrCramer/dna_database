@@ -394,6 +394,8 @@ async function startServer() {
             if (!history.ready) throw new Error('Примените миграцию 041_workspace_duplicate_history.sql для истории дубликатов.');
             const { rows: [approval] } = await pool.query("SELECT to_regclass('public.workspace_master_approval_targets') IS NOT NULL AS ready");
             if (!approval.ready) throw new Error('Примените миграцию 042_master_approval_without_genotype.sql для публикации в мастер-массив.');
+            const { rows: [partialApproval] } = await pool.query("SELECT to_regprocedure('public.workspace_partial_master_proof(text,jsonb)') IS NOT NULL AS ready");
+            if (!partialApproval.ready) throw new Error('Примените миграцию 043_master_approval_partial_genotypes.sql для публикации частичных генотипов.');
             const workspaces = new (require('./services/workspace/workspaceService').WorkspaceService)(pool);
             setInterval(() => workspaces.pruneDrafts().catch(() => logger.error('WORKSPACE_DRAFT_RETENTION_FAILED')), 3600000).unref();
         }

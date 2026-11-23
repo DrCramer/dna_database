@@ -30,6 +30,12 @@ const err = (message, status = 400, code = 'WORKSPACE_INVALID', details) => Obje
   code,
   details
 });
+function isMasterApprovalProof(state, stages, hasData) {
+  const skipped = stages?.internal === false && stages?.master === false && stages?.staff === false;
+  if (!hasData) return state === 'NO_GENOTYPE' && skipped;
+  if (state === 'INSUFFICIENT_DATA') return skipped;
+  return state === 'CHECKED' && stages?.internal === true && stages?.master === true && stages?.staff === true;
+}
 const { getAssignedNumber } = require('../../utils/emergencyAssignedNumber');
 const { normalizeAmelogeninPair } = require('../../utils/alleleTokens');
 const { restoreKnownImportMetadata, restoreImportAmelogenin } = require('../../utils/workspaceImportMetadata');
@@ -163,8 +169,8 @@ class WorkspaceService {
           destination: p.destination,
           searchRunId: p.search_id,
           searchState,
-          canSubmitWithoutGenotype: p.expertise_type !== 'staff' && searchState === 'NO_GENOTYPE' &&
-            p.proof_state === 'NO_GENOTYPE' && !!currentSearch(p),
+          readyForMasterApproval: p.expertise_type !== 'staff' && !!currentSearch(p) &&
+            isMasterApprovalProof(p.proof_state, p.proof_stages, searchState !== 'NO_GENOTYPE'),
           state: p.approval_state === 'pending' ? 'PENDING_APPROVAL' : p.approval_state === 'returned' ? 'RETURNED' : p.published_id ? 'PUBLISHED' : searchState
         };
       })
@@ -450,5 +456,6 @@ module.exports = {
   requireUser,
   requireUpload,
   objectFromDB,
+  isMasterApprovalProof,
   err
 };

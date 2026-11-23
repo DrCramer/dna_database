@@ -4,6 +4,8 @@ import { OBJECT_TYPES } from '../../../../src/utils/objectTypes';
 import { groupApprovalProblems } from '../../../../src/utils/workspaceApprovalProblems';
 
 const number = value => value.toLocaleString('ru-RU');
+const noGenotype = row => row.withoutGenotype || row.searchState === 'NO_GENOTYPE';
+const belowSearchThreshold = row => row.belowSearchThreshold || row.searchState === 'INSUFFICIENT_DATA';
 const pageSize = 50;
 function ApprovalPage({ rows, children }) {
   const [page, setPage] = useState(0);
@@ -71,7 +73,8 @@ export default function MasterApprovalDialog({api,mode,selectedRows=[],requestId
     });
   }
   const list=preview?.profiles||selectedRows;
-  const noGenotype = list.filter(row => row.withoutGenotype || row.searchState === 'NO_GENOTYPE').length;
+  const emptyCount = list.filter(noGenotype).length;
+  const partialCount = list.filter(belowSearchThreshold).length;
   const detailGroups = useMemo(() => groupApprovalProblems(detail?.problems || []), [detail]);
   const detailProblemIds = new Set(detail?.problems.map(p => p.profileId));
   const evidence = useMemo(() => {
@@ -99,8 +102,9 @@ export default function MasterApprovalDialog({api,mode,selectedRows=[],requestId
       {busy&&<p role="status">Загрузка…</p>}
       {mode==='submit'?<>
         <p>Выбрано объектов: <strong>{number(list.length)}</strong>. Записи появятся в мастер-массиве после подтверждения другим сотрудником.</p>
-        {!!noGenotype && <p>Без генотипа: <strong>{number(noGenotype)}</strong>. Эти объекты сохраняются как учётные записи и не сравниваются по аллелям.</p>}
-        <ApprovalPage rows={list}>{rows => <div className="master-approval-scroll"><table className="master-approval-table"><thead><tr><th>Объект</th><th>Год</th><th>Тип</th><th>Назначение</th></tr></thead><tbody>{rows.map(row=><tr key={row.id}><td>{row.objectNumber}</td><td>{row.year}</td><td>{OBJECT_TYPES[row.expertiseType]}</td><td>{row.replaceExisting ? 'Обновление мастер-записи' : 'Мастер-массив'}{(row.withoutGenotype || row.searchState === 'NO_GENOTYPE') && <small>Без генотипа</small>}</td></tr>)}</tbody></table></div>}</ApprovalPage>
+        {!!emptyCount && <p>Без генотипа: <strong>{number(emptyCount)}</strong>. Эти объекты сохраняются как учётные записи и не сравниваются по аллелям.</p>}
+        {!!partialCount && <p>Ниже порога поиска: <strong>{number(partialCount)}</strong>. Эти объекты можно опубликовать с имеющимися аллелями.</p>}
+        <ApprovalPage rows={list}>{rows => <div className="master-approval-scroll"><table className="master-approval-table"><thead><tr><th>Объект</th><th>Год</th><th>Тип</th><th>Назначение</th></tr></thead><tbody>{rows.map(row=><tr key={row.id}><td>{row.objectNumber}</td><td>{row.year}</td><td>{OBJECT_TYPES[row.expertiseType]}</td><td>{row.replaceExisting ? 'Обновление мастер-записи' : 'Мастер-массив'}{noGenotype(row) && <small>Без генотипа</small>}{belowSearchThreshold(row) && <small>Ниже порога поиска</small>}</td></tr>)}</tbody></table></div>}</ApprovalPage>
         {!!conflicts.length && <fieldset disabled={busy}><legend>Нужны решения по существующим записям ({number(conflicts.length)})</legend>
           <p>Отметьте записи мастер-массива, которые нужно обновить.</p>
           <ApprovalPage rows={conflicts}>{rows => rows.map(c => <label className="master-approval-target" key={c.profileId + ':' + c.publishedId}><input type="checkbox" checked={targets[c.profileId] === c.publishedId} onChange={e => {
@@ -119,7 +123,7 @@ export default function MasterApprovalDialog({api,mode,selectedRows=[],requestId
       </>:detail?<>
         <dl className="master-approval-summary"><div><dt>Сотрудник</dt><dd>{detail.authorName}</dd></div><div><dt>Дата окончания анализа генотипов</dt><dd>{date(detail.analysisCompletedAt)} (Москва)</dd></div><div><dt>Отправлено</dt><dd>{date(detail.submittedAt)}</dd></div><div><dt>Состояние</dt><dd>{names[detail.state]}</dd></div>{detail.decidedAt&&<div><dt>Решение</dt><dd>{detail.deciderName} · {date(detail.decidedAt)}</dd></div>}</dl>
         {detail.state === 'pending' && !error?.details?.groups && <ApprovalProblemGroups groups={detailGroups} />}
-        <ApprovalPage key={detail.id} rows={detail.profiles}>{rows => <div className="master-approval-scroll"><table className="master-approval-table"><thead><tr><th>Объект</th><th>Год</th><th>Тип</th><th>Комментарий</th><th>Проверка</th></tr></thead><tbody>{rows.map(row=><tr key={row.id}><td>{row.objectNumber}{row.replaceExisting&&<small>Обновление существующей записи</small>}</td><td>{row.year}</td><td>{OBJECT_TYPES[row.expertiseType]}</td><td className="master-approval-comment">{row.comment||'—'}</td><td>{detailProblemIds.has(row.id) && detail.state === 'pending' ? 'Требует внимания' : row.withoutGenotype ? 'Без генотипа' : detail.state !== 'pending' ? 'Решение сохранено' : 'Все три этапа пройдены'}</td></tr>)}</tbody></table></div>}</ApprovalPage>
+        <ApprovalPage key={detail.id} rows={detail.profiles}>{rows => <div className="master-approval-scroll"><table className="master-approval-table"><thead><tr><th>Объект</th><th>Год</th><th>Тип</th><th>Комментарий</th><th>Проверка</th></tr></thead><tbody>{rows.map(row=><tr key={row.id}><td>{row.objectNumber}{row.replaceExisting&&<small>Обновление существующей записи</small>}</td><td>{row.year}</td><td>{OBJECT_TYPES[row.expertiseType]}</td><td className="master-approval-comment">{row.comment||'—'}</td><td>{detailProblemIds.has(row.id) && detail.state === 'pending' ? 'Требует внимания' : row.withoutGenotype ? 'Без генотипа' : row.belowSearchThreshold ? 'Ниже порога поиска' : detail.state !== 'pending' ? 'Решение сохранено' : 'Все три этапа пройдены'}</td></tr>)}</tbody></table></div>}</ApprovalPage>
         <details className="master-approval-evidence"><summary>Совпадения и предупреждения выбранных профилей</summary>
           {!evidenceProfiles.length && <p>По выбранным объектам в результате поиска нет дубликатов и контаминаций сотрудниками.</p>}
           <ApprovalPage rows={evidenceProfiles}>{rows => rows.map(p => <section key={p.id}><h3>{p.objectNumber} · {p.year}</h3>

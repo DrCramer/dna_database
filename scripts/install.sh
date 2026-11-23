@@ -204,6 +204,17 @@ if [[ "$master_without_genotype_missing" == t ]]; then
     docker compose exec -T db psql -U dna_user -d dna_analysis -v ON_ERROR_STOP=1 -q < database/migrations/042_master_approval_without_genotype.sql
 fi
 
+# 043 allows approved records below the comparison threshold in the master array.
+master_partial_proof_missing="$(db_sql -c "SELECT to_regclass('workspace_master_approval_targets') IS NOT NULL AND to_regprocedure('workspace_partial_master_proof(text,jsonb)') IS NULL")"
+if [[ "$master_partial_proof_missing" == t ]]; then
+    if [[ "$master_without_genotype_missing" != t ]]; then
+        backup_file="runtime/backups/before_install_043_$(date -u +%Y%m%d_%H%M%S).sql"
+        docker compose exec -T db pg_dump -U dna_user -d dna_analysis > "$backup_file"
+        test -s "$backup_file"
+    fi
+    docker compose exec -T db psql -U dna_user -d dna_analysis -v ON_ERROR_STOP=1 -q < database/migrations/043_master_approval_partial_genotypes.sql
+fi
+
 
 user_count="$(db_sql -c 'SELECT COUNT(*) FROM users')"
 if [[ "$user_count" == 0 ]]; then

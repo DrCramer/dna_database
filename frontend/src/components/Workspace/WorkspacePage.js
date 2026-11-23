@@ -28,8 +28,10 @@ const states = {
   PUBLISHED: 'В мастер-массиве',
   PENDING_APPROVAL: 'На подтверждении',
   RETURNED: 'На доработке',
-  INSUFFICIENT_DATA: 'Недостаточно данных'
+  INSUFFICIENT_DATA: 'Ниже порога поиска'
 };
+const isReadyForPublication = row => row.approvalState !== 'pending' &&
+  (row.readyForMasterApproval || (row.searchState || row.state) === 'CHECKED');
 const fields = ['included', ...WORKSPACE_PROFILE_FIELDS];
 const profileCollator = new Intl.Collator('ru', { numeric: true, sensitivity: 'base' });
 function saveFile(blob, filename) {
@@ -339,7 +341,7 @@ export default function WorkspacePage({
   }, [isImport, importIssues, error]);
   const id = row => row.draftRowId || row.id,
     visible = useMemo(() => {
-      let filtered = viewFilter === 'all' ? rows : rows.filter(row => viewFilter === 'selected' && (isImport ? row.included : selected.has(row.id)) || viewFilter === 'empty' && !Object.values(row.strData || {}).some(value => value.length) || viewFilter === 'issues' && ((row.sourceIssues || []).length || (isImport ? importIssues.byRow.get(row.draftRowId)?.length : objectMetadataIssues(row).length) || validation?.errors.some(item => item.draftRowId === row.draftRowId && item.issues.length)) || viewFilter === 'ready' && (row.searchState || row.state) === 'CHECKED' || viewFilter === 'stale' && ['STALE', 'NOT_CHECKED', 'INSUFFICIENT_DATA'].includes(row.state));
+      let filtered = viewFilter === 'all' ? rows : rows.filter(row => viewFilter === 'selected' && (isImport ? row.included : selected.has(row.id)) || viewFilter === 'empty' && !Object.values(row.strData || {}).some(value => value.length) || viewFilter === 'issues' && ((row.sourceIssues || []).length || (isImport ? importIssues.byRow.get(row.draftRowId)?.length : objectMetadataIssues(row).length) || validation?.errors.some(item => item.draftRowId === row.draftRowId && item.issues.length)) || viewFilter === 'ready' && isReadyForPublication(row) || viewFilter === 'stale' && !isReadyForPublication(row) && ['STALE', 'NOT_CHECKED', 'INSUFFICIENT_DATA'].includes(row.state));
       if (groupRows) filtered = filtered.filter(row => groupRows.has(id(row)));
       const search = query.toLowerCase();
       if (search && !previewOnly) filtered = filtered.filter(row => `${row.objectNumber} ${row.expertiseType === 'chs' ? row.assignedNumber || '' : ''} ${row.year ?? ''} ${types[row.expertiseType] || ''} ${row.fullName || ''} ${row.comment || ''}`.toLowerCase().includes(search));
@@ -557,8 +559,9 @@ export default function WorkspacePage({
     setRows(current => current.map(row => ['CHECKED', 'INSUFFICIENT_DATA'].includes(row.searchState) ? {
       ...row,
       searchState: 'STALE',
-      state: row.state === row.searchState ? 'STALE' : row.state
-    } : row));
+      state: row.state === row.searchState ? 'STALE' : row.state,
+      readyForMasterApproval: false
+    } : row.readyForMasterApproval ? { ...row, readyForMasterApproval: false } : row));
   }
   async function updateSearchSettings(next) {
     try {
@@ -751,8 +754,7 @@ export default function WorkspacePage({
   const showStaff = rows.some(row => row.expertiseType === 'staff' || row.fullName);
   const showAssignedNumber = rows.some(row => row.expertiseType === 'chs' || !row.expertiseType && row.assignedNumber);
   const staffNameCandidates = isImport ? affected.filter(canTransferStaffName) : [];
-  const readyRows = rows.filter(row => row.approvalState !== 'pending' &&
-    ((row.searchState || row.state) === 'CHECKED' || row.canSubmitWithoutGenotype));
+  const readyRows = rows.filter(isReadyForPublication);
   const readyCount = readyRows.length;
   const dirtyCount = !isImport && initial.current && rows !== initial.current ? changedWorkingProfiles(rows, initial.current).length : 0;
   const issuesFor = row => importIssues?.byRow.get(id(row)) || [];
@@ -962,7 +964,7 @@ export default function WorkspacePage({
     {profilesReady && !rows.length && <section className="workspace-empty"><span className="workspace-empty-icon"><WorkspaceIcon name="grid" /></span><h2>Здесь будут ваши генотипы</h2><p>Загрузите файлы, выберите нужные объекты и начните работу с личным массивом.</p><a className="btn btn-primary" href="/upload"><WorkspaceIcon name="upload" />Загрузить первые файлы</a><div><span><WorkspaceIcon name="check" />Без назначения задачи</span><span><WorkspaceIcon name="shield" />С доступом только для вас</span></div></section>}
     </div>
 
-    {result && <section className="workspace-search-results" hidden={!showingResults} tabIndex="0" aria-label="Результаты поиска"><div className="workspace-data-heading"><div><span className="workspace-eyebrow">Поиск завершён</span><h2>Результаты полного поиска</h2><p>Проверено: {result.profiles.filter(profile => profile.state === 'CHECKED').length}; без генотипа: {result.profiles.filter(profile => profile.state === 'NO_GENOTYPE').length}; недостаточно локусов: {result.profiles.filter(profile => profile.state === 'INSUFFICIENT_DATA').length}.</p></div></div>
+    {result && <section className="workspace-search-results" hidden={!showingResults} tabIndex="0" aria-label="Результаты поиска"><div className="workspace-data-heading"><div><span className="workspace-eyebrow">Поиск завершён</span><h2>Результаты полного поиска</h2><p>Проверено: {result.profiles.filter(profile => profile.state === 'CHECKED').length}; без генотипа: {result.profiles.filter(profile => profile.state === 'NO_GENOTYPE').length}; ниже порога поиска: {result.profiles.filter(profile => profile.state === 'INSUFFICIENT_DATA').length}.</p></div></div>
       {result.outdated && <div className="workspace-message workspace-message-error" role="alert">Критерии поиска обновлены. Это архивный результат; выполните повторный полный поиск. Прежние результаты не используются для публикации и выгрузки.</div>}
       <WorkspaceSearchResultTabs key={result.id} result={result} colors={resultColors}
         exportingDuplicates={exportingDuplicates} onDuplicateExport={async (stage, historyFilter) => {
