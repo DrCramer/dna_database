@@ -145,8 +145,6 @@
   transform: translateY(-20px) scale(0.98);
 }
 
-.helix-login-help { display: flex; width: fit-content; margin: var(--space-4) auto 0; }
-
 .helix-branding {
   text-align: center;
   margin-bottom: var(--space-8);

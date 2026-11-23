@@ -1,5 +1,4 @@
 import UiIcon from '../Common/UiIcon';
-import PageHelp from '../Common/PageHelp';
 import React, { useEffect, useState } from 'react';
 
 const LoginPage = ({
@@ -229,7 +228,6 @@ const LoginPage = ({
               </svg>
             </button>
           </form>
-          <PageHelp path="/login" className="helix-login-help" />
         </section>
       </div>
     </div>
