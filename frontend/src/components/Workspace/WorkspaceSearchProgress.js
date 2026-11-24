@@ -1,7 +1,8 @@
 import React, { useEffect, useRef, useState } from 'react';
 
-const stages = [['internal', 'В личном массиве'], ['master', 'В мастер-массиве'], ['staff', 'Контаминации сотрудников']];
+const stages = [['internal', 'В личном массиве'], ['colleagues', 'В личных массивах сотрудников'], ['master', 'В мастер-массиве'], ['staff', 'Контаминации сотрудников']];
 const labels = { preparing: 'Подготавливаем данные', edits: 'Сохраняем ваши изменения', internal: 'Ищем дубликаты в личном массиве',
+  colleagues: 'Ищем совпадения в личных массивах сотрудников',
   master: 'Ищем совпадения в мастер-массиве', staff: 'Проверяем контаминации сотрудников', saving: 'Сохраняем результат', complete: 'Все проверки завершены' };
 
 export default function WorkspaceSearchProgress({ progress, selectedCount, onCancel }) {
@@ -15,7 +16,7 @@ export default function WorkspaceSearchProgress({ progress, selectedCount, onCan
   const queued = progress.status === 'queued', cancelling = progress.status === 'cancelling';
   const determinate = !queued && !cancelling && Number.isFinite(progress.completed) && progress.total > 0;
   const percent = determinate ? Math.floor(Math.min(1, Math.max(0, progress.completed / progress.total)) * 100) : undefined;
-  const stageIndex = ['saving','complete'].includes(progress.stage) ? 3 : stages.findIndex(([key]) => key === progress.stage);
+  const stageIndex = ['saving','complete'].includes(progress.stage) ? stages.length : stages.findIndex(([key]) => key === progress.stage);
   const cancellable = !['saving','complete'].includes(progress.stage) && !cancelling;
   const caption = cancelling ? 'Отменяем поиск…' : queued ? 'Ожидаем свободные потоки' : labels[progress.stage] || labels.preparing;
   const statusText = cancelling ? 'Останавливаем текущую операцию'
@@ -27,7 +28,7 @@ export default function WorkspaceSearchProgress({ progress, selectedCount, onCan
     onCancel={event => { event.preventDefault(); if (cancellable) onCancel(); }}>
     <div className="workspace-search-header"><span className="workspace-search-symbol" aria-hidden="true">🧬</span><div><h2 id="workspace-search-title">Полный поиск генотипов</h2><p>{selectedCount.toLocaleString('ru-RU')} объектов выбрано</p></div></div>
     <div className="workspace-search-body">
-      <div className="workspace-search-caption" role="status" aria-live="polite"><strong>{caption}</strong><span>{stageIndex >= 0 && stageIndex < 3 ? `Этап ${stageIndex + 1} из 3` : 'Полный поиск'}</span></div>
+      <div className="workspace-search-caption" role="status" aria-live="polite"><strong>{caption}</strong><span>{stageIndex >= 0 && stageIndex < stages.length ? `Этап ${stageIndex + 1} из ${stages.length}` : 'Полный поиск'}</span></div>
       <progress className="workspace-search-progress" max="100" value={percent} aria-label="Прогресс текущего этапа" />
       <div className="workspace-search-counts"><span id="workspace-search-detail">{determinate ? `${progress.completed.toLocaleString('ru-RU')} из ${progress.total.toLocaleString('ru-RU')} ${progress.unit === 'candidates' ? 'кандидатов' : progress.unit === 'changes' ? 'изменений' : 'объектов'}` : statusText}</span><strong>{determinate ? `${percent}%` : '…'}</strong></div>
       <ol className="workspace-search-stages">{stages.map(([key, label], index) => <li key={key} data-state={index < stageIndex ? 'done' : index === stageIndex ? 'current' : 'pending'}><span aria-hidden="true">{index < stageIndex ? '✓' : index + 1}</span><div>{label}<small>{index < stageIndex ? 'Завершено' : index === stageIndex ? queued ? 'В очереди' : 'Выполняется' : 'Следующий этап'}</small></div></li>)}</ol>

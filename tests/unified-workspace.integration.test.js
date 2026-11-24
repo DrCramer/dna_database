@@ -128,6 +128,40 @@ test('Единый workspace: импорт, ревизии, поиск, gate, п
     await pool.query('UPDATE workspace_search_runs SET encrypted_result=$2 WHERE id=$1', [search.id, snapshot]);
     checkTypes(await service.search(actor, search.id), initialTypes);
   });
+  await t.test('Полный поиск возвращает ограниченные сведения о совпадениях в личных массивах коллег', async () => {
+    const { rows: [{ id: team }] } = await pool.query('INSERT INTO organizations(name) VALUES($1) RETURNING id', ['SYN-colleagues-' + randomUUID()]);
+    const actor = await user('user_analyst', team);
+    const colleague = await user('user_analyst', team);
+    const inactive = await user('user_analyst', team);
+    await pool.query("UPDATE users SET display_name='Синтетический коллега' WHERE id=$1", [colleague.id]);
+    const { ids: [referenceId] } = await load(actor, [profile('SYN-OWN')]);
+    const { ids: [colleagueId, deactivatedId] } = await load(colleague, [
+      { ...profile('SYN-COLLEAGUE', 'gr'), comment: 'SYN-private-comment' },
+      profile('SYN-DEACTIVATED'), profile('SYN-NO-MATCH', 'ug', { ...data, TH01: ['6', '9'] }),
+      profile('123456-G', 'staff'), profile('SYN-NO-GENOTYPE', 'gr', {})
+    ]);
+    await service.remove(colleague, [deactivatedId]);
+    await load(inactive, [profile('SYN-INACTIVE-OWNER')]);
+    await pool.query('UPDATE users SET is_active=false WHERE id=$1', [inactive.id]);
+    await load(foreign, [profile('SYN-OTHER-ORGANIZATION')]);
+
+    await assert.rejects(service.fullSearch(actor, [colleagueId]), error => error.status === 403);
+    const result = await service.fullSearch(actor, [referenceId]);
+    assert.equal(result.referenceCounts.colleagues, 2);
+    assert.deepEqual(result.internal.results, []);
+    assert.deepEqual(result.master.results, []);
+    const [{ reference, matches }] = result.colleagues.results;
+    assert.equal(reference.id, referenceId);
+    assert.equal(matches.length, 1);
+    const [{ matchedLoci, ...match }] = matches;
+    assert.deepEqual(match, {
+      ownerName: 'Синтетический коллега', internal_number: 'SYN-COLLEAGUE', year: 2026, expertise_type: 'gr'
+    });
+    assert.deepEqual(new Set(matchedLoci), new Set(Object.keys(data)));
+    assert.deepEqual((await service.search(actor, result.id)).colleagues, result.colleagues);
+    await assert.rejects(service.search(colleague, result.id), error => error.status === 404);
+    await assert.rejects(service.search(foreign, result.id), error => error.status === 404);
+  });
   await t.test('История дубликатов учитывает старый поиск, первую дату, владельца и очистку истории', async () => {
     const actor = await user('user_analyst');
     const pair = await load(actor, [profile('SYN-HISTORY-1'), profile('SYN-HISTORY-2')]);

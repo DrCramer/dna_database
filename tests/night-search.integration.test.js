@@ -29,6 +29,9 @@ test('Night search: durable checkpoints, window, fencing, rights, results and gl
   const sd=await service.createDraft(admin,[{originalname:'SYN-staff.xlsx',buffer:createImportWorkbook({profiles:[{objectNumber:'123-G',year:2026,expertiseType:'staff',fullName:'Synthetic staff',strData:data}],loci:Object.keys(data),sourceFormat:'DNA_IMPORT_V2'})}]);
   const staffIds=(await service.commitDraft(admin,sd.id,sd.revision,randomUUID())).ids;
   const sr=await service.fullSearch(admin,staffIds);await service.publish(admin,staffIds,sr.id);await service.remove(admin,staffIds);
+  const peer=await actor('user_analyst');
+  const pd=await service.createDraft(peer,[{originalname:'SYN-peer.xlsx',buffer:createImportWorkbook({profiles:[{...profiles[0],objectNumber:'SYN-PEER'}],loci:Object.keys(data),sourceFormat:'DNA_IMPORT_V2'})}]);
+  await service.commitDraft(peer,pd.id,pd.revision,randomUUID());
   const originalGenotypes=JSON.stringify((await pool.query('SELECT id,str_data FROM dna_profiles WHERE id=ANY($1::uuid[]) ORDER BY id',[ids])).rows);
   let policy,job;
   await t.test('Policy permissions, validation, revision conflict and idempotent migration',async()=>{
@@ -63,6 +66,9 @@ test('Night search: durable checkpoints, window, fencing, rights, results and gl
     const completed=(await pool.query('SELECT * FROM workspace_search_jobs WHERE id=$1',[job.id])).rows[0];assert.equal(completed.state,'complete');
     const result=await service.search(user,completed.result_run_id,{duplicateHistory:true}),expected=JSON.parse(JSON.stringify(await service.fullSearch(user,ids)));
     assert.deepEqual(scientificResult(result.internal.results),scientificResult(expected.internal.results));assert.deepEqual(scientificResult(result.master.results),scientificResult(expected.master.results));assert.deepEqual(result.staff,expected.staff);
+    assert.deepEqual(result.colleagues,expected.colleagues);
+    assert.equal(result.colleagues.results.length,ids.length);
+    assert(result.colleagues.results.every(group=>group.matches.length===1 && group.matches[0].internal_number==='SYN-PEER'));
     const nightMatches=result.internal.results.flatMap(group=>group.exportMatches);
     const manualMatches=expected.internal.results.flatMap(group=>group.exportMatches);
     assert(nightMatches.length>0 && nightMatches.every(match=>match.duplicateHistory.status==='new'));

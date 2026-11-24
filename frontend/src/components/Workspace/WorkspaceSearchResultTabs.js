@@ -1,6 +1,7 @@
 import React, { useId, useLayoutEffect, useRef, useState } from 'react';
 import UiIcon from '../Common/UiIcon';
 import WorkspaceDuplicateResults, { WorkspaceStaffResults } from './WorkspaceDuplicateResults';
+import WorkspaceColleagueResults from './WorkspaceColleagueResults';
 
 export default function WorkspaceSearchResultTabs({ result, colors, staffActions, onDuplicateExport, exportingDuplicates }) {
   const id = useId();
@@ -11,6 +12,8 @@ export default function WorkspaceSearchResultTabs({ result, colors, staffActions
   const staffCount = result.staff.filter(group => group.matches.length > 0).length;
   const tabs = [
     { id: 'internal', label: 'Внутри личного массива', icon: 'grid', count: result.internal.results.length, groups: result.internal.results },
+    { id: 'colleagues', label: 'Личный массив сотрудников', icon: 'users', count: result.colleagues?.results.length ?? 0,
+      groups: result.colleagues?.results, references: result.referenceCounts?.colleagues },
     { id: 'master', label: 'Мастер-массив', icon: 'layers', count: result.master.results.length, groups: result.master.results, references: result.referenceCounts?.master },
     { id: 'staff', label: 'Контаминация сотрудников', icon: 'users', count: staffCount, groups: result.staff, references: result.referenceCounts?.staff }
   ];
@@ -97,7 +100,7 @@ export default function WorkspaceSearchResultTabs({ result, colors, staffActions
     >
       {!result.outdated && selection.visited.includes(index) && <>
         {(tab.references != null || tab.id === 'staff' && staffCount > 0) && <div className="workspace-result-actions">
-          {tab.references != null && <p>Эталонов проверено: {tab.references.toLocaleString('ru-RU')}</p>}
+          {tab.references != null && <p>{tab.id === 'colleagues' ? 'Профилей проверено' : 'Эталонов проверено'}: {tab.references.toLocaleString('ru-RU')}</p>}
           {tab.id === 'staff' && staffCount > 0 && staffActions}
         </div>}
         {tab.id === 'staff' ? <WorkspaceStaffResults
@@ -105,7 +108,7 @@ export default function WorkspaceSearchResultTabs({ result, colors, staffActions
           staffProfiles={result.staffProfiles}
           ignoredLoci={result.parameters?.staffOptions?.ignoredLoci ?? ignoredLoci}
           colors={colors}
-        /> : <WorkspaceDuplicateResults
+        /> : tab.id === 'colleagues' ? <WorkspaceColleagueResults groups={tab.groups} /> : <WorkspaceDuplicateResults
           groups={tab.groups}
           ignoredLoci={ignoredLoci}
           onExport={historyFilter => onDuplicateExport(tab.id, historyFilter)}

@@ -45,6 +45,29 @@ function visitResultProfiles(result, visit) {
   }
   for (const group of result.staff || []) if (group.reference) visit(group.reference, 'workspace');
 }
+
+function summarizeColleagueMatches(groups, sources, candidates) {
+  const candidatesById = new Map(candidates.map(profile => [profile.id, profile]));
+  return groups.map(group => {
+    const source = sources.get(group.reference.id);
+    return {
+      reference: {
+        id: source.id, internal_number: source.internal_number, year: source.year, expertise_type: source.expertise_type
+      },
+      matches: (group.exportMatches || group.matches).map(match => {
+        const candidate = candidatesById.get(match.id);
+        const matchedLoci = match.matchedLoci ?? Object.entries(match.details || {})
+          .filter(([, detail]) => ['match', 'contamination', 'dropout'].includes(detail.status))
+          .map(([locus]) => locus);
+        // Peer comparisons expose identification and match evidence, not the underlying private genotype.
+        return {
+          ownerName: candidate.owner_name, internal_number: candidate.internal_number,
+          year: candidate.year, expertise_type: candidate.expertise_type, matchedLoci
+        };
+      })
+    };
+  });
+}
 function effectiveSearchParameters(stored = {}, changes = {}, initialStaffOptions) {
   const parameters = {
     minMatches: 15,
@@ -107,7 +130,7 @@ class WorkspaceSearchService extends WorkspaceService {
     const w = await this.workspace(user),
       id = randomUUID(),
       reader = await this.pool.connect();
-    let run, profiles, working, master, staff, staffLinks;
+    let run, profiles, working, colleagues, master, staff, staffLinks;
     try {
       await reader.query('BEGIN ISOLATION LEVEL REPEATABLE READ READ ONLY');
       const workspace = (await reader.query('SELECT * FROM personal_workspaces WHERE id=$1', [w.id])).rows[0];
@@ -127,6 +150,15 @@ class WorkspaceSearchService extends WorkspaceService {
       if (!execution.allProfiles && profiles.length !== ids.length) throw err('Один из профилей недоступен.', 403);
       if (!profiles.length) throw err('Нет активных объектов.', 409, 'NO_PROFILES');
       profiles.sort((a, b) => a.id < b.id ? -1 : a.id > b.id ? 1 : 0);
+      colleagues = (await reader.query(`SELECT p.id,p.internal_number,p.year,p.expertise_type,p.str_data,
+          COALESCE(NULLIF(u.display_name,''),u.username) AS owner_name
+        FROM personal_workspaces w
+        JOIN users u ON u.id=w.owner_id AND u.organization_id=w.organization_id AND u.is_active=true
+        JOIN dna_profiles p ON p.workspace_id=w.id AND p.user_id=w.owner_id AND p.organization_id=w.organization_id
+        WHERE w.organization_id=$1 AND w.owner_id<>$2 AND u.role::text=ANY($3::text[])
+          AND p.is_active=true AND p.profile_type='user' AND p.expertise_type IN ('chs','ug','gr')
+        ORDER BY p.id`, [user.organization_id, user.id, WORKSPACE_WRITE_ROLES])).rows
+        .filter(profile => hasGenotype(profile.str_data));
       const refs = (await reader.query('SELECT * FROM workspace_reference_versions WHERE organization_id=$1', [user.organization_id])).rows[0];
       master = (await reader.query(`SELECT p.* FROM master_array_profiles p JOIN master_arrays ma ON ma.id=p.master_array_id WHERE p.organization_id=$1 AND p.is_active=true AND ma.is_active=true`, [user.organization_id])).rows.map(row => decodeMasterRow(row));
       const legacyMasters = (await reader.query("SELECT * FROM dna_profiles WHERE organization_id=$1 AND is_active=true AND profile_type='master'", [user.organization_id])).rows.map(row => decodeMasterRow(row));
@@ -189,6 +221,14 @@ class WorkspaceSearchService extends WorkspaceService {
       }, {
         signal, onProgress: stageProgress('internal')
       });
+      onProgress?.({ stage: 'colleagues', status: 'running', completed: 0, total: eligible.length, unit: 'objects' });
+      const peerSearch = eligible.length && colleagues.length ? await executeProfiles('colleagues', {
+        ...input,
+        compareProfiles: colleagues,
+        searchMode: 'task'
+      }, {
+        signal, onProgress: stageProgress('colleagues')
+      }) : { results: [] };
       onProgress?.({ stage: 'master', status: 'running', completed: 0, total: eligible.length, unit: 'objects' });
       const shared = await executeProfiles('master',{
         ...input,
@@ -246,12 +286,14 @@ class WorkspaceSearchService extends WorkspaceService {
         algorithmVersion: ALGORITHM_VERSION,
         parameters,
         internal,
+        colleagues: { results: summarizeColleagueMatches(peerSearch.results, sourceById, colleagues) },
         master: shared,
         staff: staffGroups,
         staffProfiles,
         staffExecution: { mode: staffResult.mode, workerCount: staffResult.workerCount, comparisons: staffResult.comparisons },
         profiles: proofs,
         referenceCounts: {
+          colleagues: colleagues.length,
           master: master.length,
           staff: staff.length,
           workspace: working.length

@@ -141,16 +141,18 @@ class NightSearchService {
     };
     const chunks=async(stage,input,options,runner)=>{
       const total=input.referenceProfiles.length,results=[];let comparisons=0,candidateComparisons=0;
+      // Private peer data is read afresh for every attempt and never put into job checkpoints.
+      const checkpointed=stage!=='colleagues';
       for(let start=0,index=0;start<Math.max(1,total);start+=job.policy.chunkSize,index++) {
         await check();if(controller.signal.aborted)throw controller.signal.reason;
         const refs=input.referenceProfiles.slice(start,start+job.policy.chunkSize);
-        let part=(await this.pool.query('SELECT encrypted_result FROM workspace_search_job_chunks WHERE job_id=$1 AND organization_id=$2 AND owner_id=$3 AND manifest=$4 AND stage=$5 AND chunk_index=$6',[job.id,job.organization_id,job.owner_id,manifest,stage,index])).rows[0];
+        let part=checkpointed&&(await this.pool.query('SELECT encrypted_result FROM workspace_search_job_chunks WHERE job_id=$1 AND organization_id=$2 AND owner_id=$3 AND manifest=$4 AND stage=$5 AND chunk_index=$6',[job.id,job.organization_id,job.owner_id,manifest,stage,index])).rows[0];
         if(part)part=unseal(part.encrypted_result);
         else {
           const maxWorkers=job.policy.finishPolicy==='finish'&&!windowAt(this.clock(),job.policy).open?1:job.policy.maxWorkers;
           part=await runner({...input,referenceProfiles:refs},{...options,signal:controller.signal,priority:'background',maxWorkers,minParallelComparisons:0,
             onProgress:p=>progress({stage,status:p.status,completed:start+Math.floor(refs.length*(p.total?Math.min(1,p.completed/p.total):0)),total,unit:'objects'})});
-          await this.searchService.transaction(async c=>{
+          if(checkpointed)await this.searchService.transaction(async c=>{
             await this.guard(job,c,{lock:true,expected});
             await c.query(`INSERT INTO workspace_search_job_chunks(job_id,organization_id,owner_id,manifest,stage,chunk_index,encrypted_result) VALUES($1,$2,$3,$4,$5,$6,$7) ON CONFLICT(job_id,stage,chunk_index) DO NOTHING`,[job.id,job.organization_id,job.owner_id,manifest,stage,index,seal(part)]);
           });

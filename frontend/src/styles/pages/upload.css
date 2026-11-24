@@ -1441,7 +1441,7 @@
 }
 .workspace-result-tabs {
   display: grid;
-  grid-template-columns: repeat(3, minmax(0, 1fr));
+  grid-template-columns: repeat(4, minmax(0, 1fr));
   gap: 4px;
   padding: 4px;
   border: 1px solid var(--border-default);
@@ -1480,6 +1480,7 @@
 .workspace-result-panel { min-width: 0; }
 @media (max-width: 640px) {
   .workspace-result-tabbar { padding-inline: 8px; }
+  .workspace-result-tabs { grid-template-columns: repeat(2, minmax(0, 1fr)); }
   .workspace-result-tabs > button { flex-direction: column; gap: 4px; padding: 6px 4px; }
   .workspace-result-tabs .workspace-icon { display: none; }
 }
@@ -1678,6 +1679,8 @@
 .workspace-duplicate-filter-empty { margin: 4px 0; color: var(--text-secondary); font-size: 13px; }
 .workspace-duplicate-table thead th { position: sticky; top: 0; height: 48px; z-index: 5; background: var(--surface-raised, var(--surface-card)); color: var(--text-secondary); font-size: 12px; line-height: 16px; text-align: center; }
 .workspace-duplicate-table td { text-align: center; }
+.workspace-colleague-table { width: 100%; min-width: 680px; }
+.workspace-colleague-table td:last-child { white-space: normal; text-align: left; }
 .workspace-duplicate-table [data-fixed="role"] { position: sticky; left: 0; min-width: 92px; width: 92px; max-width: 92px; text-align: left; z-index: 3; font-size: 12px; }
 .workspace-duplicate-table [data-fixed="object"] { position: sticky; left: 92px; min-width: 150px; width: 150px; max-width: 190px; overflow: hidden; text-overflow: ellipsis; text-align: left; z-index: 3; border-right: 2px solid var(--border-default); }
 .workspace-duplicate-table thead [data-fixed] { z-index: 7; }

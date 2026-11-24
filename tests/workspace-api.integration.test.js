@@ -159,7 +159,7 @@ test('Workspace API: реальные сессии, роли, чужие UUID, l
     assert.match(response.headers.get('content-type'),/application\/x-ndjson/);
     assert.match(response.headers.get('cache-control'),/no-transform/);
     const frames=(await response.text()).trim().split('\n').map(s=>JSON.parse(s));
-    assert.deepEqual([...new Set(frames.filter(f=>f.type==='progress').map(f=>f.progress.stage))],['preparing','internal','master','staff','saving','complete']);
+    assert.deepEqual([...new Set(frames.filter(f=>f.type==='progress').map(f=>f.progress.stage))],['preparing','internal','colleagues','master','staff','saving','complete']);
     const result=frames.at(-1);assert.equal(result.type,'result');
     assert.equal((await call('/api/workspace/searches/'+result.result.id,'user_analyst')).status,200);
     assert.equal((await call('/api/workspace/searches/'+result.result.id,'foreign')).status,404);
