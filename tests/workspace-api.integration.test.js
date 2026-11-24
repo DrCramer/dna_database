@@ -486,11 +486,21 @@ test('Workspace API: реальные сессии, роли, чужие UUID, l
     await call('/api/users/'+newUser.id,'admin',{can_approve_master:true},'PUT');
     assert.equal((await call('/api/workspace/approvals/'+request.id+'/decision','reviewer',{decision:'approve',reviewToken:details.reviewToken})).status,200);
     const stored = (await pool.query(
-      'SELECT master_array_id, internal_number, sample_name, comment FROM master_array_profiles WHERE source_workspace_profile_id=ANY($1::uuid[]) ORDER BY internal_number',
+      'SELECT id, master_array_id, internal_number, sample_name, comment FROM master_array_profiles WHERE source_workspace_profile_id=ANY($1::uuid[]) ORDER BY internal_number',
       [loaded.ids]
     )).rows;
     const expectedFields = sourceProfiles.slice(0, 2).map(p => [p.objectNumber, p.assignedNumber, p.comment]);
     assert.deepEqual(stored.map(p => [p.internal_number, p.sample_name, p.comment]), expectedFields);
+    const objectExport = id => '/api/profiles/master-objects/' + id + '/export.xlsx?panel=A29%2B';
+    const individual = await call(objectExport(stored[0].id), 'user_analyst');
+    assert.equal(individual.status, 200);
+    assert.match(individual.headers.get('content-type'), /spreadsheetml/);
+    assert.match(individual.headers.get('content-disposition'), /SYN-APP-API-1_A29\.xlsx/);
+    assert.equal(individual.headers.get('cache-control'), 'private, no-store');
+    assert.equal((await fetch(base + objectExport(stored[0].id))).status, 401);
+    assert.equal((await call(objectExport(stored[0].id), 'foreign')).status, 404);
+    assert.equal((await call(objectExport(loaded.ids[2]), 'user_analyst')).status, 404);
+    assert.equal((await call(objectExport(stored[0].id).replace('A29%2B', 'UNKNOWN'), 'user_analyst')).status, 400);
     const masterId = stored[0].master_array_id;
     const optionsPath = '/api/master-arrays/export/options';
     const options = await call(optionsPath, 'admin');

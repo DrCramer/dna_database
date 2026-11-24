@@ -101,6 +101,23 @@ test('Legacy API: единый доступ к профилям в active depart
     }
   }
 
+  await t.test('Выгрузка одного объекта в legacy API использует область доступа карточки', async () => {
+    const { rows: [{ id }] } = await query(`INSERT INTO master_array_profiles
+      (master_array_id, organization_id, year, sample_name, internal_number, str_data, created_by)
+      VALUES ($1, $2, 2025, 'SYN Panel', 'SYN-PANEL-1', $3, $4) RETURNING id`,
+    [masterArray, organization, JSON.stringify(strData), primary.id]);
+    const path = `/api/profiles/master-objects/${id}`;
+    const download = (session, department) => fetch(base + path + '/export.xlsx?panel=A29%2B', {
+      headers: { Authorization: `Bearer ${session.accessToken}`, 'X-Active-Department-Id': department }
+    });
+    const response = await download(multi, genetic);
+    assert.equal(response.status, 200);
+    assert.match(response.headers.get('content-disposition'), /SYN-PANEL-1_A29\.xlsx/);
+    const denied = await request('/profiles/master-objects/' + id, multi, emergency);
+    assert.equal(denied.status, 404);
+    assert.equal((await download(multi, emergency)).status, denied.status);
+  });
+
   await t.test('primary == active: поиск и GET 200, свои записи и мастер-массив', async () => {
     await assertSearchOpens(primary, genetic, [colleague.id, masterProfile.id]);
   });

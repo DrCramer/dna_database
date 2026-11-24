@@ -14,6 +14,7 @@ const { ProfileAccessService, ProfileAccessError } = require("../services/securi
 const { ProfileUploadAccessError } = require("../services/security/profileUploadPolicy");
 const { query } = require('../config/database');
 const { logger } = require('../utils/logger');
+const { createObjectPanelWorkbook, ObjectPanelExportError } = require('../services/converters/objectPanelExcelExport');
 const router = express.Router();
 router.use(require('../middleware/requestContext').requestContext);
 
@@ -1214,7 +1215,7 @@ router.get('/master-objects/search', authenticate, async (req, res) => {
 });
 
 // GET /api/profiles/master-objects/:id - Get detailed master array object card
-router.get('/master-objects/:id', authenticate, async (req, res) => {
+router.get(['/master-objects/:id', '/master-objects/:id/export.xlsx'], authenticate, async (req, res) => {
     try {
         const { id } = req.params;
         const { clause: accessClause, params: accessParams } = getMasterArrayAccessScope(req.user, req.activeDepartmentId);
@@ -1251,11 +1252,16 @@ router.get('/master-objects/:id', authenticate, async (req, res) => {
 
         const object = mapMasterObjectRow(result.rows[0]);
 
+        if (/\/export\.xlsx\/?$/i.test(req.path)) {
+            const { filename, buffer } = await createObjectPanelWorkbook(object, req.query.panel);
+            return res.set('Cache-Control', 'private, no-store').attachment(filename).send(buffer);
+        }
         res.json({
             success: true,
             object
         });
     } catch (error) {
+        if (error instanceof ObjectPanelExportError) return res.status(error.status).json({ message: error.message });
         logger.error('Failed to fetch master object details', {
             error: error.message,
             objectId: req.params.id,

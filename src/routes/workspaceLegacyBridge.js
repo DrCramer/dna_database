@@ -11,6 +11,7 @@ const {
 const {
   decodeMasterRow
 } = require('../services/converters/masterArrayExcelExportService');
+const { createObjectPanelWorkbook, ObjectPanelExportError } = require('../services/converters/objectPanelExcelExport');
 const router = express.Router();
 router.use((req, res, next) => workspaceModeEnabled() ? authenticate(req, res, next) : next('router'));
 router.use((req, res, next) => {
@@ -46,7 +47,7 @@ function dto(p, source) {
     source
   };
 }
-router.get(['/', '/search', '/accessible', '/master-objects/search', '/:id', '/master-objects/:id'], async (req, res, next) => {
+router.get(['/', '/search', '/accessible', '/master-objects/search', '/:id', '/master-objects/:id', '/master-objects/:id/export.xlsx'], async (req, res, next) => {
   if (req.params.id && !/^[0-9a-f-]{36}$/i.test(req.params.id)) return next();
   try {
     const org = req.user.organization_id;
@@ -76,6 +77,10 @@ router.get(['/', '/search', '/accessible', '/master-objects/search', '/:id', '/m
       if (!profiles.length) return res.status(404).json({
         message: 'Профиль не найден.'
       });
+      if (/\/export\.xlsx\/?$/i.test(req.path)) {
+        const { filename, buffer } = await createObjectPanelWorkbook(profiles[0], req.query.panel);
+        return res.attachment(filename).send(buffer);
+      }
       return res.json({
         success: true,
         profile: profiles[0],
@@ -93,6 +98,7 @@ router.get(['/', '/search', '/accessible', '/master-objects/search', '/:id', '/m
       offset
     });
   } catch (e) {
+    if (e instanceof ObjectPanelExportError) return res.status(e.status).json({ message: e.message });
     res.status(500).json({
       message: 'Не удалось прочитать разрешённые профили.'
     });

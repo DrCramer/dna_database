@@ -1,5 +1,6 @@
 import { formatDateRu } from '../../../../src/utils/dateFormatter';
 import React, { useEffect, useState } from 'react';
+import MasterObjectPanelExport from './MasterObjectPanelExport';
 import { useProfileFieldLabel } from '../../hooks/useProfileFieldLabel';
 
 const formatDateTime = value => formatDateRu(value) || '—';
@@ -265,6 +266,9 @@ const MasterObjectSearchPage = () => {
                   {selectedObject.is_active ? 'Активен' : 'Неактивен'}
                 </div>
               </div>
+
+              {selectedObject.id === selectedObjectId && <MasterObjectPanelExport
+                key={selectedObject.id} objectId={selectedObject.id} />}
 
               <div className="master-object-card-grid">
                 <div className="master-object-card-field">

@@ -201,6 +201,39 @@
   white-space: nowrap;
 }
 
+.master-object-panel-export summary { width: fit-content; }
+.master-object-panel-export form {
+  display: grid;
+  gap: var(--space-3);
+  margin-top: var(--space-2);
+  padding: var(--space-3);
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-md);
+}
+.master-object-panel-filter { display: grid; gap: var(--space-2); }
+.master-object-panel-list {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 210px), 1fr));
+  gap: var(--space-1);
+  max-height: 215px;
+  overflow: auto;
+}
+.master-object-panel-list label {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  padding: var(--space-1) var(--space-2);
+  cursor: pointer;
+}
+.master-object-panel-list label:hover { background: var(--surface-muted); }
+.master-object-panel-actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-3);
+  color: var(--text-secondary);
+}
+
 :where(.master-object-search-page) .master-object-card-grid {
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));
