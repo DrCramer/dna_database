@@ -105,6 +105,25 @@ class WorkspaceService {
     const nightFilter=this.hasRunOrigin?"AND (x.origin<>'night' OR x.state='complete')":'';
     const pageSize = 50;
     const profileScope = 'p.workspace_id=$1 AND p.user_id=$2 AND p.organization_id=$3 AND p.is_active=true';
+    const activePublication = `x.workspace_profile_id=p.id AND x.analysis_revision=p.analysis_revision
+      AND ((x.destination='master' AND EXISTS(SELECT 1 FROM master_array_profiles target WHERE target.id=x.published_id AND target.source_workspace_profile_id=p.id AND target.is_active=true))
+        OR (x.destination='staff' AND EXISTS(SELECT 1 FROM staff_profiles target WHERE target.id=x.published_id AND target.source_workspace_profile_id=p.id AND target.is_active=true)))`;
+    // Resolve publications once for the table, and filter before taking the first 50 rows.
+    const tablePublications = table ? `WITH profile_publications AS (
+      SELECT DISTINCT ON (p.id) p.id AS profile_id,x.published_id,x.destination,undo.approval_id IS NOT NULL AS rolled_back
+      FROM workspace_publications x
+      JOIN dna_profiles p ON ${activePublication}
+      LEFT JOIN workspace_master_rollbacks undo ON undo.approval_id=x.master_approval_id
+      WHERE ${profileScope} AND x.organization_id=$3
+      ORDER BY p.id,x.created_at DESC,x.id DESC
+    )` : '';
+    const publishedFilter = table ? `AND NOT EXISTS (
+      SELECT 1 FROM profile_publications pub WHERE pub.profile_id=p.id AND pub.destination='master' AND NOT pub.rolled_back
+    )` : '';
+    const publicationJoin = table
+      ? 'LEFT JOIN profile_publications pub ON pub.profile_id=p.id'
+      : `LEFT JOIN LATERAL(SELECT x.published_id,x.destination FROM workspace_publications x
+        WHERE ${activePublication} ORDER BY x.created_at DESC,x.id DESC LIMIT 1) pub ON true`;
     const runScope = `x.workspace_id=$1 AND x.owner_id=$2 AND x.organization_id=$3 ${nightFilter}`;
     const proofColumns = `sp.profile_id,sp.analysis_revision proof_revision,sp.state proof_state,sp.stages proof_stages,
       x.id,x.state,x.algorithm_version,x.completed_at,x.workspace_revision,x.master_revision,x.staff_revision`;
@@ -119,7 +138,7 @@ class WorkspaceService {
       WHERE ${runScope}
       ORDER BY sp.profile_id,x.started_at DESC,x.id DESC
     ) s ON s.profile_id=p.id`;
-    const profiles = firstPage ? `(SELECT * FROM dna_profiles p WHERE ${profileScope}
+    const profiles = firstPage ? `(SELECT * FROM dna_profiles p WHERE ${profileScope} ${publishedFilter}
       ORDER BY p.upload_date,p.id LIMIT ${pageSize + 1})` : 'dna_profiles';
     // Keep the legacy-number fallback, but avoid shipping source cell history to the table.
     const provenance = table ? `CASE WHEN p.provenance ? 'assignedNumber'
@@ -127,17 +146,18 @@ class WorkspaceService {
       p.provenance->>'sourceFilename' source_filename` : 'p.provenance';
     const {
       rows
-    } = await this.pool.query(`SELECT p.id,p.internal_number,p.sample_name,p.import_format,p.year,p.expertise_type,p.full_name,p.registration_number,p.comment,p.str_data,p.analysis_revision,${provenance},pub.published_id,pub.destination,s.id search_id,s.state run_state,s.algorithm_version,CASE WHEN s.proof_revision=p.analysis_revision THEN s.proof_state END proof_state,CASE WHEN s.proof_revision=p.analysis_revision THEN s.proof_stages END proof_stages,s.completed_at search_completed_at,approval.id approval_id,approval.effective_state approval_state,approval.effective_comment decision_comment,approval.effective_decided_at decided_at,approval.submitted_at,approval.decider_name,
+    } = await this.pool.query(`${tablePublications}
+ SELECT p.id,p.internal_number,p.sample_name,p.import_format,p.year,p.expertise_type,p.full_name,p.registration_number,p.comment,p.str_data,p.analysis_revision,${provenance},pub.published_id,pub.destination,s.id search_id,s.state run_state,s.algorithm_version,CASE WHEN s.proof_revision=p.analysis_revision THEN s.proof_state END proof_state,CASE WHEN s.proof_revision=p.analysis_revision THEN s.proof_stages END proof_stages,s.completed_at search_completed_at,approval.id approval_id,approval.effective_state approval_state,approval.effective_comment decision_comment,approval.effective_decided_at decided_at,approval.submitted_at,approval.decider_name,
  s.workspace_revision run_workspace_revision,s.master_revision,s.staff_revision,rv.master_revision current_master_revision,rv.staff_revision current_staff_revision
  FROM ${profiles} p JOIN workspace_reference_versions rv ON rv.organization_id=p.organization_id
- LEFT JOIN LATERAL(SELECT * FROM workspace_publications x WHERE x.workspace_profile_id=p.id AND x.analysis_revision=p.analysis_revision AND ((x.destination='master' AND EXISTS(SELECT 1 FROM master_array_profiles target WHERE target.id=x.published_id AND target.source_workspace_profile_id=p.id AND target.is_active=true)) OR (x.destination='staff' AND EXISTS(SELECT 1 FROM staff_profiles target WHERE target.id=x.published_id AND target.source_workspace_profile_id=p.id AND target.is_active=true))) ORDER BY x.created_at DESC LIMIT 1) pub ON true
+ ${publicationJoin}
  LEFT JOIN ${proof}
  LEFT JOIN LATERAL(SELECT a.id,a.submitted_at,CASE WHEN undo.approval_id IS NULL THEN a.state ELSE 'rolled_back' END effective_state,
    COALESCE(undo.reason,a.decision_comment) effective_comment,COALESCE(undo.rolled_back_at,a.decided_at) effective_decided_at,
    COALESCE(NULLIF(u.display_name,''),u.username) decider_name
    FROM workspace_master_approval_items i JOIN workspace_master_approvals a ON a.id=i.approval_id
    LEFT JOIN workspace_master_rollbacks undo ON undo.approval_id=a.id LEFT JOIN users u ON u.id=COALESCE(undo.rolled_back_by,a.decided_by) WHERE i.profile_id=p.id ORDER BY a.submitted_at DESC,a.id DESC LIMIT 1) approval ON true
- ${firstPage ? '' : `WHERE ${profileScope}`} ORDER BY p.upload_date,p.id`, [w.id, user.id, user.organization_id]);
+ ${firstPage ? '' : `WHERE ${profileScope} ${publishedFilter}`} ORDER BY p.upload_date,p.id`, [w.id, user.id, user.organization_id]);
     const { ALGORITHM_VERSION } = require('./workspaceSearchService');
     const currentSearch = p => p.run_state === 'complete' && p.search_completed_at &&
       p.algorithm_version === ALGORITHM_VERSION && p.run_workspace_revision === w.analysis_revision &&

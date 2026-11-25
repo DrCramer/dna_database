@@ -552,6 +552,11 @@ test('Единый workspace: импорт, ревизии, поиск, gate, п
     const updateRun = await service.fullSearch(second, update.ids);
     const publication = await approve(second, update.ids, updateRun.id, { [update.ids[0]]: masterId });
     assert.notDeepEqual(await record(), previous);
+    for (const firstPage of [true, false]) {
+      const table = await service.list(second, { table: true, firstPage });
+      assert.deepEqual(table.profiles, []);
+      if (firstPage) assert.equal(table.hasMore, false);
+    }
 
     const earlier = await service.masterRollbackPreview(admin, original.id);
     assert.deepEqual(earlier.groups.map(group => group.code), ['CHANGED']);
@@ -575,6 +580,12 @@ test('Единый workspace: импорт, ревизии, поиск, gate, п
     assert.deepEqual(await record(), previous);
     assert.equal((await pool.query("SELECT is_active FROM master_array_profiles WHERE source_workspace_profile_id=$1", [update.ids[1]])).rows[0].is_active, false);
     assert.equal((await service.list(second)).profiles.filter(row => row.approvalState === 'rolled_back' && row.state === 'ROLLED_BACK').length, 2);
+    for (const firstPage of [true, false]) {
+      const table = await service.list(second, { table: true, firstPage });
+      assert.deepEqual(new Set(table.profiles.map(row => row.id)), new Set(update.ids));
+      assert(table.profiles.every(row => row.state === 'ROLLED_BACK'));
+      assert.deepEqual((await service.list(first, { table: true, firstPage })).profiles, []);
+    }
     assert.equal((await service.ownApprovalHistory(second)).requests[0].state, 'rolled_back');
     assert.equal((await service.approvalDetail(second, publication.id)).rollback.reason, 'SYN повторный анализ');
     assert.equal((await service.rollbackMasterApproval(leader, publication.id, plan.reviewToken, 'SYN повтор')).replayed, true);
@@ -682,6 +693,9 @@ test('Единый workspace: импорт, ревизии, поиск, gate, п
     const history=await service.approvalDetail(owner,request.id);
     assert.equal(history.authorId,owner.id);assert(history.deciderName);assert(history.decidedAt);
     assert.equal((await service.list(owner)).profiles.filter(p=>p.state==='PUBLISHED').length,2);
+    const table = await service.list(owner, { table: true, firstPage: true });
+    assert.deepEqual(table.profiles.map(row => row.id), [source.ids[2]]);
+    assert.equal(table.hasMore, false);
     assert.equal((await service.submitApproval(owner,chosen,checked.id,{},(await pool.query('SELECT submission_key FROM workspace_master_approvals WHERE id=$1',[request.id])).rows[0].submission_key)).replayed,true);
   });
   await t.test('Допуск персональный: администратор, свой автор, чужая организация и отзыв открытого права',async()=>{
