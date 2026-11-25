@@ -34,8 +34,12 @@
 :where(.converter-page) .converter-genotypes { width: max-content; min-width: 100%; border-collapse: separate; border-spacing: 0; font-size: 14px; font-variant-numeric: tabular-nums; }
 :where(.converter-page) .converter-genotypes th, :where(.converter-page) .converter-genotypes td { padding: 12px; min-width: 100px; text-align: center; white-space: nowrap; border-bottom: 1px solid var(--border-default); border-right: 1px solid var(--border-subtle); background: var(--surface-card); }
 :where(.converter-page) .converter-genotypes thead th { position: sticky; top: 0; z-index: 2; background: var(--surface-muted); }
-:where(.converter-page) .converter-genotypes tr > :first-child { position: sticky; left: 0; z-index: 1; min-width: 170px; text-align: left; }
-:where(.converter-page) .converter-genotypes thead th:first-child { z-index: 3; }
+:where(.converter-page) .converter-genotypes .converter-selection-column { position: sticky; left: 0; z-index: 1; width: 44px; min-width: 44px; padding: 8px; }
+:where(.converter-page) .converter-genotypes thead .converter-selection-column { z-index: 3; }
+:where(.converter-page) .converter-genotypes .converter-selection-column input { accent-color: var(--color-primary); width: 16px; height: 16px; vertical-align: middle; }
+:where(.converter-page) .converter-genotypes tr[data-excluded="true"] > * { background: var(--surface-muted); }
+:where(.converter-page) .converter-selection-controls input[type="search"] { min-width: min(250px, 100%); }
+:where(.converter-page) .converter-review-links { display: flex; flex-wrap: wrap; gap: 12px; }
 :where(.converter-page) .converter-genotypes .converter-problem-cell { background: var(--status-warning-bg); }
 
 :where(.converter-page) .converter-cell-button { font: inherit; color: inherit; background: transparent; border: 0; padding: 2px; min-width: 64px; cursor: pointer; }

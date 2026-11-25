@@ -27,6 +27,33 @@ function convert(source, settings = {}, options = {}, panels = []) {
 }
 function output(result) { return geneMapperExportResult(result, result.files[0].id); }
 
+test('Выбор объектов GeneMapper действует для отдельного Excel и архива', async () => {
+  const { executeConverterJob } = require('../src/services/converters/converterJob');
+  const { parseFiles } = require('../src/services/workspace/importSourceService');
+  const JSZip = require('jszip');
+  const files = [
+    file([...basic(), ...basic().map(record => ({ ...record, 'Sample Name': '265-28' }))], 'synthetic_1.txt'),
+    file(basic().map(record => ({ ...record, 'Sample Name': '265-29' })), 'synthetic_2.txt')
+  ];
+  const options = { lazyFiles: true, usePanels: false };
+  const preview = await executeConverterJob({ files, options, operation: 'preview' });
+  const result = JSON.parse(Buffer.from(preview.bytes).toString('utf8'));
+  const [first, second] = result.preparedFiles;
+  assert.deepEqual(result.profiles.map(profile => profile.objectNumber), ['265-27', '265-28', '265-29']);
+  const profileSelection = { fingerprint: result.selectionFingerprint, excludedIndices: [1, 2] };
+  const run = fileId => executeConverterJob({ files, operation: 'export',
+    options: { ...options, export: { ...(fileId && { fileId }), profileSelection } } });
+  const output = await run(first.fileId);
+  const rows = bytes => parseFiles([{ originalname: first.filename, buffer: Buffer.from(bytes) }]).rows;
+  assert.deepEqual(rows(output.bytes).map(row => row.objectNumber), ['265-27']);
+  assert.equal(output.auditFiles[0].summary.readyProfiles, 1);
+  assert(output.auditFiles[0].excludedObjects.some(entry => entry.name === '265-28' && entry.status === 'Снят с выбора'));
+  await assert.rejects(() => run(second.fileId), { code: 'UNRESOLVED_CONVERSION' });
+  const archive = await JSZip.loadAsync((await run()).bytes);
+  assert.deepEqual(Object.keys(archive.files), [first.filename]);
+  assert.deepEqual(rows(await archive.file(first.filename).async('nodebuffer')).map(row => row.objectNumber), ['265-27']);
+});
+
 test('GeneMapper: TAB, trailing TAB, CRLF/LF, BOM, порядок и дополнительные столбцы', () => {
   for (const separator of ['\r\n', '\n']) for (const bom of ['', '\uFEFF']) {
     const custom = ['Extra', ...headers.slice().reverse().map(header => header.toUpperCase())];

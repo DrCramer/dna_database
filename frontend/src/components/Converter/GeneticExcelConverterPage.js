@@ -15,6 +15,7 @@ import { updateConverterYear } from '../../../../src/utils/converterYearMetadata
 import { applyConverterIssueDecision } from '../../../../src/utils/converterIssueGroups';
 import { prepareConverterBulkUndo, undoConverterBulkDecision } from '../../../../src/utils/converterBulkUndo';
 import { converterDecisionFeedback } from '../../../../src/utils/converterDecisionFeedback';
+import { profileSources, selectConverterProfiles, legacyConverterResult } from '../../../../src/utils/converterSelection';
 const counters = { files: 'Файлов', sheets: 'Листов', originalRows: 'Исходных строк', uniqueObjects: 'Объектов', sourceLoci: 'Локусов источника', unchanged: 'Без изменений', autoFixed: 'Исправлено автоматически', warnings: 'Предупреждений', unresolved: 'Нерешённых', conflicts: 'Конфликтов' };
 const processingLabels = { export: 'Готовим файл для скачивания…', 'preview-object': 'Пересчитываем объект…',
   'preview-objects': 'Пересчитываем затронутые объекты…' };
@@ -23,24 +24,31 @@ export default function GeneticExcelConverterPage({ onPreparedFile, initialFiles
   const [files, setFiles] = useState([]), [options, setOptions] = useState({}), [result, setResult] = useState(null);
   const [busy, setBusy] = useState(false), [error, setError] = useState('');
   const [hideEmptyLoci, setHideEmptyLoci] = useState(true);
+  const [excludedSources, setExcludedSources] = useState(() => new Set());
   const [draftYears, setDraftYears] = useState({}), [draftObjects, setDraftObjects] = useState({});
   const [previewStale, setPreviewStale] = useState(false);
   const previewAttempt = useRef(null), pendingBulkCommit = useRef(null), bulkSequence = useRef(0);
   const [bulkUndo, setBulkUndo] = useState(null), [decisionNotice, setDecisionNotice] = useState(null);
-  const fileSummary = useMemo(() => converterFileSummary(result), [result]);
+  const sourceIds = useMemo(() => (result?.profiles || []).map(profileSources), [result?.profiles]);
+  const excludedIndices = useMemo(() => sourceIds.flatMap((ids, index) =>
+    ids.some(id => excludedSources.has(id)) ? [index] : []), [sourceIds, excludedSources]);
+  const excluded = useMemo(() => new Set(excludedIndices), [excludedIndices]);
+  const selectedResult = useMemo(() => result && selectConverterProfiles(result, excludedIndices), [result, excludedIndices]);
+  const legacy = useMemo(() => selectedResult && legacyConverterResult(selectedResult), [selectedResult]);
+  const fileSummary = useMemo(() => converterFileSummary(selectedResult), [selectedResult]);
   const [reviewFile, setReviewFile] = useState(null);
   const [reviewTab, setReviewTab] = useState(null), [advanced, setAdvanced] = useState(false);
   const [output, setOutput] = useState(''), [bulkYear, setBulkYear] = useState('');
   const [dragging, setDragging] = useState(false);
-  const dragDepth = useRef(0), reviewArea = useRef(null);
+  const dragDepth = useRef(0), reviewArea = useRef(null), saveHeading = useRef(null);
   const request = useRef(null), requestOperation = useRef(null), input = useRef(null), uploadId = useRef(null);
   const importFormat = (workspaceMode ? 'genetic' : resolveProfileImportFormat(activeDepartment));
   const allowed = ['genetic', 'emergency'].includes(importFormat);
-  useEffect(() => { request.current?.abort(); uploadId.current = null; setFiles([]); setOptions({}); setResult(null); setError(''); setBusy(false); setPreviewStale(false); setBulkUndo(null); setDecisionNotice(null); pendingBulkCommit.current = null; previewAttempt.current = null; if (input.current) input.current.value = ''; return () => request.current?.abort(); }, [user?.id, workspaceMode ? user?.organization_id : activeDepartmentId]);
+  useEffect(() => { request.current?.abort(); uploadId.current = null; setFiles([]); setOptions({}); setResult(null); setExcludedSources(new Set()); setError(''); setBusy(false); setPreviewStale(false); setBulkUndo(null); setDecisionNotice(null); pendingBulkCommit.current = null; previewAttempt.current = null; if (input.current) input.current.value = ''; return () => request.current?.abort(); }, [user?.id, workspaceMode ? user?.organization_id : activeDepartmentId]);
   const select = incoming => {
     if (!incoming.length) return;
     if (incoming.length > 100 || incoming.some(file => !/\.(xlsx|xls|txt)$/i.test(file.name) || file.size > 10 * 1024 * 1024) || incoming.reduce((sum, file) => sum + file.size, 0) > 50 * 1024 * 1024) { setError('Выберите до 100 файлов .xlsx/.xls/.txt: до 10 МиБ каждый и 50 МиБ всего.'); return; }
-    request.current?.abort(); uploadId.current = null; setBusy(false); setFiles(incoming); setOptions(previous => ({ txtEncoding: previous.txtEncoding })); setResult(null); setError(''); setReviewTab(null); setOutput(''); setDraftYears({}); setDraftObjects({}); setPreviewStale(false); setBulkUndo(null); setDecisionNotice(null); pendingBulkCommit.current = null; previewAttempt.current = null;
+    request.current?.abort(); uploadId.current = null; setBusy(false); setFiles(incoming); setOptions(previous => ({ txtEncoding: previous.txtEncoding })); setResult(null); setExcludedSources(new Set()); setError(''); setReviewTab(null); setOutput(''); setDraftYears({}); setDraftObjects({}); setPreviewStale(false); setBulkUndo(null); setDecisionNotice(null); pendingBulkCommit.current = null; previewAttempt.current = null;
   };
   useEffect(() => { if (workspaceModeReady && initialFiles?.length) select(initialFiles); }, [initialFiles, workspaceModeReady]);
   useEffect(() => { if (files.length) perform('preview', { ...options, export: { hideEmptyLoci } }); }, [files]);
@@ -123,7 +131,7 @@ export default function GeneticExcelConverterPage({ onPreparedFile, initialFiles
       }
       const blob = await response.blob();
       if (!controller.signal.aborted) {
-        let filename = normalizedExcelFilename(result?.profiles);
+        let filename = normalizedExcelFilename(selectedResult?.profiles);
         const encoded = (response.headers.get('Content-Disposition') || '').match(/filename\*=UTF-8''([^;]+)/i)?.[1];
         if (encoded) { try { filename = decodeURIComponent(encoded); } catch { /* Используем имя, рассчитанное по объектам. */ } }
         return { blob, filename };
@@ -153,22 +161,38 @@ export default function GeneticExcelConverterPage({ onPreparedFile, initialFiles
     } catch (caught) { setError(caught.message); }
   };
   const download = (blob, filename) => { const url = URL.createObjectURL(blob), anchor = document.createElement('a'); anchor.href = url; anchor.download = filename; anchor.click(); setTimeout(() => URL.revokeObjectURL(url), 1000); };
+  const exportOptions = extra => ({
+    ...options,
+    export: { hideEmptyLoci, ...extra, ...(excludedIndices.length ? {
+      profileSelection: { fingerprint: result.selectionFingerprint, excludedIndices }
+    } : {}) }
+  });
   const preparedFile = async (prepared, direct) => {
-    const exported = await perform('export', { ...options, export: { hideEmptyLoci, fileId: prepared.fileId } });
+    const exported = await perform('export', exportOptions({ fileId: prepared.fileId }));
     if (!exported) return;
     const file = new File([exported.blob], exported.filename, { type: exported.blob.type });
     if (direct) onPreparedFile({ file, departmentId: activeDepartmentId, ownerId: user.id, organizationId: user.organization_id }); else download(file, exported.filename);
   };
-  const downloadZip = async () => { const exported = await perform('export', { ...options, export: { hideEmptyLoci } }); if (exported) download(exported.blob, 'GeneMapper_Export.zip'); };
+  const downloadZip = async () => { const exported = await perform('export', exportOptions()); if (exported) download(exported.blob, 'GeneMapper_Export.zip'); };
   const exportFile = async direct => {
-    const exported = await perform('export', { ...options, export: { hideEmptyLoci, legacyOnly: Boolean(result?.preparedFiles?.length) } }); if (!exported) return;
+    const exported = await perform('export', exportOptions({ legacyOnly: Boolean(result?.preparedFiles?.length) })); if (!exported) return;
     const { blob, filename } = exported;
     if (direct) onPreparedFile({ file: new File([blob], filename, { type: blob.type }), departmentId: activeDepartmentId, ownerId: user.id, organizationId: user.organization_id });
     else { const url = URL.createObjectURL(blob), anchor = document.createElement('a'); anchor.href = url; anchor.download = filename; anchor.click(); setTimeout(() => URL.revokeObjectURL(url), 1000); }
   };
-  const unresolved = result?.issues.filter(issue => issue.hard).length || 0;
+  const unresolved = selectedResult?.issues.filter(issue => issue.hard).length || 0;
   const emptyExcelProfiles = result?.summary.emptyExcelProfiles || 0;
-  const sourceNeedsAttention = Boolean(result?.issues.some(issue => issue.hard && !issue.locus));
+  const sourceNeedsAttention = Boolean(selectedResult?.issues.some(issue => issue.hard && !issue.locus));
+  const chooseProfiles = (indices, checked) => {
+    setExcludedSources(previous => {
+      const next = new Set(previous);
+      for (const index of indices) for (const source of sourceIds[index]) {
+        if (checked) next.delete(source);
+        else next.add(source);
+      }
+      return next;
+    });
+  };
 
   const setFileOptions = (id, patch) => {
     const local = !busy && !previewStale && Object.keys(patch).length === 1 && Object.hasOwn(patch, 'year') ? updateConverterYear(result, options, id, patch.year) : null;
@@ -183,12 +207,13 @@ export default function GeneticExcelConverterPage({ onPreparedFile, initialFiles
   const hasLegacy = Boolean(result?.files.some(file => !file.geneMapper));
   const pendingYear = file => draftYears[file.id] !== undefined && draftYears[file.id] !== String(file.year ?? '');
   const pendingObject = file => Boolean(file.ngs && draftObjects[file.id] !== undefined && draftObjects[file.id].trim() !== file.ngs.objectNumber);
-  const pendingLegacyYear = Boolean(result?.files.some(file => !file.geneMapper && (pendingYear(file) || pendingObject(file))));
+  const legacySources = new Set(legacy?.profiles.flatMap(profile => profile.sources.map(source => source.fileId)));
+  const pendingLegacyYear = Boolean(result?.files.some(file => legacySources.has(file.id) && (pendingYear(file) || pendingObject(file))));
   const outputs = result ? [
-    ...(hasLegacy ? [{ id: 'legacy', name: result.files.filter(file => !file.geneMapper).length > 1 ? 'Общий Excel из файлов' : result.files.find(file => !file.geneMapper)?.name, ready: result.legacyCanImport ?? result.canImport, upload: result.legacyCanUpload ?? result.canUpload, pending: pendingLegacyYear }] : []),
-    ...(result.preparedFiles || []).map(file => ({ id: file.fileId, name: file.filename, ready: file.ready, upload: file.canUpload, pending: pendingYear(result.files.find(source => source.id === file.fileId)), prepared: file }))
+    ...(hasLegacy ? [{ id: 'legacy', name: result.files.filter(file => !file.geneMapper).length > 1 ? 'Общий Excel из файлов' : result.files.find(file => !file.geneMapper)?.name, ready: legacy.canImport, upload: legacy.canUpload, pending: pendingLegacyYear }] : []),
+    ...(selectedResult.preparedFiles || []).map(file => ({ id: file.fileId, name: file.filename, ready: file.ready, upload: file.canUpload, pending: pendingYear(result.files.find(source => source.id === file.fileId)), prepared: file }))
   ] : [];
-  const selectedOutput = outputs.find(item => item.id === output) || outputs[0];
+  const selectedOutput = outputs.find(item => item.id === output) || outputs.find(item => item.ready) || outputs[0];
   const saveOutput = direct => selectedOutput?.prepared ? preparedFile(selectedOutput.prepared, direct) : exportFile(direct);
   const changeEncoding = value => { const next = { ...options, txtEncoding: value }; if (files.length) update(next); else setOptions(next); };
   const applyBulkYear = () => {
@@ -219,29 +244,32 @@ export default function GeneticExcelConverterPage({ onPreparedFile, initialFiles
     {busy && <div className="converter-processing" role="status"><span className="workspace-loading-spinner" aria-hidden="true" />{processingLabels[requestOperation.current] || (result ? 'Обновляем результат проверки…' : 'Распознаём файлы и проверяем профили…')}<button className="btn btn-secondary btn-sm" onClick={() => { request.current?.abort(); setBusy(false); setError('Ожидание операции отменено. Можно повторить проверку или выбрать другие файлы.'); }}>Отменить ожидание</button></div>}
     {result && <>
       <section className="converter-card converter-files-review" aria-label="Проверка файлов">
-        <div className="converter-section-heading"><div><h2>Проверка файлов</h2><p>Объектов: <strong>{result.profiles.length}</strong>{emptyExcelProfiles > 0 && ` · Без результата: ${emptyExcelProfiles}`} · {unresolved ? `Требуют решения: ${unresolved}` : 'Данные проверены'}</p></div><button className="btn btn-secondary" disabled={busy} onClick={() => review(unresolved ? undefined : 'genotypes')}>{unresolved ? 'Исправить замечания' : 'Посмотреть генотипы'}</button></div>
+        <div className="converter-section-heading"><div><h2>Проверка файлов</h2><p>Выбрано объектов: <strong>{selectedResult.profiles.length} из {result.profiles.length}</strong>{emptyExcelProfiles > 0 && ` · Без результата: ${emptyExcelProfiles}`}{unresolved > 0 && ` · Требуют решения: ${unresolved}`}</p></div><button className="btn btn-secondary" disabled={busy} onClick={() => review(result.profiles.length ? 'genotypes' : undefined)}>{result.profiles.length ? 'Выбрать объекты' : 'Исправить замечания'}</button></div>
         {result.files.length > 1 && result.files.some(file => !file.hasYearColumn || file.missingSourceYears > 0) && <div className="converter-bulk-year"><label>Год для строк без года<input className="form-input" type="number" min="1900" max="2100" placeholder="2026" value={bulkYear} disabled={busy} onChange={event => setBulkYear(event.target.value)} /></label><button className="btn btn-secondary btn-sm" disabled={busy || !/^\d{4}$/.test(bulkYear) || +bulkYear < 1900 || +bulkYear > 2100} onClick={applyBulkYear}>Применить ко всем</button><span>Или укажите год отдельно для каждого файла ниже.</span></div>}
         <div className="converter-file-list">{result.files.map(file => {
           const { prepared, count, hard, reason } = fileSummary.get(file.id);
-          return <article className="converter-file-row" key={file.id}><div className="converter-file-info"><span className="converter-format-label">{file.geneMapper ? 'TXT' : file.ngs ? 'ASTR+' : 'Excel'}</span><div><h3>{file.name}</h3><p>Объектов: {count}{prepared?.excluded > 0 && ` · исключено: ${prepared.excluded}`}</p>{hard > 0 && reason && <p className="converter-file-problem">{reason}</p>}<button className="converter-text-button" disabled={busy} onClick={() => review('sources', file.id)}>{hard ? `Замечания: ${hard}` : prepared?.excluded ? 'Посмотреть исключённые образцы' : 'Параметры файла'}</button></div></div><div className="converter-file-controls">{file.ngs && <SourceObjectNumber key={`${file.id}:${file.ngs.objectNumber || ''}:${file.ngs.objectConfirmed}`} file={file} disabled={busy} apply={objectNumber => { setDraftObjects(current => ({ ...current, [file.id]: objectNumber })); setFileOptions(file.id, { objectNumber, objectConfirmed: true }); }} onDraftChange={value => setDraftObjects(current => ({ ...current, [file.id]: value }))} />}<SourceYear key={`${file.id}:${file.year ?? ''}`} file={file} disabled={busy} apply={year => setFileOptions(file.id, { year })} onDraftChange={year => setDraftYears(previous => ({ ...previous, [file.id]: year }))} /></div></article>;
+          return <article className="converter-file-row" key={file.id}><div className="converter-file-info"><span className="converter-format-label">{file.geneMapper ? 'TXT' : file.ngs ? 'ASTR+' : 'Excel'}</span><div><h3>{file.name}</h3><p>{prepared ? 'Готовых объектов' : 'Выбрано объектов'}: {count}{prepared?.excluded > 0 && ` · вне выгрузки: ${prepared.excluded}`}</p>{hard > 0 && reason && <p className="converter-file-problem">{reason}</p>}<button className="converter-text-button" disabled={busy} onClick={() => review('sources', file.id)}>{hard ? `Замечания: ${hard}` : 'Параметры файла'}</button></div></div><div className="converter-file-controls">{file.ngs && <SourceObjectNumber key={`${file.id}:${file.ngs.objectNumber || ''}:${file.ngs.objectConfirmed}`} file={file} disabled={busy} apply={objectNumber => { setDraftObjects(current => ({ ...current, [file.id]: objectNumber })); setFileOptions(file.id, { objectNumber, objectConfirmed: true }); }} onDraftChange={value => setDraftObjects(current => ({ ...current, [file.id]: value }))} />}<SourceYear key={`${file.id}:${file.year ?? ''}`} file={file} disabled={busy} apply={year => setFileOptions(file.id, { year })} onDraftChange={year => setDraftYears(previous => ({ ...previous, [file.id]: year }))} /></div></article>;
         })}</div>
       </section>
       {unresolved > 0 && <div className="converter-review-notice" role="status"><span>Проверьте замечания перед выгрузкой. Доступность каждого файла указана ниже.</span><button className="btn btn-secondary btn-sm" disabled={busy} onClick={() => review()}>Перейти к замечаниям</button></div>}
-      <section className="converter-card converter-save" aria-label="Сохранение результата"><div className="converter-section-heading"><div><h2>Сохранить результат</h2><p>Скачайте Excel или передайте его на экран загрузки профилей.</p></div></div>
+      <section className="converter-card converter-save" aria-label="Сохранение результата"><div className="converter-section-heading"><div><h2 ref={saveHeading} tabIndex={-1}>Сохранить результат</h2><p>Скачайте Excel или передайте его на экран загрузки профилей.</p></div></div>
         {outputs.length > 1 && <label className="converter-output-select">Результат для сохранения<select className="form-input" disabled={busy} value={selectedOutput?.id || ''} onChange={event => setOutput(event.target.value)}>{outputs.map(item => <option key={item.id} value={item.id}>{item.name}</option>)}</select></label>}
         <label className="converter-export-toggle"><input type="checkbox" checked={hideEmptyLoci} disabled={busy} onChange={event => setHideEmptyLoci(event.target.checked)} />Скрывать пустые локусы в Excel</label>
-        <div className="converter-save-actions"><button className="btn btn-primary" disabled={busy || previewStale || !selectedOutput?.ready || selectedOutput.pending} onClick={() => saveOutput(false)}>Скачать Excel</button>{onPreparedFile && <button className="btn btn-secondary" disabled={busy || previewStale || !selectedOutput?.upload || selectedOutput.pending} onClick={() => saveOutput(true)}>Перейти к загрузке</button>}{result.preparedFiles?.length > 1 && <button className="btn btn-secondary" disabled={busy || previewStale || !result.preparedFiles.some(file => file.ready) || result.files.some(file => file.geneMapper && pendingYear(file))} onClick={downloadZip}>Скачать готовые Excel (ZIP)</button>}</div>
+        <div className="converter-save-actions"><button className="btn btn-primary" disabled={busy || previewStale || !selectedOutput?.ready || selectedOutput.pending} onClick={() => saveOutput(false)}>Скачать Excel</button>{onPreparedFile && <button className="btn btn-secondary" disabled={busy || previewStale || !selectedOutput?.upload || selectedOutput.pending} onClick={() => saveOutput(true)}>Перейти к загрузке</button>}{result.preparedFiles?.length > 1 && <button className="btn btn-secondary" disabled={busy || previewStale || !outputs.some(item => item.prepared && item.ready) || outputs.some(item => item.prepared && item.ready && item.pending)} onClick={downloadZip}>Скачать готовые Excel (ZIP)</button>}</div>
         {previewStale && !busy && <p className="converter-hint" role="status">Результат не обновлён. Повторите проверку перед сохранением.</p>}
-        {selectedOutput && (!selectedOutput.upload || selectedOutput.pending) && <p className="converter-hint">{selectedOutput.pending ? 'Подтвердите изменённые номер объекта и год перед сохранением.' : !selectedOutput.ready ? 'Исправьте замечания, чтобы сохранить выбранный результат.' : 'Для загрузки в базу подтвердите год исследования в каждом файле.'}</p>}
-        <p className="converter-hint">Скачивание не добавляет профили в базу. На экране загрузки вы сможете выбрать объекты.</p>
+        {selectedOutput && (!selectedOutput.upload || selectedOutput.pending) && <p className="converter-hint">{selectedOutput.pending ? 'Подтвердите изменённые номер объекта и год перед сохранением.' : !selectedResult.profiles.length ? 'Отметьте хотя бы один объект в таблице генотипов.' : !selectedOutput.ready ? 'Проверьте выбор объектов и замечания для этого файла.' : 'Для загрузки в базу подтвердите год исследования в каждом выбранном файле.'}</p>}
+        <p className="converter-hint">В Excel попадут только отмеченные объекты.</p>
       </section>
       <section className="converter-review" ref={reviewArea} aria-label="Просмотр и проверка данных">
-        <div className="converter-review-toolbar"><strong>Данные файлов</strong><button className="converter-text-button" onClick={() => setReviewTab(reviewTab ? null : 'genotypes')}>{reviewTab ? 'Свернуть просмотр' : 'Открыть просмотр'}</button></div>
+        <div className="converter-review-toolbar"><strong>Данные файлов</strong><div className="converter-review-links">
+          {reviewTab && <button className="converter-text-button" onClick={() => saveHeading.current?.focus()}>К сохранению</button>}
+          <button className="converter-text-button" onClick={() => setReviewTab(reviewTab ? null : 'genotypes')}>{reviewTab ? 'Свернуть просмотр' : 'Открыть просмотр'}</button>
+        </div></div>
         {decisionNotice && <div className={`alert ${decisionNotice.needsReview ? 'alert-warning' : 'alert-success'}`} role="status">{decisionNotice.text}</div>}
         {bulkUndo && <div className="converter-bulk-undo" role="status"><span>Последнее массовое решение: <strong>{bulkUndo.locus}</strong> · случаев: {bulkUndo.count}</span><button className="btn btn-secondary btn-sm" disabled={busy} onClick={undoBulkDecision}>Отменить последнее массовое решение</button></div>}
         {reviewTab && <><div className="converter-review-tabs" role="tablist" aria-label="Данные конвертера">{[['genotypes', 'Генотипы'], ['issues', `Замечания${unresolved ? ` (${unresolved})` : ''}`], ['sources', 'Образцы и распознавание']].map(([id, label]) => <button key={id} id={`converter-tab-${id}`} role="tab" aria-selected={reviewTab === id} aria-controls="converter-review-panel" tabIndex={reviewTab === id ? 0 : -1} onKeyDown={event => { const ids = ['genotypes', 'issues', 'sources']; const offset = event.key === 'ArrowRight' ? 1 : event.key === 'ArrowLeft' ? -1 : 0; if (offset) { event.preventDefault(); const next = ids[(ids.indexOf(id) + offset + ids.length) % ids.length]; setReviewTab(next); document.getElementById(`converter-tab-${next}`)?.focus(); } }} onClick={() => setReviewTab(id)}>{label}</button>)}</div><div id="converter-review-panel" role="tabpanel" aria-labelledby={`converter-tab-${reviewTab}`}>
-          {reviewTab === 'genotypes' && <ConverterGrid result={result} options={options} update={update} disabled={busy} />}
-          {reviewTab === 'issues' && <ConverterIssues result={result} onDecision={applyIssueDecision} disabled={busy} />}
+          {reviewTab === 'genotypes' && <ConverterGrid result={result} options={options} update={update} disabled={busy} excluded={excluded} chooseProfiles={chooseProfiles} />}
+          {reviewTab === 'issues' && <ConverterIssues result={selectedResult} onDecision={applyIssueDecision} disabled={busy} />}
           {reviewTab === 'sources' && <ConverterSources key={reviewFile || 'default'} initialFileId={reviewFile} result={result} options={options} update={update} disabled={busy} />}
         </div></>}
       </section>

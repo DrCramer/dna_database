@@ -214,6 +214,32 @@ test('Для личного массива объекты без генотип�
   assert(invalid.issues.some(issue => issue.locus === 'D8S1179' && issue.hard));
 });
 
+test('Конвертер сохраняет только выбранные объекты и проверяет их замечания', async () => {
+  const { executeConverterJob } = require('../src/services/converters/converterJob');
+  const { parseFiles } = require('../src/services/workspace/importSourceService');
+  const { SPARSE_FORMAT: previewFormat, unpackConverterPreview } = require('../src/utils/converterPreviewTransport');
+  const { updateConverterYear } = require('../src/utils/converterYearMetadata');
+  const files = [file([headers, ['SYN-GOOD', ...values], ['SYN-BAD', 'YF', ...values.slice(1)]])];
+  const options = { lazyFiles: true, previewFormat };
+  const preview = await executeConverterJob({ files, options, operation: 'preview' });
+  const result = unpackConverterPreview(JSON.parse(Buffer.from(preview.bytes).toString('utf8')));
+  const fingerprint = result.selectionFingerprint;
+  assert.equal(result.legacyCanImport, false);
+  assert.deepEqual(result.profiles.map(profile => profile.objectNumber), ['SYN-GOOD', 'SYN-BAD']);
+  const updated = updateConverterYear(result, options, result.files[0].id, 2026);
+  const save = (excludedIndices, hash = fingerprint) => executeConverterJob({
+    files, operation: 'export',
+    options: { ...updated.options, export: { hideEmptyLoci: true, profileSelection: { excludedIndices, fingerprint: hash } } }
+  });
+  const output = await save([1]);
+  const { rows } = parseFiles([{ originalname: output.filename, buffer: Buffer.from(output.bytes) }]);
+  assert.deepEqual(rows.map(row => [row.objectNumber, row.year, row.strData.TH01]), [['SYN-GOOD', 2026, ['7', '9']]]);
+  await assert.rejects(() => save([0]), { code: 'UNRESOLVED_CONVERSION' });
+  await assert.rejects(() => save([1], 'stale'), { code: 'CONVERTER_SELECTION_CHANGED' });
+  await assert.rejects(() => save([0, 1]), /Выберите хотя бы один объект/);
+  await assert.rejects(() => save([20]), /Некорректный выбор объектов/);
+});
+
 test('Y-InDel заголовки распознаются, одиночные значения сохраняются при импорте и экспорте', async () => {
   const markerNames = ['rs199815934', 'RS771783753', 'rs759551978'];
   const headers = ['Объект', 'TH01', 'D5S818', 'D21S11', ...markerNames];

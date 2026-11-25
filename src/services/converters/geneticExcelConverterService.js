@@ -206,9 +206,10 @@ class GeneticExcelConverterService {
         originalRows += geneMapper.rowCount;
         if (originalRows > 50000) throw new ConversionError('Превышен лимит 50 000 исходных строк.');
         for (const sample of gene.preview.samples) {
-          if (!sample.included) issue({ ...base, id: `${fileId}:sample:${sample.sampleIndex}`, objectNumber: sample.sampleName, code: 'GENEMAPPER_SAMPLE_EXCLUDED', status: 'WARNING', reason: sample.reason });
-          if (options.usePanels !== false && sample.included && sample.multiplePanels && !sample.panelId) issue({ ...base, id: `${fileId}:sample-panel:${sample.sampleIndex}`, objectNumber: sample.sampleName, code: 'GENEMAPPER_MULTIPLE_PANELS', status: 'NEEDS_REVIEW', reason: 'У образца несколько исходных панелей. Явно выберите панель образца перед экспортом.' });
-          if (sample.included && result.importFormat === 'emergency' && (!sample.emergency.assignedNumber || sample.emergency.assignedNumber.length > 100 || !/^\d{1,12}$/.test(sample.emergency.shippingNumber))) issue({ ...base, id: `${fileId}:sample-emergency:${sample.sampleIndex}`, objectNumber: sample.sampleName, code: 'GENEMAPPER_EMERGENCY_METADATA', status: 'NEEDS_REVIEW', reason: 'Заполните номер, присвоенный в в/ч, и числовой номер привоза для образца ЧС.' });
+          const sampleSource = { ...base, objectNumber: sample.sampleName, geneMapperSampleName: sample.sampleName };
+          if (!sample.included) issue({ ...sampleSource, id: `${fileId}:sample:${sample.sampleIndex}`, code: 'GENEMAPPER_SAMPLE_EXCLUDED', status: 'WARNING', reason: sample.reason });
+          if (options.usePanels !== false && sample.included && sample.multiplePanels && !sample.panelId) issue({ ...sampleSource, id: `${fileId}:sample-panel:${sample.sampleIndex}`, code: 'GENEMAPPER_MULTIPLE_PANELS', status: 'NEEDS_REVIEW', reason: 'У образца несколько исходных панелей. Явно выберите панель образца перед экспортом.' });
+          if (sample.included && result.importFormat === 'emergency' && (!sample.emergency.assignedNumber || sample.emergency.assignedNumber.length > 100 || !/^\d{1,12}$/.test(sample.emergency.shippingNumber))) issue({ ...sampleSource, id: `${fileId}:sample-emergency:${sample.sampleIndex}`, code: 'GENEMAPPER_EMERGENCY_METADATA', status: 'NEEDS_REVIEW', reason: 'Заполните номер, присвоенный в в/ч, и числовой номер привоза для образца ЧС.' });
         }
       }
       let ngsSheet;

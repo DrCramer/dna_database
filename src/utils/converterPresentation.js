@@ -15,7 +15,10 @@ function converterFileSummary(result) {
     const entry = summary.get(prepared.fileId); if (entry) entry.prepared = prepared;
   }
   for (const file of result?.files || []) {
-    if (file.geneMapper) summary.get(file.id).count = file.geneMapper.samples.filter(sample => sample.included && sample.exportable).length;
+    if (file.geneMapper) {
+      const entry = summary.get(file.id);
+      entry.count = entry.prepared?.profiles ?? file.geneMapper.samples.filter(sample => sample.included && sample.exportable).length;
+    }
   }
   return summary;
 }

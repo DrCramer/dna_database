@@ -2,8 +2,56 @@ const {GeneticExcelConverterService,ConversionError}=require('./geneticExcelConv
 const {FORMAT,LEGACY_FORMAT,SPARSE_FORMAT,packConverterPreview}=require('../../utils/converterPreviewTransport');
 const {geneMapperExportResult}=require('./geneMapperSourceAdapter');
 const {normalizedExcelFilename}=require('../../utils/normalizedExcelLayout');
+const {createHash}=require('node:crypto');
+const {profileSources,selectConverterProfiles,legacyConverterResult}=require('../../utils/converterSelection');
 const JSZip=require('jszip');
-function legacyResult(result){const ids=new Set(result.files.filter(f=>!f.geneMapper).map(f=>f.id)),profiles=result.profiles.filter(p=>p.sources.every(s=>ids.has(s.fileId)));return {...result,profiles,canImport:profiles.length>0&&!result.issues.some(i=>i.hard&&(ids.has(i.fileId)||i.profileKey&&profiles.some(p=>p.key===i.profileKey)))};}
+
+function selectionFingerprint(result) {
+  const hash = createHash('sha256');
+  for (const profile of result.profiles) hash.update(JSON.stringify(profileSources(profile))).update('\n');
+  return hash.digest('hex');
+}
+
+function applyExportSelection(result, selection) {
+  if (selection === undefined) return result;
+  const { fingerprint, excludedIndices } = selection || {};
+  if (!Array.isArray(excludedIndices) || excludedIndices.length > result.profiles.length ||
+      excludedIndices.some(index => !Number.isInteger(index) || index < 0 || index >= result.profiles.length) ||
+      new Set(excludedIndices).size !== excludedIndices.length) {
+    throw new ConversionError('Некорректный выбор объектов. Повторите проверку файлов.');
+  }
+  if (fingerprint !== selectionFingerprint(result)) {
+    throw new ConversionError('Состав объектов изменился. Повторите проверку файлов и проверьте выбор.', 'CONVERTER_SELECTION_CHANGED', 409);
+  }
+  if (excludedIndices.length === result.profiles.length) {
+    throw new ConversionError('Выберите хотя бы один объект для сохранения.');
+  }
+  return selectConverterProfiles(result, excludedIndices);
+}
+
+function auditGeneMapperFiles(result, options, selectionApplied) {
+  const selectedSamples = new Map();
+  if (selectionApplied) {
+    for (const profile of result.profiles) for (const source of profile.sources) {
+      if (!source.geneMapper) continue;
+      if (!selectedSamples.has(source.fileId)) selectedSamples.set(source.fileId, new Set());
+      selectedSamples.get(source.fileId).add(source.geneMapper.sampleName);
+    }
+  }
+  return result.files.filter(file => file.geneMapper).map(file => {
+    const selected = selectedSamples.get(file.id);
+    const prepared = result.preparedFiles.find(item => item.fileId === file.id);
+    const excludedObjects = file.geneMapper.samples.flatMap(sample => {
+      const excluded = selectionApplied && sample.exportable && !selected?.has(sample.sampleName);
+      if (sample.exportable && !excluded) return [];
+      return [{ name: sample.sampleName, category: sample.classification, status: excluded ? 'Снят с выбора' : sample.status }];
+    });
+    return { fileId: file.id, filename: file.name, year: file.year, panels: file.geneMapper.panelNames,
+      summary: { ...file.geneMapper.summary, readyProfiles: prepared.profiles },
+      haploidDuplicatesConfirmed: options.files?.[file.id]?.confirmHaploidDuplicates === true, excludedObjects };
+  });
+}
+
 async function executeConverterJob({files,options,panels,operation},converter=new GeneticExcelConverterService()) {
   if (operation === 'preview-object') {
     const { objectPreviewKey, ...settings } = options;
@@ -16,11 +64,13 @@ async function executeConverterJob({files,options,panels,operation},converter=ne
     const objectsPreview = packConverterPreview(patch, SPARSE_FORMAT);
     return { bytes: new TextEncoder().encode(JSON.stringify({ objectsPreview })), mime: 'application/json', auditFiles: [] };
   }
-  const result=converter.convert(files,options,panels); // Presence/frequency checks are intentionally disabled.
-  const legacy=legacyResult(result);
-  result.legacyCanImport=legacy.canImport;result.legacyCanUpload=legacy.canImport&&legacy.profiles.every(p=>p.year!=null);
-  const auditFiles=result.files.filter(f=>f.geneMapper).map(f=>({fileId:f.id,filename:f.name,year:f.year,panels:f.geneMapper.panelNames,summary:f.geneMapper.summary,haploidDuplicatesConfirmed:options.files?.[f.id]?.confirmHaploidDuplicates===true,excludedObjects:f.geneMapper.samples.filter(s=>!s.exportable).map(s=>({name:s.sampleName,category:s.classification,status:s.status}))}));
+  const converted=converter.convert(files,options,panels); // Presence/frequency checks are intentionally disabled.
+  const result=operation==='export'?applyExportSelection(converted,options.export?.profileSelection):converted;
+  const legacy=legacyConverterResult(result);
+  result.legacyCanImport=legacy.canImport;result.legacyCanUpload=legacy.canUpload;
+  const auditFiles=auditGeneMapperFiles(result, options, result !== converted);
   if(operation==='preview'){
+    result.selectionFingerprint=selectionFingerprint(result);
     if(options.lazyFiles!==true)for(const f of result.preparedFiles)if(f.ready)f.base64=converter.export(geneMapperExportResult(result,f.fileId),options.export).toString('base64');
     // Original transfer metadata is needed for export, not the preview grid.
     for (const profile of result.profiles) if (profile.transfer) {
